@@ -15,6 +15,115 @@ public sealed class HouseholdDepartureTests
     private const string Alpha = "household:camp-alpha";
     private const string Beta = "household:camp-beta";
 
+    [Theory]
+    [InlineData("padded_coat", false)]
+    [InlineData("sack", false)]
+    [InlineData("padded_coat", true)]
+    [InlineData("sack", true)]
+    public async Task AHouseholdLeaverCollectsPersonalEquipmentBeforeEquippingIt(string kind, bool onGround)
+    {
+        var provider = new Choices();
+        using var initial = NormalPathWorld.CreateGenerated("departure-stored-equipment", _ => provider);
+        initial.Pause();
+        var actor = initial.Society.GetHousehold(Alpha).MemberIds[0];
+        var house = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
+        const string lotId = "departed-personal-equipment";
+        var state = initial.ExportState();
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, lotId, kind, actor, 1,
+            storageBuildingId: onGround ? null : house.InstanceId,
+            groundPosition: onGround ? new(house.Position.X, house.Position.Y) : null);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = house.Position, HungerBasisPoints = 9_000, LastDecisionContext = null }
+                : person).ToArray(),
+        };
+        using var departing = PrivateWorldRuntime.Restore(state, _ => provider);
+        provider.Wanted[actor] = "household_leave";
+        departing.Resume();
+        await AdvanceUntil(departing, () => departing.Society.GetInhabitant(actor).HouseholdId is null);
+        departing.Pause();
+        state = departing.ExportState();
+        var systems = state.WorldSystems!;
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { LastDecisionContext = null } : person).ToArray(),
+            WorldSystems = systems with
+            {
+                RegionalWeather = null,
+                Config = systems.Config with
+                {
+                    WeatherProfiles = Enum.GetValues<SeasonKind>().Select(season =>
+                        new WeatherProfile(season, 0, 0, 0, 0, 1)).ToArray(),
+                },
+                Climate = systems.Climate with { Weather = WeatherKind.Snow },
+            },
+        };
+        var saved = PrivateWorldRuntimeCodec.Encode(state);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => provider);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        var action = kind == "sack" ? "equip_carry_aid" : "wear_clothing";
+        provider.Wanted[actor] = action;
+        world.Resume();
+        for (var tick = 0; tick < 3; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            world.Validate();
+            Assert.DoesNotContain(action, provider.Offered[actor]);
+            Assert.False(PersonalEquipmentRules.IsCarried(world.Society.Inventory.GetLot(lotId), actor));
+        }
+        await VerifyHostAndSaveAsync(world);
+        provider.Wanted[actor] = "household_collect:" + lotId;
+        // A deliberate change of choice needs a fresh decision, not altered stock.
+        state = world.ExportState();
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { LastDecisionContext = null } : person).ToArray(),
+        };
+        using var collecting = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
+        await AdvanceUntil(collecting, () => PersonalEquipmentRules.IsCarried(collecting.Society.Inventory.GetLot(lotId), actor));
+        provider.Wanted[actor] = action;
+        await AdvanceUntil(collecting, () => kind == "sack"
+            ? collecting.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.CarryAidLotId == lotId
+            : collecting.Inhabitants.Single(person => person.InhabitantId == actor).Equipment?.ClothingLotId == lotId);
+        collecting.Validate();
+        var unit = collecting.Society.Inventory.GetLot(lotId);
+        Assert.Equal((actor, 1), (unit.OwnerId, unit.Quantity));
+        Assert.Null(unit.StorageBuildingId);
+        Assert.Null(unit.GroundPosition);
+        var equipped = PrivateWorldRuntimeCodec.Encode(collecting.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(equipped), _ => provider);
+        Assert.Equal(equipped, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        await VerifyHostAndSaveAsync(restored);
+
+        async Task VerifyHostAndSaveAsync(PrivateWorldRuntime current)
+        {
+            var directory = Directory.CreateTempSubdirectory("departed-equipment-host-");
+            try
+            {
+                var file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.bin"), _ => provider);
+                file.Save(current);
+                var presence = new OwnerClientPresenceLease(TimeSpan.FromSeconds(30));
+                presence.RecordAuthenticatedReconnect("owner");
+                using var service = new PrivateWorldRuntimeService(current, file, presence);
+                var before = current.WorldTick;
+                for (var tick = 0; tick < 3; tick++)
+                    Assert.True(await service.TryAdvanceOnceAsync(), "The native host must keep advancing and writing recovery checkpoints.");
+                Assert.Equal(before + 3, current.WorldTick);
+                Assert.False(current.Society.IsPaused);
+                current.Validate();
+                var bytes = File.ReadAllBytes(file.Path);
+                Assert.Equal(PrivateWorldRuntimeCodec.Encode(current.ExportState()), bytes);
+                using var fromDisk = file.LoadOrCreate(state.WorldSeed);
+                Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(fromDisk.ExportState()));
+            }
+            finally { directory.Delete(recursive: true); }
+        }
+    }
+
     [Fact]
     public async Task CurrentResidentCanDeliberatelyCollectPersonalGoodsAfterReload()
     {

@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # How the game works
@@ -2268,6 +2268,14 @@ values. First-Town setup stores each starting agent's garment in their
 household's House. A package is staged for older worlds on the first tick, but
 the settlement package's digest changed when the Weaving frame was removed, so
 saves made before this change are refused.
+
+Garment and carrying-aid selection uses personally carried goods, actual
+household stock or permitted Town Warehouse stock. Having no household does
+not make a person's own ID a shared-stock owner. Their goods left in a House
+or on the ground remain physical collection choices until picked up, with
+the usual access, travel and carrying-space checks. Equipping shared goods
+still collects one unit at its location. Save validation requires every
+equipped unit to be personally owned, carried and unreserved.
 
 The five alternative household building sizes have separate shipped packages;
 their original definitions and first-Town defaults keep their identities.
