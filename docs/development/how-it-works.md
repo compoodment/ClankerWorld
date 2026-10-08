@@ -2880,9 +2880,9 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   wood and one `tree_seed`; the stump regrows in spring. One tree-seed item
   serves broadleaf and conifer.
 - **Planting** is the typed `PlantTree` action. It checks, in order, the
-  species (broadleaf or conifer only; orchard propagation is still open), that
-  the planter is an adult, that the seed lot is a tree seed they own with one
-  free, the ground (grass, forest floor or fertile soil; never water, sand,
+  species (broadleaf, conifer or orchard), that
+  the planter is an adult, that the seed lot is the matching seed they own with one
+  available for planting, the ground (grass, forest floor or fertile soil; never water, sand,
   rock, snow or dry scrub), buildings, Roads and existing objects, that the
   planter stands on or next to the tile, and the chunk's resource budget. A
   refusal returns a `TreePlantingRefusal` and a one-line reason and changes
@@ -2898,6 +2898,17 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
   worlds) and falls when that season ends. New worlds start in spring, so
   orchards start without fruit.
+- **Owner orders** accept bounded tree counts, repeat-until-cancelled work,
+  optional broadleaf/conifer/orchard species and an exact planting tile. The
+  parser, observer guidance and strict saved-order validation use the same
+  actions. Every step checks the live site, seed access and route. An adult
+  physically collects personal stored seeds or permitted shared stock before
+  planting through `PlantTreeCore`. Exact sites stay outside Town borders and
+  never fall back to a different tile. Only a successful sapling creation
+  credits the `tree:plant:planted-tree-{x}-{y}` receipt; pickup, movement and
+  refusal leave progress unchanged. Queues, cancellation, survival interrupts
+  and continuation use the existing owner-order lifecycle. No new checkpoint
+  field or growth rule is introduced.
 - **Saves.** Planted trees are part of the saved map. On load, the map must
   still match regeneration apart from the settlement's staged sites and valid
   planted trees; each planted tree must be a plantable species on legal ground,
@@ -2977,7 +2988,10 @@ has no teacher; completing an accepted lesson records the teacher's agent ID.
 
 Lesson candidates use saved skills and the existing food/warmth readiness
 rules, independently of work roles. A mentor cannot be working on an active
-project, handling another social decision, or reserved for another lesson.
+project, carrying out an operative Must Do order, handling another social
+decision, or reserved for another lesson. Cancelling or finishing the order
+allows lesson requests and replies again; a pending request keeps its normal
+consent and expiry rules. Suggestive guidance does not reserve the teacher.
 Both participants must be able to reach the common lesson site when a request
 is offered or executed and when the teacher accepts. Mentor selection keeps
 its stable identity order but skips adults without a physical route, so an

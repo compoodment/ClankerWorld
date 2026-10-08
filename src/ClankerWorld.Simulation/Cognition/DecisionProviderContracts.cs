@@ -382,6 +382,7 @@ public sealed record InhabitantObservation(
                         "repair your own worn tool" or
                         "till a field for your household" or
                         "plant the requested crop in your household field" or
+                        "plant the requested tree using a real seed outside Town borders" or
                         "tend your household crop" or
                         "harvest your household crop" or
                         "travel to the exact tile named in this order" or
