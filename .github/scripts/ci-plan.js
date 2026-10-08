@@ -132,19 +132,21 @@ function median(values) {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-// Each test's median seconds over main's runs in `dir`, one folder per run, and how many runs had
-// timings. One run's times swing too much to split the tests by, or to compare a change with.
+// Each test's median seconds over main's runs in `dir`, one folder per run named by its run ID, how
+// many runs had timings and their IDs. One run's times swing too much to split the tests by, or to
+// compare a change with.
 function readMainTimings(dir) {
   const folders = dir && fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).filter(item => item.isDirectory()) : [];
   const samples = {};
-  let runs = 0;
-  for (const folder of folders) {
+  const ids = [];
+  for (const folder of folders.sort((a, b) => (a.name < b.name ? -1 : 1))) {
     const times = readTimings(path.join(dir, folder.name));
     if (Object.keys(times).length === 0) continue;
-    runs++;
+    ids.push(folder.name);
     for (const [name, seconds] of Object.entries(times)) (samples[name] ??= []).push(seconds);
   }
-  return { times: Object.fromEntries(Object.entries(samples).map(([name, values]) => [name, median(values)])), runs };
+  const times = Object.fromEntries(Object.entries(samples).map(([name, values]) => [name, median(values)]));
+  return { times, runs: ids.length, ids };
 }
 
 function mainRuns(runs) {

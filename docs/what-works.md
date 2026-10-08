@@ -298,7 +298,9 @@ An adult can also follow "Become guardian for Lina", using the full name of a
 child with an open guardian search. The name is resolved once to that child,
 so a later rename does not redirect the task. Acceptance uses the search's
 current eligibility rules and finishes only after primary care is assigned.
-House capacity and same-Town rules still govern relocation. This is one
+House capacity and same-Town rules still govern relocation. A blocked collection
+route does not prevent another accepted child with a clear route from moving
+home; the blocked move keeps its accepted guardian and retries later. This is one
 acceptance, not a repeated task; other non-food task domains remain in
 [#587](https://github.com/compoodment/ClankerWorld/issues/587).
 
@@ -442,8 +444,9 @@ Clinic, Store or Restaurant at its starting size (including the 1×1 Store
 and 1×2 Restaurant) through the
 ordinary household construction path. "Build a
 Clinic at (12, 4)" requires that exact site; without coordinates the agent
-chooses a legal site and keeps it. Normal one-per-kind limits, Silo
-prerequisites, material ownership, carrying, travel and construction work
+chooses a legal site and keeps it. An animal yard requires a completed House;
+its order waits without spending materials until that House exists.
+Normal one-per-kind limits, Silo prerequisites, material ownership, carrying, travel and construction work
 still apply. An existing building or somebody else's project never counts as
 the ordered completion.
 
