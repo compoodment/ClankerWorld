@@ -1367,6 +1367,12 @@ materials still lack a complete production chain.
 
 ## Saves, keys and inventions
 
+A written [private-server deployment checklist](development/private-server-deployment.md)
+is available for manual server updates. It covers staging a build, preserving
+installation state, checking the updated server while paused and rolling back
+if needed. The staged deployment command and local Windows package remain
+unfinished. Each deployment or rehearsal needs its own recorded results.
+
 Worlds keep their own saves, model assignments and autosave settings. API keys,
 pairing and the model-call count and limit belong to the installation. The
 Windows host protects stored keys for the current Windows user; Unix hosts use
