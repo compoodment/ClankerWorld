@@ -16,11 +16,14 @@ switch (command)
     case "scene":
         SceneRunner.Run(Path.Combine(outRoot, "scene"));
         break;
+    case "animate":
+        Animations.Run(Path.Combine(outRoot, "animated"), args.Length > 2 ? args[2] : null);
+        break;
     case "check":
         ArtContractChecks.Run();
         break;
     default:
-        Console.Error.WriteLine("usage: baseline|proposed|scene <out dir> [proposal family] | check");
+        Console.Error.WriteLine("usage: baseline|proposed|scene|animate <out dir> [proposal family] | check");
         return 2;
 }
 return 0;
@@ -258,6 +261,32 @@ public interface IArtProposal
 {
     string Family { get; }
     IEnumerable<Entry> Render();
+}
+
+/// <summary>A proposal that moves, such as weather: <c>animate</c> writes each of its loops as numbered frames.</summary>
+public interface IAnimatedArtProposal
+{
+    string Family { get; }
+    IEnumerable<(string Id, IReadOnlyList<Image> Frames)> Animate();
+}
+
+static class Animations
+{
+    public static void Run(string root, string? family = null)
+    {
+        foreach (var proposal in typeof(IAnimatedArtProposal).Assembly.GetTypes()
+                     .Where(type => typeof(IAnimatedArtProposal).IsAssignableFrom(type) && !type.IsAbstract && !type.IsInterface)
+                     .Select(type => (IAnimatedArtProposal)Activator.CreateInstance(type)!)
+                     .Where(proposal => family is null || proposal.Family == family))
+            foreach (var (id, frames) in proposal.Animate())
+            {
+                var dir = Path.Combine(root, proposal.Family, id);
+                Directory.CreateDirectory(dir);
+                for (var frame = 0; frame < frames.Count; frame++)
+                    File.WriteAllBytes(Path.Combine(dir, $"{frame:D2}.png"), frames[frame].SavePngToBuffer());
+                Console.WriteLine($"{proposal.Family}/{id}: {frames.Count} frames");
+            }
+    }
 }
 
 static class Proposals
