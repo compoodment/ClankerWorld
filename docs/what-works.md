@@ -936,6 +936,9 @@ Non-land cases have a separate protected mandate. Reports retain the conduct,
 applicable law version and actual evidence sources. Response windows,
 independent judges and reasoned findings lead to explanations, warnings or
 censure, with voluntary offers for named goods, repair or public service.
+Inspecting a law preserves complete emoji at the evidence excerpt's limit,
+so saving and reloading keeps its exact historical source. Already damaged
+alpha checkpoints remain refused and preserved.
 Every contributor gives their own informed acceptance; physical completion
 receipts distinguish accepted work from completed work. Visitors retain local
 response rights and children receive caregiver support. Counteroffers during

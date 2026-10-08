@@ -90,7 +90,13 @@ public sealed partial class PrivateWorldRuntime
     private static string NonviolentText(string? text) => CognitionDecisionResponse.NormalizeIdentityText(text) ??
         throw new InvalidOperationException("A legal submission needs a clear personal statement.");
 
-    private static string NonviolentExcerpt(string text, int limit) => text[..Math.Min(limit, text.Length)];
+    private static string NonviolentExcerpt(string text, int limit)
+    {
+        var length = Math.Min(limit, text.Length);
+        if (length > 0 && length < text.Length && char.IsHighSurrogate(text[length - 1]) && char.IsLowSurrogate(text[length]))
+            length--;
+        return text[..length];
+    }
 
     private string NonviolentKnownAllegationText(TownRuntimeState town, TownViolationAllegation allegation)
     {
