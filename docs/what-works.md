@@ -244,6 +244,8 @@ paper and cloth. Finished items count toward the order; identical accounts
 are not written again. More writing waits for new learning, supplies and room
 to carry them. Cancelled or replaced orders release their unused reservations.
 
+Urgently hungry agents may pause an order to drink usable carried milk,
+leaving their jug intact and resuming the pending task afterward.
 Urgently hungry adults may pause an order to buy ready food at a shop or
 Restaurant, including continuing an open food purchase. They need their own
 payment and enough carrying room, and keep the outstanding order. Equipment

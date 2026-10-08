@@ -195,7 +195,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool IsFoodSurvivalCandidate(string actor, string candidateId) => candidateId is
-        "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
+        "consume_food" or "drink_milk" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
         "harvest_food" or "seek_food" || candidateId.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal) ||
         NeedsUrgentFood(inhabitants[actor]) &&
         (IsBusinessFoodCandidate(actor, candidateId) || IsMarketFoodCandidate(actor, candidateId));
