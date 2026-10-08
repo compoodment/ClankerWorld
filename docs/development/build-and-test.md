@@ -214,7 +214,7 @@ code, durability checks or test assertions.
 
 Hands-on checks above describe useful verification, not a blanket pre-merge
 playtest gate. Routine owner playtesting may follow merge under
-[Drafts and readiness](../../CONTRIBUTING.md#drafts-and-readiness). Keep pending
+[Change and verification rules](../../CONTRIBUTING.md#change-and-verification-rules). Keep pending
 playtests explicit in the [playtest list](#windows-playtests); do not equate a
 passing automated check with actual play.
 The separate release gates still apply when preparing a release.
