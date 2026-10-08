@@ -266,11 +266,24 @@ dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.cs
 ```
 
 These checks cover front matter on pages under `docs/`, local links and linked
-headings in every Markdown file, and that each entry in `changes/` starts with
-a `- ` bullet. They do not check that any particular page exists. The
+headings in every Markdown file, that each entry in `changes/` starts with
+a `- ` bullet, and that game-design chapters don't describe what is built,
+such as "not built yet" or "remains unfinished". They do not check that any particular page exists. The
 documentation test reads each page with both LF and CRLF line endings, and CI
 also runs it on a Windows checkout. That job is separate from a Windows game
 playtest and from the native provider-storage checks.
+
+To find sentences a change may have made false, search every page for the
+names of what changed:
+
+```bash
+node scripts/find-stale-docs.js "orchard" "plant_orchard"
+```
+
+It lists each paragraph, list item or table row that names one of them and
+says something is missing, unfinished or undecided, or that sits under a
+**Still to decide** heading. Read each one: the search finds candidates, and
+only reading decides whether a sentence is still true.
 
 ## Disk space
 

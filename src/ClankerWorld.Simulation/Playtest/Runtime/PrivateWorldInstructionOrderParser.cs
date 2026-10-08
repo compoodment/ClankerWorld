@@ -491,6 +491,7 @@ internal static class PrivateWorldInstructionOrderParser
                 "write" or "writing" => "write",
                 "draw" or "drawing" => "draw",
                 "bind" or "binding" => "bind",
+                "copy" or "copying" => "copy",
                 _ => null,
             };
             if (verb is null || keep && !word.EndsWith("ing", StringComparison.Ordinal)) return null;
@@ -512,8 +513,8 @@ internal static class PrivateWorldInstructionOrderParser
                 repeat = true;
             }
             if (!ReadWord("now")) _ = ReadWord("please");
-            return position == end ? new OwnerInstructionOrder("write_knowledge", "queued", quantity, 0,
-                "artifacts", repeat, explicitQuantity)
+            return position == end ? new OwnerInstructionOrder(verb == "copy" ? "copy_knowledge" : "write_knowledge", "queued", quantity, 0,
+                verb == "copy" ? "copies" : "artifacts", repeat, explicitQuantity)
             { TargetKnowledgeKind = kind } : null;
         }
 

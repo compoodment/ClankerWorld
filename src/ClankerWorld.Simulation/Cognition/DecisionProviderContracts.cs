@@ -369,6 +369,7 @@ public sealed record InhabitantObservation(
                         "deliver the requested goods to a permitted building" or
                         "make the requested goods at a permitted workstation" or
                         "write the requested record, map or book from your learned sites using real materials" or
+                        "copy the requested held record, map or book using real materials and sites you know" or
                         "construct the requested household building at a permitted site" or
                         "complete the requested building's next permitted expansion" or
                         "reach the requested permitted shelter" or

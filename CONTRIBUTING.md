@@ -29,6 +29,10 @@ Otherwise use the matching template:
   tests, gets its own Bug issue. A merged change that still needs a hands-on
   check does not: its pull request adds a [playtest list](playtest/README.md)
   file instead ([how](#close-issues-when-the-work-merges)).
+- An issue filed through the API or an agent's GitHub tools still uses its
+  template's sections. An Implementation issue says under **Saves, replay and
+  docs** which pages the change will update and which sentences it makes
+  false.
 - computment reads chat, not GitHub comments. An agent that needs their answer
   asks in its chat reply and records the answer afterwards
   ([how](AGENTS.md#ask-the-owner-in-chat)).
@@ -312,7 +316,10 @@ was not checked.
   as a duplicate of the new one.
 - **Decisions:** the pull request that records the owner's answer in the game
   design, or in the workflow rules for a workflow decision, closes the
-  Decision issue and links or opens the implementation issues. Implementation
+  Decision issue and links or opens the implementation issues. It also takes
+  the question off every chapter and page that still lists it as open, and
+  fixes any [what works today](docs/what-works.md) line the answer makes
+  false; `scripts/find-stale-docs.js` finds them. Implementation
   may start once the owner explicitly approves the design, including in chat.
   The design pull request takes the highest priority of the issues it
   unblocks, and reviewers take it first. Each dependent implementation pull
@@ -389,6 +396,23 @@ playable. Put detailed unresolved findings in Issues, and link them from a page
 only when that helps a reader understand a limitation. If a page moves, update
 the links to it; the [documentation checks](docs/development/build-and-test.md#focused-documentation-checks)
 fail on any local link or heading link you miss.
+
+**Find what your change made false.** A change that builds, removes or decides
+something makes older sentences elsewhere wrong: a "not built yet",
+"unfinished", "cannot yet" or "Still to decide" line in another paragraph, on
+another page or in a game-design chapter. Writing about the new behavior is
+not enough. Before you mark the pull request ready, run
+`node scripts/find-stale-docs.js <names>` with the names a reader would use
+for what you changed, such as the feature, building, item, order, setting or
+class, and read every place it lists. Fix each sentence your change made
+false, on any page, in the same pull request, and write the names you
+searched in the pull request.
+
+**Game-design pages describe the design.** A game-design chapter says what the
+game is meant to do. What the build does today belongs in
+[what works today](docs/what-works.md) and the developer pages, so don't write
+that something is "not built yet" or "unfinished" in a game-design chapter;
+the documentation checks refuse it.
 
 Add a plain-English changelog entry for player-visible gameplay, UI,
 world-runtime, save-compatibility, deployment, packaging or security changes.
@@ -573,6 +597,10 @@ Before merging, check that:
    merged. Code dependencies and the design-before-implementation rule above
    set such an order in the description; an order stated only in a comment
    binds nobody.
+6. No doc still contradicts the change. Run `node scripts/find-stale-docs.js`
+   with the change's names, read what it lists, and fix any sentence the change
+   made false ([how](#keep-documentation-and-the-changelog-useful)); a wording
+   fix needs no second look.
 
 Squash-merge with `<PR title> (#<number>)` as the subject. Write the body
 yourself, never GitHub's list of branch commit messages: what changed and why;
