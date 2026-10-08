@@ -2258,7 +2258,7 @@ public partial class Main
                      {
                          ("broadleaf", new[] { "seed", "sapling", "mature", "stump" }),
                          ("conifer", new[] { "seed", "sapling", "mature", "stump" }),
-                         ("orchard", new[] { "growing", "fruiting", "picked" }),
+                         ("orchard", new[] { "sapling", "growing", "fruiting", "picked" }),
                      })
                 foreach (var stage in stages)
                     if (TreeArtManifest.For(species, stage) is not { } art || string.IsNullOrWhiteSpace(art.AssetId) ||
@@ -3030,6 +3030,7 @@ public partial class Main
             await VerifyAgentPosesAsync(sample, founder);
             await VerifyMountainReliefAsync();
             await VerifyDesertAndSnowArtAsync();
+            VerifyOrchardSaplingAppearance(sample);
             var crowded = sample with
             {
                 WorldId = "ui-marker-bounds",
