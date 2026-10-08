@@ -168,8 +168,8 @@ public sealed partial class PrivateWorldRuntime
             HouseholdFor(actor) is { } oreHousehold && BlacksmithForHousehold(oreHousehold) is { } oreSmith &&
             DeliveryDestinationMatches(order, oreSmith) &&
             BlacksmithOreStocked(oreHousehold, oreSmith.InstanceId) < BlacksmithInputTarget(oreSmith.InstanceId, "iron_ore") &&
-            PersonalSmithOre(actor) is null && !society.Checkpoint.Inventory.Lots.Any(lot => lot.OwnerId == oreHousehold &&
-                lot.ItemKind == "iron_ore" && AvailableLotQuantity(lot) > 0) && MaterialSource("iron_ore", actor) is { } oreSource &&
+            PersonalSmithOre(actor) is null && !BlacksmithHasDeliverableInput(oreHousehold, oreSmith, actor, "iron_ore") &&
+            MaterialSource("iron_ore", actor) is { } oreSource &&
             FreeCarryCapacity(actor) >= ProjectMaterialCarryUnits(actor, "iron_ore", oreSource) &&
             DeliveryCanReach(actor, person.Position, oreSource.Position, ResourceInteractionRange))
             return (oreSmith, "blacksmith_input", oreSource);
