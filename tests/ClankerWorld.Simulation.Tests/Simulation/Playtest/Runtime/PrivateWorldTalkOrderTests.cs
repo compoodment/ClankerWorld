@@ -147,14 +147,14 @@ public sealed partial class PrivateWorldConversationTests
         for (var tick = 0; tick < 5; tick++) await AdvanceTalkOrderTick(restored);
         Assert.Equal(active.Turns.Count, Assert.Single(restored.Conversations).Turns.Count);
         Assert.Empty(Assert.Single(restored.Conversations).ResumeAcceptedBy);
-        provider.ResumeAgents.Add(InitiatorId);
+        provider.ResumeAgents.TryAdd(InitiatorId, 0);
         for (var tick = 0; tick < 40 && Assert.Single(restored.Conversations).ResumeAcceptedBy.Count == 0; tick++)
             await AdvanceTalkOrderTick(restored);
         Assert.Equal([InitiatorId], Assert.Single(restored.Conversations).ResumeAcceptedBy);
         Assert.Equal(active.Turns.Count, Assert.Single(restored.Conversations).Turns.Count);
         using var halfReloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(restored.ExportState())), _ => provider);
         Assert.Empty(Assert.Single(halfReloaded.Conversations).ResumeAcceptedBy);
-        provider.ResumeAgents.Add(InviteeId);
+        provider.ResumeAgents.TryAdd(InviteeId, 0);
         for (var tick = 0; tick < 70 && !halfReloaded.ExportState().CompletedInstructionIds!.Contains(receipt.InstructionId); tick++)
             await AdvanceTalkOrderTick(halfReloaded);
         var completed = Assert.Single(halfReloaded.Conversations);
@@ -319,7 +319,7 @@ public sealed partial class PrivateWorldConversationTests
         public long ProviderEpoch => 1;
         public ConcurrentBag<AgentConversationTurnRequest> TurnRequests { get; } = [];
         public HashSet<string> SpeakIds { get; } = [InitiatorId, InviteeId];
-        public HashSet<string> ResumeAgents { get; } = [];
+        public ConcurrentDictionary<string, byte> ResumeAgents { get; } = new(StringComparer.Ordinal);
         public string DeclineAgent { get; set; } = InviteeId;
         public bool CanSpeakAs(string agentId) => SpeakIds.Contains(agentId);
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
@@ -330,7 +330,7 @@ public sealed partial class PrivateWorldConversationTests
             var selected = observation.Candidates.FirstOrDefault(candidate => decline && observation.InhabitantId == DeclineAgent &&
                     candidate.Id.StartsWith("conversation_decline:", StringComparison.Ordinal)) ??
                 observation.Candidates.FirstOrDefault(candidate => !decline && candidate.Id.StartsWith("conversation_accept:", StringComparison.Ordinal)) ??
-                observation.Candidates.FirstOrDefault(candidate => ResumeAgents.Contains(observation.InhabitantId) && candidate.Id.StartsWith("conversation_resume:", StringComparison.Ordinal)) ??
+                observation.Candidates.FirstOrDefault(candidate => ResumeAgents.ContainsKey(observation.InhabitantId) && candidate.Id.StartsWith("conversation_resume:", StringComparison.Ordinal)) ??
                 observation.Candidates.FirstOrDefault(candidate => candidate.Id.StartsWith("conversation_wrapup_accept:", StringComparison.Ordinal)) ??
                 observation.Candidates.FirstOrDefault(candidate => candidate.Id == "safe_idle") ?? observation.Candidates[0];
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, observation.InhabitantId,
