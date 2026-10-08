@@ -262,9 +262,7 @@ public partial class Main
         var household = building.HouseholdId is { } householdId ? GameUiText.PartyName(snapshot, householdId) : null;
         var town = snapshot.Towns.FirstOrDefault(item => item.Id == building.TownId)?.Name;
         var owner = string.Join(" · ", new[] { household, town }.Where(part => part is not null));
-        var inside = snapshot.Inhabitants
-            .Where(person => !person.IsDraft && IsLiving(person) &&
-                footprint.HasPoint(new Vector2I(person.Position.X, person.Position.Y)))
+        var inside = PeopleInside(snapshot, building.InstanceId).GetValueOrDefault(building.InstanceId, [])
             .Select(person => person.DisplayName).Order(StringComparer.CurrentCulture).ToArray();
         var jobs = snapshot.ProductionJobs
             .Where(job => job.BuildingInstanceId == building.InstanceId &&

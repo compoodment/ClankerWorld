@@ -14,7 +14,7 @@ public partial class Main
     /// and not riding. They are hidden from the map, and the building shows a
     /// badge with how many are inside.
     /// </summary>
-    private static Dictionary<string, OwnerWorldInhabitant[]> PeopleInside(OwnerWorldSnapshot snapshot)
+    private static Dictionary<string, OwnerWorldInhabitant[]> PeopleInside(OwnerWorldSnapshot snapshot, string? buildingId = null)
     {
         var riders = snapshot.Animals.Where(animal => animal.RiderId is not null).Select(animal => animal.RiderId!)
             .ToHashSet(StringComparer.Ordinal);
@@ -24,7 +24,7 @@ public partial class Main
             .ToArray();
         var inside = new Dictionary<string, OwnerWorldInhabitant[]>(StringComparer.Ordinal);
         if (people.Length == 0) return inside;
-        foreach (var building in snapshot.PlacedBuildings)
+        foreach (var building in snapshot.PlacedBuildings.Where(building => buildingId is null || building.InstanceId == buildingId))
         {
             if (StreetLanternLight.IsLantern(building.Tags)) continue;
             var kind = BuildingSprites.KindFor(building.Tags);

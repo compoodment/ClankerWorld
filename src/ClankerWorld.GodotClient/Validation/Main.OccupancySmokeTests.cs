@@ -14,6 +14,8 @@ public partial class Main
     {
         if (renderedMapSnapshot is not { } map) return;
         var (zoomBefore, centerBefore) = (cameraZoom, cameraCenterTiles);
+        var (buildingBefore, detailsBefore) = (selectedBuildingId, buildingDetailsRequested);
+        var cardBefore = buildingCardSnapshot;
         cameraZoom = maximumCameraZoom;
         cameraCenterTiles = new Vector2(12, 11);
         OwnerWorldInhabitant Person(string id, string name, int x, int y) => new(id, name, "active", new(x, y), 8_000, [], [],
@@ -43,11 +45,42 @@ public partial class Main
             RenderMap(busy with { Inhabitants = [Person("inside:ada", "Ada", 10, 11), Person("inside:ben", "Ben", 11, 11)] });
             if (occupancyBadges.ContainsKey("inside-house") || !inhabitantVisuals["inside:ada"].Visible || !inhabitantVisuals["inside:ben"].Visible)
                 throw new InvalidOperationException("People who leave must show again, and the empty House lose its badge.");
+
+            var smith = house with
+            {
+                InstanceId = "inside-smith",
+                DefinitionId = "test/blacksmith",
+                DisplayName = "Blacksmith",
+                Tags = ["blacksmith"],
+                Width = 2,
+                Height = 2,
+                Entrance = new(10, 12)
+            };
+            var split = busy with
+            {
+                PlacedBuildings = [smith],
+                Inhabitants = [Person("inside:eli", "Eli", 10, 10), Person("inside:fern", "Fern", 11, 10)]
+            };
+            RenderMap(split);
+            selectedBuildingId = smith.InstanceId;
+            buildingDetailsRequested = true;
+            RenderBuildingCard(split);
+            if (inhabitantVisuals["inside:eli"].Visible || !inhabitantVisuals["inside:fern"].Visible ||
+                !occupancyBadges.TryGetValue(smith.InstanceId, out var smithBadge) || smithBadge.Count != 1 ||
+                smithBadge.TooltipText != "1 person inside: Eli" || buildingPeopleSummary.Text != "1 inside" ||
+                buildingPeopleText.Text != "Inside: Eli")
+                throw new InvalidOperationException("The map badge and building card must name only the person under the roof, not the person in its open yard.");
         }
         finally
         {
             (cameraZoom, cameraCenterTiles) = (zoomBefore, centerBefore);
+            (selectedBuildingId, buildingDetailsRequested) = (buildingBefore, detailsBefore);
             RenderMap(map);
+            buildingCardSnapshot = cardBefore;
+            if (buildingBefore is not null && cardBefore is not null)
+                RenderBuildingCard(cardBefore);
+            else
+                ClearBuildingSelection();
         }
     }
 }
