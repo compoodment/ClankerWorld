@@ -16,18 +16,20 @@ public sealed class PolarMapEdgeTests
         bool wrap, ClimateMode mode, bool latitudeCooling, ClimateZone climate, int waterPercent)
     {
         var options = new GeographyOptions(seed, size, wrap, waterPercent, mode, climate, latitudeCooling);
-        var geography = GeographyGenerator.Generate(options);
-        var edgeRows = Enumerable.Range(0, geography.Height)
-            .Where(y => GeographyGenerator.IsPolarEdgeRow(y, geography.Height)).ToArray();
+        var map = GeneratedCampMapGenerator.Generate(options);
+        var edgeRows = Enumerable.Range(0, map.Height)
+            .Where(y => GeographyGenerator.IsPolarEdgeRow(y, map.Height)).ToArray();
         Assert.Equal(GeographyGenerator.PolarEdgeRows * 2, edgeRows.Length);
         foreach (var y in edgeRows)
-            for (var x = 0; x < geography.Width; x++)
-                Assert.Equal((WaterKind.Ocean, ClimateZone.Polar), (geography.At(x, y).Water, geography.At(x, y).Climate));
-        // The rows inside the edge are generated as before, so the world is not all sea.
-        Assert.Contains(Enumerable.Range(0, geography.Width), x => geography.At(x, GeographyGenerator.PolarEdgeRows).Water != WaterKind.Ocean ||
-            geography.At(x, geography.Height / 2).Water == WaterKind.Land);
+            for (var x = 0; x < map.Width; x++)
+            {
+                var point = new GridPoint(x, y);
+                Assert.Equal((WaterKind.Ocean, ClimateZone.Polar), (map.HydrologyAt(point), map.ClimateAt(point)));
+            }
+        // Only the edge changes: the rest of the map keeps its land.
+        Assert.Contains(map.Tiles, tile => !GeographyGenerator.IsPolarEdgeRow(tile.Position.Y, map.Height) &&
+            map.HydrologyAt(tile.Position) == WaterKind.Land);
 
-        var map = GeneratedCampMapGenerator.Generate(options);
         foreach (var y in edgeRows)
             for (var x = 0; x < map.Width; x++)
                 Assert.False(map.IsPassable(new GridPoint(x, y)), $"Edge tile ({x}, {y}) must not be walkable.");

@@ -290,29 +290,12 @@ public static class GeographyGenerator
                 climate[index] = (byte)chosen;
             }
         }
-        // The edge rows become cold polar sea last, whatever the climate
-        // setting, so the rest of the map is generated exactly as before.
-        foreach (var index in PolarEdgeIndexes(width, height))
-        {
-            elevation[index] = (byte)Math.Min(elevation[index], waterLevel);
-            water[index] = (byte)WaterKind.Ocean;
-            climate[index] = (byte)ClimateZone.Polar;
-            temperature[index] = Math.Min(temperature[index], (byte)40);
-        }
         return new GeneratedGeography(width, height, options.WrapEastWest, elevation, rainfall, water,
             temperature, climate, drainage);
     }
 
     /// <summary>Whether a row is one of the polar sea rows at the north or south edge.</summary>
     public static bool IsPolarEdgeRow(int y, int height) => y < PolarEdgeRows || y >= height - PolarEdgeRows;
-
-    private static IEnumerable<int> PolarEdgeIndexes(int width, int height)
-    {
-        for (var y = 0; y < height; y++)
-            if (IsPolarEdgeRow(y, height))
-                for (var x = 0; x < width; x++)
-                    yield return y * width + x;
-    }
 
     /// <summary>
     /// A seeded, coherent noise field for a later map layer, such as where
