@@ -243,7 +243,7 @@ public sealed partial class PortBoatRuntimeTests
             Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(voyage.World.ExportState()));
             if (outcome == "death")
             {
-                await voyage.UntilAsync(() => voyage.World.ExportState().DeceasedInhabitants!.Any(person =>
+                await voyage.UntilAsync(() => (voyage.World.ExportState().DeceasedInhabitants ?? []).Any(person =>
                     person.InhabitantId == BoatPolicy.Author), 4);
                 Assert.Contains("travel-jug", voyage.World.Boats[0].GroundCargoLotIds!);
                 _ = file.Save(voyage.World);
