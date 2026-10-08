@@ -170,8 +170,11 @@ Storage orders reuse the material, equipment and goods catalogues and normal per
 eligibility. `StorePersonalGoods` serves both ordinary choices and orders: it
 walks to the House entrance, then uses `InventoryFixture.Relocate` to preserve
 ownership, condition and provenance. Reserved goods, promised deliveries,
-container contents, food and selected equipment are excluded. Only a committed
-relocation receipt advances the order; its identity is hashed to a fixed length
+container contents, food and selected equipment are excluded.
+House capacity already promised to collected inbound deliveries is unavailable
+to personal storage and borrowed returns, at both choice admission and the
+physical move. Whole vessels must fit with every content lot in the remaining
+space. Only a committed relocation receipt advances the order; its identity is hashed to a fixed length
 because split inventory identifiers can grow. Walking and survival actions earn
 no storage progress. Default tasks count one stored lot, while explicit quantities
 limit the final relocation to the remaining amount. Repetition keeps waiting
