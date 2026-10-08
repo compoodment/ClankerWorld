@@ -1002,6 +1002,9 @@ public sealed partial class PrivateWorldRuntime
             case "explore":
                 Explore(inhabitantId, state);
                 break;
+            case "explore_return":
+                ChooseExplorationReturn(inhabitantId, state);
+                break;
             case "wear_clothing":
                 EquipPrivateItem(inhabitantId, state, carryAid: false);
                 break;

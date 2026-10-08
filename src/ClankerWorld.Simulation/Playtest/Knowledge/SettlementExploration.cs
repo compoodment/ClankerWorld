@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Harness;
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// A small, per-person record of places actually visited. An outing only picks
+/// A per-person record of places actually visited. An outing only picks
 /// its next visible neighbour; it does not give the person the player's map.
 /// </summary>
 public sealed record SettlementExploration(
@@ -16,7 +16,7 @@ public sealed record SettlementExploration(
 
 public sealed partial class PrivateWorldRuntime
 {
-    private const int ExplorationStepsPerOuting = 8;
+    private const int StartingExplorationWarmthBudgetSteps = 8;
     private const int ExplorationCooldownTicks = 180;
     private const int ExplorationMemoryLimit = 256;
 
@@ -28,7 +28,11 @@ public sealed partial class PrivateWorldRuntime
         var exploration = person.Exploration;
         if (exploration?.OutingPath.Count > 0)
         {
-            candidates.Add(new("explore", "Continue a short local scouting trip, then return to its start.", 75));
+            if (exploration.Returning || HasWarmthForOuting(person))
+                candidates.Add(new("explore", exploration.Returning
+                    ? "Keep returning to where your scouting trip started."
+                    : "Continue scouting nearby terrain and resources; return when you choose.", 75));
+            candidates.Add(new("explore_return", "Return to where your scouting trip started.", 76));
             return;
         }
 
@@ -38,20 +42,21 @@ public sealed partial class PrivateWorldRuntime
             !map.FootNeighbors(person.Position).Any(map.IsPassable))
             return;
 
-        candidates.Add(new("explore", "Scout adjacent terrain and resource sites out of curiosity, then return.", 75));
+        candidates.Add(new("explore", "Scout nearby terrain and resources out of curiosity; choose when to return.", 75));
     }
 
     private bool HasWarmthForOuting(PlaytestInhabitantState person)
     {
         if (person.Survival is not { } condition) return true;
-        // Budget the short out-and-back trip using adjacent exposure and actual movement costs.
+        // Keep the starting trial budget, then account for a longer recorded return.
         // Shelter at the starting tile is not protection carried along on the outing.
+        var steps = Math.Max(StartingExplorationWarmthBudgetSteps, person.Exploration?.OutingPath.Count ?? 0);
         return map.FootNeighbors(person.Position).Where(map.IsPassable).All(next =>
         {
             var loss = Math.Max(0, OutdoorExposure(next) - ClothingProtection(person.InhabitantId, next));
             var stepTicks = (RoadStepCost(person.Position, next) + 99) / 100 +
                 SettlementIllnessRules.TravelDelayTicks(condition.IllnessBasisPoints);
-            return loss == 0 || condition.WarmthBasisPoints - loss * stepTicks * ExplorationStepsPerOuting * 2 >= UrgentWarmth;
+            return loss == 0 || condition.WarmthBasisPoints - (long)loss * stepTicks * steps * 2 >= UrgentWarmth;
         });
     }
 
@@ -83,7 +88,7 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("exploration_started", $"{actor}:{person.Position.X},{person.Position.Y}");
         }
 
-        if (exploration.Returning || exploration.OutingPath.Count > ExplorationStepsPerOuting)
+        if (exploration.Returning)
         {
             ReturnFromExploration(actor, person, exploration with { Returning = true });
             return;
@@ -128,7 +133,7 @@ public sealed partial class PrivateWorldRuntime
                 VisitedTiles = visited,
                 OutingPath = exploration.OutingPath.Append(moved.Position).ToArray(),
                 OutingDiscoveries = learned
-                    ? (exploration.OutingDiscoveries ?? []).Append(moved.Position).TakeLast(ExplorationStepsPerOuting + 1).ToArray()
+                    ? (exploration.OutingDiscoveries ?? []).Append(moved.Position).TakeLast(ExplorationMemoryLimit).ToArray()
                     : exploration.OutingDiscoveries ?? [],
             }
         };
@@ -140,6 +145,14 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("exploration_discovered",
                 $"{actor}:{moved.Position.X},{moved.Position.Y}:{terrain}:{string.Join(',', resourcesHere)}");
         }
+    }
+
+    private void ChooseExplorationReturn(string actor, PlaytestInhabitantState person)
+    {
+        if (person.Exploration is not { OutingPath.Count: > 0 } exploration) return;
+        if (!exploration.Returning)
+            AppendEvent("exploration_return_started", actor);
+        ReturnFromExploration(actor, person, exploration with { Returning = true });
     }
 
     private void ReturnFromExploration(string actor, PlaytestInhabitantState person, SettlementExploration exploration)
@@ -194,14 +207,17 @@ public sealed partial class PrivateWorldRuntime
         if (exploration is null) return;
         if (exploration.VisitedTiles is null || exploration.OutingPath is null ||
             exploration.VisitedTiles.Count > ExplorationMemoryLimit ||
-            exploration.OutingPath.Count > ExplorationStepsPerOuting + 1 ||
-            (exploration.OutingDiscoveries?.Count ?? 0) > ExplorationStepsPerOuting + 1 ||
+            // An outward route never revisits a tile, so the map itself bounds
+            // its length without imposing a distance limit on the scout.
+            exploration.OutingPath.Count > map.Tiles.Count ||
+            exploration.OutingPath.Distinct().Count() != exploration.OutingPath.Count ||
+            (exploration.OutingDiscoveries?.Count ?? 0) > ExplorationMemoryLimit ||
             exploration.LastOutingTick < 0 || exploration.LastOutingTick > worldTick ||
             exploration.VisitedTiles.Any(point => !map.IsPassable(point)) ||
             exploration.OutingPath.Any(point => !map.IsPassable(point)) ||
             (exploration.OutingDiscoveries ?? []).Any(point => !map.IsPassable(point)) ||
             (exploration.OutingDiscoveries ?? []).Distinct().Count() != (exploration.OutingDiscoveries?.Count ?? 0))
-            throw new InvalidDataException("The saved local exploration record is invalid.");
+            throw new InvalidDataException("The saved exploration record is invalid.");
 
         SeededMap? beforeOuting = null;
         for (var index = 1; index < exploration.OutingPath.Count; index++)
@@ -215,7 +231,7 @@ public sealed partial class PrivateWorldRuntime
             // step; only earlier ticks prove a deck existed throughout the trip.
             beforeOuting ??= MapWithBridges(map, bridges.Where(bridge => bridge.BuiltTick < exploration.LastOutingTick));
             if (!beforeOuting.CanFootStep(first, second))
-                throw new InvalidDataException("The saved local exploration record is invalid.");
+                throw new InvalidDataException("The saved exploration record is invalid.");
         }
     }
 
