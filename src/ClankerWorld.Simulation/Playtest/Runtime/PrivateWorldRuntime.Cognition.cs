@@ -423,9 +423,15 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             }
             var order = PendingInstructionFor(inhabitant.Id);
+            var waitingForModel = pendingHosted.Contains(inhabitant.Id);
+            if (waitingForModel && order is null)
+            {
+                // A delayed reply supplies no new choice. Urgent survival and nearby
+                // practical care may interrupt the task the agent already chose.
+                orderActorsHandledThisTick.Add(inhabitant.Id);
+                if (TryApplyWaitingRoutine(inhabitant.Id, state)) continue;
+            }
             if (order is null && ContinueGuardianPlacement(inhabitant.Id)) continue;
-            if (pendingHosted.Contains(inhabitant.Id) && order is null)
-                continue;
             if (IsConversationBusy(inhabitant.Id))
             {
                 continue;
@@ -472,13 +478,13 @@ public sealed partial class PrivateWorldRuntime
                 ContinueEquipmentRepair(inhabitant.Id);
                 continue;
             }
-            if (CanContinueLesson(inhabitant.Id))
+            if (CanContinueLesson(inhabitant.Id, waitingForModel))
             {
                 ContinueLesson(inhabitant.Id);
                 continue;
             }
             if (ContinueFarmWork(inhabitant.Id)) continue;
-            if (CanContinueProject(state))
+            if (CanContinueProject(state, waitingForModel))
             {
                 ContinueProject(inhabitant.Id, state);
                 continue;
@@ -529,6 +535,7 @@ public sealed partial class PrivateWorldRuntime
                     ContinueOrnamentWalk(inhabitant.Id, intention.CandidateId);
                 continue;
             }
+            if (waitingForModel && !CanContinuePendingTask(state, intention.CandidateId)) continue;
             // Safe idle is always offered outside the conversation/order branches
             // above. EnqueueDueCognition still rebuilds choices to reconsider work.
             if (intention.CandidateId != "safe_idle" &&
@@ -544,27 +551,68 @@ public sealed partial class PrivateWorldRuntime
         IEnumerable<string> orderActorsHandledThisTick)
     {
         var handledOrders = orderActorsHandledThisTick.ToHashSet(StringComparer.Ordinal);
-        var safe = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "consume_food", "collect_shared_food", "take_food_from_pot", "make_room_for_food", "recover_household_delivery",
-            "harvest_food", "seek_food",
-            "wear_clothing", "tend_fire", "seek_warmth",
-        };
         foreach (var id in waitingIds.OrderBy(item => item, StringComparer.Ordinal))
         {
             if (!inhabitants.TryGetValue(id, out var state)) continue;
             if (handledOrders.Contains(id) || HasGuardianPlacementTask(id) && guardianPlacementActions.Contains(id)) continue;
             if (PendingInstructionFor(id) is not null) continue;
-            if (!NeedsUrgentFood(state) && !NeedsUrgentWarmth(state))
-                continue;
+            TryApplyWaitingRoutine(id, state);
+        }
+    }
+
+    private bool TryApplyWaitingRoutine(string id, PlaytestInhabitantState state)
+    {
+        if (NeedsUrgentFood(state) || NeedsUrgentWarmth(state))
+        {
             var candidate = CreateCandidates(id, state, restrictForOrder: false)
-                .Where(item => safe.Contains(item.Id) || item.Id.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal))
+                .Where(item => IsWaitingSurvivalCandidate(item.Id))
                 .OrderBy(item => item.DeterministicPriority)
                 .ThenBy(item => item.Id, StringComparer.Ordinal)
                 .FirstOrDefault();
             if (candidate is not null) ApplyCandidate(id, state, candidate.Id, reportIdle: false);
+            return true;
         }
+        if (!AdultResident(id) || !ReadyForBriefInteraction(id)) return false;
+        var nearby = ChildrenNeedingCare(id).Select(child => child.InhabitantId).Concat(IllDependentsNeedingCare(id))
+            .Where(dependent => IsWithinInteractionRange(state.Position, inhabitants[dependent].Position, ResourceInteractionRange))
+            .ToHashSet(StringComparer.Ordinal);
+        if (nearby.Count == 0) return false;
+        var care = CreateCandidates(id, state, restrictForOrder: false).Where(candidate =>
+                candidate.Id.StartsWith("care:", StringComparison.Ordinal) && nearby.Contains(candidate.Id[5..]) ||
+                candidate.Id.StartsWith("guardian_tend:", StringComparison.Ordinal) && nearby.Contains(candidate.Id[14..]))
+            .OrderBy(candidate => candidate.DeterministicPriority).ThenBy(candidate => candidate.Id, StringComparer.Ordinal).FirstOrDefault();
+        if (care is null) return false;
+        // Use the ordinary physical care boundary without cancelling an existing
+        // repair or starting, ending or accepting a caregiving relationship.
+        if (care.Id.StartsWith("care:", StringComparison.Ordinal)) CareForChild(id, care.Id[5..]);
+        else TendToIllDependent(id, care.Id[14..]);
+        return true;
     }
+
+    private static bool IsWaitingSurvivalCandidate(string id) => id is
+        "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or "recover_household_delivery" or
+        "harvest_food" or "seek_food" or "wear_clothing" or "tend_fire" or "seek_warmth" ||
+        id.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal);
+
+    private static bool CanContinuePendingTask(PlaytestInhabitantState state, string id) =>
+        IsWaitingSurvivalCandidate(id) || id is "safe_idle" or "knowledge_continue" or "haul_household_stock" or
+            "store_household_food" or "store_town_resources" or "haul_farm_grain" or "haul_farm_flour" or
+            "haul_smith_input" or "gather_smith_ore" or "deliver_smith_ore" or "collect_water_jug" or "return_water_jug" or
+            "store_food_in_pot" ||
+        id == "explore" && state.Exploration?.OutingPath.Count > 0 ||
+        id.StartsWith("assist:", StringComparison.Ordinal) ||
+        id.StartsWith(GatherBlacksmithInputPrefix, StringComparison.Ordinal) ||
+        id.StartsWith(GatherBuildingMaterialPrefix, StringComparison.Ordinal) ||
+        id.StartsWith(RareMiningPrefix, StringComparison.Ordinal) ||
+        id.StartsWith(SupplyWorkstationPrefix, StringComparison.Ordinal) ||
+        id.StartsWith(ReturnEmptyVesselPrefix, StringComparison.Ordinal) ||
+        id.StartsWith(FillWaterJugPrefix, StringComparison.Ordinal) ||
+        id.StartsWith(PullCartPrefix, StringComparison.Ordinal) ||
+        id.StartsWith("boat_queue:", StringComparison.Ordinal) ||
+        id.StartsWith("animal:supply_trip:", StringComparison.Ordinal) ||
+        id.StartsWith("animal:care:", StringComparison.Ordinal) ||
+        id.StartsWith("animal:collect:", StringComparison.Ordinal) ||
+        id.StartsWith("animal:lead_home:", StringComparison.Ordinal);
 
     private void ApplyDecision(SocietyCognitionDispatchResult decision)
     {

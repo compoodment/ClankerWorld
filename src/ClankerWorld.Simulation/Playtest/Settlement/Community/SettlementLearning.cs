@@ -37,9 +37,10 @@ public sealed partial class PrivateWorldRuntime
     private bool HasLearningDecision(string actor) => ReadyForLesson(actor) && inhabitants.Values.Any(person =>
         person.Lesson is { Stage: "requested" } lesson && lesson.TeacherId == actor);
 
-    private bool CanContinueLesson(string actor)
+    private bool CanContinueLesson(string actor, bool waitingForModel = false)
     {
-        if (!AdultResident(actor) || !ReadyForLesson(actor) || IsConversationBusy(actor) || HasCouncilDecision(actor) || HasHousingDecision(actor) || HasTradeResponse(actor) || HasFamilyDecision(actor) || HasParenthoodDecision(actor) || HasDependentCareDecision(actor))
+        if (!AdultResident(actor) || !ReadyForLesson(actor) || IsConversationBusy(actor) ||
+            !waitingForModel && (HasCouncilDecision(actor) || HasHousingDecision(actor) || HasTradeResponse(actor) || HasFamilyDecision(actor) || HasParenthoodDecision(actor) || HasDependentCareDecision(actor)))
         {
             return false;
         }
