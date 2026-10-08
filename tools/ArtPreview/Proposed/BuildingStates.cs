@@ -244,7 +244,7 @@ internal static class States
     private static void Blend(Image image, int x, int y, Color color)
     {
         if (x < 0 || y < 0 || x >= image.GetWidth() || y >= image.GetHeight()) return;
-        image.SetPixel(x, y, color.A >= 0.999f ? color : image.GetPixel(x, y).Blend(color));
+        image.SetPixel(x, y, color.A >= 0.999f ? color : PixelArt.Snap(image.GetPixel(x, y).Blend(color)));
     }
 
     private static void Rect(Image image, int x, int y, int w, int h, Color color)
@@ -265,9 +265,23 @@ internal static class States
         return image;
     }
 
+    /// <summary>A construction stage over its ground.</summary>
     public static Image Stage(Subject s, int stage)
     {
         var image = s.Ground();
+        Sheet.Blend(image, StageArt(s, stage, image), 0, 0);
+        return image;
+    }
+
+    /// <summary>
+    /// A construction stage on its own, transparent outside the site, as the
+    /// game draws it over the map. <paramref name="ground"/> is read only to
+    /// keep a bridge's piles off its banks; a pier's land is the tile row on
+    /// its door side.
+    /// </summary>
+    public static Image StageArt(Subject s, int stage, Image? ground = null)
+    {
+        var image = Bitmap.Empty(s.TilesWide * 32, s.TilesHigh * 32);
         var mask = s.Mask;
         var b = Bounds(mask);
         var w = s.TilesWide * 32;
@@ -295,8 +309,8 @@ internal static class States
                 LanternStage(image, s, b, stage);
                 break;
             default:
-                if (stage == 1) StakeOut(image, s, b, onWater);
-                else Frame(image, s, b, stage);
+                if (stage == 1) StakeOut(image, s, b, onWater, ground);
+                else Frame(image, s, b, stage, ground);
                 break;
         }
         Materials(image, s, b, stage);
@@ -304,11 +318,11 @@ internal static class States
     }
 
     /// <summary>Stage 1: corner stakes with a string line between them (piles already driven over water).</summary>
-    private static void StakeOut(Image image, Subject s, Rect2I b, bool onWater)
+    private static void StakeOut(Image image, Subject s, Rect2I b, bool onWater, Image? ground = null)
     {
         if (onWater)
         {
-            Piles(image, s, b);
+            Piles(image, s, b, ground);
             return;
         }
         int left = b.Position.X, top = b.Position.Y, right = b.End.X - 1, bottom = b.End.Y - 1;
@@ -325,13 +339,13 @@ internal static class States
     }
 
     /// <summary>Piles driven along both edges of a pier or bridge every six pixels, following its outline, each with a ripple; none on land.</summary>
-    private static void Piles(Image image, Subject s, Rect2I b)
+    private static void Piles(Image image, Subject s, Rect2I b, Image? ground)
     {
         var lengthwise = b.Size.Y >= b.Size.X;
         var ripple = new Color(1, 1, 1, 0.35f);
         void Pile(int x, int y)
         {
-            if (IsLand(image, x, y)) return;
+            if (OnLand(s, x, y) || s.Kind == Build.Bridge && ground is not null && IsLand(ground, x, y)) return;
             Blend(image, x - 1, y, ripple); Blend(image, x + 2, y + 1, ripple);
             Rect(image, x, y, 2, 2, Timber.Edge);
             Blend(image, x, y, Timber.Light);
@@ -357,7 +371,7 @@ internal static class States
     /// the walls stand and the finished roof covers the back of the structure,
     /// with open rafters over the rest and a ladder at the front.
     /// </summary>
-    private static void Frame(Image image, Subject s, Rect2I b, int stage)
+    private static void Frame(Image image, Subject s, Rect2I b, int stage, Image? ground = null)
     {
         var mask = s.Mask;
         var w = mask.GetLength(0);
@@ -377,7 +391,7 @@ internal static class States
             };
             return onSide && MathF.Abs(along - s.DoorMiddle) < 3.5f;
         }
-        if (timberOnly && stage == 2) Piles(image, s, b);
+        if (timberOnly && stage == 2) Piles(image, s, b, ground);
         for (var y = 0; y < h; y++)
             for (var x = 0; x < w; x++)
             {
@@ -589,9 +603,22 @@ internal static class States
 
     // ------------------------------------------------------------------ abandoned
 
+    /// <summary>The abandoned look over its ground.</summary>
     public static Image Abandoned(Subject s, bool ruin)
     {
         var image = s.Ground();
+        Sheet.Blend(image, AbandonedArt(s, ruin), 0, 0);
+        return image;
+    }
+
+    /// <summary>
+    /// The abandoned look on its own, transparent outside the structure and
+    /// its weeds, as the game draws it over the map: blended colours are
+    /// snapped to the 8-bit steps Godot stores, so the client matches it
+    /// pixel for pixel.
+    /// </summary>
+    public static Image AbandonedArt(Subject s, bool ruin)
+    {
         var mask = s.Mask;
         var b = Bounds(mask);
         var w = s.TilesWide * 32;
@@ -608,7 +635,7 @@ internal static class States
                 if (c.A <= 0) continue;
                 var amount = mask[x, y] ? (ruin ? 0.42f : 0.26f) : 0.16f;
                 var grey = new Color(c.Luminance, c.Luminance, c.Luminance, c.A);
-                art.SetPixel(x, y, c.Lerp(grey, amount).Darkened(mask[x, y] ? (ruin ? 0.14f : 0.08f) : 0.05f) with { A = c.A });
+                art.SetPixel(x, y, PixelArt.Snap(c.Lerp(grey, amount).Darkened(mask[x, y] ? (ruin ? 0.14f : 0.08f) : 0.05f) with { A = c.A }));
             }
 
         // Moss in clumps on the structure, more on the shaded south-east half.
@@ -623,7 +650,7 @@ internal static class States
                 {
                     if (!In(mask, cx + dx, cy + dy) || Hash(cx + dx, cy + dy, salt) % 3 == 0) continue;
                     var c = art.GetPixel(cx + dx, cy + dy);
-                    art.SetPixel(cx + dx, cy + dy, c.Lerp((dx + dy) < 0 ? Leaf.Base : Leaf.Shade, 0.75f) with { A = c.A });
+                    art.SetPixel(cx + dx, cy + dy, PixelArt.Snap(c.Lerp((dx + dy) < 0 ? Leaf.Base : Leaf.Shade, 0.75f) with { A = c.A }));
                 }
         }
 
@@ -645,12 +672,11 @@ internal static class States
             else Breaks(art, s, b, salt);
         }
 
-        Sheet.Blend(image, art, 0, 0);
-        if (ruin && roofed) FallenPlanks(image, s, b, salt);
-        Weeds(image, s, b, ruin, salt);
-        if (s.Doorway && roofed) BoardedDoor(image, s, b);
-        if (ruin && s.Kind is Build.Building or Build.Fence) Sapling(image, s, b, salt);
-        return image;
+        if (ruin && roofed) FallenPlanks(art, s, b, salt);
+        Weeds(art, s, b, ruin, salt);
+        if (s.Doorway && roofed) BoardedDoor(art, s, b);
+        if (ruin && s.Kind is Build.Building or Build.Fence) Sapling(art, s, b, salt);
+        return art;
     }
 
     /// <summary>B: a ragged hole in the front half of the roof, broken rafters over the dark inside.</summary>
@@ -724,6 +750,7 @@ internal static class States
     /// <summary>Weeds and long grass round the structure and over its doorstep, thicker on a ruin.</summary>
     private static void Weeds(Image image, Subject s, Rect2I b, bool ruin, int salt)
     {
+        var ground = s.Kind is Build.Pier or Build.Bridge ? s.Ground() : null;
         var w = image.GetWidth();
         var h = image.GetHeight();
         var odds = ruin ? 4u : 7u;
@@ -735,7 +762,12 @@ internal static class States
                 var near = Near(s.Mask, x, y, 4);
                 var onPath = s.Finished.GetPixel(x, y).A > 0.9f;
                 if (near > 4 && !onPath) continue;
-                if (s.Kind is Build.Pier or Build.Bridge && !IsLand(image, x, y)) continue;
+                // Preserve the approved land test on the ground under this overlay.
+                if (ground is not null)
+                {
+                    var color = ground.GetPixel(x, y).Blend(image.GetPixel(x, y));
+                    if (color.G <= color.B) continue;
+                }
                 if (Hash(x, y, salt + 21) % (onPath && near > 4 ? pathOdds : odds) != 0) continue;
                 var tall = Hash(y, x, salt) % 2 == 0;
                 Blend(image, x, y, Leaf.Base);
@@ -744,6 +776,15 @@ internal static class States
                 if (tall) Blend(image, x, y - 2, ruin && Hash(x, y, 4) % 9 == 0 ? Flower : Leaf.Highlight);
             }
     }
+
+    /// <summary>A pier's landward tile row, on its door side, where no piles are driven.</summary>
+    private static bool OnLand(Subject s, int x, int y) => s.Kind == Build.Pier && s.Door switch
+    {
+        DoorSide.North => y < 32,
+        DoorSide.East => x >= s.TilesWide * 32 - 32,
+        DoorSide.West => x < 32,
+        _ => y >= s.TilesHigh * 32 - 32,
+    };
 
     /// <summary>A pixel shows land when it is mostly green rather than water blue.</summary>
     private static bool IsLand(Image image, int x, int y)
