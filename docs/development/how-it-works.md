@@ -1067,10 +1067,10 @@ The [Small/Medium comparison](assets/inland-water-comparison.png) shows seed
 It is a generator-layer rendering, not a Godot screenshot or native playtest.
 The outer `GeographyGenerator.PolarEdgeRows` (two) rows at the north and
 south edges are always polar ocean, whatever the climate mode, latitude
-cooling, water share or size: the generator sinks them before oceans, rivers
-and massifs are worked out, and sets them to Ocean with a Polar climate at the
-end. Water touching them is sea, also on wrapped maps. Nobody can walk onto
-them, and nothing is placed there.
+cooling, water share or size. The generator sets them to Ocean with a Polar
+climate as its last step, so the rest of the map is generated as before and a
+river or lake that reached them now meets the sea. Nobody can walk onto them,
+and nothing is placed there.
 Revision 0 (including absent revision fields) retains the historical generator;
 unsupported revisions are rejected rather than substituted. Individual trees are
 objects/resources. Old generated worlds recover missing layers from saved
