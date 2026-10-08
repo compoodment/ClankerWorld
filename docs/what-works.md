@@ -344,6 +344,9 @@ are not available to personal collection or storage.
 
 Borrowed-return orders such as "return two borrowed cloth" and "return one
 borrowed water jug" put carried household goods back in their owner's House.
+This includes a collected milk jug even when a Store or market stall could
+stock it instead. The whole jug and its milk return together; reservations and
+committed deliveries remain protected.
 They preserve ownership and pin the selected House and source lot while work
 is pending. A default task returns one available load; an explicit quantity
 caps the last move. Only a physical return earns progress. Unavailable goods,
@@ -439,6 +442,10 @@ chooses a legal site and keeps it. Normal one-per-kind limits, Silo
 prerequisites, material ownership, carrying, travel and construction work
 still apply. An existing building or somebody else's project never counts as
 the ordered completion.
+
+Construction uses Town Warehouse supplies only when the builder can reach
+them. A blocked stocked Warehouse does not stop the builder from gathering
+reachable materials elsewhere; its stock stays in place.
 
 A construction order can replace the agent's unpaid ordinary building or
 crafting plan. It starts fresh construction work and pays the normal costs;
@@ -623,6 +630,10 @@ pours one portion into the buyer's jug and takes the named personal payment;
 both vessels retain their owners. Only one pending sale may use each milk lot;
 closing the offer frees any remaining usable milk for another sale. Spoiled
 milk can be poured away for jug reuse.
+
+Replacing or cancelling an animal task releases its unfinished supply trip.
+The adult keeps already collected goods under their existing ownership and
+can fetch supplies for a new animal task without finishing the cancelled one.
 
 Egg and milk meals use House/Restaurant recipes. Tailors turn wool into padded
 coats, hides into leather, and leather into sacks or saddles. A leather sack
@@ -896,6 +907,8 @@ receipts distinguish accepted work from completed work. Visitors retain local
 response rights and children receive caregiver support. Counteroffers during
 renegotiation still replace the original unfinished agreement once everyone
 accepts; only the newly agreed remaining contributions can then be performed.
+Goods returns can use a later carried lot with enough goods when an earlier
+one is too small; a named source lot and reservations still limit the payment.
 Public-service goods
 keep four usable personal units across carried lots, including stock split by
 storage and collection. No fine, seizure, expulsion or forced work is available.
@@ -1078,6 +1091,9 @@ Starter household use rights cover the footprints of the buildings assigned to
 each household. New fields cannot occupy land another household holds or has
 requested. Ordinary household land requests and grants cannot take over another
 household's field; challenges to recorded use rights remain disputes.
+Add Agent closes when the host acknowledges placement. A later model-settings
+refresh failure keeps the placement confirmation and asks the player to reopen
+Game Settings; another map click does not add another agent.
 Add Agent uses building/field ownership and recorded use
 rights, then Town title or border: one clear household claim sets the household,
 and land claimed by one Town gives Town membership. A building's current owner

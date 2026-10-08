@@ -214,6 +214,9 @@ its ownership and credits one vessel, never its contents as extra progress.
 subjects. It binds the carried source lot and its owning household's exact
 House before travel. The shared borrowed-return helper rechecks custody,
 ownership, reservations, whole-vessel space and the destination at execution.
+Explicit returns select carried borrowed goods independently of ordinary milk
+stocking alternatives. A possible Store or market destination does not exclude
+a milk jug; committed deliveries and active animal-supply trips still do.
 Only a committed relocation receipt earns `goods_items` or `return_loads`.
 Cancellation never undoes completed movement or changes goods ownership.
 When an explicit storage or return moves the exact hoe or sickle used by that
@@ -1518,6 +1521,10 @@ paths supply receipts only after their actual changes commit. One receipt can
 credit only one term, and the saved effect cannot exceed that term's remaining
 quantity. Declined, unanswered, pending, overdue and completed states remain
 distinct. Findings and overdue work never create physical punishment powers.
+Goods-return source selection checks each carried lot against the remaining
+agreed quantity before ordering eligible lots by identity. The actual transfer
+uses that same remaining quantity; a pinned source, reservations, personal
+ownership and beneficiary capacity remain binding.
 
 Counteroffers during renegotiation follow the exact prior-offer chain back to
 the nearest agreement. After every contributor accepts, the replacement names
@@ -1971,6 +1978,12 @@ Household workstation inputs must be present at the actual building; stock
 elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
+
+Construction input selection checks the builder's current unoccupied route
+to each stocked permitted Warehouse, using movement's exact destination,
+diagonal, shared entrance and attached handcart rules. If none is reachable,
+preparation continues to its existing material-gathering fallback. Collection
+still rechecks authority, available stock and carrying room at the Warehouse.
 
 Blacksmith input hauling checks the actor's current unoccupied pickup route
 and the source-to-shop route before selecting household or permitted Town
@@ -2586,6 +2599,12 @@ rule is on in a started world, even when the transition event has left bounded
 history. The link opens the existing Add Agent controls and rechecks the current
 snapshot when clicked; it neither places an agent nor asks for a paid model call.
 
+Godot ends Add Agent placement mode on the current world's signed placement
+receipt, before refreshing provider status. Failure of that separate read keeps
+the placement confirmation and explains how to refresh model settings. A refused
+placement leaves the panel open; responses from an obsolete world still cannot
+change the current world's interface.
+
 Preparing parenthood notes derive the caregiver household's usable edible
 reserve and required amount from the same captured society/inventory checkpoint
 as the owner snapshot. Birth and these notes share the lot ownership, carrier,
@@ -3008,7 +3027,13 @@ actor's tile, input selection accepts only physically carried supplies. This
 keeps the existing supply path collecting both feed and a water jug before
 approaching the animal, including after a partial pickup. At the animal's tile,
 permitted local yard stock remains usable directly. Physical supply trips
-retain the owning household. A trip isolates its selected feed quantity from
+retain the owning household. Cancelling or replacing an animal order releases
+only a supply trip matching its actor, animal and action, without relocating,
+transferring or spending its cargo. Executing a new animal order also discards
+an unrelated retained trip, including one loaded from a previously cancelled
+task, before selecting supplies. Care-order admission can inspect legal replacement
+supplies despite unrelated trip tracking. A matching active trip keeps its normal checks.
+A trip isolates its selected feed quantity from
 the source, including an already carried stack, so delivery cannot donate the
 unselected remainder. Reusable jugs travel whole with their contents. One held
 product batch waits for local collection;
