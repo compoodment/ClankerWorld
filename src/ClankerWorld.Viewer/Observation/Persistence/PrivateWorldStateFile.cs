@@ -94,6 +94,10 @@ public sealed class PrivateWorldStateFile
                 state = plan.State with { HistoryArchiveHead = digest };
             }
         }
+        var checkpointBytes = PrivateWorldRuntimeCodec.Encode(state);
+        // A valid in-memory checkpoint can still serialize into invalid source
+        // evidence. Check the exact bytes before replacing the last good file.
+        _ = PrivateWorldRuntimeCodec.Decode(checkpointBytes);
         var directory = System.IO.Path.GetDirectoryName(Path) ??
             throw new InvalidOperationException("The private-world state path has no directory.");
         Directory.CreateDirectory(directory);
@@ -104,7 +108,7 @@ public sealed class PrivateWorldStateFile
         {
             using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
-                stream.Write(PrivateWorldRuntimeCodec.Encode(state));
+                stream.Write(checkpointBytes);
                 stream.Flush(flushToDisk: true);
             }
             RestrictPermissions(temporaryPath);
