@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # Playing the current game
@@ -301,6 +301,9 @@ production stock as personal property.
 When carrying several water jugs, agents can refill one with room even if
 another is full. They still need a reachable riverbank or lakeshore and enough
 carrying space for the water.
+
+When returning a jug, agents leave jugs needed for other work alone and choose
+one that fits in the House with all its contents.
 
 To return borrowed stock, use **Return two borrowed cloth**, **Return two
 borrowed bread** or **Return one borrowed water jug**. The agent carries the
