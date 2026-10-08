@@ -154,9 +154,10 @@ test("main's timings are each test's median over its runs, so one slow run doesn
     ['c', 'Ns.CTests', 'New', '00:00:07']]);
   // A run whose download failed leaves no timings and doesn't count.
   fs.mkdirSync(path.join(dir, '104'));
-  assert.deepEqual(readMainTimings(dir), { times: { 'Ns.ATests.One': 12, 'Ns.BTests.Two': 30, 'Ns.CTests.New': 7 }, runs: 3 });
-  assert.deepEqual(readMainTimings(path.join(dir, 'missing')), { times: {}, runs: 0 });
-  assert.deepEqual(readMainTimings(undefined), { times: {}, runs: 0 });
+  assert.deepEqual(readMainTimings(dir),
+    { times: { 'Ns.ATests.One': 12, 'Ns.BTests.Two': 30, 'Ns.CTests.New': 7 }, runs: 3, ids: ['101', '102', '103'] });
+  assert.deepEqual(readMainTimings(path.join(dir, 'missing')), { times: {}, runs: 0, ids: [] });
+  assert.deepEqual(readMainTimings(undefined), { times: {}, runs: 0, ids: [] });
 });
 
 test("main-timings.sh downloads main's latest green runs into a folder each and drops a failed one", t => {
