@@ -23,7 +23,8 @@ public sealed partial class PrivateWorldRuntime
         AdultResident(teacher) && !ActiveLesson(inhabitants[teacher].Lesson) && HasSkill(teacher, skill);
 
     private bool FreeToMentor(string teacher, string? requestedStudent = null) =>
-        ReadyForLesson(teacher) && !IsConversationBusy(teacher) && ActiveStudent(teacher) is null &&
+        ReadyForLesson(teacher) && PendingInstructionFor(teacher) is null &&
+        !IsConversationBusy(teacher) && ActiveStudent(teacher) is null &&
         inhabitants[teacher].Project is null or { Stage: "completed" or "cancelled" or "paused" } &&
         !HasCouncilDecision(teacher) && !HasHousingDecision(teacher) && !HasTradeResponse(teacher) && !HasFamilyDecision(teacher) &&
         !HasParenthoodDecision(teacher) && !HasDependentCareDecision(teacher) &&

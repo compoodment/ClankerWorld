@@ -373,6 +373,10 @@ definition, owner, site and paid-material evidence after the project is
 replaced or the building is removed; an unrelated existing building is never
 completion proof.
 
+An animal-yard construction order checks for the household's completed House
+before choosing a site or starting a project. A missing House blocks the order
+without reserving or consuming yard materials, matching ordinary planning.
+
 The construction adapter can replace an unpaid ordinary project rather than
 waiting on the project the operative order itself paused. It creates a fresh
 order-bound project, with no inherited work or placement credit. A Store-stocking
@@ -923,6 +927,26 @@ writer or copying source becomes unavailable, or the artifact limit is
 reached, the unfinished work releases its unused supplies. The agent's Profile
 shows the writing or copying progress.
 
+The bounded owner catalogue recognizes `write_knowledge` for records, maps
+and books, with an explicit count up to 1,000 or repeat-until-cancelled.
+Orders use the native fact selection, duplicate-account, access, carrying and
+paid-work rules above. A matching ordinary writing job can be adopted; another
+kind or a copy remains intact and blocks the order. Each owned live project
+binds the exact current instruction and the instruction binds that project.
+Only its completed physical artifact credits one unit. Cancellation and
+replacement release only the bound project's unspent inputs. Counted or
+repeating work waits for new learned facts after the current account has been
+written. Queuing and urgent interruptions use the existing order lifecycle.
+
+The catalogue also recognizes `copy_knowledge` with bounded counts and repetition,
+using the native held-artifact copying path. The adult must own and
+carry the exact source and know all of its sites; order handling does not read
+it or teach missing knowledge. The source stays pinned during supply collection
+and writing. Source loss releases unused native reservations and clears the
+project binding, while keeping the source pointer for a later retry. A completed
+paid copy carries the instruction ID, credits one unit and clears both live
+pointers. The native duplicate-account and artifact limits still apply.
+
 Reading or sharing a held artifact teaches only its recorded sites to the
 actual recipient, retaining the original discoverer and the source artifact.
 Copying needs the source, learned facts and new writing materials; sharing
@@ -1097,6 +1121,12 @@ row-major packed bytes, with separate layer digests. Signed cache claims omit
 unchanged map data only when world and digests match. Initial/changed maps and
 some control receipts still send the whole map. Viewport/chunk transfer remains
 unfinished.
+
+Each private-world observation store retains one map-derived fertility index
+and layer digest. A replacement committed map or a different world seed replaces
+that entry. Resources, fields, events and other dynamic observations are still
+projected from the captured state on every refresh; the cache stores no viewer
+snapshot or saved authority.
 
 Main-map dragging requires a held middle mouse button. Opening the pause menu
 or losing application focus clears the drag. The client observes releases
@@ -1730,6 +1760,10 @@ stopping rules. See [placement query measurements](placement-query-measurements.
 for the follow-up comparison.
 The [Warehouse query measurements](warehouse-query-measurements.md) record a
 later bounded repair, exact native equivalence and its mixed small-case timings.
+Household planning computes each prospective building's identity once per design,
+before checking placed buildings for it. Each later query reads current reservations
+again. See [household plan query measurements](household-plan-query-measurements.md)
+for native candidate/state equivalence, repeated timings and allocation results.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
@@ -1902,7 +1936,10 @@ guardian needs a recorded Town and a completed household House with room;
 acceptance creates neither a House nor a resident place.
 
 The guardian first reaches the child, then accompanies them to the selected
-House through ordinary movement. The guardian waits for a child who falls
+House through ordinary movement. Collections keep acceptance order among
+currently reachable children; an unreachable collection does not hold up another
+accepted child. An ongoing escort stays together, and blocked collections retry
+after the available journeys finish. The guardian waits for a child who falls
 behind. Urgent food and warmth needs may interrupt the journey without
 removing accepted care. Capacity, current care authority, Town membership and
 the House's identity are checked again before placement. Only arrival together
@@ -1996,6 +2033,13 @@ to each stocked permitted Warehouse, using movement's exact destination,
 diagonal, shared entrance and attached handcart rules. If none is reachable,
 preparation continues to its existing material-gathering fallback. Collection
 still rechecks authority, available stock and carrying room at the Warehouse.
+
+Ordinary workstation supply choices and execution check the adult's current
+native route to each destination before selecting its missing input. An
+occupied earlier workshop does not hide a reachable House or another workshop.
+The route is checked again as the actor moves; reaching a shared household
+building can make another delivery possible. Supply still uses actual carried
+or accessible stock, ownership, receiving space and carrying limits.
 
 Blacksmith input hauling checks the actor's current unoccupied pickup route
 and the source-to-shop route before selecting household or permitted Town
@@ -2106,6 +2150,13 @@ include only collection of edible food the adult may legally retrieve. This
 filter runs before the candidate limit; normal Market choices retain their
 existing order. Collection still needs a fresh personal LLM choice and the
 usual ownership, reservation, route and receiving-space checks.
+The owner-order survival classifier revalidates an edible collection against
+the same Market choices, so urgent retrieval can interrupt an unrelated task.
+It grants no new stock access or trade consent; the original order and its
+progress remain available after the emergency. An interrupted order executes
+collection only for the actual fresh admitted personal LLM choice. A matching
+accepted intention can continue walking to the stall between decisions; it
+cannot collect through the automatic continuation path.
 Ordinary collection uses physical unreserved quantities, so spoiled stock can
 be reclaimed from a current or former stall without deleting or refreshing it.
 Urgent food collection additionally requires usable food; spoilage never
@@ -2252,6 +2303,14 @@ values. First-Town setup stores each starting agent's garment in their
 household's House. A package is staged for older worlds on the first tick, but
 the settlement package's digest changed when the Weaving frame was removed, so
 saves made before this change are refused.
+
+Garment and carrying-aid selection uses personally carried goods, actual
+household stock or permitted Town Warehouse stock. Having no household does
+not make a person's own ID a shared-stock owner. Their goods left in a House
+or on the ground remain physical collection choices until picked up, with
+the usual access, travel and carrying-space checks. Equipping shared goods
+still collects one unit at its location. Save validation requires every
+equipped unit to be personally owned, carried and unreserved.
 
 The five alternative household building sizes have separate shipped packages;
 their original definitions and first-Town defaults keep their identities.
@@ -2794,6 +2853,14 @@ zoom, and shows travel and dock use in tile, Port and Town inspection. Port nigh
 lights use the approved T-head lantern. Smaller views scale the approved 32-pixel
 boat until #914 supplies approved 16-pixel art.
 
+Checkpoint compaction retains every active request and the existing 40 recent
+closed requests by sequence. It durably archives full older records before
+installing the smaller live queue; compact sequence ranges retain gaps around
+older active passengers. The `world_history_compacted` diagnostic includes live
+boat-request and retired-range counts. See
+[Saves and replay](saves-and-replay.md#ports-and-communal-boats) for the schema,
+archive-write ordering and recovery checks.
+
 ## Physical handcarts
 
 `InventoryContainerRules.Handcart` is a single ground-position inventory lot.
@@ -2821,7 +2888,11 @@ completion. Running or paused jobs reserve only their net stored output growth,
 excluding ground handcart outputs. Ordinary stored outputs still reserve room
 after accounting for consumed inputs already in that building. Repair consumes
 three carried material reservations atomically. Unloading can retain
-damaged goods on the ground and works after the cart breaks. Property transfer
+damaged goods on the ground and works after the cart breaks. Unload choices
+cover cargo in every owned cart on the actor's current tile; execution resolves
+the selected cargo's actual cart and rechecks position, ownership, reservations
+and carrying space. An empty cart cannot hide another cart's cargo.
+Property transfer
 and inheritance keep the entire cart/cargo family at its existing position.
 A death, break or ownership change removes the attachment without dropping or
 teleporting the goods. Owner observation derives cart inspection from those
@@ -2845,9 +2916,9 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   wood and one `tree_seed`; the stump regrows in spring. One tree-seed item
   serves broadleaf and conifer.
 - **Planting** is the typed `PlantTree` action. It checks, in order, the
-  species (broadleaf or conifer only; orchard propagation is still open), that
-  the planter is an adult, that the seed lot is a tree seed they own with one
-  free, the ground (grass, forest floor or fertile soil; never water, sand,
+  species (broadleaf, conifer or orchard), that
+  the planter is an adult, that the seed lot is the matching seed they own with one
+  available for planting, the ground (grass, forest floor or fertile soil; never water, sand,
   rock, snow or dry scrub), buildings, Roads and existing objects, that the
   planter stands on or next to the tile, and the chunk's resource budget. A
   refusal returns a `TreePlantingRefusal` and a one-line reason and changes
@@ -2863,6 +2934,17 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
   worlds) and falls when that season ends. New worlds start in spring, so
   orchards start without fruit.
+- **Owner orders** accept bounded tree counts, repeat-until-cancelled work,
+  optional broadleaf/conifer/orchard species and an exact planting tile. The
+  parser, observer guidance and strict saved-order validation use the same
+  actions. Every step checks the live site, seed access and route. An adult
+  physically collects personal stored seeds or permitted shared stock before
+  planting through `PlantTreeCore`. Exact sites stay outside Town borders and
+  never fall back to a different tile. Only a successful sapling creation
+  credits the `tree:plant:planted-tree-{x}-{y}` receipt; pickup, movement and
+  refusal leave progress unchanged. Queues, cancellation, survival interrupts
+  and continuation use the existing owner-order lifecycle. No new checkpoint
+  field or growth rule is introduced.
 - **Saves.** Planted trees are part of the saved map. On load, the map must
   still match regeneration apart from the settlement's staged sites and valid
   planted trees; each planted tree must be a plantable species on legal ground,
@@ -2942,7 +3024,10 @@ has no teacher; completing an accepted lesson records the teacher's agent ID.
 
 Lesson candidates use saved skills and the existing food/warmth readiness
 rules, independently of work roles. A mentor cannot be working on an active
-project, handling another social decision, or reserved for another lesson.
+project, carrying out an operative Must Do order, handling another social
+decision, or reserved for another lesson. Cancelling or finishing the order
+allows lesson requests and replies again; a pending request keeps its normal
+consent and expiry rules. Suggestive guidance does not reserve the teacher.
 Both participants must be able to reach the common lesson site when a request
 is offered or executed and when the teacher accepts. Mentor selection keeps
 its stable identity order but skips adults without a physical route, so an
@@ -3085,6 +3170,11 @@ permission loss ends riding; dismount puts unreserved excess cargo at the actual
 position without changing its owner. Cart attachments and boat travel exclude
 ridden or led animals. Godot projects and draws the authoritative animal state
 with young/adult headings, mounted horses, yard art, inspection and event text.
+
+Building Details lists animals whose current observed positions lie within
+the building footprint, using the same `GameUiText.AnimalDescription` as tile
+inspection and hover help. It refreshes with the snapshot and grants no animal
+ownership or care permission.
 
 Collection from another animal and saddling another horse prepare with
 `EndAnimalRide` on their own tick, without product transfer, saddle fitting or
