@@ -101,7 +101,7 @@ seeking a food source, harvesting food, gathering supported raw materials,
 storing personal raw materials or equipment, collecting personal raw materials,
 ready-to-eat food or equipment, repairing supported personal
 clothing, carrying aids and tools, household field work, and moving to an exact
-tile, and supported non-food production recipes. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
+tile, supported non-food production recipes, and one held knowledge-artifact read. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
 quantities or leftover words are rejected as not understood rather than mapped
@@ -460,6 +460,21 @@ to the completed instructions with an `instruction_not_understood` event
 active and queued recognized orders. A closed unsupported order requests no
 decision and does not block later instructions. Suggestive interpretation stays
 separate from the strict MustDo grammar.
+
+`read_knowledge` uses the native held-artifact read. `TargetItemKind` may
+constrain records, maps or books; `TargetKnowledgeArtifactId` binds an exact
+artifact resolved from a complete ID, lot ID or unique title. An unspecified
+source is chosen from eligible personally held items when the step executes.
+An explicit source cannot be replaced by another available item while blocked.
+The native read returns its actual number of new facts. A positive effect
+stores `KnowledgeReadCompletion` with the tick and sorted newly learned sites,
+then credits one task through a deterministic receipt. A missing, foreign,
+reserved or uncarried source, exhausted knowledge capacity, existing writing
+work or an account with no new sites blocks the task. It uses existing
+provenance and partial-capacity rules; writing, sharing and another person's
+reading cannot credit it. Later firsthand updates preserve the historical
+completion. Only the bound artifact identity reaches the order projection;
+completion evidence stays with authoritative saves.
 
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses. Default gathering counts one harvest; explicit quantities

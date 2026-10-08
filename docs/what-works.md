@@ -237,6 +237,18 @@ Restaurant, including continuing an open food purchase. They need their own
 payment and enough carrying room, and keep the outstanding order. Equipment
 purchases, raw ingredient shopping and selling goods do not gain this exception.
 
+Reading orders cover personally owned, carried field records, maps and books.
+"Read a map", "Read a book" or "Read" selects one eligible item; an exact
+artifact ID, lot ID or unique title binds that item even while it is elsewhere.
+The task adds only its frozen written sites and original discovery sources,
+within the existing knowledge limit. Foreign, borrowed, stored, ground or
+reserved items leave a blocker. An unreadable item or one with no new sites
+does not finish the task. Only that agent's own successful native read counts;
+another person's reading teaches them separately. Queueing, cancellation,
+replacement, urgent survival and saving preserve the task and its actual
+progress. [The Windows reading-order check](../playtest/1223-reading-orders.md)
+is pending.
+
 Orders currently cover eating carried food, collecting accessible household
 food to eat, going to a known food source or discovering one through ordinary
 exploration, and gathering berries, fruit or wild greens from a matching source.

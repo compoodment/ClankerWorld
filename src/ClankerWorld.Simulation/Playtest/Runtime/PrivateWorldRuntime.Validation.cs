@@ -123,6 +123,7 @@ public sealed partial class PrivateWorldRuntime
         ValidatePlantedTrees();
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, bridges, checkpointSchemaVersion, towns);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
+        ValidateKnowledgeReadOrderBindings(instructionsByIdempotency.Values, knowledge);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateDependentCare(inhabitants.Values, society.Checkpoint, towns, checkpointSchemaVersion);
         ValidateGuardianPlacements(inhabitants.Values, society.Checkpoint, towns, map, checkpointSchemaVersion);
@@ -422,6 +423,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateMedicalCare(state);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick);
+        ValidateKnowledgeReadOrderBindings(state.Instructions ?? [], state.Knowledge);
         ValidateSurvival(state);
         ValidateCouncil(state);
         foreach (var town in state.Towns ?? [])
@@ -624,6 +626,7 @@ public sealed partial class PrivateWorldRuntime
             "finished" or "cancelled" or "not_understood";
         var terminal = order.Status is "finished" or "cancelled" or "not_understood";
         var isCompleted = completedInstructionIds.Contains(instruction.InstructionId, StringComparer.Ordinal);
+        if (order.Action != "read_knowledge" && (order.TargetKnowledgeArtifactId is not null || order.KnowledgeReadCompletion is not null)) return false;
         if ((order.TargetAnimalId is not null) != IsAnimalOrder(order.Action)) return false;
         if (!knownStatus || (order.Status == "queued" && !instruction.Queue) ||
             order.BlockedReason is { Length: > 256 } || order.BlockedReason?.Any(char.IsControl) == true ||
@@ -631,7 +634,7 @@ public sealed partial class PrivateWorldRuntime
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
             order.Action != "produce_item" && (order.TargetRecipeId is not null || order.TargetOutputKind is not null ||
                 order.ProductionBuildingId is not null || order.ProductionJobId is not null || order.ProductionProjectStartedTick is not null) ||
-            order.Action is not ("collect_goods" or "store_goods" or "return_borrowed" or "deliver_stock") && order.TargetItemKind is not null ||
+            order.Action is not ("collect_goods" or "store_goods" or "return_borrowed" or "deliver_stock" or "read_knowledge") && order.TargetItemKind is not null ||
             order.Action != "deliver_stock" && (order.DeliveryPurpose is not null ||
                 order.DeliveryRoute is not null || order.DeliveryLotId is not null || order.DeliveryQuantity is not null) ||
             order.Action is not ("deliver_stock" or "construct_building" or "expand_building" or "seek_shelter" or "tend_fire") && order.TargetBuildingKind is not null ||
@@ -652,6 +655,7 @@ public sealed partial class PrivateWorldRuntime
             terminal != isCompleted)
             return false;
 
+        if (order.Action == "read_knowledge") return IsValidKnowledgeReadOrderShape(order, instruction, worldTick);
         if (IsAnimalOrder(order.Action))
             return !string.IsNullOrWhiteSpace(order.TargetAnimalId) && order.TargetAnimalId.Length <= 128 &&
                 !order.TargetAnimalId.Any(char.IsControl) && order.RequestedUnits == 1 && order.CompletedUnits >= 0 &&

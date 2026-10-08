@@ -361,7 +361,8 @@ public sealed record InhabitantObservation(
                         "fit a real household saddle on the named horse" or
                         "mount the named cared-for horse with permission" or
                         "dismount the named horse and leave excess cargo here" or
-                        "eat one carried food item" or "travel within gathering range of an available food source" or
+                        "eat one carried food item" or
+                    "read one personally held written record, map or book and learn only its written facts" or "travel within gathering range of an available food source" or
                         "gather several food servings from a nearby food source" or
                         "gather the requested material from a natural source" or
                         "collect your own stored or dropped material" or

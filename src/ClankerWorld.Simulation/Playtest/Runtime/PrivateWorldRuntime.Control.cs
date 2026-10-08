@@ -403,6 +403,7 @@ public sealed partial class PrivateWorldRuntime
         "animal_dismount" => "dismount the named horse and leave excess cargo here",
         "seek_shelter" => "reach the requested permitted shelter",
         "tend_fire" => "light one permitted hearth using your own wood",
+        "read_knowledge" => KnowledgeReadOrderTask,
         "consume_food" => "eat one carried food item",
         "move_to" => "travel to the exact tile named in this order",
         "seek_food" => "travel within gathering range of an available food source",
@@ -432,7 +433,7 @@ public sealed partial class PrivateWorldRuntime
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
-        return ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
+        return ParseKnowledgeReadOrder(text) ?? ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
             PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent),
             PrivateWorldBuildingOrderCatalog.Available(worldContent));
     }

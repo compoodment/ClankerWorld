@@ -262,6 +262,16 @@ blocked with a reason. These are single trips; queue another order for the
 return journey. A destination in another household's House requires an
 invitation. Urgent food or warmth needs can interrupt the trip, then it resumes.
 
+Use **Read a field record**, **Read a map**, **Read a book** or **Read** to
+read one eligible written item the adult personally owns and carries. Add its
+exact artifact ID, lot ID or unique title to select it explicitly. Stored,
+ground, borrowed, reserved and other people's items remain unavailable until
+the agent personally holds them. Reading teaches only the sites written in
+that item, with their original discovery sources; it neither updates the
+written account nor teaches other people. A full knowledge ledger or an item
+with no new sites leaves the task waiting. Queue, cancellation, replacement
+and save/reload follow the normal order rules, and urgent survival comes first.
+
 The small card and the Profile show the order the agent is on now: whether it
 is waiting, being done, interrupted or blocked, how far along it is, why it is
 held up, and how many orders are queued after it. With no open order, they

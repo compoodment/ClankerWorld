@@ -826,6 +826,8 @@ public partial class Main
         var task = order.Action switch
         {
             "consume_food" => "Eating food",
+            "read_knowledge" => "Reading " + (order.TargetItemKind is { } writtenKind
+                ? GameUiText.ItemName(writtenKind).ToLowerInvariant() : "a written item"),
             "harvest_food" => "Gathering food",
             "gather_material" => "Gathering " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "till_field" => "Tilling household fields",
@@ -899,6 +901,7 @@ public partial class Main
     private static string ProgressUnitLabel(string unit) => unit switch
     {
         "food_items" => "food items",
+        "knowledge_reads" => "items read",
         "material_items" => "items",
         "equipment_items" => "equipment items",
         "goods_items" => "items",

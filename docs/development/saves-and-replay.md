@@ -370,7 +370,7 @@ offers keep their history. Strict loading rejects a missing or unrelated
 predecessor instead of reconstructing obligations or moving earlier physical
 receipts into the replacement. Previously written accepted renegotiations with
 a lost predecessor are refused and preserved. No saved fields or event shapes
-change, and current schema 100 is retained.
+change; that repair retained schema 100.
 
 Schema 97 adds `CarriedAvailableQuantityBefore` to native public-service
 receipts. It snapshots the usable personal stock of the donated kind before
@@ -540,6 +540,20 @@ requires normal acceptance, which counts against the invitee's daily allowance.
 Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
+
+Private-world schema 101 adds `read_knowledge` task bindings. The optional
+`TargetKnowledgeArtifactId` is stable across waits; `KnowledgeReadCompletion`
+records the actual read tick and at most nine distinct, sorted newly learned
+sites. One deterministic receipt credits a successful task. Validation checks
+the target kind, frozen written membership and the actor's actual read
+provenance at that tick. A later personal observation may update the site
+without undoing its completed read task; historical completion can outlive a
+removed artifact only after all credited sites have later accounts. Active
+missing targets remain blocked. Completed tasks cannot be credited again.
+Tests cover native paid artifacts and ownership, paired replay/reload, urgent
+food, cancellation/replacement, exact targeting, full/partial knowledge limits,
+malformed progress and rejected read ticks. This number is provisional until
+merge. Older alpha checkpoints are refused and preserved without migration.
 
 Private-world schema 84 adds required marriage records and conversation kinds.
 Each marriage retains its accepted partnership snapshot and the ordinary
