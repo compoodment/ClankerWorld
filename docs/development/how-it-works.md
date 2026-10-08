@@ -1193,17 +1193,32 @@ the water. A river tile costs what its narrowest crossing costs: 200, half
 dry-ground speed, where one tile of water separates dry banks, and
 `SeededMap.TwoTileWadingFootCost` (300, a third of dry-ground speed) where it
 takes two. The two-tile speed is provisional. A third water tile in the line,
-or any lake or ocean tile, means there is no crossing there: wider rivers,
-lakes and the sea need boats. A two-tile line through a tile that also lies on
+or any lake or ocean tile, prevents wading. A two-tile line through a tile that also lies on
 a two-tile line across the other axis does not count either: that tile is a
 corner of a river one tile thick that runs diagonally, and wading it would turn
 inside the water and walk along the channel. Where a one-tile spur or a river's
 head meets a two-tile line, an agent can still turn once inside the water; no
-route crosses more than two water tiles, and such a turn records no bridge
+wading route crosses more than two water tiles, and such a turn records no bridge
 evidence. A built bridge makes its river tiles walkable at
 dry-ground speed, end to end along the bridge only (see
 [Roads and bridges](#roads-and-bridges)). Mountains are slower to cross and
 cannot be built on; peaks are impassable.
+
+Agent routing also allows cardinal swimming steps through wider rivers and
+lakes. `SwimmingRules` keeps those steps separate from ordinary foot movement,
+so carts, animals, Roads and building placement retain their terrain rules.
+Provisional swimming cost is 800 per step, with 200 warmth lost on each committed
+step touching swimming water, including arrival on shore. Starting requires
+at least 6,000 warmth, illness below 2,500 and no more than four physically
+carried units; worn equipment does not count as cargo. A rider, an animal
+leader or a cart puller cannot start swimming, and moving dependants must also
+meet the starting conditions. Infants and adults carrying guardian-placement
+dependants cannot start. A swimmer whose condition changes can still leave
+the water. Occupancy, bridge entrances and ordinary wading restrictions remain
+authoritative; the sea cannot be swum. Route searches cache swimming eligibility
+alongside terrain, Roads and occupancy. Swimming is projected from the actual
+water position, and the map presents it with water motion around the existing
+approved sprite. No sprite atlas or saved movement-mode field changes.
 
 Checkpoint map acceptance keeps a weak, derived camp-reachability cache for
 each map's current starting point. Before reuse it compares actual terrain,

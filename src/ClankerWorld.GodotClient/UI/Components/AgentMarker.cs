@@ -20,6 +20,8 @@ public partial class AgentMarker : Control
     private int stage = 2;
     private int facing = AgentSprites.South;
     private AgentFrame activity;
+    private bool swimming;
+    private double swimmingSeconds;
     private AgentFrame step;
     private double stepSecondsLeft;
     private string? motionWorldId;
@@ -142,7 +144,21 @@ public partial class AgentMarker : Control
     /// drawings already read while moving; otherwise a step shows its walk
     /// frame and a standing agent shows their activity.
     /// </summary>
-    public AgentFrame Frame => activity is AgentFrame.Hurt or AgentFrame.Carry ? activity
+    public bool Swimming
+    {
+        get => swimming;
+        set
+        {
+            if (swimming == value) return;
+            swimming = value;
+            swimmingSeconds = 0;
+            SetProcess(swimming || step != AgentFrame.Still);
+            QueueRedraw();
+        }
+    }
+
+    public AgentFrame Frame => swimming ? activity == AgentFrame.Hurt ? AgentFrame.Hurt : AgentFrame.Work
+        : activity is AgentFrame.Hurt or AgentFrame.Carry ? activity
         : step != AgentFrame.Still ? step : activity;
 
     /// <summary>
@@ -160,7 +176,7 @@ public partial class AgentMarker : Control
         MouseExited += () => { hovered = false; Raise(); };
     }
 
-    public override void _Ready() => SetProcess(step != AgentFrame.Still);
+    public override void _Ready() => SetProcess(swimming || step != AgentFrame.Still);
 
     /// <summary>
     /// Records the agent's tile from an observation. A change of tile turns the
@@ -199,6 +215,11 @@ public partial class AgentMarker : Control
 
     public override void _Process(double delta)
     {
+        if (swimming)
+        {
+            swimmingSeconds += delta;
+            QueueRedraw();
+        }
         stepSecondsLeft -= delta;
         if (stepSecondsLeft <= 0) EndStep();
     }
@@ -208,7 +229,7 @@ public partial class AgentMarker : Control
         if (step != AgentFrame.Still) QueueRedraw();
         step = AgentFrame.Still;
         stepSecondsLeft = 0;
-        SetProcess(false);
+        SetProcess(swimming);
     }
 
     /// <summary>
@@ -279,6 +300,17 @@ public partial class AgentMarker : Control
         {
             DrawArc(center + new Vector2(0, drawn * 0.06f), drawn * 0.36f, 0, Mathf.Tau, 32,
                 selected ? SelectedColor : HoveredColor, Math.Max(1.5f, drawn / 18f));
+        }
+        if (swimming)
+        {
+            // Water motion surrounds the approved sprite; the host tile remains the hit target.
+            var waterCenter = center + new Vector2(0, drawn * 0.18f);
+            var pulse = (float)(Math.Sin(swimmingSeconds * 4) * 0.025);
+            DrawArc(waterCenter, drawn * (0.30f + pulse), 0.15f, Mathf.Pi - 0.15f, 20,
+                new Color("BEE6EF"), Math.Max(1f, drawn / 24f));
+            DrawArc(waterCenter, drawn * (0.40f - pulse), Mathf.Pi + 0.15f, Mathf.Tau - 0.15f, 20,
+                new Color("BEE6EF"), Math.Max(1f, drawn / 24f));
+            sprite.Position += new Vector2(0, -drawn * pulse);
         }
         var atlasSize = drawn >= 24 ? 32 : 16;
         var frame = Frame;

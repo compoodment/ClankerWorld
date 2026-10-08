@@ -68,6 +68,10 @@ public sealed partial class PrivateWorldRuntime
         inhabitants[inhabitantId] = state with
         {
             Position = next,
+            Survival = SwimmingRules.IsSwimmingWater(map, state.Position) || SwimmingRules.IsSwimmingWater(map, next)
+                ? (state.Survival ?? new SurvivalCondition()) with
+                { WarmthBasisPoints = Math.Max(0, (state.Survival?.WarmthBasisPoints ?? 10_000) - SwimmingRules.WarmthLossPerStep) }
+                : state.Survival,
             MoveWaitTicks = 0,
             TravelCooldownTicks = (travelCost + 99) / 100 - 1 +
                 SettlementIllnessRules.TravelDelayTicks(state.Survival?.IllnessBasisPoints ?? 0),
@@ -112,7 +116,7 @@ public sealed partial class PrivateWorldRuntime
         if (interactionRange == 0 && origin != destination && occupied.Contains(destination))
             return [];
         if (AttachedHandcart(inhabitantId) is null)
-            return SharedUnoccupiedRoute(origin, occupied, destination, interactionRange);
+            return SharedUnoccupiedRoute(origin, occupied, destination, interactionRange, CanSwim(inhabitantId));
 
         var open = new PriorityQueue<GridPoint, (int Cost, int Y, int X, int Order)>();
         var best = new Dictionary<GridPoint, int> { [origin] = 0 };

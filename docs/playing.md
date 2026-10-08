@@ -845,6 +845,17 @@ starts automatically after that action completes.
 loads. You can reroll during generation; the preview will follow your latest
 seed. If the world name is missing, enter it and choose **Preview again**.
 
+## Crossing rivers and lakes
+
+Agents can wade rivers one or two tiles wide. A healthy agent with enough
+warmth and a light load can also swim wider rivers and lakes, much more slowly,
+losing warmth as they move. The map shows water motion around a swimmer; their
+tooltip says **Swimming**. Cold or ill agents, loads above four carried units,
+carts and accompanying animals prevent a new swim. The sea still needs a boat.
+An agent already swimming can reach shore if their condition changes, and an
+unfinished crossing survives saving and loading. Swimming speed, warmth loss
+and the load limit are provisional for playtesting.
+
 ## Animals
 
 Adults with a House can **Build an animal yard** and **Expand my animal yard**

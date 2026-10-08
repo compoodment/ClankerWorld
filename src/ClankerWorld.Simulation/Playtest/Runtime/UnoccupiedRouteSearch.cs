@@ -17,6 +17,7 @@ public sealed class UnoccupiedRouteSearch : IDisposable
     private readonly SeededMap map;
     private readonly HashSet<GridPoint> occupied;
     private readonly Func<GridPoint, GridPoint, int> stepCost;
+    private readonly Func<GridPoint, IEnumerable<GridPoint>> neighbors;
     private readonly int[] best;
     private readonly int[] predecessor;
     private readonly int[] finishedOrder;
@@ -29,12 +30,14 @@ public sealed class UnoccupiedRouteSearch : IDisposable
     /// <param name="origin">Where every route starts, even if it is occupied.</param>
     /// <param name="occupied">Tiles a route may not enter, nor cut past diagonally. The search keeps the set, so it must not change.</param>
     /// <param name="stepCost">The cost of one foot step; it must stay the same while the search is used.</param>
+    /// <param name="neighbors">Legal steps for this traveler; defaults to ordinary foot movement. It must stay the same while the search is used.</param>
     public UnoccupiedRouteSearch(SeededMap map, GridPoint origin, HashSet<GridPoint> occupied,
-        Func<GridPoint, GridPoint, int> stepCost)
+        Func<GridPoint, GridPoint, int> stepCost, Func<GridPoint, IEnumerable<GridPoint>>? neighbors = null)
     {
         this.map = map ?? throw new ArgumentNullException(nameof(map));
         this.occupied = occupied ?? throw new ArgumentNullException(nameof(occupied));
         this.stepCost = stepCost ?? throw new ArgumentNullException(nameof(stepCost));
+        this.neighbors = neighbors ?? map.FootNeighbors;
         if (!map.Contains(origin))
             throw new ArgumentOutOfRangeException(nameof(origin));
         Origin = origin;
@@ -98,7 +101,7 @@ public sealed class UnoccupiedRouteSearch : IDisposable
 
     private void Expand(GridPoint current, int index, int cost)
     {
-        foreach (var next in map.FootNeighbors(current))
+        foreach (var next in neighbors(current))
         {
             if (occupied.Contains(next) ||
                 map.IsDiagonalFootStep(current, next) &&
