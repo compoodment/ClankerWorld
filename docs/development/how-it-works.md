@@ -1512,6 +1512,10 @@ paths supply receipts only after their actual changes commit. One receipt can
 credit only one term, and the saved effect cannot exceed that term's remaining
 quantity. Declined, unanswered, pending, overdue and completed states remain
 distinct. Findings and overdue work never create physical punishment powers.
+Goods-return source selection checks each carried lot against the remaining
+agreed quantity before ordering eligible lots by identity. The actual transfer
+uses that same remaining quantity; a pinned source, reservations, personal
+ownership and beneficiary capacity remain binding.
 
 Counteroffers during renegotiation follow the exact prior-offer chain back to
 the nearest agreement. After every contributor accepts, the replacement names
@@ -2585,6 +2589,12 @@ Godot uses it to keep an **Add a newcomer** offer in the Event Log while the
 rule is on in a started world, even when the transition event has left bounded
 history. The link opens the existing Add Agent controls and rechecks the current
 snapshot when clicked; it neither places an agent nor asks for a paid model call.
+
+Godot ends Add Agent placement mode on the current world's signed placement
+receipt, before refreshing provider status. Failure of that separate read keeps
+the placement confirmation and explains how to refresh model settings. A refused
+placement leaves the panel open; responses from an obsolete world still cannot
+change the current world's interface.
 
 Preparing parenthood notes derive the caregiver household's usable edible
 reserve and required amount from the same captured society/inventory checkpoint

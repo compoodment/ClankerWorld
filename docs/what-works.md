@@ -902,6 +902,8 @@ receipts distinguish accepted work from completed work. Visitors retain local
 response rights and children receive caregiver support. Counteroffers during
 renegotiation still replace the original unfinished agreement once everyone
 accepts; only the newly agreed remaining contributions can then be performed.
+Goods returns can use a later carried lot with enough goods when an earlier
+one is too small; a named source lot and reservations still limit the payment.
 Public-service goods
 keep four usable personal units across carried lots, including stock split by
 storage and collection. No fine, seizure, expulsion or forced work is available.
@@ -1084,6 +1086,9 @@ Starter household use rights cover the footprints of the buildings assigned to
 each household. New fields cannot occupy land another household holds or has
 requested. Ordinary household land requests and grants cannot take over another
 household's field; challenges to recorded use rights remain disputes.
+Add Agent closes when the host acknowledges placement. A later model-settings
+refresh failure keeps the placement confirmation and asks the player to reopen
+Game Settings; another map click does not add another agent.
 Add Agent uses building/field ownership and recorded use
 rights, then Town title or border: one clear household claim sets the household,
 and land claimed by one Town gives Town membership. A building's current owner
