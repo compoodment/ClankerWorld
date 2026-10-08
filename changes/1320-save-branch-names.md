@@ -1,0 +1,1 @@
+- Save branches show the name of the save they started from, such as From Before the flood. The label stays with the branch if the source save changes later; hover a shortened label to read it in full.
