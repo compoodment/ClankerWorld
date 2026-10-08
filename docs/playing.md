@@ -85,6 +85,13 @@ both names unchanged. An unfinished rename stays in the open editor through
 world refreshes, even when the name field loses focus. Closing the editor or
 choosing another agent or world discards it.
 
+Children born in the world choose their own personality and aspiration when
+their personal model first makes a decision after infancy, at day 3. Their
+parents' chosen identities, household and Town provide background; the child's
+choice is its own. An unavailable model or unusable reply leaves the choice
+pending until a later ordinary decision. You can inspect the chosen identity
+on the child's Profile; saving preserves it.
+
 ## Create your first Town
 
 On a fresh server, **Continue** opens **New World** so you can choose the map

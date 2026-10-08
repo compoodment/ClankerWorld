@@ -182,8 +182,16 @@ current choices. Missing or invalid replies, a pause, disconnection or a reload
 while waiting keep the current identity and do not automatically retry the
 opportunity. Accepted changes and their reasons appear on the profile and
 survive saving. These moments never change names or choose a physical action.
-Children's initial identity is still unfinished. The household
-and Town are sent by their recorded names. Models are not told about nearby
+Children born in the world start with their own identity choice pending.
+Their first personal-model decision after infancy, at day 3, includes their
+biological parents' chosen personalities and aspirations, alongside their
+household and Town. The child chooses its own personality and aspiration;
+the game does not mix or assign parental traits. Missing, invalid, partial or
+refused replies keep the choice pending for the next ordinary decision, with
+no separate identity call. Saving keeps both pending and completed choices.
+Parents' private thoughts and memories stay private. The household
+and Town are sent by their recorded names. Outside this initial family background,
+models are not told about nearby
 people, relationships, what the agent carries or what it is doing now
 ([#255](https://github.com/compoodment/ClankerWorld/issues/255)). Better pacing
 or thought quality from these changes has not been proven in live play.
