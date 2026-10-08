@@ -118,6 +118,18 @@ public partial class Main
             if (!agentProfilePanel.Visible || selectedInhabitantId != people[0].Id ||
                 !selectedActorNameLabel.Text.Contains(people[0].DisplayName, StringComparison.Ordinal))
                 throw new InvalidOperationException("A double-click must still open the clicked agent's Profile.");
+            agentProfileRequested = false;
+            RenderSelectedInhabitantCard(snapshot);
+            rosterPanel.Show();
+            await LayoutAsync();
+            rosterCards.GrabFocus();
+            await KeyAsync(Key.Down);
+            await KeyAsync(Key.Up);
+            ExpectBrowsing(people[0].Id, "Returning to a row with the keyboard before a double-click");
+            await ClickAsync(1, doubleClick: true);
+            if (!agentProfilePanel.Visible || selectedInhabitantId != people[0].Id ||
+                !selectedActorNameLabel.Text.Contains(people[0].DisplayName, StringComparison.Ordinal))
+                throw new InvalidOperationException("Double-clicking the keyboard-selected row must open that agent's Profile.");
         }
         finally
         {

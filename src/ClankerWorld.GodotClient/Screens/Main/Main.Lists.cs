@@ -23,7 +23,11 @@ public partial class Main
         rosterCards.CustomMinimumSize = new Vector2(380, 60);
         rosterCards.ItemClicked += index => SelectRosterCard(index, keepRosterOpen: false);
         rosterCards.ItemNavigated += index => SelectRosterCard(index, keepRosterOpen: true);
-        rosterCards.ItemActivated += _ => OpenAgentProfile(speak: false);
+        rosterCards.ItemActivated += index =>
+        {
+            SelectRosterCard(index, keepRosterOpen: true);
+            OpenAgentProfile(speak: false);
+        };
         body.AddChild(rosterCards);
         inhabitantList.Hide();
     }
