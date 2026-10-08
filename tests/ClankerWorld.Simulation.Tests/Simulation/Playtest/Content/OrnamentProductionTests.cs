@@ -138,12 +138,14 @@ public sealed class OrnamentProductionTests
         choices.Preferences = [];
         var firstGold = await Produce(resumed, actor, choices, "refine-gold", 24,
             [(deliveredGold.Id, 2), ("ornament-fuel", 1)]);
-        var secondGold = await Produce(resumed, actor, choices, "refine-gold", 24,
+        Assert.Contains(resumed.Inhabitants.Single(person => person.InhabitantId == actor).Skills!,
+            skill => skill.Kind == SettlementSkillKind.Smithing);
+        var secondGold = await Produce(resumed, actor, choices, "refine-gold", 19,
             [(deliveredGold.Id, 2), ("ornament-fuel", 1)]);
         Assert.DoesNotContain(resumed.Society.Inventory.Lots, lot => lot.Id is "ornament-fuel" || lot.Id == deliveredGold.Id);
         Assert.Equal(4, resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == "gold_ore").Sum(lot => lot.Quantity));
         Assert.Equal(2, resumed.Society.Inventory.Lots.Where(lot => lot.ItemKind == OrnamentContent.Gold).Sum(lot => lot.Quantity));
-        var plain = await Produce(resumed, actor, choices, "gold-ornament", 24, [(firstGold, 1), (secondGold, 1)]);
+        var plain = await Produce(resumed, actor, choices, "gold-ornament", 19, [(firstGold, 1), (secondGold, 1)]);
         Assert.Equal((OrnamentContent.GoldOrnament, owner, Smith, 1),
             (resumed.Society.Inventory.GetLot(plain).ItemKind, resumed.Society.Inventory.GetLot(plain).OwnerId,
                 resumed.Society.Inventory.GetLot(plain).StorageBuildingId, resumed.Society.Inventory.GetLot(plain).Quantity));
@@ -186,7 +188,7 @@ public sealed class OrnamentProductionTests
         var onSiteDiamond = Assert.Single(resumed.Society.Inventory.Lots, lot => lot.ItemKind == "diamond" && lot.StorageBuildingId == Smith);
         Assert.Equal((owner, diamonds.Id, 2), (onSiteDiamond.OwnerId, onSiteDiamond.ProvenanceLotId, onSiteDiamond.Quantity));
         choices.Preferences = [];
-        var finished = await Produce(resumed, actor, choices, "set-diamond", 28, [(plain, 1), (onSiteDiamond.Id, 1)]);
+        var finished = await Produce(resumed, actor, choices, "set-diamond", 22, [(plain, 1), (onSiteDiamond.Id, 1)]);
         Assert.Equal((OrnamentContent.DiamondOrnament, owner, Smith, 1),
             (resumed.Society.Inventory.GetLot(finished).ItemKind, resumed.Society.Inventory.GetLot(finished).OwnerId,
                 resumed.Society.Inventory.GetLot(finished).StorageBuildingId, resumed.Society.Inventory.GetLot(finished).Quantity));
