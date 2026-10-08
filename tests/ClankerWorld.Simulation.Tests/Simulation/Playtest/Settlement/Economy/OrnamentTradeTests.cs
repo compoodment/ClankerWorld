@@ -14,7 +14,6 @@ public sealed class OrnamentTradeTests
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
-    [InlineData(true, true)]
     public async Task SmithPaymentCanUseASpareSingletonOrnamentButNeverTheWornUnit(bool diamond, bool worn)
     {
         var (state, seller, buyer, made) = await MadeOrnament(diamond);

@@ -1,0 +1,1 @@
+- After merge, put grain and a filled water jug in an Animal Yard, order an adult to care for an uncared animal on another yard tile, and check that they pick up both supplies before walking to it and finishing care. Save/load during fetching; check ownership, remaining quantities and that care beside the stock still works.

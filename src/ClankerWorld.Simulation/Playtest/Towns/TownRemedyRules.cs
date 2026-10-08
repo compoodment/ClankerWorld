@@ -61,19 +61,29 @@ public static class TownRemedyRules
         if (kind != "accept") return Replace(state, offer with { Status = kind == "decline" ? "declined" : "countered" });
         var contributors = offer.Terms.Select(t => t.ContributorId).Distinct(StringComparer.Ordinal);
         if (!contributors.All(id => offer.Responses.Any(r => r.AgentId == id && r.Kind == "accept"))) return Replace(state, offer);
-        var previousAgreement = offer.ReplacesOfferId is null ? null : state.Offers.Single(o => o.Id == offer.ReplacesOfferId).AgreementId;
+        var previousOffer = ReplacedAgreementOffer(state, offer);
+        var previousAgreement = previousOffer?.AgreementId;
         // Renegotiation preserves already performed work. New terms are remaining commitments,
         // never a mechanism to copy old physical receipts into another agreement.
         var agreement = new TownRestorativeAgreement(TownNonviolentRules.NextId(state, "agreement"), offer.Id, revision,
             offer.TermsHash, offer.Terms, offer.Responses, tick, checked(tick + offer.CompletionTicks), "pending", previousAgreement);
         offer = offer with { Status = "accepted", AgreementId = agreement.Id };
         state = Replace(state with { Sequence = checked(state.Sequence + 1), Agreements = state.Agreements.Append(agreement).ToArray() }, offer);
-        if (previousAgreement is not null && offer.ReplacesOfferId is { } oldId)
-        {
-            var old = state.Offers.Single(o => o.Id == oldId);
-            state = Replace(state, old with { Status = "superseded" });
-        }
+        if (previousOffer is not null)
+            state = Replace(state, previousOffer with { Status = "superseded" });
         return state;
+    }
+
+    internal static TownRemedyOffer? ReplacedAgreementOffer(TownNonviolentState state, TownRemedyOffer offer)
+    {
+        HashSet<string> seen = new(StringComparer.Ordinal) { offer.Id };
+        while (offer.ReplacesOfferId is { } priorId)
+        {
+            if (!seen.Add(priorId)) throw new InvalidOperationException("A remedy offer cannot replace itself through its history.");
+            offer = state.Offers.Single(prior => prior.Id == priorId);
+            if (offer.AgreementId is not null) return offer;
+        }
+        return null;
     }
 
     public static int CompletedQuantity(TownNonviolentState state, string agreementId, string termId) =>
