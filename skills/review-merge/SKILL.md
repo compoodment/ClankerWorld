@@ -132,8 +132,12 @@ current head, readiness and any existing claim.
   changes, model output treated as untrusted, which agent or household holds
   or has reserved each item, cancellation, and saves and replay where the
   change touches them. The [documentation guide](../../docs/README.md) shows
-  where each contract is written. Check docs, issue scope and the changelog entry as they
-  apply.
+  where each contract is written. Check issue scope and the changelog entry as
+  they apply.
+- **Check that no doc still contradicts the change.** Run
+  `node scripts/find-stale-docs.js` with the names of what changed and read
+  every place it lists. A sentence elsewhere that the change made false, such
+  as "not built yet" on another page, is a finding: fix it on the branch.
 - For a large change, read independent parts at the same time with read-only
   subagents. They belong to your session, so they don't affect who counts as
   an independent reviewer.
