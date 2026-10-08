@@ -1,0 +1,1 @@
+- In an abandoned Town with a Warehouse and a Port, look at the Warehouse's door lantern and the lantern on the end of the Port's pier by day. Both should look faded like the weathered building around them, a little more once the Town has stood empty for a full season, and bright again once the Town is resettled. ([#1181](https://github.com/compoodment/ClankerWorld/pull/1181))

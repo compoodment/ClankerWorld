@@ -2,7 +2,7 @@
 title: Releasing
 type: release-policy
 status: active
-updated: 2026-10-03
+updated: 2026-10-08
 ---
 
 # Releasing
@@ -96,7 +96,7 @@ Before publishing:
    `bash scripts/collect-changes.sh` again. Move every newly collected bullet
    from `Unreleased` to the start of the dated release section, leaving
    `Unreleased` empty. Merge the release changes through the
-   [contribution review process](../../CONTRIBUTING.md#review-and-merge).
+   [contribution review process](../../skills/review-merge/SKILL.md).
 5. The session that prepared the release fetches main and verifies the reviewed
    release PR's squash commit on GitHub's `origin/main`. Confirm its required
    checks passed and that `git ls-tree --name-only <commit> changes/` lists
