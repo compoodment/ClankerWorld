@@ -1,0 +1,1 @@
+- Wild animals find nearby feed with less server work while preserving the same forage choices, real feed costs and blocked-route fallback.

@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # Saves and replay
@@ -770,6 +770,15 @@ state intact. The repair applies once and may expose an already broken Road
 connection; it does not reroute Roads or create bridges. Back up older saves
 before an upgrade.
 
+World-systems resource manifests are separate from the terrain-byte chunks.
+Loaded or changed manifests require full structural validation and an exact
+canonical digest. Unchanged immutable manifests may reuse that result in a
+process-local weak cache; current-world bounds and duplicate coordinates still
+require validation. No cache state is saved, and the checkpoint schema, JSON
+field order and canonical bytes remain unchanged. See [How it works](how-it-works.md)
+for ownership and [Chunk validation measurements](chunk-validation-measurements.md)
+for exact checkpoint/replay comparisons.
+
 Bridges are saved in the same checkpoint as the Road tiles they join, so a
 Road never ends at a river without its bridge. Loading checks every bridge
 against the map (a legal one- or two-tile river span between buildable banks,
@@ -839,7 +848,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 102. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 103. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -986,6 +995,7 @@ current alpha cutoff.
 | Schema 98 | Existing inventory events retain exact physical storage additions/removals by building and item kind, with signed quantities. Event identities, trade receipts, rollback and bounded archival remain intact. Malformed changes and earlier alpha schemas are refused; no migration or history reconstruction is added. |
 | Schema 99 | Towns retain the latest abandonment tick independently of bounded events. Revival clears it; missing markers, future or pre-founding ticks, and markers on lived-in Towns are refused. Earlier alpha saves are refused and preserved without migration. |
 | Schema 100 | Actual observations refresh current personal map facts. The required bounded `EarlierFacts` ledger backs unchanged artifacts and writing snapshots; duplicate, orphaned, future and mismatched versions are refused. Native writing, copying, planting, cancellation and current-format continuation retain exact contents and paid materials. Earlier alpha saves are refused and preserved without migration. |
+| Schema 103 | Boat transport requires compact retired-request sequence ranges. Checkpoint compaction durably archives full older closed requests before retaining all active requests and the latest 40 closed requests. Ranges and live requests cover each issued sequence exactly once, including gaps around older active travelers. Loading verifies that the reachable archive contains exactly those retired closed requests. Earlier alpha saves are refused and preserved without migration. |
 | Schema 102 | Copy orders retain the exact held source while gathering supplies and writing, alongside the native project and paid completion receipt. Strict load checks source kind, project/source/order links and copy provenance; original writing cannot credit a copy task. Source loss releases the project while retaining the source pointer for retry; completion clears both pointers. Older alpha checkpoints are refused and preserved without migration. |
 | Schema 101 | Knowledge-writing orders bind their exact native project and credit only completed physical artifacts carrying that instruction ID. Reload checks actor, kind, current-order priority, paid artifact provenance and exact progress. Cancellation and replacement release only owned unspent reservations; ordinary writing is preserved. Older alpha checkpoints are refused and preserved without migration. |
 
@@ -1142,6 +1152,28 @@ Ports, status, boat and settlement time. Validation rejects mismatched payment,
 owner, passenger or request, duplicate physical or incoming dock claims, invalid
 water steps and an active passenger separated from the boat. Waiting requests
 hold no boat reservation; terminal history remains saved.
+
+Schema 103 requires non-null `RetiredRequestRanges`, empty until the first
+retirement. When more than 40 requests are closed, checkpoint compaction keeps
+all waiting and underway requests and the latest 40 closed requests by sequence,
+matching the existing owner view. The older full records go into
+`ClosedBoatRequests` in the same digest-addressed history segment as event
+prefixes. The segment is fsync-written before the smaller checkpoint is
+published or installed in the live runtime. Preparing a plan or failing either
+write leaves the live queue unchanged. The ordinary host saves after each
+advanced tick; a runtime used without persistence keeps its records until saved.
+
+Retired sequence ranges are ordered, disjoint and merged. They account for each
+issued sequence exactly once together with the live requests, while preserving
+gaps for older waiting or underway travelers. Retirement never alters journey
+bindings, paid boat/Port records, cargo or ownership. Later closing an older
+trip archives its exact final record and merges adjacent ranges. A checkpoint
+with retired requests requires an archive head. Loading and saved-world
+compatibility checks verify that its reachable segments contain exactly the
+retired sequences, each once with a closed outcome. Missing, unrelated, corrupt
+or inconsistent archives refuse loading and preserve the checkpoint. Strict reload,
+paired continuation, refused prepared ticks, failed archive/checkpoint writes,
+arrival, blocked return and passenger death are covered by native checks.
 
 Council boat permission is an explicit typed field on its proposal draft and
 adopted law version. The exact known visitor or standing grant, canonical rule,
@@ -1300,6 +1332,19 @@ The active recovery checkpoint is encoded and fsync-written after every advanced
 one-second tick. Older history is compacted into digest-addressed segments.
 Hot event lists are bounded, but long-term segment retention and larger-world
 write cost are not yet measured.
+
+Before replacing the active checkpoint, its writer loads the exact encoded
+bytes through the current codec. A serialization or validation mismatch refuses
+the write and keeps the previous checkpoint. This adds one codec read to each
+checkpoint write. Historical-law evidence uses the same Unicode-safe excerpt
+rule for inspection and exact-source validation; an emoji crossing the limit
+is omitted whole. Source identity, version, conduct time and actual inspection
+receipts remain required.
+
+An alpha checkpoint already damaged by a split law excerpt is refused and
+preserved. No wording repair or migration is attempted. Return to an earlier
+usable manual or recovery save, keeping the damaged file as evidence. Healthy
+current-format checkpoints retain their schema and roundtrip behavior.
 
 Named manual checkpoints use a private `.manual` directory and reference the
 same history archive. Overwriting a selected checkpoint retains a recovery copy;
