@@ -115,6 +115,52 @@ assignments, extend these guards and document its boundary here. Run the
 against the exact base and include the result in the PR. Later steps extend
 the writer ratchet to the state they move.
 
+## Finding goods
+
+`Kernel/InventoryIndex.cs` caches derived inventory facts by checkpoint identity
+in a `ConditionalWeakTable`. It records lots by owner, building, delivery
+destination and vessel, in stable ID order, plus active reserved quantities and
+reserved vessel families. Every inventory transition commits a new checkpoint,
+so its next query gets a new index; earlier checkpoints keep their own facts.
+These facts are never saved. Do not mutate a committed checkpoint's collections.
+The existing quantity helpers delegate to this index while keeping their
+original health checks and clamping behavior.
+
+`Kernel/InventoryRules.cs` owns the predicates used by inventory authority and
+goods selection: physical and usable quantities, usable parent vessels,
+reservation availability, free families and container ownership/location.
+Physical movement may preserve damaged or spoiled property. Consumption still
+requires usable inputs. `InventoryFixture` remains the authority for an actual
+reservation, transfer, container operation or consumption.
+
+`Playtest/Goods/` currently supplies two query uses. `Holdings` excludes unusable
+lots or parent vessels, reserved quantities, delivery promises and goods held
+for sale at a borrowed Market stall. `ConsumeAt` matches the inventory
+reservation boundary, including usable contained ingredients and partially
+unreserved quantities; reusable vessels themselves are not consumable inputs.
+Requests name exact owners and item kinds, and can restrict a building. The
+answer's `Total` and `First` read the same stable matches. It includes each lot's
+root vessel, physical place, available quantity and whole-vessel movement size.
+Travel, destination capacity and other uses belong to the later steps of
+[#1366](https://github.com/compoodment/ClankerWorld/issues/1366); unsupported
+travel/destination fields are refused rather than silently ignored.
+
+With `Explain`, exclusions retain their first failure in this fixed order:
+owner, kind, building, damage, spoilage, vessel, empty stock, reservation,
+delivery and Market sale promise. Diagnostics are derived, never saved or
+logged every tick. Normal queries use the owner/building index; explanations
+scan all lots so they can also explain an owner or place mismatch.
+
+To add a caller, choose the appropriate use and keep its request for both
+eligibility and execution. Add feature-specific filters when necessary; never
+remove the use's rules. Call `RecheckGoods` against the current checkpoint
+immediately before the authoritative action. Production's availability,
+missing-input explanation, consumption and reservation share these requests;
+its existing handcart, Market and carried-only restrictions remain additional
+filters. A broken first vessel cannot hide healthy ingredients later in ID order.
+Construction uses Holdings for both affordability and immediate payment, so it
+does not divert goods promised to another building or held for sale.
+
 ## Clock and asynchronous decisions
 
 Restoring an existing world, including an isolated proposed tick, starts with
@@ -1158,6 +1204,16 @@ evidence. A built bridge makes its river tiles walkable at
 dry-ground speed, end to end along the bridge only (see
 [Roads and bridges](#roads-and-bridges)). Mountains are slower to cross and
 cannot be built on; peaks are impassable.
+
+Checkpoint map acceptance keeps a weak, derived camp-reachability cache for
+each map's current starting point. Before reuse it compares actual terrain,
+water, elevation, surface, wrapping and bridge-axis data with an owned topology
+snapshot. A changed origin or borrowed collection invalidates that result; a
+fresh traversal uses owned data so an old terrain index cannot hide tile edits.
+Placement, layer and manifest checks still run on every acceptance. No route
+rules change. See [Saves and replay](saves-and-replay.md) for the load boundary
+and [Camp reachability measurements](camp-reachability-measurements.md) for native
+save, allocation and exact continuation evidence.
 
 Resources are placed in bounded 16×16 cells with climate and cover biases, then
 recorded in their actual 64×64 chunks. Sparse/Normal/Abundant provisionally
