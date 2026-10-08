@@ -21,6 +21,10 @@ simulation, host and build inputs, only `WorldSystemsContracts.cs` changes.
 [Raw samples, input hashes and full-byte comparison results](chunk-validation-probe/samples.json)
 and [the exact disposable probe](chunk-validation-probe/probe.cs.txt) accompany
 this report. The probe is separate from the committed regression tests.
+After measurement, normal-analyzer verification required the out-of-range
+exception to name the method's `state` parameter. This changes only the error
+parameter name for an invalid resource bound; valid measured work is unchanged.
+The data file records both measured and final source hashes.
 
 Both versions generate real Small and Medium worlds with public seed
 `terrain-encode-cost-audit`, Founder setup and zero residents. Small has 32,768

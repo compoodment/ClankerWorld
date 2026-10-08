@@ -1607,7 +1607,7 @@ public static class WorldSystemsRules
             // Bounds belong to this world, not the cached manifest. The cache
             // is safe only because each manifest owns its immutable resources.
             if (chunk.Resources.Count > state.Config.MaxResourcesPerChunk)
-                throw new ArgumentOutOfRangeException(nameof(chunk));
+                throw new ArgumentOutOfRangeException(nameof(state));
             _ = ValidatedChunks.GetValue(chunk, static candidate =>
             {
                 // Digest performs the complete structural validation too.
