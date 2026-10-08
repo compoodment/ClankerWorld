@@ -177,7 +177,12 @@ Agents can keep scouting beyond a short local trip and choose when to return
 to where they started. They learn from the places they actually reach, and
 keep their discoveries when they return. You can Suggest that an agent scout
 farther or return; their own model still chooses whether to follow that
-suggestion. Urgent food or warmth needs may interrupt a trip. A return goes
+suggestion. Agents can also look for food they need, materials for their current
+project, or forest and mountain terrain for those materials. An untargeted
+gathering order keeps the requested kind while searching. Finding a usable
+source resumes the task; scouting alone never counts as gathered goods. The
+agent card and Agents list show what they are looking for.
+Urgent food or warmth needs may interrupt a trip. A return goes
 around other people where possible; if it stays blocked, the Event Log records
 that the trip ended without reaching its start.
 

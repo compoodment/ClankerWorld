@@ -241,7 +241,8 @@ exception; payment, carrying room, physical arrival and consent still apply.
 Material orders save the requested kind separately from food targets. They use
 known resource facts or observation within normal interaction range; a named
 unobserved site first requires physical travel. Untargeted orders may use normal
-exploration when none of their known matching sources is reachable. Inaccessible
+exploration with a saved requested-material purpose when none of their known
+matching sources is reachable. Inaccessible
 facts stay in the knowledge ledger. A reachable source still requires the
 normal tools and carrying room; explicit resource or tile targets do not
 substitute another source. Gathering uses the existing tool pickup, whole-load capacity,
@@ -1065,7 +1066,7 @@ anyone else's private stock. Two artifacts of the same kind can be exchanged
 when each records sites its recipient has not learned; the existing consent,
 ownership, reservation and delivery checks still apply.
 
-Scouting has no fixed eight-step turn-back. `explore` continues an outward
+Scouting has no fixed eight-step turn-back. `explore` continues a curiosity
 outing; the separate `explore_return` choice starts a return to its origin.
 These choices use the existing 30-tick reconsideration cadence and ordinary
 guidance-triggered requests, not a new request for each movement step. An
@@ -1074,6 +1075,27 @@ The starting warmth estimate keeps its eight-step trial budget and grows with
 the recorded return distance. If that budget no longer permits more outward
 travel, only the return choice remains; existing urgent survival rules still
 interrupt either leg.
+
+`explore_for:resource:<kind>` and `explore_for:terrain:<kind>` offer purposes
+from the agent's food needs or missing inputs of an unpaid, unbound project.
+Supported material needs can offer Forest for wood or Mountain for ore; no
+unseen resource location chooses the purpose or ranks neighboring steps.
+Curiosity remains available outside active projects. `SettlementExploration.Goal`
+saves the bounded purpose and, for untargeted food/material orders, the exact
+instruction ID. Strict loading checks supported targets and the matching
+owner, action and requested kind; an explicit resource or coordinate keeps
+its existing precedence and never gains a substitute.
+
+An order search hands back only when its normal task candidate is usable,
+including actual observation or personal knowledge, source availability,
+tools, carrying room and an open route. An ordinary resource purpose likewise
+uses owned knowledge and the normal source checks; a terrain purpose finishes
+only on an actually reached first-hand matching tile. Finishing clears the
+outing path and purpose, retaining discoveries and recording
+`exploration_goal_found`; it awards no harvest progress. Return, blocked-return
+abort and interrupted movement clear the purpose. Cancellation cannot make
+an old order purpose authoritative for a later outing. Urgent interruptions
+retain the pending goal and instruction through the existing lifecycle.
 
 Outward scouting checks occupied destinations and both diagonal corner tiles
 before ranking neighboring exits. An attached cart also restricts exits to

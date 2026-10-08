@@ -1688,6 +1688,10 @@ public sealed partial class OwnerWorldObservationStore
         "inspect_material_site" => "checking the ordered material site",
         "consume_food" => "eating carried food",
         "safe_idle" => "keeping a safe routine",
+        _ when candidateId.StartsWith("explore_for:resource:", StringComparison.Ordinal) =>
+            "looking for " + candidateId["explore_for:resource:".Length..].Replace('_', ' '),
+        _ when candidateId.StartsWith("explore_for:terrain:", StringComparison.Ordinal) =>
+            "looking for " + candidateId["explore_for:terrain:".Length..].ToLowerInvariant() + " terrain",
         _ when candidateId.StartsWith("guardian_relocate:", StringComparison.Ordinal) => "bringing a child home",
         _ when candidateId.StartsWith("guardian_follow:", StringComparison.Ordinal) => "following their guardian home",
         _ => candidateId.Replace('_', ' '),

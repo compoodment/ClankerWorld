@@ -1005,6 +1005,14 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
+        if (candidateId.StartsWith(ExplorationGoalPrefix, StringComparison.Ordinal))
+        {
+            var parts = candidateId[ExplorationGoalPrefix.Length..].Split(':');
+            if (parts.Length == 2 && ValidExplorationGoal(new(parts[0], parts[1])))
+                Explore(inhabitantId, state, new(parts[0], parts[1]));
+            return;
+        }
+
         switch (candidateId)
         {
             case "explore":
