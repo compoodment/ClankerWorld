@@ -36,7 +36,8 @@ public partial class Main
             resumeWorldOnContinue = true;
             host.StartupRecovery = new(true, snapshot.WorldId, save);
             await EnterWorldAsync();
-            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            for (var frame = 0; frame < 3; frame++)
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!startupRecoveryCard.IsVisibleInTree() || mainMenuCard.Visible || mainMenuLogo.Visible || isInWorld ||
                 resumeWorldOnContinue || startupRecoveryButton.Disabled ||
                 !startupRecoveryExplanation.Text.Contains("other saves are unchanged", StringComparison.Ordinal) ||
@@ -94,10 +95,9 @@ public partial class Main
             deviceKey = previousKey;
             worldUrlInput.Text = previousUrl;
             observationSession.ResetAfterLoad();
-            if (previousObservation is not null)
+            if (previousObservation is not null &&
+                observationSession.TryAccept(previousObservation, previousObservation.Baseline.Events.AfterEventId, out _))
             {
-                if (!observationSession.TryAccept(previousObservation, 0, out var failure, out _))
-                    throw new InvalidOperationException(failure);
                 Render(previousObservation.Baseline.Snapshot, []);
             }
             ShowMainMenu();

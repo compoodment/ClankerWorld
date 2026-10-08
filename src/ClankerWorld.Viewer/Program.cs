@@ -265,8 +265,11 @@ if (isPrivateWorld)
             context.Request.Path != "/api/v1/owner/recovery/restore")
         {
             context.Response.StatusCode = StatusCodes.Status409Conflict;
-            await context.Response.WriteAsJsonAsync(new { code = "startup_recovery_required",
-                error = "The latest saved state could not be opened. Choose recovery before opening the world." });
+            await context.Response.WriteAsJsonAsync(new
+            {
+                code = "startup_recovery_required",
+                error = "The latest saved state could not be opened. Choose recovery before opening the world."
+            });
             return;
         }
         await next(context);

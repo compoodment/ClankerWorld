@@ -6,8 +6,16 @@ namespace ClankerWorld.GodotClient;
 public partial class Main
 {
     private readonly PanelContainer startupRecoveryCard = new();
-    private readonly Label startupRecoveryExplanation = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
-    private readonly Label startupRecoverySave = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+    private readonly Label startupRecoveryExplanation = new()
+    {
+        AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        CustomMinimumSize = new Vector2(400, 0),
+    };
+    private readonly Label startupRecoverySave = new()
+    {
+        AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        CustomMinimumSize = new Vector2(400, 0),
+    };
     private readonly Button startupRecoveryButton = new() { Text = "Recover autosave" };
     private readonly Button startupRecoveryRetry = new() { Text = "Check again" };
     private StartupRecoveryStatus? startupRecovery;

@@ -82,7 +82,8 @@ public sealed partial class PrivateWorldStartupRecovery
                 return candidate;
             }
             catch (Exception exception) when (exception is InvalidDataException or IOException or
-                UnauthorizedAccessException or JsonException or ArgumentException) { }
+                UnauthorizedAccessException or JsonException or ArgumentException)
+            { }
         }
         return null;
     }

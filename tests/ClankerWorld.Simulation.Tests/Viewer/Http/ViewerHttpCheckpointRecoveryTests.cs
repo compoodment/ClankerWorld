@@ -35,7 +35,8 @@ public sealed partial class ViewerHttpTests
             var damaged = Encoding.UTF8.GetBytes("{interrupted checkpoint");
             if (damage == "history")
                 damaged = PrivateWorldRuntimeCodec.Encode(PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(path))
-                    with { HistoryArchiveHead = new string('a', 64) });
+                    with
+                { HistoryArchiveHead = new string('a', 64) });
             else if (damage == "schema")
             {
                 var old = JsonNode.Parse(File.ReadAllBytes(path))!;
@@ -72,7 +73,8 @@ public sealed partial class ViewerHttpTests
             var loaded = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
             Assert.True(loaded.Society.IsPaused);
             using var stale = await client.PostAsJsonAsync("/api/v1/owner/control/resume", blockedRequest);
-            Assert.True(stale.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.Conflict);
+            Assert.Equal(HttpStatusCode.NotFound, stale.StatusCode);
+            Assert.Contains("owner_record_not_found", await stale.Content.ReadAsStringAsync(), StringComparison.Ordinal);
             Assert.True(loaded.Society.IsPaused);
             loaded.Validate();
             Assert.Equal(loaded.Society.WorldId, PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(path)).Society.Society.WorldId);
