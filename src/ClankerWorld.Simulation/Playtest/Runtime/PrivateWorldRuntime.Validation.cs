@@ -123,6 +123,7 @@ public sealed partial class PrivateWorldRuntime
         ValidatePlantedTrees();
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, bridges, checkpointSchemaVersion, towns);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
+        ValidateKnowledgeOrderBindings(knowledge, instructionsByIdempotency.Values);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateDependentCare(inhabitants.Values, society.Checkpoint, towns, checkpointSchemaVersion);
         ValidateGuardianPlacements(inhabitants.Values, society.Checkpoint, towns, map, checkpointSchemaVersion);
@@ -422,6 +423,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateMedicalCare(state);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick);
+        ValidateKnowledgeOrderBindings(state.Knowledge, state.Instructions ?? []);
         ValidateSurvival(state);
         ValidateCouncil(state);
         foreach (var town in state.Towns ?? [])
@@ -625,6 +627,9 @@ public sealed partial class PrivateWorldRuntime
         var terminal = order.Status is "finished" or "cancelled" or "not_understood";
         var isCompleted = completedInstructionIds.Contains(instruction.InstructionId, StringComparer.Ordinal);
         if ((order.TargetAnimalId is not null) != IsAnimalOrder(order.Action)) return false;
+        if (!IsKnowledgeOrder(order.Action) && (order.TargetKnowledgeKind is not null || order.KnowledgeWritingProjectId is not null) ||
+            order.Action != "copy_knowledge" && order.KnowledgeCopySourceArtifactId is not null)
+            return false;
         if (!knownStatus || (order.Status == "queued" && !instruction.Queue) ||
             order.BlockedReason is { Length: > 256 } || order.BlockedReason?.Any(char.IsControl) == true ||
             order.LastEffectId is { Length: > 512 } || order.LastEffectId?.Any(char.IsControl) == true ||
@@ -651,6 +656,22 @@ public sealed partial class PrivateWorldRuntime
             order.Status == "blocked" && string.IsNullOrWhiteSpace(order.BlockedReason) ||
             terminal != isCompleted)
             return false;
+
+        if (IsKnowledgeOrder(order.Action))
+            return order.TargetKnowledgeKind is { } kind && AgentKnowledgeRules.IsArtifactKind(kind) &&
+                order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
+                (order.QuantityIsExplicit || order.RequestedUnits == 1) && order.ProgressUnit == (order.Action == "copy_knowledge" ? "copies" : "artifacts") &&
+                (order.KnowledgeCopySourceArtifactId is null || order.KnowledgeCopySourceArtifactId.Length <= 128 &&
+                    IsValidProductionBindingId(order.KnowledgeCopySourceArtifactId)) &&
+                (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
+                order.Status != "not_understood" &&
+                (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
+                (order.KnowledgeWritingProjectId is null || !terminal && order.Status != "queued" &&
+                    IsValidProductionBindingId(order.KnowledgeWritingProjectId)) &&
+                (order.CompletedUnits == 0 ? order.LastEffectId is null :
+                    order.LastEffectId is { } receipt && receipt.StartsWith("writing:artifact:", StringComparison.Ordinal) &&
+                    receipt.Length <= "writing:artifact:".Length + 128 && IsValidProductionBindingId(receipt["writing:artifact:".Length..]));
 
         if (IsAnimalOrder(order.Action))
             return !string.IsNullOrWhiteSpace(order.TargetAnimalId) && order.TargetAnimalId.Length <= 128 &&

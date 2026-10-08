@@ -922,6 +922,26 @@ writer or copying source becomes unavailable, or the artifact limit is
 reached, the unfinished work releases its unused supplies. The agent's Profile
 shows the writing or copying progress.
 
+The bounded owner catalogue recognizes `write_knowledge` for records, maps
+and books, with an explicit count up to 1,000 or repeat-until-cancelled.
+Orders use the native fact selection, duplicate-account, access, carrying and
+paid-work rules above. A matching ordinary writing job can be adopted; another
+kind or a copy remains intact and blocks the order. Each owned live project
+binds the exact current instruction and the instruction binds that project.
+Only its completed physical artifact credits one unit. Cancellation and
+replacement release only the bound project's unspent inputs. Counted or
+repeating work waits for new learned facts after the current account has been
+written. Queuing and urgent interruptions use the existing order lifecycle.
+
+The catalogue also recognizes `copy_knowledge` with bounded counts and repetition,
+using the native held-artifact copying path. The adult must own and
+carry the exact source and know all of its sites; order handling does not read
+it or teach missing knowledge. The source stays pinned during supply collection
+and writing. Source loss releases unused native reservations and clears the
+project binding, while keeping the source pointer for a later retry. A completed
+paid copy carries the instruction ID, credits one unit and clears both live
+pointers. The native duplicate-account and artifact limits still apply.
+
 Reading or sharing a held artifact teaches only its recorded sites to the
 actual recipient, retaining the original discoverer and the source artifact.
 Copying needs the source, learned facts and new writing materials; sharing
@@ -1729,6 +1749,10 @@ stopping rules. See [placement query measurements](placement-query-measurements.
 for the follow-up comparison.
 The [Warehouse query measurements](warehouse-query-measurements.md) record a
 later bounded repair, exact native equivalence and its mixed small-case timings.
+Household planning computes each prospective building's identity once per design,
+before checking placed buildings for it. Each later query reads current reservations
+again. See [household plan query measurements](household-plan-query-measurements.md)
+for native candidate/state equivalence, repeated timings and allocation results.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
@@ -2845,7 +2869,11 @@ completion. Running or paused jobs reserve only their net stored output growth,
 excluding ground handcart outputs. Ordinary stored outputs still reserve room
 after accounting for consumed inputs already in that building. Repair consumes
 three carried material reservations atomically. Unloading can retain
-damaged goods on the ground and works after the cart breaks. Property transfer
+damaged goods on the ground and works after the cart breaks. Unload choices
+cover cargo in every owned cart on the actor's current tile; execution resolves
+the selected cargo's actual cart and rechecks position, ownership, reservations
+and carrying space. An empty cart cannot hide another cart's cargo.
+Property transfer
 and inheritance keep the entire cart/cargo family at its existing position.
 A death, break or ownership change removes the attachment without dropping or
 teleporting the goods. Owner observation derives cart inspection from those

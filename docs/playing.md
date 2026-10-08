@@ -187,6 +187,8 @@ icon. Hover over one or inspect its tile to see its owner, parked or pulled
 state, condition and actual cargo.
 The owner's agent card also lists their carts. A broken cart keeps its goods;
 its owner can unload here or repair it with carried wood, iron fittings and rope.
+When several owned carts share a tile, each cart's cargo remains available for
+unloading, even if another cart is empty or broken.
 A cart holds loose goods separately from the agent's own carrying limit.
 
 Boats show their last heading and rowing or shipped oars. Hover over one or
@@ -225,6 +227,23 @@ not add a model request for every step or tick.
 
 Urgent hunger can pause an order to buy and eat food at a shop or Restaurant,
 using the adult's own payment and carrying space. The order remains pending.
+
+Adults can follow **Write a field record**, **Draw a map**, or **Bind a book**.
+They use sites they have personally learned and collect permitted paper and,
+for a book, cloth. The order counts a written item only when the real work
+finishes. **Write two maps** requests two items; **Keep drawing maps** continues
+until cancelled. Once the current account has been written, further writing
+waits for newly learned information. Missing supplies or carrying space also
+leave the order waiting with a reason. **Cancel task** releases that order's
+unused reserved supplies.
+
+Adults can also follow **Copy a field record**, **Copy a map**, or **Copy a book**.
+They must own and carry a source of that kind and already know every site it
+contains. Copying uses fresh paper and, for a book, cloth, and preserves the
+source's account. **Copy two maps** or **Keep copying maps** waits for another
+eligible account after the first copy; identical contents are not copied again.
+If the source is lost during work, unused reservations are released and the
+order waits for that same source to return. Cancelling stops the paid work.
 
 Food orders can eat carried food, collect accessible household food to eat,
 travel to a food source, or gather berries, fruit or wild greens. Use simple
