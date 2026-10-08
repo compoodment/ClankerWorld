@@ -162,7 +162,7 @@ public sealed partial class PrivateWorldRuntime
                 ConversationChoiceContext = conversationChoiceContext,
                 OperativeOrderInstructionId = operativeOrder?.InstructionId,
             };
-            if (jevEnabled && !requiresPersonalProvider && providerFactory is not null)
+            if (jevEnabled && AdultResident(inhabitant.Id) && providerFactory is not null)
             {
                 try
                 {
