@@ -217,7 +217,7 @@ public sealed partial class PrivateWorldRuntime
             exploration.OutingPath.Any(point => !map.IsPassable(point)) ||
             (exploration.OutingDiscoveries ?? []).Any(point => !map.IsPassable(point)) ||
             (exploration.OutingDiscoveries ?? []).Distinct().Count() != (exploration.OutingDiscoveries?.Count ?? 0))
-            throw new InvalidDataException("The saved exploration record is invalid.");
+            throw new InvalidDataException("The saved local exploration record is invalid.");
 
         SeededMap? beforeOuting = null;
         for (var index = 1; index < exploration.OutingPath.Count; index++)
@@ -231,7 +231,7 @@ public sealed partial class PrivateWorldRuntime
             // step; only earlier ticks prove a deck existed throughout the trip.
             beforeOuting ??= MapWithBridges(map, bridges.Where(bridge => bridge.BuiltTick < exploration.LastOutingTick));
             if (!beforeOuting.CanFootStep(first, second))
-                throw new InvalidDataException("The saved exploration record is invalid.");
+                throw new InvalidDataException("The saved local exploration record is invalid.");
         }
     }
 
