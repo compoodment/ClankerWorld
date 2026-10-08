@@ -153,9 +153,9 @@ steps.
   merging turn. A session's subagents share its claims.
 - **Only pushes keep a claim.** Every 30 minutes a workflow releases any claim
   with nothing pushed for 1.5 hours since its label was added or its last push.
-  Comments, edits, other label changes and pushes to ready pull requests, which
-  belong to their reviewers, don't count, and removing and re-adding the label
-  to restart the clock is not allowed. An issue claim waiting on the owner
+  Comments, edits and other label changes do not count. Pushes to ready pull
+  requests count for their review claims, not for issue claims. Removing and
+  re-adding the label to restart the clock is not allowed. An issue claim waiting on the owner
   (`status:needs-decision` on the issue or its draft) is kept; a review claim
   is not.
 
