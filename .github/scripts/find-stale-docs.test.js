@@ -38,6 +38,9 @@ test('a sentence that names the change and says it is missing or open is found o
     'tools/ArtPreview/Proposed/Crops.md': 'The orchard sapling art is not drawn yet.\n',
     'README.md': 'Orchards are unfinished.\n',
     'CHANGELOG.md': 'Orchards were not built yet in 0.1.\n',
+    'docs/archive/old-design.md': 'Orchards were not built yet in the old design.\n',
+    'changes/123-orchard.md': '- Orchard planting was not built yet.\n',
+    'playtest/123-orchard.md': '- Check the unfinished orchard planting.\n',
     'docs/playing.md': 'Wheat is not built yet.\n',
   });
   const hits = find(['Orchard'], root);

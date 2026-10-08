@@ -444,7 +444,12 @@ public sealed partial class PrivateWorldRuntime
                 if (ShouldInterruptOrder(state, order, orderCandidate, urgentCandidate))
                 {
                     SetOrderStatus(order, "interrupted", "Food or warmth needs come first.");
-                    if (urgentCandidate is not null)
+                    if (urgentCandidate is not null && IsMarketFoodCandidate(inhabitant.Id, urgentCandidate.Id) &&
+                        runtimes[inhabitant.Id].CurrentIntention is { Provider: DecisionProviderKind.LargeLanguageModel } orderMarketIntention &&
+                        orderMarketIntention.OperativeOrderInstructionId == order.InstructionId &&
+                        IsMarketFoodCandidate(inhabitant.Id, orderMarketIntention.CandidateId))
+                        ContinueMarketWalk(inhabitant.Id, orderMarketIntention.CandidateId);
+                    else if (urgentCandidate is not null)
                         ApplyCandidate(inhabitant.Id, state, urgentCandidate.Id, reportIdle: false);
                     continue;
                 }
@@ -615,7 +620,10 @@ public sealed partial class PrivateWorldRuntime
                 if (ShouldInterruptOrder(state, order, orderCandidate, urgentCandidate))
                 {
                     SetOrderStatus(order, "interrupted", "Food or warmth needs come first.");
-                    if (urgentCandidate is not null)
+                    if (decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel &&
+                        IsMarketFoodCandidate(decision.InhabitantId, candidateId))
+                        ApplyMarketCandidate(decision.InhabitantId, state, candidateId);
+                    else if (urgentCandidate is not null)
                         ApplyCandidate(decision.InhabitantId, state, urgentCandidate.Id, reportIdle: true);
                 }
                 else if (orderCandidate is not null)

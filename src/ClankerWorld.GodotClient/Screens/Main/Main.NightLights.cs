@@ -9,8 +9,9 @@ public partial class Main
     /// Which buildings may be lit tonight, from what the world already
     /// reports: someone is inside (a living agent stands within its
     /// footprint) or a job is running there. <see cref="NightLightShapes"/>
-    /// decides what each design shows for that. A Port in an abandoned Town
-    /// keeps its pier lantern dark.
+    /// decides what each design shows for that. In an abandoned Town a
+    /// building's lantern fittings fade with it, and a Port keeps its pier
+    /// lantern dark.
     /// </summary>
     private static List<BuildingLight> BuildingLights(OwnerWorldSnapshot snapshot)
     {
@@ -20,7 +21,8 @@ public partial class Main
         var working = snapshot.ProductionJobs
             .Where(job => string.Equals(job.State, "running", StringComparison.OrdinalIgnoreCase))
             .Select(job => job.BuildingInstanceId).ToHashSet(StringComparer.Ordinal);
-        var abandoned = snapshot.Towns.Where(town => town.IsAbandoned).Select(town => town.Id).ToHashSet(StringComparer.Ordinal);
+        var neglectByTown = snapshot.Towns.Where(town => town.IsAbandoned).ToDictionary(town => town.Id,
+            town => town.FallingApart ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected, StringComparer.Ordinal);
         var lights = new List<BuildingLight>();
         foreach (var building in snapshot.PlacedBuildings)
         {
@@ -44,7 +46,7 @@ public partial class Main
             {
                 Kind = kind,
                 Door = door,
-                PierLanternDark = kind == BuildingKind.Port && building.TownId is { } town && abandoned.Contains(town),
+                Neglect = building.TownId is { } town ? neglectByTown.GetValueOrDefault(town) : BuildingNeglect.None,
             });
         }
         return lights;

@@ -1036,7 +1036,7 @@ connected banks are compared.
 **Roads and bridges remain permanently** once built. They do not decay or
 disappear automatically when traffic stops, a building is removed or a Town is
 abandoned. There is one Road type; no temporary-versus-permanent class is
-needed. Exact inter-Town route timing, layout and rendering remain open.
+needed. The inter-Town timing, layout and rendering are agreed below.
 Diagonal movement must not pass through blocked corners. Playable foot movement
 uses the strict two-clear-shoulder rule and a 141% diagonal route cost. Town
 streets also take diagonal steps where the land allows, and their Road pieces
@@ -1046,8 +1046,7 @@ join diagonally on the map.
 a Road to another Town appears as soon as a new Town's first building is
 complete. It links the new Town to the nearest Town only, not to every Town,
 along the cheapest legal land route, reusing existing Roads where it can. It
-looks like a Town street. This answers the inter-Town route timing, layout and
-look left open above.
+looks like a Town street. This settles the inter-Town route timing, layout and look.
 
 ### Still to decide
 

@@ -1,0 +1,1 @@
+- Adults can follow orders to write field records, draw maps or bind books using learned sites and real materials. Counted and repeating writing waits for new information after an account has been written, and cancellation releases unused supplies. Older alpha saves are refused and preserved without migration.
