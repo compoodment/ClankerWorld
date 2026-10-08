@@ -364,6 +364,10 @@ Town Warehouse", or "stock three cloth in my Store". Named destinations may
 include a listed tile with "at (12, 4)". The selected building and owner stay
 fixed through travel, partial progress and reload.
 
+House hauling skips loose supplies it cannot reach or bring home, then tries
+another permitted pile. A blocked first pile stays untouched while the agent
+collects reachable goods that fit in its load and the House.
+
 Pickup and walking earn no delivery progress. An explicit count measures the
 requested goods at the final deposit; a plain request completes one load.
 Household supplies retain their real carried delivery assignment between
@@ -440,8 +444,9 @@ Clinic, Store or Restaurant at its starting size (including the 1×1 Store
 and 1×2 Restaurant) through the
 ordinary household construction path. "Build a
 Clinic at (12, 4)" requires that exact site; without coordinates the agent
-chooses a legal site and keeps it. Normal one-per-kind limits, Silo
-prerequisites, material ownership, carrying, travel and construction work
+chooses a legal site and keeps it. An animal yard requires a completed House;
+its order waits without spending materials until that House exists.
+Normal one-per-kind limits, Silo prerequisites, material ownership, carrying, travel and construction work
 still apply. An existing building or somebody else's project never counts as
 the ordered completion.
 
@@ -642,6 +647,10 @@ coats, hides into leather, and leather into sacks or saddles. A leather sack
 provides 32 carried cargo units. Cared adult pairs breed automatically with
 space and delivered supplies; missed care pauses work and riding. Old age is
 the only animal death rule, leaving one owned hide from sheep, cows or horses.
+
+A rider caring for a different animal dismounts before approaching it. The
+horse and saddle stay in place; care spends its feed and water only after
+the adult reaches the animal.
 
 A saddled, cared adult horse carries one adult at twice walking speed with eight
 extra cargo units. Named outsider riding and care permissions are separate.

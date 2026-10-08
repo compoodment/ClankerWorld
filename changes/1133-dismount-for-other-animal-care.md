@@ -1,0 +1,1 @@
+- Riders dismount before caring for another animal, so valid care orders can walk to their target and finish using real feed and water.
