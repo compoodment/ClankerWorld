@@ -141,8 +141,9 @@ Every entry is also there as a bare transparent `.sprite`.
 ### Not done
 
 - Lying, eating or sleeping poses, which wait for the game to give animals
-  those states. Walking steps were proposed on October 7 and wait for your
-  choice. (Diagonal facings were added in round 3.)
+  those states. You chose walking-step option B on October 7; its game
+  integration is awaiting merge in #1191. (Diagonal facings were added in
+  round 3.)
 - The horse's cargo state (the content list mentions rider or cargo).
 - Coops. Young animals and the animal yard, with its trough and hay, were
   approved in round 4 (see `Round4.md`).
