@@ -344,6 +344,9 @@ are not available to personal collection or storage.
 
 Borrowed-return orders such as "return two borrowed cloth" and "return one
 borrowed water jug" put carried household goods back in their owner's House.
+This includes a collected milk jug even when a Store or market stall could
+stock it instead. The whole jug and its milk return together; reservations and
+committed deliveries remain protected.
 They preserve ownership and pin the selected House and source lot while work
 is pending. A default task returns one available load; an explicit quantity
 caps the last move. Only a physical return earns progress. Unavailable goods,

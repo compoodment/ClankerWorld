@@ -214,6 +214,9 @@ its ownership and credits one vessel, never its contents as extra progress.
 subjects. It binds the carried source lot and its owning household's exact
 House before travel. The shared borrowed-return helper rechecks custody,
 ownership, reservations, whole-vessel space and the destination at execution.
+Explicit returns select carried borrowed goods independently of ordinary milk
+stocking alternatives. A possible Store or market destination does not exclude
+a milk jug; committed deliveries and active animal-supply trips still do.
 Only a committed relocation receipt earns `goods_items` or `return_loads`.
 Cancellation never undoes completed movement or changes goods ownership.
 When an explicit storage or return moves the exact hoe or sickle used by that
