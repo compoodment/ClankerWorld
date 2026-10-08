@@ -41,7 +41,8 @@ public sealed partial class PrivateWorldRuntime
         WarehousesAccessibleTo(actor).FirstOrDefault(warehouse =>
             society.Checkpoint.Inventory.Lots.Any(lot => lot.OwnerId == warehouse.TownId &&
                 lot.StorageBuildingId == warehouse.InstanceId && lot.ItemKind == itemKind &&
-                AvailableLotQuantity(lot) > 0));
+                AvailableLotQuantity(lot) > 0) &&
+            FindUnoccupiedRoute(actor, inhabitants[actor].Position, warehouse.Position, 0).Count > 0);
 
     private bool MayCollectWarehouseStock(string actor, PlacedBuilding warehouse) =>
         inhabitants.ContainsKey(actor) && warehouse.TownId is { } townId &&

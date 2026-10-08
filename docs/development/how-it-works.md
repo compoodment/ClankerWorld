@@ -1970,6 +1970,12 @@ elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
 
+Construction input selection checks the builder's current unoccupied route
+to each stocked permitted Warehouse, using movement's exact destination,
+diagonal, shared entrance and attached handcart rules. If none is reachable,
+preparation continues to its existing material-gathering fallback. Collection
+still rechecks authority, available stock and carrying room at the Warehouse.
+
 Blacksmith input hauling checks the actor's current unoccupied pickup route
 and the source-to-shop route before selecting household or permitted Town
 Warehouse stock. An occupied earlier lot does not hide later reachable stock.

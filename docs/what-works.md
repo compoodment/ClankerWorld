@@ -443,6 +443,10 @@ prerequisites, material ownership, carrying, travel and construction work
 still apply. An existing building or somebody else's project never counts as
 the ordered completion.
 
+Construction uses Town Warehouse supplies only when the builder can reach
+them. A blocked stocked Warehouse does not stop the builder from gathering
+reachable materials elsewhere; its stock stays in place.
+
 A construction order can replace the agent's unpaid ordinary building or
 crafting plan. It starts fresh construction work and pays the normal costs;
 the earlier plan's work does not count toward the order. A production job
