@@ -2308,7 +2308,10 @@ Goods carried by the deceased are dropped at their last tile. A Town heir's
 part goes to its Warehouse as Town stock while the Warehouse has
 room and stores that kind; the runtime passes each Town's Warehouse, free room
 and refused kinds (food, and handcarts, which stay on the ground) as
-`SocietyTownStore`. Whatever the will cannot deliver (a share for an heir who
+`SocietyTownStore`. Food refusal and Warehouse validation use the inventory's
+food classifier, including eggs, milk, cooked eggs, milk porridge and rich
+meals. The refusal set is built from actual stock only when a Town bequest is
+due. Whatever the will cannot deliver (a share for an heir who
 has since died, food, a handcart or goods beyond the room) follows the
 household default: an equal split between the living household
 beneficiaries, with the first in ID order taking leftovers, or communal stock
