@@ -922,6 +922,17 @@ writer or copying source becomes unavailable, or the artifact limit is
 reached, the unfinished work releases its unused supplies. The agent's Profile
 shows the writing or copying progress.
 
+The bounded owner catalogue recognizes `write_knowledge` for records, maps
+and books, with an explicit count up to 1,000 or repeat-until-cancelled.
+Orders use the native fact selection, duplicate-account, access, carrying and
+paid-work rules above. A matching ordinary writing job can be adopted; another
+kind or a copy remains intact and blocks the order. Each owned live project
+binds the exact current instruction and the instruction binds that project.
+Only its completed physical artifact credits one unit. Cancellation and
+replacement release only the bound project's unspent inputs. Counted or
+repeating work waits for new learned facts after the current account has been
+written. Queuing and urgent interruptions use the existing order lifecycle.
+
 Reading or sharing a held artifact teaches only its recorded sites to the
 actual recipient, retaining the original discoverer and the source artifact.
 Copying needs the source, learned facts and new writing materials; sharing

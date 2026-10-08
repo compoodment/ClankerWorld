@@ -2,7 +2,7 @@
 title: Saving and recovery
 type: game-design
 status: active
-updated: 2026-10-01
+updated: 2026-10-08
 ---
 
 # Saving and recovery
@@ -25,16 +25,30 @@ everything that is available in the current build. See [what works today](../wha
   every **5 minutes**, with **5 rotating autosaves** by default. Settings offer
   autosave off/on, intervals of 1, 2, 5, 10, 15, or 30 minutes, and rotation
   off/3/5/10. These are initial choices subject to performance playtesting;
-  their proposed home is the current world's **World Settings**.
+  they live in the current world's **World Settings**, as agreed on October 8
+  ([#1276](https://github.com/compoodment/ClankerWorld/issues/1276);
+  [Interface and art](interface-and-art.md#main-menu-world-view-and-controls)).
+  **Agreed on October 8
+  ([#1275](https://github.com/compoodment/ClankerWorld/issues/1275)):**
+  autosave runs on its schedule whatever model requests are in flight; see
+  [slow models](world.md#world-time-pausing-and-slow-models) for what happens
+  to those requests.
 - Named manual saves are unlimited. Emergency recovery is automatic in the
   background. Saving on Quit to Menu/Game is the accepted direction, while
   quit confirmation remains.
+- **Crash promise, agreed on October 8
+  ([#1250](https://github.com/compoodment/ClankerWorld/issues/1250)):** if the
+  game or the computer crashes, the player loses at most about the last second
+  of play. If the latest saved state is damaged, a recovery screen on restart
+  offers the last good autosave.
 - The player must be able to **intentionally overwrite an existing named
   manual save** rather than accumulating a new checkpoint every time. In Save
   World, select an existing checkpoint and confirm overwriting that specific
   checkpoint; creating a new save remains a separate action. Typing a matching
-  name alone must not replace an existing save. Recovery/backup behavior after
-  overwrite remains open.
+  name alone must not replace an existing save. **Agreed on October 8
+  ([#1275](https://github.com/compoodment/ClankerWorld/issues/1275)):**
+  overwriting keeps a visible **Before overwriting** copy of the replaced save
+  until the player deletes it.
 - Load World should show an existing save's assessed compatibility and warn
   before selection when it cannot load. The assessment must use actual
   save/version and required-content checks.
@@ -50,11 +64,19 @@ everything that is available in the current build. See [what works today](../wha
   support window with each release, rather than promising all old formats or
   downgrades. An unknown assessment must remain distinct from a proven
   incompatibility. Missing required content or a mod needs a clear, resolvable
-  explanation rather than silently discarding its state.
+  explanation rather than silently discarding its state. **Agreed on October 8
+  ([#1272](https://github.com/compoodment/ClankerWorld/issues/1272)):** a save
+  that needs a mod that is missing or has changed does not load until the mod
+  it needs is back, and the save is kept unchanged. The rest of that mod rule,
+  such as each world locking the exact mod versions it uses, is in
+  [Inventions and mods](inventions-and-mods.md#inventions-mods-and-technology).
 - World-created inventions and active mods travel with that world's save;
   provider credentials and graphical/device settings are global. The global
   library reads the latest save for each world rather than silently merging
-  their creations.
+  their creations. **Agreed on October 8
+  ([#1272](https://github.com/compoodment/ClankerWorld/issues/1272)):** for a
+  world with several branches, it reads the latest save of the branch that
+  world continues from.
 - **Save branches, agreed on October 1
   ([#647](https://github.com/compoodment/ClankerWorld/issues/647)):** loading
   an older save and playing on starts a **new branch** of that world instead
@@ -66,7 +88,13 @@ everything that is available in the current build. See [what works today](../wha
   **Big harvest** in the first branch; **Hungry winter**, saved after playing
   on, belongs to the new one. Load Save and Save World draw a world's
   branches as a timeline; [Interface and art](interface-and-art.md) records
-  its look.
+  its look. **Agreed on October 8
+  ([#1251](https://github.com/compoodment/ClankerWorld/issues/1251)):** a branch
+  is labelled after the save it started from, such as **From Before the
+  flood**; renaming branches can come later. Autosave rotation stays per
+  branch, so each branch keeps its own rotating autosaves; how much disk this
+  uses is handled by the disk-space rule under
+  [Explicit deletion](#explicit-deletion).
 
 **Agreed development playtest policy:** computment does not require old
 playtest worlds to remain loadable as the New World flow and save format change;
@@ -87,16 +115,23 @@ migration remain until the owner explicitly deletes them. Recovery-history
 cleanup is a separate, **opt-in** option, off by default: first show the exact
 recoveries proposed for removal and keep the latest verified recovery for each
 named save. The existing autosave rotation is separate and does not authorize
-deletion of manual saves or migration originals. A specific cleanup budget
-still needs measurement and a choice; age alone must not trigger deletion.
+deletion of manual saves or migration originals. Age alone must not trigger
+deletion.
+
+**Agreed on October 8
+([#1252](https://github.com/compoodment/ClankerWorld/issues/1252)):** the
+game warns when free disk space is low before any save, and the warning never
+blocks emergency recovery. The recovery-history cleanup is count-based: it
+keeps a set number of copies for each save, rather than working to a size
+limit. The number of copies and the free-space level that triggers the
+warning are provisional, for playtesting.
 
 ### Still to decide
 
-How branches are named and how autosave rotation treats them; which branch
-the Mod Library's global view reads; disk-space warnings and the opt-in recovery-history budget; exactly
-when autosave occurs relative to model/conversation work; crash-recovery
-guarantees; and compatibility outside the preceding supported stable format
-or across changed mod requirements.
+**Parked until ClankerWorld becomes a public, versioned alpha
+([#1263](https://github.com/compoodment/ClankerWorld/issues/1263)):** which
+save formats older than the immediately preceding stable one a stable release
+will open. The owner is the only player for now, so this waits until then.
 
 ## Questions linking these systems
 
@@ -104,8 +139,9 @@ These remain open; they are not new decisions.
 
 - **Pending model work versus continuous simulation/saves.** One slow model
    must not freeze the world, but conversations, inventions, and post-death
-   wills can remain unresolved while ticks and autosaves continue. Quit now
-   has an accepted cancel/discard-and-reconsider rule; still define durable
-   pending states, autosave/manual-pause behavior, deadlines/fallbacks, and
+   wills can remain unresolved while ticks and autosaves continue. Quit and
+   pause now share an accepted cancel/discard-and-reconsider rule, and
+   autosave runs on schedule (agreed October 8); still define durable
+   pending states, deadlines/fallbacks, and
    completion that cannot apply twice so crashes cannot duplicate or lose estate transfers
    or other important actions.
