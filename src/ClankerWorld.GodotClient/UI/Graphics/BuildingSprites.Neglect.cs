@@ -30,8 +30,18 @@ public static partial class BuildingSprites
         return PixelArt.Snap(color.Lerp(grey, amount).Darkened(structure ? (ruin ? 0.14f : 0.08f) : 0.05f) with { A = color.A });
     }
 
-    /// <summary>A fixed seed per kind and footprint, so a weathered building always looks the same.</summary>
-    public static int NeglectSalt(BuildingKind kind, int tilesWide, int tilesHigh) => (int)kind * 131 + tilesWide * 17 + tilesHigh * 7;
+    /// <summary>Keep the subject-name seed used by the approved abandoned proposal.</summary>
+    public static int NeglectSalt(BuildingKind kind, int tilesWide, int tilesHigh)
+    {
+        var name = kind switch
+        {
+            BuildingKind.TailorShop => "tailor",
+            BuildingKind.MarketStall => "stall",
+            BuildingKind.AnimalYard => "yard",
+            _ => kind.ToString().ToLowerInvariant(),
+        };
+        return $"{name}.{tilesWide}x{tilesHigh}".Length * 131;
+    }
 
     private static readonly Dictionary<(bool EastWest, int Deck, int Tile, bool Ruin), ImageTexture> NeglectedBridgeCache = [];
 
@@ -56,9 +66,7 @@ public static partial class BuildingSprites
     {
         deckTiles = Math.Clamp(deckTiles, 1, 32);
         var image = Neglect.Bridge(eastWest, deckTiles, neglect == BuildingNeglect.FallingApart);
-        if (tilePixels != 32)
-            image.Resize(image.GetWidth() / 32 * tilePixels, image.GetHeight() / 32 * tilePixels, Image.Interpolation.Nearest);
-        return image;
+        return tilePixels == 32 ? image : Neglect.Resize(image, image.GetWidth() / 32 * tilePixels, image.GetHeight() / 32 * tilePixels);
     }
 
     /// <summary>
@@ -66,8 +74,11 @@ public static partial class BuildingSprites
     /// weeds round its foot, in a 32 px frame whose post is at
     /// <see cref="NeglectedLanternPost"/>.
     /// </summary>
-    public static Image NeglectedLantern(LanternStyle style, Vector2 inward, BuildingNeglect neglect) =>
-        Neglect.Lantern(style, inward, neglect == BuildingNeglect.FallingApart);
+    public static Image NeglectedLantern(LanternStyle style, Vector2 inward, BuildingNeglect neglect, int tilePixels = 32)
+    {
+        var image = Neglect.Lantern(style, inward, neglect == BuildingNeglect.FallingApart);
+        return tilePixels == 32 ? image : Neglect.Resize(image, tilePixels, tilePixels);
+    }
 
     /// <summary>Where the post stands in <see cref="NeglectedLantern"/>'s frame.</summary>
     public static Vector2 NeglectedLanternPost(LanternStyle style, Vector2 inward) => Neglect.LanternFramePost(style, inward);
@@ -79,6 +90,24 @@ public static partial class BuildingSprites
     /// </summary>
     private static class Neglect
     {
+        // The approved preview samples top-left pixels; Godot's nearest resize
+        // samples their centres and changes the mid-zoom picture.
+        public static Image Resize(Image image, int width, int height)
+        {
+            var sourceWidth = image.GetWidth();
+            var sourceHeight = image.GetHeight();
+            var source = image.GetData();
+            var pixels = new byte[width * height * 4];
+            for (var y = 0; y < height; y++)
+                for (var x = 0; x < width; x++)
+                {
+                    var sourceX = Math.Min(sourceWidth - 1, x * sourceWidth / width);
+                    var sourceY = Math.Min(sourceHeight - 1, y * sourceHeight / height);
+                    Array.Copy(source, (sourceY * sourceWidth + sourceX) * 4, pixels, (y * width + x) * 4, 4);
+                }
+            return Image.CreateFromData(width, height, false, Image.Format.Rgba8, pixels);
+        }
+
         private readonly record struct NeglectRamp(Color Edge, Color Shade, Color Base, Color Light, Color Highlight);
 
         private static readonly NeglectRamp NeglectTimber = new(new("3F2A1A"), new("6E4E31"), new("8A6440"), new("A77C52"), new("D2AC77"));
@@ -139,7 +168,7 @@ public static partial class BuildingSprites
             for (var y = 0; y < h; y++)
                 for (var x = 0; x < w; x++)
                     mask[x, y] = finished.GetPixel(x, y).A > 0.9f;
-            return Apply(new Look(finished, mask, w, h, eastWest ? DoorSide.West : DoorSide.North, 16, Shape.Bridge, false, 0), ruin);
+            return Apply(new Look(finished, mask, w, h, eastWest ? DoorSide.West : DoorSide.North, 16, Shape.Bridge, false, $"bridge.{deckTiles}".Length * 131), ruin);
         }
 
         /// <summary>
@@ -162,7 +191,8 @@ public static partial class BuildingSprites
             for (var y = 0; y < 32; y++)
                 for (var x = 0; x < 32; x++)
                     mask[x, y] = finished.GetPixel(x, y).A > 0.9f;
-            return Apply(new Look(finished, mask, 32, 32, DoorSide.South, 16, Shape.Lantern, false, 0), ruin);
+            var salt = (style == LanternStyle.Stone ? "lantern.stone" : "lantern.hanging").Length * 131;
+            return Apply(new Look(finished, mask, 32, 32, DoorSide.South, 16, Shape.Lantern, false, salt), ruin);
         }
 
         /// <summary>
@@ -319,6 +349,11 @@ public static partial class BuildingSprites
         {
             var w = image.GetWidth();
             var h = image.GetHeight();
+            using var bridgeGround = s.Kind == Shape.Bridge ? BridgeGround(w, h) : null;
+            // Match the short-end fallback in ApprovedArt.PortLandSide.
+            var landSide = h >= w
+                ? s.Door == DoorSide.South ? DoorSide.South : DoorSide.North
+                : s.Door == DoorSide.West ? DoorSide.West : DoorSide.East;
             var odds = ruin ? 4u : 7u;
             var pathOdds = ruin ? 7u : 11u;
             for (var y = 1; y < h - 1; y++)
@@ -328,9 +363,20 @@ public static partial class BuildingSprites
                     var near = Near(s.Mask, x, y, 4);
                     var onPath = s.Finished.GetPixel(x, y).A > 0.9f;
                     if (near > 4 && !onPath) continue;
-                    // Over water nothing grows: a pier gets no weeds, a bridge only on its bank tiles.
-                    if (s.Kind == Shape.Pier) continue;
-                    if (s.Kind == Shape.Bridge && (w > h ? x >= 32 && x < w - 32 : y >= 32 && y < h - 32)) continue;
+                    // The approved pier has weeds on its land row or column.
+                    if (s.Kind == Shape.Pier && !(landSide switch
+                    {
+                        DoorSide.North => y < 32,
+                        DoorSide.South => y >= h - 32,
+                        DoorSide.West => x < 32,
+                        _ => x >= w - 32,
+                    })) continue;
+                    // Match the approved bridge's ground and current overlay test.
+                    if (bridgeGround is not null)
+                    {
+                        var color = bridgeGround.GetPixel(x, y).Blend(image.GetPixel(x, y));
+                        if (color.G <= color.B) continue;
+                    }
                     if (Hash(x, y, salt + 21) % (onPath && near > 4 ? pathOdds : odds) != 0) continue;
                     var tall = Hash(y, x, salt) % 2 == 0;
                     Blend(image, x, y, NeglectLeaf.Base);
@@ -338,6 +384,23 @@ public static partial class BuildingSprites
                     Blend(image, x, y - 1, NeglectLeaf.Light);
                     if (tall) Blend(image, x, y - 2, ruin && Hash(x, y, 4) % 9 == 0 ? NeglectFlower : NeglectLeaf.Highlight);
                 }
+        }
+
+        private static Image BridgeGround(int width, int height)
+        {
+            var ground = Image.CreateEmpty(width, height, false, Image.Format.Rgba8);
+            using var water = WaterTextures.Atlas(32).GetImage();
+            for (var y = 0; y < height / 32; y++)
+                for (var x = 0; x < width / 32; x++)
+                {
+                    var bank = width > height ? x == 0 || x == width / 32 - 1 : y == 0 || y == height / 32 - 1;
+                    if (bank)
+                        ground.BlitRect(TerrainTextures.Tile(TerrainStyle.Grass, TerrainTextures.VariantAt(x + 3, y + 1), 32),
+                            new Rect2I(0, 0, 32, 32), new Vector2I(x * 32, y * 32));
+                    else
+                        ground.BlitRect(water, (Rect2I)WaterTextures.Region(TerrainStyle.River, x, y, 32), new Vector2I(x * 32, y * 32));
+                }
+            return ground;
         }
 
         /// <summary>Two crossed planks nailed over the door, at its place on the front wall.</summary>

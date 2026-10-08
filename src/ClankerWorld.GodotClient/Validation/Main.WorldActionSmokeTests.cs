@@ -166,6 +166,7 @@ public partial class Main
         public OwnerControlReceipt? DeveloperEditReceipt { get; set; }
         public bool FailDeveloperEdit { get; set; }
         public Func<OwnerWorldCreationAction, Task<OwnerWorldPreview>>? PreviewHandler { get; set; }
+        public Func<bool, Task<OwnerControlReceipt>>? ControlHandler { get; set; }
         public int PauseCount => Volatile.Read(ref pauseCount);
         public int DeleteCount => Volatile.Read(ref deleteCount);
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
@@ -197,6 +198,9 @@ public partial class Main
         public TaskCompletionSource RenameReceived { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         // When set, the host holds its rename reply until the check releases it.
         public TaskCompletionSource? ReleaseRename { get; set; }
+        public bool FailAgentPlacement { get; set; }
+        public bool FailPlacementProviderStatus { get; set; }
+        public System.Collections.Concurrent.ConcurrentQueue<OwnerAgentPlacementAction> AgentPlacements { get; } = new();
 
         public WorldActionSmokeHost(string publicKey)
         {
@@ -270,6 +274,25 @@ public partial class Main
             Requests.Enqueue(context.Request.Url!.AbsolutePath);
             switch (context.Request.Url!.AbsolutePath)
             {
+                case OwnerPairingEndpoints.OwnerAgentPlace:
+                    var placement = envelope.GetProperty("action").Deserialize<OwnerAgentPlacementAction>(JsonOptions)!;
+                    AgentPlacements.Enqueue(placement);
+                    if (FailAgentPlacement)
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled placement refusal." };
+                    }
+                    else response = new OwnerAgentPlacementReceipt(placement.AgentId, "household:" + placement.AgentId);
+                    break;
+                case OwnerPairingEndpoints.OwnerProviderStatus:
+                    if (FailPlacementProviderStatus)
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled settings refresh failure." };
+                    }
+                    else response = new OwnerProviderConfigurationStatus("openai", "openai", 0,
+                        [new("openai", "placement-smoke-model", true)]);
+                    break;
                 case OwnerPairingEndpoints.ChallengeIssue:
                     response = new OwnerChallenge(Authority, "smoke-device", Guid.NewGuid().ToString("N"),
                         "smoke-nonce", DateTimeOffset.UtcNow.AddMinutes(1),
@@ -329,8 +352,13 @@ public partial class Main
                     HostPaused = true;
                     Interlocked.Increment(ref pauseCount);
                     PauseReceived.TrySetResult();
-                    await ReleasePause.Task.ConfigureAwait(false);
-                    response = new OwnerControlReceipt("pause", true, true, 0, 0, 0);
+                    if (ControlHandler is { } pauseHandler)
+                        response = await pauseHandler(true).ConfigureAwait(false);
+                    else
+                    {
+                        await ReleasePause.Task.ConfigureAwait(false);
+                        response = new OwnerControlReceipt("pause", true, true, 0, 0, 0);
+                    }
                     break;
                 case OwnerPairingEndpoints.OwnerWorldSelect:
                     SelectReceived.TrySetResult(envelope.GetProperty("action").GetProperty("value").GetString()!);
@@ -354,7 +382,9 @@ public partial class Main
                     break;
                 case OwnerPairingEndpoints.OwnerResume:
                     HostPaused = false;
-                    response = new OwnerControlReceipt("resume", true, false, 0, 0, 0);
+                    response = ControlHandler is { } resumeHandler
+                        ? await resumeHandler(false).ConfigureAwait(false)
+                        : new OwnerControlReceipt("resume", true, false, 0, 0, 0);
                     break;
                 case OwnerPairingEndpoints.OwnerReconnect when Reconnect is not null:
                     ReconnectReceived.TrySetResult();

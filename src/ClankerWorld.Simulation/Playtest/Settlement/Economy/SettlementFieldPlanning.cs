@@ -75,7 +75,7 @@ public sealed partial class PrivateWorldRuntime
             var eligible = inhabitants.TryGetValue(runtime.InhabitantId, out var claimant) &&
                 AdultResident(runtime.InhabitantId) && HouseholdFor(runtime.InhabitantId) == field.HouseholdId &&
                 !NeedsUrgentFood(claimant) && !NeedsUrgentWarmth(claimant) &&
-                HasCarriedItem(runtime.InhabitantId, FarmFieldRules.Hoe) &&
+                ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, runtime.InhabitantId, ToolFamily.Hoe) is not null &&
                 (claimant.Project is not { Stage: not ("completed" or "cancelled") } project || project.RequiresFreshChoice) &&
                 FarmNeedsFood(field.HouseholdId);
             var stock = eligible ? PlantingStock(runtime.InhabitantId, field, crop) : null;
@@ -124,7 +124,9 @@ public sealed partial class PrivateWorldRuntime
                 (item.Work?.Crop ?? item.Crop) == crop))
             .Where(crop => PlantingStock(actor, field, crop) is not null);
 
-    private InventoryLot? PlantingStock(string actor, FarmFieldState field, string crop)
+    // Orders need a usable pickup now; autonomous crop claims keep terrain eligibility
+    // while a temporary occupant passes and their existing physical route retries.
+    private InventoryLot? PlantingStock(string actor, FarmFieldState field, string crop, bool requirePickupRoute = false)
     {
         var kind = FarmFieldRules.PlantingItem(crop);
         var inventory = society.Checkpoint.Inventory;
@@ -140,7 +142,10 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(lot => lot.OwnerId == actor ? 0 : reserve?.LotId == lot.Id ? 1 : 2)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal)
             .FirstOrDefault(lot => lot.OwnerId == actor ||
-                map.IsReachableOnFoot(inhabitants[actor].Position, HouseholdStockPosition(lot)));
+                (requirePickupRoute
+                    ? CanWalkToFieldOrderSite(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
+                        HouseholdStockInteractionRange(lot))
+                    : map.IsReachableOnFoot(inhabitants[actor].Position, HouseholdStockPosition(lot))));
     }
 
     private void ApplyFieldCandidate(string actor, PlaytestInhabitantState state, string candidate, string? orderInstructionId = null)
@@ -154,7 +159,8 @@ public sealed partial class PrivateWorldRuntime
         if (kind == FarmWorkKind.Plant)
         {
             var field = fields.SingleOrDefault(item => item.Position == point && item.HouseholdId == HouseholdFor(actor));
-            if (field is null || crop is null || !FarmFieldRules.IsCrop(crop) || PlantingStock(actor, field, crop) is not { } seed) return;
+            if (field is null || crop is null || !FarmFieldRules.IsCrop(crop) ||
+                PlantingStock(actor, field, crop, requirePickupRoute: orderInstructionId is not null) is not { } seed) return;
             if (seed.OwnerId != actor)
             {
                 if (FreeCarryCapacity(actor) == 0) return;

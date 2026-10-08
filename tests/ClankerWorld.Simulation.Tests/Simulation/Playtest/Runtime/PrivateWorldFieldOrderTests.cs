@@ -50,6 +50,59 @@ public sealed partial class PrivateWorldFieldOrderTests
     }
 
     [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task PlantingOrdersSkipOccupiedSeedStockAndConsumeOneAccessibleSeed(bool occupied, bool nearbyFirst)
+    {
+        var state = WithFields(Prepared(), new FarmFieldState(Point, Household, FarmFieldStage.Prepared)) with
+        {
+            JevEnabled = false,
+            RoutineHelper = RoutineHelperSettings.Off,
+        };
+        var blockedPoint = OtherPoint(state);
+        var blocker = state.Inhabitants.First(person => person.InhabitantId != Actor).InhabitantId;
+        if (occupied) state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == blocker
+                ? person with { Position = blockedPoint, LastDecisionContext = null } : person).ToArray(),
+        };
+        var blockedId = nearbyFirst ? "zzz-planting-seed" : "aaa-planting-seed";
+        var nearbyId = nearbyFirst ? "aaa-planting-seed" : "zzz-planting-seed";
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, blockedId, "grain_seed", Household, 1,
+            groundPosition: new(blockedPoint.X, blockedPoint.Y));
+        inventory = InventoryFixture.AddLot(inventory, nearbyId, "grain_seed", Household, 1,
+            groundPosition: new(Point.X, Point.Y));
+        state = FarmFieldTests.WithInventory(state, inventory);
+        var bytes = PrivateWorldRuntimeCodec.Encode(state);
+        using var world = Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        var receipt = Submit(world, "accessible-planting-stock", "plant grain");
+        Assert.Equal(receipt, Submit(replay, "accessible-planting-stock", "plant grain"));
+        for (var tick = 0; tick < 40 && Order(world, receipt).Status != "finished"; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        Assert.Equal(("finished", 1), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        var field = Assert.Single(world.Fields);
+        Assert.Equal((Point, "grain", FarmFieldStage.Planted), (field.Position, field.Crop, field.Stage));
+        Assert.Equal(1, SeedQuantity(world, "grain"));
+        var used = occupied || nearbyFirst ? nearbyId : blockedId;
+        var retained = used == nearbyId ? blockedId : nearbyId;
+        Assert.Equal(0, world.Society.Inventory.Lots.Where(lot => lot.Id == used || lot.ProvenanceLotId == used).Sum(lot => lot.Quantity));
+        Assert.Equal((Household, 1), (world.Society.Inventory.GetLot(retained).OwnerId, world.Society.Inventory.GetLot(retained).Quantity));
+        Assert.Single(world.ExportState().Events, item => item.Kind == "field_planted");
+        if (occupied) Assert.Equal(blockedPoint, world.Inhabitants.Single(person => person.InhabitantId == blocker).Position);
+        world.Validate();
+        var final = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var loaded = Restore(PrivateWorldRuntimeCodec.Decode(final));
+        Assert.Equal(final, PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
+    }
+
+    [Theory]
     [InlineData("grain")]
     [InlineData("potatoes")]
     [InlineData("cultivated_greens")]

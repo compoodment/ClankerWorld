@@ -167,7 +167,16 @@ public sealed partial class PrivateWorldRuntime
             worldSimulation.Buildings.Any(building => building.InstanceId == storageId && building.HouseholdId is { } home &&
                 (society.Checkpoint.GetInhabitant(actor).HouseholdId == home ||
                  inhabitants[actor].Departures?.Any(departure => departure.HouseholdId == home) == true ||
+                 HasCareGroupDepartureFrom(actor, home) ||
                  IsStoredSettledBequest(actor, lot, storageId)))));
+
+    // Children leave in the caregiver's recorded care group. That saved move
+    // still authorizes their own belongings after adulthood or the caregiver's
+    // death; the surrounding collection checks grant no access to shared goods.
+    private bool HasCareGroupDepartureFrom(string actor, string householdId) => inhabitants.Values
+        .Concat(deceasedInhabitants.Values.Select(person => person.LastPhysical))
+        .Any(person => person.Departures?.Any(departure => departure.HouseholdId == householdId &&
+            departure.CareGroup.Contains(actor, StringComparer.Ordinal)) == true);
 
     private bool IsStoredSettledBequest(string actor, InventoryLot lot, string storageId) => society.Checkpoint.Estates.Any(estate =>
         estate.Settled && (estate.WillBequests ?? []).Any(bequest => bequest.HeirId == actor &&
@@ -180,9 +189,11 @@ public sealed partial class PrivateWorldRuntime
         !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id) &&
         room >= ContainerFamilyQuantity(society.Checkpoint.Inventory, lot.Id);
 
-    private IEnumerable<InventoryLot> BorrowedGoods(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
+    private IEnumerable<InventoryLot> CarriedBorrowedGoods(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
         lot.OwnerId != actor && lot.CarrierId == actor && lot.ContainerLotId is null && lot.Quantity > 0 &&
-        !animalWorld.SupplyTrips.Any(trip => trip.ActorId == actor && trip.LotId == lot.Id) &&
+        !animalWorld.SupplyTrips.Any(trip => trip.ActorId == actor && trip.LotId == lot.Id));
+
+    private IEnumerable<InventoryLot> BorrowedGoods(string actor) => CarriedBorrowedGoods(actor).Where(lot =>
         !(lot.ItemKind == InventoryContainerRules.WaterJug && IsMilkJug(lot) && MilkStockChoices(actor).Any(choice => choice.Jug.Id == lot.Id)));
 
     private IEnumerable<(string Id, string BuildingId, string Worker, long Completion, long PausedAt, IReadOnlyList<string> Reservations)> PausedHouseholdWork(string actor)

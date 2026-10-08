@@ -990,7 +990,7 @@ public static class AnimalSprites
                 image.SetPixel(x, y, Colors.Transparent);
                 return;
             }
-            image.SetPixel(x, y, image.GetPixel(x, y).Blend(color));
+            image.SetPixel(x, y, PixelArt.Snap(image.GetPixel(x, y).Blend(color)));
         }
 
         public void Dot(Vector2 at, Color color) => Pixel((int)MathF.Floor(at.X), (int)MathF.Floor(at.Y), color);

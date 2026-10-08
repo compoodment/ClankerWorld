@@ -44,6 +44,19 @@ public sealed record OwnerWorldAnimal(string Id, string Name, string Species, st
     public bool LooksShorn => Species == "sheep" && LifeStage == "adult" && ProductProgressPercent is < 50;
 }
 
+/// <summary>A building under construction: where it will stand and how far the work has got.</summary>
+public sealed record OwnerWorldConstructionSite(string Id, string DefinitionId, string DisplayName, IReadOnlyList<string> Tags,
+    OwnerWorldPosition Site, int Width, int Height, OwnerWorldPosition? Entrance, int WorkDone, int WorkRequired, string Stage,
+    string? TownId, string? HouseholdId)
+{
+    /// <summary>
+    /// Which of the three approved construction stages to draw: the cleared,
+    /// staked-out site until a third of the work is done, then the frame, then
+    /// the walls with the roof half on from two thirds.
+    /// </summary>
+    public int DrawnStage => WorkRequired <= 0 || WorkDone * 3 < WorkRequired ? 1 : WorkDone * 3 < WorkRequired * 2 ? 2 : 3;
+}
+
 public sealed record OwnerWorldBoat(string Id, string TownId, string TownName, OwnerWorldPosition Position,
     string? DockedPortId, string? PassengerId, string? PassengerName, string? DestinationPortId,
     string Status, OwnerWorldPosition? ReservedDock, IReadOnlyList<OwnerWorldInventoryEntry> Cargo);
@@ -509,8 +522,11 @@ public sealed record OwnerWorldPlacedBuilding(
     public IReadOnlyList<OwnerWorldBusinessTrade> Trades { get; init; } = [];
     public IReadOnlyList<OwnerWorldToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
+    public IReadOnlyList<OwnerWorldBuildingStorageChange>? RecentStorageChanges { get; init; }
     public IReadOnlyList<OwnerWorldProductionRecipe>? AvailableRecipes { get; init; }
 }
+
+public sealed record OwnerWorldBuildingStorageChange(long EventId, long WorldTick, string ItemKind, long QuantityChange);
 
 public sealed record OwnerWorldToolMakingRequest(string Id, string RequesterName, string RecipeId,
     string RecipeName, string ItemKind, string Status, string? Blocker, string? OfferId = null);
@@ -611,6 +627,7 @@ public sealed record OwnerWorldSnapshot(
     public IReadOnlyList<OwnerWorldGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<OwnerWorldHandcart> Handcarts { get; init; } = [];
     public IReadOnlyList<OwnerWorldAnimal> Animals { get; init; } = [];
+    public IReadOnlyList<OwnerWorldConstructionSite> ConstructionSites { get; init; } = [];
     public IReadOnlyList<OwnerWorldBoat> Boats { get; init; } = [];
     public IReadOnlyList<OwnerWorldBoatTripRequest> BoatRequests { get; init; } = [];
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];

@@ -30,15 +30,32 @@ public static partial class BuildingSprites
             var h = tilesHigh * 32;
             var image = Image.CreateEmpty(w, h, false, Image.Format.Rgba8);
             image.Fill(Colors.Transparent);
-            var c = new PixelCanvas(image, new Rect2I(0, 0, w, h), 1f);
+            var c = new PixelCanvas(image, new Rect2I(0, 0, w, h), 1f, snap: true);
             var gate = Gate(w, h, door);
             var seed = tilesWide * 31 + tilesHigh * 7;
             EarthFloor(c, w, h, seed, grassEdge: true);
             Trough(c, TroughSpot(w, h, door, gate));
             HayPile(c, FeedSpot(w, h, door));
             RailFence(c, w, h, door, gate, YardTimber, rails: 2, postGap: 10);
-            if (tilePixels != 32) image.Resize(tilesWide * tilePixels, tilesHigh * tilePixels, Image.Interpolation.Nearest);
-            return image;
+            return tilePixels == 32 ? image : ResizeYard(image, tilesWide * tilePixels, tilesHigh * tilePixels);
+        }
+
+        // Sample the same top-left pixel as the approved preview. Godot's
+        // nearest resize samples the centre instead, which changes the 16 px art.
+        private static Image ResizeYard(Image image, int width, int height)
+        {
+            var sourceWidth = image.GetWidth();
+            var sourceHeight = image.GetHeight();
+            var source = image.GetData();
+            var pixels = new byte[width * height * 4];
+            for (var y = 0; y < height; y++)
+                for (var x = 0; x < width; x++)
+                {
+                    var sourceX = Math.Min(sourceWidth - 1, x * sourceWidth / width);
+                    var sourceY = Math.Min(sourceHeight - 1, y * sourceHeight / height);
+                    Array.Copy(source, (sourceY * sourceWidth + sourceX) * 4, pixels, (y * width + x) * 4, 4);
+                }
+            return Image.CreateFromData(width, height, false, Image.Format.Rgba8, pixels);
         }
 
         /// <summary>The gate's middle along its side, in units, kept clear of the corners.</summary>
@@ -192,8 +209,8 @@ public static partial class BuildingSprites
             }
             for (var y = top + SpacingFor(bottom - top, postGap); y < bottom - 1; y += SpacingFor(bottom - top, postGap))
             {
-                Post(left, y);
-                Post(right, y);
+                if (!InGate(DoorSide.West, y + 1.5f) || MathF.Abs(y + 1.5f - gate) >= gateHalf - 1) Post(left, y);
+                if (!InGate(DoorSide.East, y + 1.5f) || MathF.Abs(y + 1.5f - gate) >= gateHalf - 1) Post(right, y);
             }
             GatePosts(c, door, gate, gateHalf, left, top, right, bottom, wood, Post);
         }
@@ -214,19 +231,23 @@ public static partial class BuildingSprites
                 DoorSide.West => left,
                 DoorSide.East => right,
                 _ => bottom,
-            }, wood);
+            }, wood, door.Side switch
+            {
+                DoorSide.East => right + 4,
+                DoorSide.South => bottom + 4,
+                _ => 0,
+            });
 
         /// <summary>An open gate at <paramref name="line"/>, the fence's position across its side; used by every option.</summary>
-        private static void OpenGate(PixelCanvas c, BuildingDoor door, float gate, float half, float line, Ramp wood)
+        private static void OpenGate(PixelCanvas c, BuildingDoor door, float gate, float half, float line, Ramp wood, float edge)
         {
             var horizontal = door.Side is DoorSide.South or DoorSide.North;
             var inward = door.Side is DoorSide.South or DoorSide.East ? -1f : 1f;
             // Along the side (a) and across it (b) to a screen point.
             Vector2 P(float a, float b) => horizontal ? new Vector2(a, b) : new Vector2(b, a);
             // Trampled ground through the opening, from inside the fence to the footprint's edge.
-            var edge = door.Side is DoorSide.South or DoorSide.East ? line + 4 : 0f;
-            var from = MathF.Min(edge, line - inward * 4);
-            var to = MathF.Max(edge, line - inward * 4) + (door.Side is DoorSide.South or DoorSide.East ? 0 : 4);
+            var from = MathF.Min(edge, line + inward * 4);
+            var to = MathF.Max(edge, line + inward * 4);
             for (var a = gate - half + 1; a < gate + half - 1; a++)
                 for (var b = from; b < to; b++)
                 {

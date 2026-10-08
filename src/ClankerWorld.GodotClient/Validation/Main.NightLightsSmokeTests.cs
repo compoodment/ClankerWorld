@@ -255,36 +255,107 @@ public partial class Main
             PlacedBuildings = street.PlacedBuildings.Select(building => building with { TownId = "night-hollow" }).ToArray(),
             Towns = [new OwnerWorldTown("night-hollow", "Hollow", "founded", 0, [], [], [])],
         };
-        RenderMap(abandonedStreet);
-        nightLayer.Settle();
-        for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-        if (nightLightsLayer.Lanterns.Count != 4 || nightLightsLayer.Lanterns.Any(lantern => !lantern.Dark) ||
-            nightLightsLayer.DrawnCells.Count == 0 || nightLightsLayer.DrawnCells.Any(cell => cell.Kind != LightCellKind.Paint))
-            throw new InvalidOperationException("Street fittings in an abandoned Town must stay dark at night and still show their fittings.");
+        foreach (var fallingApart in new[] { false, true })
+            foreach (var (zoom, atlas) in new[] { (maximumCameraZoom, 32), (minimumCameraZoom * 2, 16), (minimumCameraZoom, 0) })
+            {
+                cameraZoom = zoom;
+                cameraCenterTiles = new Vector2(18, 8);
+                RenderMap(abandonedStreet with
+                {
+                    Towns = [abandonedStreet.Towns[0] with { FallingApart = fallingApart }],
+                });
+                nightLayer.Settle();
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                var actualAtlas = terrainLayer.TileSize < WorldTerrainLayer.SpriteTileMinimum ? 0 : BuildingSprites.AtlasTileSize(terrainLayer.TileSize);
+                if (actualAtlas != atlas)
+                    throw new InvalidOperationException($"The abandoned-lantern check must exercise atlas {atlas}, got {actualAtlas}.");
+                if (nightLightsLayer.Lanterns.Count != 4 || nightLightsLayer.Lanterns.Any(lantern => !lantern.Dark) ||
+                    nightLightsLayer.DrawnCells.Count == 0 || nightLightsLayer.DrawnCells.Any(cell => cell.Kind != LightCellKind.Paint))
+                    throw new InvalidOperationException($"Abandoned street fittings must stay dark at every zoom, including ruins: tileSize={terrainLayer.TileSize}, fallingApart={fallingApart}.");
+            }
         SelectBuilding("night-stone-north");
         RenderBuildingCard(abandonedStreet);
         var lanternStatus = string.Join('\n', buildingQuickStatus.FindChildren("*", nameof(Label), owned: false)
             .OfType<Label>().Select(label => label.Text));
-        ClearBuildingSelection();
         if (!lanternStatus.Contains("Dark · its Town is abandoned", StringComparison.Ordinal))
             throw new InvalidOperationException($"A dark lantern's card must say its Town is abandoned: {lanternStatus}");
-        // A Port's pier lantern burns every night, except in an abandoned Town.
-        foreach (var (residents, shines) in new[] { (new[] { "night-sailor" }, true), (Array.Empty<string>(), false) })
+        var resettledStreet = abandonedStreet with
         {
+            Towns = [abandonedStreet.Towns[0] with { ResidentIds = [ada.Id] }],
+        };
+        foreach (var (zoom, atlas) in new[] { (maximumCameraZoom, 32), (minimumCameraZoom * 2, 16), (minimumCameraZoom, 0) })
+        {
+            cameraZoom = zoom;
+            cameraCenterTiles = new Vector2(18, 8);
+            RenderMap(resettledStreet);
+            nightLayer.Settle();
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var actualAtlas = terrainLayer.TileSize < WorldTerrainLayer.SpriteTileMinimum ? 0 : BuildingSprites.AtlasTileSize(terrainLayer.TileSize);
+            if (actualAtlas != atlas)
+                throw new InvalidOperationException($"The resettled-lantern check must exercise atlas {atlas}, got {actualAtlas}.");
+            if (nightLightsLayer.Lanterns.Any(lantern => lantern.Dark) ||
+                !nightLightsLayer.DrawnCells.Any(cell => cell.Kind == LightCellKind.Light) ||
+                !nightLightsLayer.DrawnCells.Any(cell => cell.Kind == LightCellKind.Glow))
+                throw new InvalidOperationException("Resettled street fittings must light again at every zoom.");
+        }
+        RenderBuildingCard(resettledStreet);
+        lanternStatus = string.Join('\n', buildingQuickStatus.FindChildren("*", nameof(Label), owned: false)
+            .OfType<Label>().Select(label => label.Text));
+        ClearBuildingSelection();
+        if (!lanternStatus.Contains("Lit · lights automatically at dusk", StringComparison.Ordinal) ||
+            lanternStatus.Contains("Town is abandoned", StringComparison.Ordinal))
+            throw new InvalidOperationException($"The same selected lantern card must update after resettlement: {lanternStatus}");
+        cameraZoom = maximumCameraZoom;
+        cameraCenterTiles = new Vector2(18, 8);
+        // A Port's pier lantern follows abandonment, independently of people using its shed.
+        foreach (var (residents, occupied) in new[]
+        {
+            (new[] { ada.Id }, false), (Array.Empty<string>(), false),
+            (Array.Empty<string>(), true), (new[] { ada.Id }, false),
+        })
+        {
+            var abandoned = residents.Length == 0;
             var harbour = street with
             {
                 DarknessBasisPoints = 10_000,
+                Inhabitants = occupied ? [ada with { Position = new(18, 10) }] : [],
                 PlacedBuildings = [Building("port", "port", 18, 10, 2, 4, new(18, 14)) with { TownId = "night-harbour" }],
                 Towns = [new OwnerWorldTown("night-harbour", "Harbour", "founded", 0, residents, [], [])],
             };
-            RenderMap(harbour);
-            nightLayer.Settle();
-            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            var port = BuildingLights(harbour).Single();
-            if (port.PierLanternDark == shines || port.Shines != shines ||
-                nightLightsLayer.DrawnCells.Any(cell => cell.Kind is LightCellKind.Light or LightCellKind.Glow) != shines)
-                throw new InvalidOperationException($"A Port's pier lantern must light at night only while its Town is lived in: lived in={shines}.");
+            foreach (var (zoom, atlas) in new[] { (maximumCameraZoom, 32), (minimumCameraZoom * 2, 16), (minimumCameraZoom, 0) })
+            {
+                cameraZoom = zoom;
+                cameraCenterTiles = new Vector2(18, 10);
+                RenderMap(harbour);
+                nightLayer.Settle();
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                var actualAtlas = terrainLayer.TileSize < WorldTerrainLayer.SpriteTileMinimum ? 0 : BuildingSprites.AtlasTileSize(terrainLayer.TileSize);
+                if (actualAtlas != atlas)
+                    throw new InvalidOperationException($"The Port lantern check must exercise atlas {atlas}, got {actualAtlas}.");
+                var port = nightLightsLayer.Buildings.Single();
+                if (port.PierLanternDark != abandoned || port.Occupied != occupied || port.Shines != (!abandoned || occupied))
+                    throw new InvalidOperationException($"Port lighting must follow abandonment and actual shed occupancy: abandoned={abandoned}, occupied={occupied}.");
+                if (atlas > 0)
+                {
+                    var plan = port.AtAtlas(atlas).Plan;
+                    var pier = new Vector2(18, 10) * terrainLayer.Stride + plan.Lantern!.Value * (terrainLayer.Stride / 32f);
+                    var cells = nightLightsLayer.DrawnCells;
+                    if (!cells.Any(cell => cell.Kind == LightCellKind.Paint && cell.Area.HasPoint(pier)) ||
+                        cells.Any(cell => cell.Kind == LightCellKind.Glow && cell.Area.HasPoint(pier)) == abandoned ||
+                        cells.Any(cell => cell.Kind == LightCellKind.Light) != (!abandoned || occupied))
+                        throw new InvalidOperationException("The pier fitting must stay visible and dark in an abandoned Town, while an occupied shed may still light.");
+                }
+            }
+            if (selectedBuildingId != "night-port") SelectBuilding("night-port");
+            RenderBuildingCard(harbour);
+            var portFacts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
+            if (portFacts.Contains("Dark · its Town is abandoned", StringComparison.Ordinal) != abandoned ||
+                portFacts.Contains("Lights automatically at dusk · no fuel", StringComparison.Ordinal) == abandoned)
+                throw new InvalidOperationException($"The same Port card must explain darkness and refresh after resettlement: {portFacts}");
         }
+        ClearBuildingSelection();
+        cameraZoom = maximumCameraZoom;
+        cameraCenterTiles = new Vector2(18, 8);
 
         // A weathered building's lantern fittings fade with it: here a Warehouse's door lantern and a Port's pier lantern by day.
         foreach (var (tag, width, height, entrance) in new[] { ("warehouse", 2, 2, new OwnerWorldPosition(21, 11)), ("port", 2, 4, new OwnerWorldPosition(20, 13)) })

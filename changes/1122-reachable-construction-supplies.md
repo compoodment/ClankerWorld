@@ -1,0 +1,1 @@
+- Builders can gather reachable construction materials when a stocked Town Warehouse is blocked, leaving its stock in place.

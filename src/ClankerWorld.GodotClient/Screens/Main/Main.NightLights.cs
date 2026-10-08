@@ -72,6 +72,17 @@ public partial class Main
         return lanterns;
     }
 
+    /// <summary>Street lanterns still being built, on the Road edge their projects were planned against.</summary>
+    private static List<StreetLanternSite> StreetLanternSites(OwnerWorldSnapshot snapshot)
+    {
+        var (width, _) = MapDimensions(snapshot);
+        var sites = new List<StreetLanternSite>();
+        foreach (var site in snapshot.ConstructionSites.OrderBy(site => site.Id, StringComparer.Ordinal))
+            if (StreetLanternLight.FromSite(site, width, snapshot.WrapsEastWest) is { } lantern)
+                sites.Add(new StreetLanternSite(lantern, site.DrawnStage));
+        return sites;
+    }
+
     /// <summary>The night-light design for a building family, or null for those with no lights.</summary>
     private static LitDesign? LitDesignFor(BuildingKind kind) => kind switch
     {

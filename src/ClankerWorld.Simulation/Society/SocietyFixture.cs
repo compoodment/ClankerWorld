@@ -1327,7 +1327,8 @@ public static partial class SocietyFixture
         var beliefById = (checkpoint.Beliefs ?? []).ToDictionary(item => item.Id, StringComparer.Ordinal);
         foreach (var compaction in compactions)
         {
-            if (!IsCanonicalBoundedText(compaction.OwnerId, 128) || compaction.Sources is null ||
+            if (string.IsNullOrWhiteSpace(compaction.OwnerId) || compaction.OwnerId != compaction.OwnerId.Trim() ||
+                compaction.OwnerId.Any(char.IsControl) || compaction.Sources is null ||
                 compaction.Sources.Count is < 1 or > 256 ||
                 !checkpoint.Inhabitants.Any(item => item.Id == compaction.OwnerId))
                 throw new InvalidDataException("An agent memory compaction is malformed.");
@@ -1367,7 +1368,8 @@ public static partial class SocietyFixture
         SocietyAgentBelief belief,
         bool allowSupersedes)
     {
-        if (!IsSafeBeliefId(belief.Id) || !IsCanonicalBoundedText(belief.OwnerId, 128) ||
+        if (!IsSafeBeliefId(belief.Id) || string.IsNullOrWhiteSpace(belief.OwnerId) ||
+            belief.OwnerId != belief.OwnerId.Trim() || belief.OwnerId.Any(char.IsControl) ||
             !IsCanonicalBoundedText(belief.Statement, 512) ||
             belief.Statement.Any(char.IsControl) || !Enum.IsDefined(belief.Provenance) ||
             belief.ConfidenceBasisPoints is < 0 or > 10_000 || belief.FormedTick < 0 ||
@@ -1742,7 +1744,10 @@ public static partial class SocietyFixture
                 checked(current.Inventory.EventHistoryFloor + inventoryEvents.Count + 1L),
                 targetTick,
                 "estate_settled",
-                estate.Id));
+                estate.Id)
+            {
+                StorageChanges = InventoryStorageHistory.Changes(current.Inventory.Lots, nextLots),
+            });
             current = current with
             {
                 WorldTick = targetTick,

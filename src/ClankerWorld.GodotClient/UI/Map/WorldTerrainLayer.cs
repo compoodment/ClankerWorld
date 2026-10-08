@@ -38,7 +38,7 @@ public partial class WorldTerrainLayer : Control
     private readonly Dictionary<Vector2I, bool> bridgeDecks = [];
     // Bridges in abandoned Towns, each from the bank tile before its deck to the one after it.
     private readonly List<(Rect2I Strip, bool EastWest, BuildingNeglect Neglect)> weatheredBridges = [];
-    private readonly HashSet<Vector2I> weatheredBridgeTiles = [];
+    private readonly Dictionary<Vector2I, BuildingNeglect> weatheredBridgeTiles = [];
     private readonly Dictionary<Vector2I, string> householdPropertyTiles = [];
     private readonly HashSet<Vector2I> townLandTitleTiles = [];
     private readonly Dictionary<Vector2I, string[]> householdLandUseTiles = [];
@@ -46,6 +46,10 @@ public partial class WorldTerrainLayer : Control
     private readonly HashSet<Vector2I> disputedLandTiles = [];
     private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door, BuildingNeglect Neglect)> buildings = [];
     private readonly HashSet<Vector2I> buildingTiles = [];
+    private readonly HashSet<Vector2I> constructionTiles = [];
+    private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door, int Stage)> constructionSites = [];
+    // A street lantern's own tile, where its materials lie while the fitting goes up on the Road edge.
+    private readonly List<(Vector2I Tile, int Stage)> lanternSites = [];
     // Road tiles in front of a door, and the side of the tile the door is on.
     private readonly Dictionary<Vector2I, RoadLinks> doorsteps = [];
     private readonly Dictionary<Vector2I, OwnerWorldFarmField> fields = [];
@@ -127,6 +131,9 @@ public partial class WorldTerrainLayer : Control
         naturalObjects = new byte[checked(map.Width * map.Height)];
         campResources.Clear();
         fields.Clear();
+        constructionSites.Clear();
+        lanternSites.Clear();
+        constructionTiles.Clear();
         naturalStages = new byte[checked(map.Width * map.Height)];
         weatherRegions.Clear();
         HasActiveWeather = false;
@@ -356,6 +363,11 @@ public partial class WorldTerrainLayer : Control
             var town = abandoned.FirstOrDefault(item => span.Concat(ends).Any(item.Land.Contains));
             if (town.Land is null) continue;
             var eastWest = bridge.Axis == "east_west";
+            if (eastWest && world is { WrapsEastWest: true })
+            {
+                var first = span[0].X;
+                span = span.Select(tile => new Vector2I(first + Mod(tile.X - first, world.Width), tile.Y)).ToList();
+            }
             int left = span.Min(tile => tile.X), right = span.Max(tile => tile.X);
             int top = span.Min(tile => tile.Y), bottom = span.Max(tile => tile.Y);
             // Only a straight, unbroken run shares one weathered picture; any other keeps its plain deck.
@@ -372,17 +384,19 @@ public partial class WorldTerrainLayer : Control
         weatheredBridges.Clear();
         weatheredBridges.AddRange(weathered);
         weatheredBridgeTiles.Clear();
-        foreach (var (strip, eastWest, _) in weathered)
+        foreach (var (strip, eastWest, neglect) in weathered)
             for (var k = 1; k < (eastWest ? strip.Size.X : strip.Size.Y) - 1; k++)
-                weatheredBridgeTiles.Add(strip.Position + (eastWest ? new Vector2I(k, 0) : new Vector2I(0, k)));
+            {
+                var tile = strip.Position + (eastWest ? new Vector2I(k, 0) : new Vector2I(0, k));
+                if (world is { WrapsEastWest: true }) tile.X = Mod(tile.X, world.Width);
+                weatheredBridgeTiles[tile] = neglect;
+            }
         QueueRedraw();
     }
 
     /// <summary>How the bridge deck on a tile has weathered, or <see cref="BuildingNeglect.None"/>.</summary>
     public BuildingNeglect BridgeNeglectAt(Vector2I tile) =>
-        weatheredBridgeTiles.Contains(tile)
-            ? weatheredBridges.First(bridge => bridge.Strip.HasPoint(tile)).Neglect
-            : BuildingNeglect.None;
+        weatheredBridgeTiles.GetValueOrDefault(tile, BuildingNeglect.None);
 
     public void SetHouseholdProperties(IReadOnlyList<OwnerWorldPlacedBuilding> buildings,
         IReadOnlyList<OwnerWorldFarmField>? fieldTiles = null)
@@ -459,6 +473,45 @@ public partial class WorldTerrainLayer : Control
     }
 
     public int BuildingSpriteCount => buildings.Count;
+
+    /// <summary>
+    /// Buildings under construction, each at the approved stage its work has
+    /// reached. Household plans have no entrance yet, so they face south; a
+    /// street lantern shows only its materials here, and its fitting on the
+    /// Road edge in <see cref="NightLightsLayer"/>.
+    /// </summary>
+    public void SetConstructionSites(IReadOnlyList<OwnerWorldConstructionSite> sites)
+    {
+        ArgumentNullException.ThrowIfNull(sites);
+        var next = sites.Where(site => !StreetLanternLight.IsLantern(site.Tags)).Select(site =>
+            {
+                var footprint = new Rect2I(site.Site.X, site.Site.Y, Math.Max(1, site.Width), Math.Max(1, site.Height));
+                var entrance = site.Entrance is { } tile ? new Vector2I(tile.X, tile.Y) : (Vector2I?)null;
+                return (footprint, BuildingSprites.KindFor(site.Tags), BuildingDoor.Facing(footprint, entrance), site.DrawnStage);
+            })
+            .ToList();
+        var lanterns = sites.Where(site => StreetLanternLight.IsLantern(site.Tags))
+            .Select(site => (new Vector2I(site.Site.X, site.Site.Y), site.DrawnStage)).ToList();
+        if (next.SequenceEqual(constructionSites) && lanterns.SequenceEqual(lanternSites)) return;
+        constructionSites.Clear();
+        constructionSites.AddRange(next);
+        lanternSites.Clear();
+        lanternSites.AddRange(lanterns);
+        constructionTiles.Clear();
+        foreach (var site in sites)
+            for (var y = site.Site.Y; y < site.Site.Y + Math.Max(1, site.Height); y++)
+                for (var x = site.Site.X; x < site.Site.X + Math.Max(1, site.Width); x++)
+                    constructionTiles.Add(new Vector2I(world is { WrapsEastWest: true } ? Mod(x, world.Width) : x, y));
+        QueueRedraw();
+    }
+
+    public int ConstructionSiteCount => constructionSites.Count + lanternSites.Count;
+
+    /// <summary>The construction stage drawn on a tile, or 0 when nothing is being built there.</summary>
+    public int ConstructionStageAt(Vector2I tile) =>
+        constructionSites.FirstOrDefault(site => site.Footprint.HasPoint(tile)).Stage is var stage and > 0
+            ? stage
+            : lanternSites.FirstOrDefault(site => site.Tile == tile).Stage;
 
     /// <summary>How the building on a tile has weathered, or <see cref="BuildingNeglect.None"/> when nothing stands there.</summary>
     public BuildingNeglect NeglectAt(Vector2I tile) =>
@@ -615,14 +668,14 @@ public partial class WorldTerrainLayer : Control
 
     /// <summary>
     /// The cactus drawn on a tile: only on cactus cover, and never under a
-    /// Road, bridge, doorstep, field or building.
+    /// Road, bridge, doorstep, field, building or construction site.
     /// </summary>
     public NatureSprite? CactusAt(int x, int y)
     {
         if (world is null || !world.IsCactusCoverAt(x, y)) return null;
         var tile = new Vector2I(x, y);
         if (roadTiles.Contains(tile) || marketPlazaTiles.Contains(tile) || bridgeDecks.ContainsKey(tile) || doorsteps.ContainsKey(tile) ||
-            fields.ContainsKey(tile) || buildingTiles.Contains(tile))
+            fields.ContainsKey(tile) || buildingTiles.Contains(tile) || constructionTiles.Contains(tile))
             return null;
         return CactusSprites.ForTile(x, y);
     }
@@ -1135,27 +1188,49 @@ public partial class WorldTerrainLayer : Control
     /// <summary>
     /// Building roofs at their footprints (a flat roof color when zoomed out),
     /// drawn again one world-width away when the map wraps so a building on
-    /// the seam stays whole.
+    /// the seam stays whole. Construction sites follow at their stage, as
+    /// cleared earth when zoomed out.
     /// </summary>
     private void DrawBuildings((int Left, int Top, int Width, int Height) bounds, int stride)
     {
-        if (world is null || buildings.Count == 0 || tileSize <= 0) return;
+        if (world is null || buildings.Count == 0 && constructionSites.Count == 0 && lanternSites.Count == 0 || tileSize <= 0) return;
         var visible = new Rect2I(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
         var atlasSize = BuildingSprites.AtlasTileSize(tileSize);
-        foreach (var (footprint, kind, door, neglect) in buildings)
+        var shifts = wrapsEastWest ? new[] { -world.Width, 0, world.Width } : [0];
+        Rect2? Placed(Rect2I footprint, int shift)
         {
-            foreach (var shift in wrapsEastWest ? new[] { -world.Width, 0, world.Width } : [0])
+            var placed = footprint with { Position = footprint.Position + new Vector2I(shift, 0) };
+            if (!placed.Intersects(visible)) return null;
+            return new Rect2(placed.Position.X * stride, placed.Position.Y * stride,
+                placed.Size.X * stride - tileGap, placed.Size.Y * stride - tileGap);
+        }
+        foreach (var (footprint, kind, door, neglect) in buildings)
+            foreach (var shift in shifts)
             {
-                var placed = footprint with { Position = footprint.Position + new Vector2I(shift, 0) };
-                if (!placed.Intersects(visible)) continue;
-                var rect = new Rect2(placed.Position.X * stride, placed.Position.Y * stride,
-                    placed.Size.X * stride - tileGap, placed.Size.Y * stride - tileGap);
+                if (Placed(footprint, shift) is not { } rect) continue;
                 if (tileSize < SpriteTileMinimum)
                     DrawRect(rect, BuildingSprites.RoofColor(kind));
                 else
                     DrawTextureRect(BuildingSprites.Texture(kind, footprint.Size.X, footprint.Size.Y, atlasSize, door, neglect), rect, false);
             }
-        }
+        foreach (var (footprint, kind, door, stage) in constructionSites)
+            foreach (var shift in shifts)
+            {
+                if (Placed(footprint, shift) is not { } rect) continue;
+                if (tileSize < SpriteTileMinimum)
+                    DrawRect(rect, BuildingSprites.SiteColor(kind));
+                else
+                    DrawTextureRect(BuildingSprites.ConstructionTexture(kind, footprint.Size.X, footprint.Size.Y, atlasSize, door, stage), rect, false);
+            }
+        foreach (var (tile, stage) in lanternSites)
+            foreach (var shift in shifts)
+                if (Placed(new Rect2I(tile, Vector2I.One), shift) is { } rect)
+                {
+                    if (tileSize < SpriteTileMinimum)
+                        DrawRect(rect, BuildingSprites.SiteColor(BuildingKind.House));
+                    else if (BuildingSprites.LanternSiteTexture(atlasSize, stage) is { } materials)
+                        DrawTextureRect(materials, rect, false);
+                }
     }
 
     /// <summary>
@@ -1271,7 +1346,7 @@ public partial class WorldTerrainLayer : Control
                 var tile = new Rect2(x * stride, y * stride, tileSize, tileSize);
                 if (tileSize >= SpriteTileMinimum)
                 {
-                    if (!weatheredBridgeTiles.Contains(new Vector2I(mapX, y)))
+                    if (!weatheredBridgeTiles.ContainsKey(new Vector2I(mapX, y)))
                         DrawTextureRect(RoadSprites.BridgeTexture(eastWest, atlasSize), tile, false);
                     continue;
                 }
