@@ -1331,8 +1331,10 @@ move to the new lot; rejected splits leave state and event history unchanged.
 
 The active recovery checkpoint is encoded and fsync-written after every advanced
 one-second tick. Older history is compacted into digest-addressed segments.
-Hot event lists are bounded, but long-term segment retention and larger-world
-write cost are not yet measured.
+Hot event lists are bounded, but long-term segment retention is not yet measured.
+[Camp reachability measurements](camp-reachability-measurements.md) records native
+checkpoint write costs for both supported world sizes; it does not measure
+long-term history growth.
 
 Before replacing the active checkpoint, its writer loads the exact encoded
 bytes through the current codec. A serialization or validation mismatch refuses
