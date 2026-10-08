@@ -1510,6 +1510,13 @@ credit only one term, and the saved effect cannot exceed that term's remaining
 quantity. Declined, unanswered, pending, overdue and completed states remain
 distinct. Findings and overdue work never create physical punishment powers.
 
+Counteroffers during renegotiation follow the exact prior-offer chain back to
+the nearest agreement. After every contributor accepts, the replacement names
+that agreement and supersedes its original offer; intermediate countered offers
+remain recorded. Only the new remaining commitments are actionable. Earlier
+physical receipts stay with the original agreement and cannot earn credit again.
+Strict saved-state validation checks the same predecessor chain.
+
 Formal civic acts require an admitted personal-model choice. Built-in decisions,
 failed replies and continued intentions supply no votes or candidate agreement.
 An explicitly chosen visit can continue moving locally; ballots may be revised
@@ -2767,8 +2774,10 @@ Warehouse stock only while the whole set is carried or in that stock, and the
 Blacksmith, Store and workstation supply hauls leave the carried set with them
 rather than returning it to stock. Exact inputs are reserved through the
 production job; the personal cart appears on the work site's ground after
-completion. Repair
-consumes three carried material reservations atomically. Unloading can retain
+completion. Running or paused jobs reserve only their net stored output growth,
+excluding ground handcart outputs. Ordinary stored outputs still reserve room
+after accounting for consumed inputs already in that building. Repair consumes
+three carried material reservations atomically. Unloading can retain
 damaged goods on the ground and works after the cart breaks. Property transfer
 and inheritance keep the entire cart/cargo family at its existing position.
 A death, break or ownership change removes the attachment without dropping or
@@ -2974,7 +2983,10 @@ leather, leather-sack and saddle recipes to their actual House, Restaurant and
 Tailor stations, including larger Restaurant and Tailor variants. Generated
 worlds seed small wild groups near public forage and fresh water. Each animal
 has an authoritative identity and location; it never draws from private crops
-or household stock while wild.
+or household stock while wild. Wild forage selection checks an unoccupied route
+to the patch's interaction area, using the same live people and animal blockers
+as movement. A crowded nearer patch does not hide another reachable patch within
+the existing search radius.
 
 Adults tame, care, collect, supply, lead, saddle, mount and dismount through
 ordinary revalidated choices. Native orders bind an exact animal name or ID.
