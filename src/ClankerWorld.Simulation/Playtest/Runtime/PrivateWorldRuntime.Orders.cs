@@ -29,6 +29,7 @@ public sealed partial class PrivateWorldRuntime
             return null;
         if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
         if (IsTreePlantingOrder(order.Action)) return TreePlantingOrderCandidate(instruction, person);
+        if (IsKnowledgeOrder(order.Action)) return KnowledgeOrderCandidateFor(instruction);
 
         if (IsShelterOrder(order.Action))
             return ShelterOrderCandidateFor(instruction, person);
@@ -234,6 +235,10 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "write_knowledge":
+            case "copy_knowledge":
+                ExecuteKnowledgeOrderStep(instruction, person);
+                return;
             case "seek_shelter":
             case "tend_fire":
             case "inspect_shelter_site":
@@ -421,6 +426,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (instruction.Order is { } treeOrder && IsTreePlantingOrder(treeOrder.Action))
             return TreePlantingOrderBlockedReason(instruction, person);
+        if (instruction.Order is { } knowledgeOrder && IsKnowledgeOrder(knowledgeOrder.Action)) return KnowledgeOrderBlockedReason(instruction);
         if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))
             return AnimalOrderBlockedReason(instruction);
         if (instruction.Order is { } protective && IsShelterOrder(protective.Action))

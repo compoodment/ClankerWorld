@@ -415,7 +415,8 @@ public sealed partial class PrivateWorldRuntime
         {
             var requested = quantities[quantityIndex];
             var remaining = requested.Amount;
-            var request = ProductionGoodsRequest(ownerId, requested.ResourceId);
+            var request = new GoodsRequest(GoodsUse.Holdings, null,
+                GoodsOwners.One(ownerId), GoodsKinds.One(requested.ResourceId));
             var matches = ProductionGoods(current, request).ToArray();
             foreach (var match in matches)
             {
