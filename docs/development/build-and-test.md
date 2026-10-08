@@ -66,12 +66,13 @@ when every part of the Verify workflow passes:
 - **scope** decides which of the other jobs the change needs.
 - **checks** runs the workflow-script tests and the label list, the Godot
   client check, `dotnet format` and the Windows export.
-- **tests (1)** to **tests (6)** split the Release test suite between them, so
-  it runs on six machines at once.
+- **tests (1)** to **tests (8)** split the Release test suite between them, so
+  it runs on eight machines at once.
 
-**test-times** then compares the run's test times with main's latest green run
-and lists the tests that grew most in the run summary. It warns when the tests
-both runs have take 40% and two minutes longer in total; tests that slow down
+**test-times** then compares the run's test times with main's, taking each
+test's median over main's last three green runs, and lists the tests that grew
+most in the run summary. It warns when the tests the run shares with main take
+40% and two minutes longer in total; tests that slow down
 without changing usually mean the simulation got slower, for players too. It
 never warns about a single test: one test can take two to four times as long or
 as short between runs of the same code, depending on which tests share the
@@ -92,16 +93,18 @@ can change a test result. A change to one of those files, to anything under
 Pushes to main always run everything. A newer push to a pull request cancels
 its older run.
 
-The test jobs split the tests by how long each took in main's latest green run,
-so new slow tests spread out on their own and nobody needs to rebalance them by
-hand. Each test job uploads its durations as a `test-timings-<job>` artifact;
-**scope** downloads main's latest set and
-[.github/scripts/ci-plan.js](../../.github/scripts/ci-plan.js) plans the split:
+The test jobs split the tests by how long each took on main, so new slow tests
+spread out on their own and nobody needs to rebalance them by hand. Each test
+job uploads its durations as a `test-timings-<job>` artifact; **scope**
+downloads those of main's last three green runs with
+[.github/scripts/main-timings.sh](../../.github/scripts/main-timings.sh), and
+[.github/scripts/ci-plan.js](../../.github/scripts/ci-plan.js) plans the split
+from each test's median, because one run's times swing too much to balance by:
 
 - xUnit runs four test classes at once on a runner's four cores, and a class's
   tests one after another. A class too long for one job is split by method.
 - A test runs in the first job whose filter names it, and the last job runs
-  every test no filter names, so a test that is new since main's run, or
+  every test no filter names, so a test that is new since main's runs, or
   renamed, still runs exactly once.
 - If main's timings can't be read, the split falls back to the fixed one in
   `PinnedShards`.
