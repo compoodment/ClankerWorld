@@ -256,6 +256,19 @@ Restaurant, including continuing an open food purchase. They need their own
 payment and enough carrying room, and keep the outstanding order. Equipment
 purchases, raw ingredient shopping and selling goods do not gain this exception.
 
+Named talk orders, such as "Talk to Ari" or "Speak with Ari Vale", resolve an
+exact unique name or person ID when submitted. They keep that person through
+rename, queueing and reload, walk within ordinary interaction range and create
+one real invitation. Both participants use their own conversation models and
+allowances, and the invitee may decline. The card reports invitation,
+acceptance, suspension and the actual outcome. Finishing means the talk
+attempt ended, including refusal; it does not mean an agreement was applied.
+Queued work waits for that outcome. An accepted unfinished conversation loads
+stopped and needs both people's fresh resume choices. Unavailable people,
+models, allowances and routes leave useful blockers. Marriage proposals are
+outside this talk adapter. [The Windows check](../playtest/1222-talk-order.md)
+is pending.
+
 Orders currently cover eating carried food, collecting accessible household
 food to eat, going to a known food source or discovering one through ordinary
 exploration, and gathering berries, fruit or wild greens from a matching source.

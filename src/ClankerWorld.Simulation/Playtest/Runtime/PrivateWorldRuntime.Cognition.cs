@@ -606,6 +606,11 @@ public sealed partial class PrivateWorldRuntime
 
         if (pendingInstruction is { } order)
         {
+            if (TalkOrderHasConversation(order))
+            {
+                ApplyTalkOrderConversationDecision(order, decision);
+                return;
+            }
             if (decision.Admission.FellBack)
             {
                 SetOrderStatus(order, "blocked", "The order will try again after a short wait.", waitForDecision: true);
@@ -1336,6 +1341,9 @@ public sealed partial class PrivateWorldRuntime
         var urgentCandidate = urgent
             ? SelectOrderSurvivalCandidate(candidates, state, order)
             : null;
+        if (TalkOrderHasConversation(order))
+            return candidates.Where(item => item.Id == "safe_idle" || item.Id.StartsWith("conversation_", StringComparison.Ordinal) ||
+                urgent && IsSurvivalCandidate(state.InhabitantId, item.Id)).ToList();
         var taskCandidate = OrderCandidateFor(order, state);
         if (ShouldInterruptOrder(state, order, taskCandidate, urgentCandidate))
             taskCandidate = null;
