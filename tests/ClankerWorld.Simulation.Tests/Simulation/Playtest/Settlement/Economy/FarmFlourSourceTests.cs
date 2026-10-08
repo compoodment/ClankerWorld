@@ -47,8 +47,11 @@ public sealed class FarmFlourSourceTests
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
             {
-                Position = farmhouse.Position, HungerBasisPoints = 9_500, Project = null,
-                LastDecisionContext = null, TravelCooldownTicks = 0,
+                Position = farmhouse.Position,
+                HungerBasisPoints = 9_500,
+                Project = null,
+                LastDecisionContext = null,
+                TravelCooldownTicks = 0,
             } : person).ToArray(),
         };
         var initial = PrivateWorldRuntimeCodec.Encode(state);
