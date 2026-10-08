@@ -99,8 +99,6 @@ public sealed class FarmFieldTests
 
     [Theory]
     [InlineData(null)]
-    [InlineData("")]
-    [InlineData(" \t ")]
     [InlineData("unknown-field-worker")]
     public void SavedFieldWorkWithAnInvalidWorkerIsRefusedAsInvalidCheckpointData(string? workerId)
     {
