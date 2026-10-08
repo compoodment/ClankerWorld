@@ -630,6 +630,10 @@ both vessels retain their owners. Only one pending sale may use each milk lot;
 closing the offer frees any remaining usable milk for another sale. Spoiled
 milk can be poured away for jug reuse.
 
+Replacing or cancelling an animal task releases its unfinished supply trip.
+The adult keeps already collected goods under their existing ownership and
+can fetch supplies for a new animal task without finishing the cancelled one.
+
 Egg and milk meals use House/Restaurant recipes. Tailors turn wool into padded
 coats, hides into leather, and leather into sacks or saddles. A leather sack
 provides 32 carried cargo units. Cared adult pairs breed automatically with
