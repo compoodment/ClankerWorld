@@ -1,0 +1,1 @@
+- Building Details now shows animals standing inside, including their care, ready products and permissions, so yard animals can be inspected by clicking their building.

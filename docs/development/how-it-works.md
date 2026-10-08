@@ -1999,6 +1999,13 @@ diagonal, shared entrance and attached handcart rules. If none is reachable,
 preparation continues to its existing material-gathering fallback. Collection
 still rechecks authority, available stock and carrying room at the Warehouse.
 
+Ordinary workstation supply choices and execution check the adult's current
+native route to each destination before selecting its missing input. An
+occupied earlier workshop does not hide a reachable House or another workshop.
+The route is checked again as the actor moves; reaching a shared household
+building can make another delivery possible. Supply still uses actual carried
+or accessible stock, ownership, receiving space and carrying limits.
+
 Blacksmith input hauling checks the actor's current unoccupied pickup route
 and the source-to-shop route before selecting household or permitted Town
 Warehouse stock. An occupied earlier lot does not hide later reachable stock.
@@ -3087,6 +3094,11 @@ permission loss ends riding; dismount puts unreserved excess cargo at the actual
 position without changing its owner. Cart attachments and boat travel exclude
 ridden or led animals. Godot projects and draws the authoritative animal state
 with young/adult headings, mounted horses, yard art, inspection and event text.
+
+Building Details lists animals whose current observed positions lie within
+the building footprint, using the same `GameUiText.AnimalDescription` as tile
+inspection and hover help. It refreshes with the snapshot and grants no animal
+ownership or care permission.
 
 Collection from another animal and saddling another horse prepare with
 `EndAnimalRide` on their own tick, without product transfer, saddle fitting or
