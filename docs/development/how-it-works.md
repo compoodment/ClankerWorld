@@ -1117,6 +1117,12 @@ unchanged map data only when world and digests match. Initial/changed maps and
 some control receipts still send the whole map. Viewport/chunk transfer remains
 unfinished.
 
+Each private-world observation store retains one map-derived fertility index
+and layer digest. A replacement committed map or a different world seed replaces
+that entry. Resources, fields, events and other dynamic observations are still
+projected from the captured state on every refresh; the cache stores no viewer
+snapshot or saved authority.
+
 Main-map dragging requires a held middle mouse button. Opening the pause menu
 or losing application focus clears the drag. The client observes releases
 before GUI controls consume them and stops on motion without the middle-button
