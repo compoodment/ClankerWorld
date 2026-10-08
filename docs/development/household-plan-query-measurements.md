@@ -16,7 +16,7 @@ rough guidance and needs fresh profiling after this change merges.
 
 ## Source and workload
 
-Baseline is current main `621899dcc50974c367a039f331f93dac4e1ca757`, schema 100.
+Baseline is main `621899dcc50974c367a039f331f93dac4e1ca757`, schema 100.
 Only `SettlementHouseholdPlanning.cs` differs among the 297 runtime inputs whose
 hashes are recorded in [the raw data](household-plan-query-probe/samples.json).
 Every synchronous query still obtains its identity from the current actor,
@@ -70,8 +70,9 @@ uniformly faster ticks.
 The same small and dense inputs run again in fresh processes. The added
 allocation probe records process-wide managed allocation deltas around each
 native tick call. Totals cover all 64 measured ticks, including the same
-provider recording and diagnostic readouts in both variants; they are not
-peak live memory or player save sizes.
+provider recording in both variants. Diagnostic export and report bookkeeping
+occur outside the allocation interval. Totals are not peak live memory or
+player save sizes.
 
 | Fixture | Provider | Main median / p95 | Repair median / p95 | Total allocated MiB, main → repair |
 | --- | --- | ---: | ---: | ---: |
