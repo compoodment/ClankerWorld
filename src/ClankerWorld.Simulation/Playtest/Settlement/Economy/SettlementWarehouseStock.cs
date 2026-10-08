@@ -9,8 +9,6 @@ public sealed partial class PrivateWorldRuntime
     private const int WarehouseLoadQuantity = 4;
     private static readonly HashSet<string> WarehouseResourceKinds =
         new(StringComparer.Ordinal) { "wood", "stone", "fiber", "tree_seed" };
-    private static readonly HashSet<string> WarehouseFoodKinds =
-        new(StringComparer.Ordinal) { "food", "fruit", "grain", "flour", "potatoes", "berries", "wild_greens", "cultivated_greens", "bread", "porridge", "stew", "simple_meal", "berry_porridge", "fruit_porridge", "restaurant_meal" };
 
     private PlacedBuilding? WarehouseForResident(string actor)
     {
@@ -18,11 +16,15 @@ public sealed partial class PrivateWorldRuntime
         return townId is null ? null : WarehousesForTown(townId).FirstOrDefault();
     }
 
-    private IEnumerable<PlacedBuilding> WarehousesForTown(string townId) => worldSimulation.Buildings
-        .Where(building => building.TownId == townId &&
-            worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
-                definition.Tags.Contains("warehouse", StringComparer.Ordinal)))
-        .OrderBy(building => building.InstanceId, StringComparer.Ordinal);
+    private IEnumerable<PlacedBuilding> WarehousesForTown(string townId)
+    {
+        var definitions = worldContent.Buildings.Where(definition =>
+                definition.Tags.Contains("warehouse", StringComparer.Ordinal))
+            .Select(definition => definition.CanonicalId).ToHashSet(StringComparer.Ordinal);
+        return worldSimulation.Buildings.Where(building => building.TownId == townId &&
+                definitions.Contains(building.DefinitionId))
+            .OrderBy(building => building.InstanceId, StringComparer.Ordinal);
+    }
 
     private IEnumerable<PlacedBuilding> WarehousesAccessibleTo(string actor)
     {

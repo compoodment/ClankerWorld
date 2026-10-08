@@ -138,11 +138,16 @@ public sealed partial class PrivateWorldRuntime
         var choice = AnimalSupplyChoices(actor).FirstOrDefault(choice => choice.Id == id);
         if (choice is null) return true;
         var source = choice.Lot;
-        if (!PersonalEquipmentRules.IsCarried(source, actor))
+        var carried = PersonalEquipmentRules.IsCarried(source, actor);
+        if (!carried)
         {
             var position = HouseholdStockPosition(source);
             if (!IsWithinInteractionRange(inhabitants[actor].Position, position, HouseholdStockInteractionRange(source)))
             { MoveToward(actor, inhabitants[actor], position, "animal_supply_pickup", HouseholdStockInteractionRange(source)); return true; }
+        }
+        // The trip follows the chosen physical load, including when it was already carried.
+        if (!carried || choice.Quantity < source.Quantity)
+        {
             var operation = "animal-pickup-" + AnimalKey(actor + ":" + WorldTick + ":" + nextEventId);
             ApplyInventoryTransition(current => InventoryFixture.Relocate(current, operation, source.Id, source.OwnerId,
                 choice.Quantity, carrierId: actor));

@@ -64,7 +64,7 @@ public sealed class ProviderUsageCancellationBoundaryTests
             World = new PrivateWorldRuntime("configured-usage-cancellation-boundary", id =>
                 id == Actor ? provider : new DeterministicDecisionProvider());
             StateFile = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"));
-            var effects = new ProviderUsageWorldEffects(World, StateFile, configuration.WorldMutationGate, log);
+            var effects = new ProviderUsageWorldEffects(World, StateFile, Usage, configuration.WorldMutationGate, log);
             Usage.LimitReached += effects.PauseAtLimit;
             Usage.WarningReached += effects.RecordWarning;
         }
