@@ -578,7 +578,8 @@ agent. The player can inspect mistakes and where a belief came from. Jev can
 rank existing memories during a normal call. Agents can also start a nearby
 public conversation: each speaker uses their own assigned planning model,
 accepted speech is saved with the people who could hear it, and only those
-listeners receive a hearsay memory. A conversation can have up to six public
+listeners receive a hearsay memory, including descendants with long generated
+identities. A conversation can have up to six public
 turns and one wrap-up; both people must accept the same wrap-up before its
 structured effect applies. These conversation and daily-call limits are still
 provisional and need a Windows playtest. Private thoughts are never shared as
@@ -629,6 +630,10 @@ pours one portion into the buyer's jug and takes the named personal payment;
 both vessels retain their owners. Only one pending sale may use each milk lot;
 closing the offer frees any remaining usable milk for another sale. Spoiled
 milk can be poured away for jug reuse.
+
+Replacing or cancelling an animal task releases its unfinished supply trip.
+The adult keeps already collected goods under their existing ownership and
+can fetch supplies for a new animal task without finishing the cancelled one.
 
 Egg and milk meals use House/Restaurant recipes. Tailors turn wool into padded
 coats, hides into leather, and leather into sacks or saddles. A leather sack

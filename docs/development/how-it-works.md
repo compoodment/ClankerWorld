@@ -825,7 +825,16 @@ one wrap-up. Responses must match the saved conversation revision, run epoch,
 request and speaker; stale or malformed replies are not admitted. Public turns
 carry a bounded list of agents who were actually close enough to hear. A
 separate memory extraction gives those listeners hearsay claims tied to the
-turn ID, with duplicate and owner checks. Private thoughts, provider payloads
+turn ID, with duplicate and owner checks. Listener and belief-owner references
+retain complete native inhabitant IDs, including longer identities created by
+birth; they do not share the length bounds for caller-provided belief IDs and
+prose. Canonical identity and known-owner checks still apply.
+Personal-model memory subjects use stable hash aliases for longer native IDs,
+as map-knowledge discoverers already do; saved belief ownership and subjects
+keep their complete identities.
+Memory salience indexes retain the same complete native owner identities while
+validating each indexed source against that owner's existing records.
+Private thoughts, provider payloads
 and unaccepted replies never enter that history. Prose has no world effect; the
 only ordinary-dialogue effect is mutual trust, offered during wrap-up and
 applied only after both participants accept the same proposal.
@@ -3025,7 +3034,13 @@ actor's tile, input selection accepts only physically carried supplies. This
 keeps the existing supply path collecting both feed and a water jug before
 approaching the animal, including after a partial pickup. At the animal's tile,
 permitted local yard stock remains usable directly. Physical supply trips
-retain the owning household. A trip isolates its selected feed quantity from
+retain the owning household. Cancelling or replacing an animal order releases
+only a supply trip matching its actor, animal and action, without relocating,
+transferring or spending its cargo. Executing a new animal order also discards
+an unrelated retained trip, including one loaded from a previously cancelled
+task, before selecting supplies. Care-order admission can inspect legal replacement
+supplies despite unrelated trip tracking. A matching active trip keeps its normal checks.
+A trip isolates its selected feed quantity from
 the source, including an already carried stack, so delivery cannot donate the
 unselected remainder. Reusable jugs travel whole with their contents. One held
 product batch waits for local collection;
