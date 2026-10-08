@@ -29,6 +29,17 @@ public sealed partial class PrivateWorldRuntime
                 contents.ContainerLotId == lot.Id && contents.ItemKind != InventoryContainerRules.FreshWater) &&
             !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id));
 
+    private InventoryLot? CarriedWaterJugForReturn(string actor, string houseId)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        var room = StorageRoomAfterInboundDeliveries(houseId);
+        var refillJug = CarriedWaterJugForRefill(actor);
+        if (refillJug is not null && ContainerFamilyQuantity(inventory, refillJug.Id) <= room)
+            return refillJug;
+        return CarriedContainers(actor, InventoryContainerRules.WaterJug).FirstOrDefault(jug =>
+            !HasActiveContainerReservation(inventory, jug.Id) && ContainerFamilyQuantity(inventory, jug.Id) <= room);
+    }
+
     private static int ContainerContentsQuantity(InventoryCheckpoint inventory, string containerId) =>
         inventory.Lots.Where(lot => lot.ContainerLotId == containerId).Sum(lot => lot.Quantity);
 
@@ -76,8 +87,7 @@ public sealed partial class PrivateWorldRuntime
                     "Fill the water jug at a reachable riverbank or lakeshore.", 18,
                     $"shore:{pointText}"));
             }
-            else if (!HasActiveContainerReservation(inventory, carriedJug.Id) &&
-                     ContainerFamilyQuantity(inventory, carriedJug.Id) <= StorageRoomAfterInboundDeliveries(house.InstanceId) &&
+            else if (CarriedWaterJugForReturn(actor, house.InstanceId) is not null &&
                      FindUnoccupiedRoute(actor, person.Position, house.Position, 0).Count > 0)
             {
                 candidates.Add(new CognitionCandidate("return_water_jug",
@@ -284,10 +294,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             HouseForHousehold(householdId) is not { } house ||
-            CarriedContainer(actor, InventoryContainerRules.WaterJug) is not { } jug)
-            return;
-        var inventory = society.Checkpoint.Inventory;
-        if (ContainerFamilyQuantity(inventory, jug.Id) > StorageRoomAfterInboundDeliveries(house.InstanceId))
+            CarriedWaterJugForReturn(actor, house.InstanceId) is not { } jug)
             return;
         if (person.Position != house.Position)
         {

@@ -225,6 +225,7 @@ if (isPrivateWorld)
     var usageEffects = new Lazy<ProviderUsageWorldEffects>(() => new ProviderUsageWorldEffects(
         app.Services.GetRequiredService<PrivateWorldRuntime>(),
         app.Services.GetRequiredService<PrivateWorldStateFile>(),
+        providerUsage,
         app.Services.GetRequiredService<ProviderConfigurationStore>().WorldMutationGate,
         app.Logger));
     providerUsage.LimitReached += () => usageEffects.Value.PauseAtLimit();

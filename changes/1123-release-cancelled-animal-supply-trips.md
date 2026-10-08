@@ -1,0 +1,1 @@
+- Replacing or cancelling an animal task no longer leaves its supply trip blocking care for another animal. Collected goods keep their real owners and custody.

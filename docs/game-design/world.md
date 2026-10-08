@@ -2,7 +2,7 @@
 title: The world, time and survival
 type: game-design
 status: active
-updated: 2026-10-04
+updated: 2026-10-07
 ---
 
 # The world, time and survival
@@ -293,8 +293,9 @@ still needs playtesting.
   map, and roads can also run diagonally. The playable foot route finder now
   supports diagonal steps at 141% of cardinal entry cost and requires both
   orthogonal shoulder tiles to be passable; occupied shoulders also block a
-  live diagonal move. Diagonal Roads are agreed
-  ([Towns](towns.md#how-roads-and-bridges-appear)) but not built yet.
+  live diagonal move. Diagonal Town Roads are also built and drawn on the map;
+  see [Towns](towns.md#how-roads-and-bridges-appear). Roads between Towns remain
+  unfinished.
 
 ### Weather over time
 

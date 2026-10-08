@@ -1,0 +1,1 @@
+- Housemates leave household sale stock on a Market stall while another member borrows it.
