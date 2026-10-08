@@ -1230,9 +1230,11 @@ leader or a cart puller cannot start swimming, and moving dependants must also
 meet the starting conditions. Infants and adults carrying guardian-placement
 dependants cannot start. A swimmer whose condition changes can still leave
 the water. Occupancy, bridge entrances and ordinary wading restrictions remain
-authoritative; the sea cannot be swum. Route searches cache swimming eligibility
-alongside terrain, Roads and occupancy. Swimming is projected from the actual
-water position, and the map alternates existing approved poses and displays
+authoritative; the sea cannot be swum. Task selection uses weakly cached
+freshwater connectivity keyed by immutable map identity, checking the agent's
+current swimming eligibility separately. Actual weighted route searches cache
+swimming eligibility alongside terrain, Roads and occupancy. Swimming is
+projected from the actual water position, and the map alternates existing approved poses and displays
 **Swimming** beside the agent. No sprite atlas or saved movement-mode field
 changes.
 

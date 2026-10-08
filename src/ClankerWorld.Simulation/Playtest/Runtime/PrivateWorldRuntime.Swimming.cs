@@ -30,8 +30,8 @@ public sealed partial class PrivateWorldRuntime
 
     // Preserve occupancy-independent task selection while permitting an eligible freshwater route.
     private bool CanReachByFootOrSwimming(string actor, GridPoint from, GridPoint destination) =>
-        map.IsReachableOnFoot(from, destination) || CanSwim(actor) &&
-        SharedUnoccupiedRoute(from, [], destination, 0, swimming: true).Count > 0;
+        map.IsReachableOnFoot(from, destination) ||
+        SwimmingRules.IsReachable(map, from, destination) && CanSwim(actor);
 
     private int AgentStepCost(GridPoint from, GridPoint to) =>
         SwimmingRules.IsSwimmingWater(map, from) || SwimmingRules.IsSwimmingWater(map, to)
