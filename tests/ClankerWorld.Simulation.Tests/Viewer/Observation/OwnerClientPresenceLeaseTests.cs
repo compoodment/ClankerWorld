@@ -25,7 +25,7 @@ public sealed class OwnerClientPresenceLeaseTests
             var committedTick = runtime.WorldTick;
             clock.Advance(TimeSpan.FromSeconds(5));
             Assert.False(await service.TryAdvanceOnceAsync());
-            await provider.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.True(provider.ReceivedCancellation.IsCancellationRequested);
             Assert.Equal(committedTick, runtime.WorldTick);
             Assert.Contains(runtime.ExportState().Society.Cognition.Queue,
                 item => item.InhabitantId == "founder-scout");
@@ -39,19 +39,15 @@ public sealed class OwnerClientPresenceLeaseTests
     private sealed class WaitingHostedProvider : IDecisionProvider
     {
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<bool> Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public CancellationToken ReceivedCancellation { get; private set; }
         public DecisionProviderKind Kind => DecisionProviderKind.Jev;
         public long ProviderEpoch => 1;
         public async ValueTask<CognitionDecisionResponse> DecideAsync(
             CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
+            ReceivedCancellation = cancellationToken;
             Started.TrySetResult(true);
-            try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                Cancelled.TrySetResult(true);
-                throw;
-            }
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             throw new InvalidOperationException("The hosted request must be cancelled.");
         }
     }

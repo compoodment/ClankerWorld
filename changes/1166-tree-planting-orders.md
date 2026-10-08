@@ -1,0 +1,1 @@
+- You can give agents tree-planting tasks with a quantity, species or exact tile outside Town borders. They fetch real permitted seeds, walk to the site and count completed saplings. Tasks can be queued, cancelled or saved during travel; a blocked site keeps its seed and explains why planting must wait.

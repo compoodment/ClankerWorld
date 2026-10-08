@@ -43,7 +43,8 @@ public sealed class WorldSelectionCoordinator(
     }
 
     private sealed record CachedCheckpoint(string WorldId, string Seed, string Digest,
-        string? HistoryArchiveHead, bool Restorable, WorldThumbnail? Thumbnail);
+        string? HistoryArchiveHead, IReadOnlyList<RetiredBoatRequestRange> RetiredRequests,
+        bool Restorable, WorldThumbnail? Thumbnail);
 
     public WorldCatalogSnapshot List(CancellationToken cancellationToken = default)
     {
@@ -193,7 +194,7 @@ public sealed class WorldSelectionCoordinator(
                 return Incompatible(world);
             // History files and provider credentials can change without a
             // checkpoint rewrite; never reuse their previous assessment.
-            stateFile.VerifyRequiredHistory(checkedCheckpoint.HistoryArchiveHead);
+            stateFile.VerifyRequiredHistory(checkedCheckpoint.HistoryArchiveHead, checkedCheckpoint.RetiredRequests);
             if (!providers.CanRestoreWorldAssignments(world.Assignments))
                 return world with
                 {
@@ -231,12 +232,12 @@ public sealed class WorldSelectionCoordinator(
             // provider routing. Credentials and assignments are checked in Assess.
             using var verified = PrivateWorldRuntime.Restore(checkpoint);
             return new CachedCheckpoint(world.WorldId, world.Seed, digest,
-                checkpoint.HistoryArchiveHead, true, thumbnail);
+                checkpoint.HistoryArchiveHead, checkpoint.BoatTransport.RetiredRequestRanges, true, thumbnail);
         }
         catch (Exception exception) when (exception is InvalidDataException or ArgumentException or
             System.Text.Json.JsonException or FormatException or InvalidOperationException)
         {
-            return new CachedCheckpoint(world.WorldId, world.Seed, digest, null, false, thumbnail);
+            return new CachedCheckpoint(world.WorldId, world.Seed, digest, null, [], false, thumbnail);
         }
     }
 

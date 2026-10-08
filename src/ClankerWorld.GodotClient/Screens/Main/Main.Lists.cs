@@ -21,19 +21,26 @@ public partial class Main
         inhabitantList.Hide();
         rosterCards.Compact = true;
         rosterCards.CustomMinimumSize = new Vector2(380, 60);
-        rosterCards.ItemSelected += index =>
+        rosterCards.ItemClicked += index => SelectRosterCard(index, keepRosterOpen: false);
+        rosterCards.ItemNavigated += index => SelectRosterCard(index, keepRosterOpen: true);
+        rosterCards.ItemActivated += index =>
         {
-            if (index < 0 || index >= rosterCardIds.Count) return;
-            for (var row = 0; row < inhabitantList.ItemCount; row++)
-                if (inhabitantList.GetItemMetadata(row).AsString() == rosterCardIds[(int)index])
-                {
-                    SelectInhabitantFromList(row);
-                    return;
-                }
+            SelectRosterCard(index, keepRosterOpen: true);
+            OpenAgentProfile(speak: false);
         };
-        rosterCards.ItemActivated += _ => OpenAgentProfile(speak: false);
         body.AddChild(rosterCards);
         inhabitantList.Hide();
+    }
+
+    private void SelectRosterCard(long index, bool keepRosterOpen)
+    {
+        if (index < 0 || index >= rosterCardIds.Count) return;
+        for (var row = 0; row < inhabitantList.ItemCount; row++)
+            if (inhabitantList.GetItemMetadata(row).AsString() == rosterCardIds[(int)index])
+            {
+                SelectInhabitantFromList(row, keepRosterOpen);
+                return;
+            }
     }
 
     private void RenderRosterCards(OwnerWorldInhabitant[] inhabitants)
