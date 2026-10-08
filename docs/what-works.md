@@ -1411,10 +1411,19 @@ the host's clock moves backwards, including across a restart.
 Rotation keeps the newest copies on each known branch despite earlier future
 dates, while named manual saves remain separate.
 
-If a world tick fails, the server holds the world paused. A failed active
-checkpoint write can retry while paused, but other faults require operator
-inspection. The detailed recovery screen is unfinished; preserve unsaved
-in-memory progress before restarting the server.
+If the active saved state cannot open on restart, the host stays available for
+pairing and an authenticated **Recover world** screen. It offers the last
+verified autosave from the affected world's current history. Recovery requires
+an explicit choice, retains the refused bytes, leaves other saves unchanged
+and opens the recovered world paused. Unusable newer autosaves are skipped;
+without a usable autosave, the screen offers checking again or quitting. Older
+alpha formats remain refused, with a format explanation and no migration.
+Automated restart, file-preservation and native UI checks cover this path; the
+[Windows playtest](../playtest/1319-checkpoint-recovery.md) remains pending.
+
+If a live world tick fails, the server holds the world paused. A failed active
+checkpoint write can retry while paused, but other live faults require operator
+inspection. Preserve unsaved in-memory progress before restarting the server.
 
 Named saves can be overwritten after choosing one and confirming. Load World
 can load an older save of the current world. Playing on from it starts a new

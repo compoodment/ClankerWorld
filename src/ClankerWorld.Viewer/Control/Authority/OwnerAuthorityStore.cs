@@ -343,6 +343,12 @@ public sealed class OwnerAuthorityStore
 
     public OwnerAuthorityIdentity Identity { get; }
 
+    /// <summary>Recovery starts a new world view; proofs issued for the refused checkpoint cannot survive it.</summary>
+    public void DiscardChallengesForRecovery()
+    {
+        lock (gate) challenges.Clear();
+    }
+
     /// <summary>
     /// Creates a durable non-secret state document. Operational expiries are
     /// applied before the copy is made, so restoring it cannot revive an
