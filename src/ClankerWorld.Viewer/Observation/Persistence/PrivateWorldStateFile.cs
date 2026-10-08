@@ -47,7 +47,7 @@ public sealed class PrivateWorldStateFile
             }
 
             var state = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(Path));
-            VerifyHistory(state.HistoryArchiveHead);
+            VerifyHistory(state.HistoryArchiveHead, state.BoatTransport.RetiredRequestRanges);
             if (!allowDifferentSavedSeed && !string.Equals(state.WorldSeed, worldSeed, StringComparison.Ordinal))
             {
                 throw new InvalidDataException("The private-world save belongs to a different configured seed.");
@@ -86,7 +86,7 @@ public sealed class PrivateWorldStateFile
         if (compactHistory)
         {
             var plan = PrivateWorldHistory.Prepare(state);
-            if (plan.Segment.Streams.Count > 0)
+            if (plan.Segment.Streams.Count > 0 || plan.Segment.ClosedBoatRequests is { Count: > 0 })
             {
                 var bytes = JsonSerializer.SerializeToUtf8Bytes(plan.Segment);
                 var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
@@ -94,6 +94,10 @@ public sealed class PrivateWorldStateFile
                 state = plan.State with { HistoryArchiveHead = digest };
             }
         }
+        var checkpointBytes = PrivateWorldRuntimeCodec.Encode(state);
+        // A valid in-memory checkpoint can still serialize into invalid source
+        // evidence. Check the exact bytes before replacing the last good file.
+        _ = PrivateWorldRuntimeCodec.Decode(checkpointBytes);
         var directory = System.IO.Path.GetDirectoryName(Path) ??
             throw new InvalidOperationException("The private-world state path has no directory.");
         Directory.CreateDirectory(directory);
@@ -104,7 +108,7 @@ public sealed class PrivateWorldStateFile
         {
             using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
-                stream.Write(PrivateWorldRuntimeCodec.Encode(state));
+                stream.Write(checkpointBytes);
                 stream.Flush(flushToDisk: true);
             }
             RestrictPermissions(temporaryPath);
@@ -169,13 +173,15 @@ public sealed class PrivateWorldStateFile
     public void VerifyRequiredHistory(PrivateWorldRuntimeState checkpoint)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
-        VerifyRequiredHistory(checkpoint.HistoryArchiveHead);
+        VerifyRequiredHistory(checkpoint.HistoryArchiveHead, checkpoint.BoatTransport.RetiredRequestRanges);
     }
 
-    internal void VerifyRequiredHistory(string? historyArchiveHead)
+    internal void VerifyRequiredHistory(string? historyArchiveHead, IReadOnlyList<RetiredBoatRequestRange> retiredRequests)
     {
-        if (historyArchiveHead is null) return;
-        lock (gate) VerifyHistory(historyArchiveHead);
+        // No archive means no disk work. Preserve the no-history path so
+        // selection can prepare its transaction before checkpoint publication.
+        if (historyArchiveHead is null && retiredRequests.Count == 0) return;
+        lock (gate) VerifyHistory(historyArchiveHead, retiredRequests);
     }
 
     /// <summary>Call while holding the installation world mutation gate.</summary>
@@ -194,7 +200,9 @@ public sealed class PrivateWorldStateFile
             // checkpoints are conservative roots too; corrupt roots fail closed.
             foreach (var root in roots)
             {
-                var head = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(root)).HistoryArchiveHead;
+                var checkpoint = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(root));
+                VerifyHistory(checkpoint.HistoryArchiveHead, checkpoint.BoatTransport.RetiredRequestRanges);
+                var head = checkpoint.HistoryArchiveHead;
                 var visited = new HashSet<string>(StringComparer.Ordinal);
                 while (head is not null)
                 {
@@ -216,9 +224,10 @@ public sealed class PrivateWorldStateFile
         }
     }
 
-    private void VerifyHistory(string? head)
+    private void VerifyHistory(string? head, IReadOnlyList<RetiredBoatRequestRange> retiredRequests)
     {
         var visited = new HashSet<string>(StringComparer.Ordinal);
+        var sequences = new SortedSet<long>();
         while (head is not null)
         {
             if (!visited.Add(head))
@@ -230,9 +239,35 @@ public sealed class PrivateWorldStateFile
             {
                 throw new InvalidDataException("The world history archive is corrupt.");
             }
-            head = (JsonSerializer.Deserialize<PrivateWorldHistorySegment>(bytes)
-                ?? throw new InvalidDataException("The world history archive is empty.")).Parent;
+            var segment = JsonSerializer.Deserialize<PrivateWorldHistorySegment>(bytes)
+                ?? throw new InvalidDataException("The world history archive is empty.");
+            foreach (var request in segment.ClosedBoatRequests ?? [])
+            {
+                if (request is null || request.Sequence < 1 ||
+                    request.Id != "boat-request:" + request.Sequence.ToString(System.Globalization.CultureInfo.InvariantCulture) ||
+                    request.Status is not ("arrived" or "returned" or "cancelled") ||
+                    request.SettledTick is not { } settled || settled < request.RequestedTick ||
+                    !sequences.Add(request.Sequence))
+                    throw new InvalidDataException("The boat history archive contains an invalid or duplicate closed request.");
+            }
+            head = segment.Parent;
         }
+        // Compare ranges without expanding a potentially damaged high-water
+        // mark. Only records reachable from this checkpoint count as authority.
+        using var archived = sequences.GetEnumerator();
+        foreach (var range in retiredRequests)
+        {
+            var expected = range.FirstSequence;
+            while (true)
+            {
+                if (!archived.MoveNext() || archived.Current != expected)
+                    throw new InvalidDataException("Retired boat requests do not match their reachable history archive.");
+                if (expected == range.LastSequence) break;
+                expected++;
+            }
+        }
+        if (archived.MoveNext())
+            throw new InvalidDataException("The history archive contains boat requests that this checkpoint has not retired.");
     }
 
     private static void RestrictPermissions(string path)

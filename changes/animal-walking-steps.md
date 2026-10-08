@@ -1,0 +1,1 @@
+- Animals now step as they walk: hooves, or a hen's feet, step out from under them on each move, and they stand still again when they stop.

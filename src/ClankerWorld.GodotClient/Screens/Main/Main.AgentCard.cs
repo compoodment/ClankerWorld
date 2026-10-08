@@ -848,6 +848,8 @@ public partial class Main
             "tend_fire" => order.TargetBuildingKind == "house" ? "Lighting a fire in their House" : "Lighting a fire",
             "produce_item" => "Making " + (order.TargetOutputKind is { } output
                 ? GameUiText.ItemName(output).ToLowerInvariant() : "goods"),
+            "write_knowledge" => "Writing " + OrderItemName(order.TargetKnowledgeKind),
+            "copy_knowledge" => "Copying " + OrderItemName(order.TargetKnowledgeKind),
             "seek_food" => "Going to a food site",
             "move_to" => "Going to a tile",
             "accept_guardianship" => "Becoming a guardian",
@@ -906,6 +908,8 @@ public partial class Main
         "goods_items" => "items",
         "output_items" => "items made",
         "production_batches" => "batches completed",
+        "artifacts" => "items written",
+        "copies" => "copies made",
         "repairs" => "items repaired",
         "fields" => "fields completed",
         "collection_loads" => "loads collected",

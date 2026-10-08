@@ -29,6 +29,8 @@ public sealed partial class PrivateWorldRuntime
             return null;
         if (IsCartOrder(order.Action)) return CartOrderCandidateFor(instruction, person);
         if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
+        if (IsTreePlantingOrder(order.Action)) return TreePlantingOrderCandidate(instruction, person);
+        if (IsKnowledgeOrder(order.Action)) return KnowledgeOrderCandidateFor(instruction);
 
         if (IsShelterOrder(order.Action))
             return ShelterOrderCandidateFor(instruction, person);
@@ -196,7 +198,8 @@ public sealed partial class PrivateWorldRuntime
     private bool IsFoodSurvivalCandidate(string actor, string candidateId) => candidateId is
         "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
         "harvest_food" or "seek_food" || candidateId.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal) ||
-        NeedsUrgentFood(inhabitants[actor]) && IsBusinessFoodCandidate(actor, candidateId);
+        NeedsUrgentFood(inhabitants[actor]) &&
+        (IsBusinessFoodCandidate(actor, candidateId) || IsMarketFoodCandidate(actor, candidateId));
 
     private bool IsSurvivalCandidate(string actor, string candidateId) =>
         IsFoodSurvivalCandidate(actor, candidateId) || candidateId is
@@ -231,8 +234,17 @@ public sealed partial class PrivateWorldRuntime
             ExecuteAnimalOrder(instruction);
             return;
         }
+        if (IsTreePlantingOrder(order.Action))
+        {
+            ExecuteTreePlantingOrder(instruction, person);
+            return;
+        }
         switch (candidate.Id)
         {
+            case "write_knowledge":
+            case "copy_knowledge":
+                ExecuteKnowledgeOrderStep(instruction, person);
+                return;
             case "seek_shelter":
             case "tend_fire":
             case "inspect_shelter_site":
@@ -418,6 +430,9 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order is { } treeOrder && IsTreePlantingOrder(treeOrder.Action))
+            return TreePlantingOrderBlockedReason(instruction, person);
+        if (instruction.Order is { } knowledgeOrder && IsKnowledgeOrder(knowledgeOrder.Action)) return KnowledgeOrderBlockedReason(instruction);
         if (instruction.Order is { } cartOrder && IsCartOrder(cartOrder.Action))
             return CartOrderBlocker(instruction, person) ?? "Waiting for the selected cart action.";
         if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))

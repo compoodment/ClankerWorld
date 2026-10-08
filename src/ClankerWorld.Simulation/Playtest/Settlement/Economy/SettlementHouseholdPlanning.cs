@@ -24,7 +24,10 @@ public sealed partial class PrivateWorldRuntime
         {
             if (NeedsUrgentWarmth(state) && !definition.Tags.Any(tag => tag is "shelter" or "warmth" or "cooking"))
                 continue;
-            if (worldSimulation.Buildings.Any(item => item.InstanceId == BuildInstanceId(inhabitant.Id, definition)) ||
+            // The identity reads the same actor, design and reservations for this
+            // synchronous query; compute it once rather than for every building.
+            var instanceId = BuildInstanceId(inhabitant.Id, definition);
+            if (worldSimulation.Buildings.Any(item => item.InstanceId == instanceId) ||
                 !HouseholdHasMaterialsInHand(householdId, definition.BuildCosts))
                 continue;
 
