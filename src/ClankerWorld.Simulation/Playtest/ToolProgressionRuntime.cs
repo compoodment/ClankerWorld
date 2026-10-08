@@ -379,11 +379,7 @@ public sealed partial class PrivateWorldRuntime
 
     private static int UnreservedQuantity(InventoryCheckpoint inventory, InventoryLot lot)
     {
-        var reserved = inventory.Reservations.Where(reservation => reservation.LotId == lot.Id &&
-                reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
-                    InventoryReservationState.Committed)
-            .Sum(reservation => reservation.Quantity);
-        return Math.Max(0, lot.Quantity - reserved);
+        return Math.Max(0, InventoryRules.UnreservedQuantity(InventoryIndex.For(inventory), lot));
     }
 
 }
