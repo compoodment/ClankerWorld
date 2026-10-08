@@ -81,7 +81,10 @@ public sealed partial class PortBoatRuntimeTests
             using var extended = file.LoadOrCreate(compacted.WorldSeed);
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState()), PrivateWorldRuntimeCodec.Encode(extended.ExportState()));
             var checkpoint = File.ReadAllBytes(file.Path);
-            var archive = Directory.GetFiles(file.Path + ".history", "*.json")[0];
+            var head = JsonSerializer.Deserialize<PrivateWorldHistorySegment>(File.ReadAllBytes(
+                Path.Combine(file.Path + ".history", extended.ExportState().HistoryArchiveHead + ".json")))!;
+            Assert.Equal(compacted.HistoryArchiveHead, head.Parent);
+            var archive = Path.Combine(file.Path + ".history", compacted.HistoryArchiveHead + ".json");
             var original = File.ReadAllBytes(archive);
             File.Delete(archive);
             Assert.Throws<FileNotFoundException>(() => file.LoadOrCreate(compacted.WorldSeed));
@@ -117,7 +120,9 @@ public sealed partial class PortBoatRuntimeTests
             Assert.Equal(history.Bytes, File.ReadAllBytes(failCheckpoint ? file.Path + ".previous" : file.Path));
             Assert.Empty(world.ExportState().BoatTransport.RetiredRequestRanges);
             if (failCheckpoint)
-                Assert.Equal(history.Cancelled.Take(24), ReadArchivedBoatRequests(file));
+                Assert.Equal(history.Cancelled.Take(24), Directory.GetFiles(file.Path + ".history", "*.json")
+                    .SelectMany(path => JsonSerializer.Deserialize<PrivateWorldHistorySegment>(File.ReadAllBytes(path))!.ClosedBoatRequests ?? [])
+                    .OrderBy(request => request.Sequence).ToArray());
         }
         finally { directory.Delete(recursive: true); }
     }
@@ -281,10 +286,72 @@ public sealed partial class PortBoatRuntimeTests
         return policy;
     }
 
-    private static BoatTripRequest[] ReadArchivedBoatRequests(PrivateWorldStateFile file) =>
-        Directory.GetFiles(file.Path + ".history", "*.json")
-            .SelectMany(path => JsonSerializer.Deserialize<PrivateWorldHistorySegment>(File.ReadAllBytes(path))!.ClosedBoatRequests ?? [])
-            .OrderBy(request => request.Sequence).ToArray();
+    [Theory]
+    [InlineData("missing-waiting")]
+    [InlineData("unrelated-head")]
+    [InlineData("duplicate-record")]
+    [InlineData("unfinished-record")]
+    public async Task ReachableBoatArchiveMustMatchRetirementBeforeLoading(string damage)
+    {
+        var history = await ClosedBoatHistory.Value;
+        var directory = Directory.CreateTempSubdirectory("clankerworld-boat-archive-authority-");
+        try
+        {
+            using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(history.Bytes));
+            var file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"));
+            Assert.True(file.Save(world));
+            var healthy = File.ReadAllBytes(file.Path);
+            var checkpoint = world.ExportState();
+            if (damage == "missing-waiting")
+                checkpoint = checkpoint with
+                {
+                    BoatTransport = checkpoint.BoatTransport with
+                    {
+                        Requests = checkpoint.BoatTransport.Requests.Skip(1).ToArray(),
+                        RetiredRequestRanges = [new(1, 25)],
+                    },
+                };
+            else
+            {
+                var records = history.Cancelled.Take(24).ToArray();
+                var segment = damage switch
+                {
+                    "unrelated-head" => new PrivateWorldHistorySegment(null, []),
+                    "duplicate-record" => new PrivateWorldHistorySegment(null, [], [.. records, records[0]]),
+                    _ => new PrivateWorldHistorySegment(null, [], [records[0] with { Status = "waiting", SettledTick = null }, .. records.Skip(1)]),
+                };
+                var bytes = JsonSerializer.SerializeToUtf8Bytes(segment);
+                var digest = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes));
+                File.WriteAllBytes(Path.Combine(file.Path + ".history", digest + ".json"), bytes);
+                checkpoint = checkpoint with { HistoryArchiveHead = digest };
+            }
+            var damaged = PrivateWorldRuntimeCodec.Encode(checkpoint);
+            Assert.Throws<InvalidDataException>(() => file.VerifyRequiredHistory(checkpoint));
+            Assert.Equal(healthy, File.ReadAllBytes(file.Path));
+            File.WriteAllBytes(file.Path, damaged);
+            Assert.Throws<InvalidDataException>(() => file.LoadOrCreate(checkpoint.WorldSeed));
+            Assert.Equal(damaged, File.ReadAllBytes(file.Path));
+            Assert.Equal(healthy, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    private static BoatTripRequest[] ReadArchivedBoatRequests(PrivateWorldStateFile file)
+    {
+        var head = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(file.Path)).HistoryArchiveHead;
+        var requests = new List<BoatTripRequest>();
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        while (head is not null)
+        {
+            Assert.True(visited.Add(head));
+            var bytes = File.ReadAllBytes(Path.Combine(file.Path + ".history", head + ".json"));
+            Assert.Equal(head, Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)));
+            var segment = JsonSerializer.Deserialize<PrivateWorldHistorySegment>(bytes)!;
+            requests.AddRange(segment.ClosedBoatRequests ?? []);
+            head = segment.Parent;
+        }
+        return requests.OrderBy(request => request.Sequence).ToArray();
+    }
 
     private static async Task<NativeBoatHistory> BuildClosedBoatHistoryAsync()
     {
