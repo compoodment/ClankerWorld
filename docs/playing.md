@@ -235,6 +235,14 @@ waits for newly learned information. Missing supplies or carrying space also
 leave the order waiting with a reason. **Cancel task** releases that order's
 unused reserved supplies.
 
+Adults can also follow **Copy a field record**, **Copy a map**, or **Copy a book**.
+They must own and carry a source of that kind and already know every site it
+contains. Copying uses fresh paper and, for a book, cloth, and preserves the
+source's account. **Copy two maps** or **Keep copying maps** waits for another
+eligible account after the first copy; identical contents are not copied again.
+If the source is lost during work, unused reservations are released and the
+order waits for that same source to return. Cancelling stops the paid work.
+
 Food orders can eat carried food, collect accessible household food to eat,
 travel to a food source, or gather berries, fruit or wild greens. Use simple
 phrases such as "eat 3 berries", "gather berries from berry-patch" or "go to
