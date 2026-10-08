@@ -1513,6 +1513,13 @@ credit only one term, and the saved effect cannot exceed that term's remaining
 quantity. Declined, unanswered, pending, overdue and completed states remain
 distinct. Findings and overdue work never create physical punishment powers.
 
+Counteroffers during renegotiation follow the exact prior-offer chain back to
+the nearest agreement. After every contributor accepts, the replacement names
+that agreement and supersedes its original offer; intermediate countered offers
+remain recorded. Only the new remaining commitments are actionable. Earlier
+physical receipts stay with the original agreement and cannot earn credit again.
+Strict saved-state validation checks the same predecessor chain.
+
 Formal civic acts require an admitted personal-model choice. Built-in decisions,
 failed replies and continued intentions supply no votes or candidate agreement.
 An explicitly chosen visit can continue moving locally; ballots may be revised
@@ -2727,7 +2734,11 @@ or lost departure permission settles unused requests. Six moored or incoming
 claims exhaust a Port. All free docks are tried for a connected route.
 
 Transport follows saved cardinal water steps while avoiding other boats and
-reservations. Underway cognition permits waiting and eating carried food;
+reservations. Passenger cognition permits waiting, eating carried food and
+drinking available carried milk while traveling or waiting for landing. Milk
+uses the same ownership, freshness, reservation and usable-jug checks as on
+land; drinking consumes one portion, restores 3,000 fullness points and keeps
+the jug. Candidate construction and action admission both permit that action;
 foot work and conversations cannot move the passenger away from the boat.
 A blocked arrival retains its reservation for one world day, then reserves a
 usable origin for return. When neither landing works, it keeps waiting. Native
