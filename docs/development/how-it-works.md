@@ -2584,6 +2584,12 @@ rule is on in a started world, even when the transition event has left bounded
 history. The link opens the existing Add Agent controls and rechecks the current
 snapshot when clicked; it neither places an agent nor asks for a paid model call.
 
+Godot ends Add Agent placement mode on the current world's signed placement
+receipt, before refreshing provider status. Failure of that separate read keeps
+the placement confirmation and explains how to refresh model settings. A refused
+placement leaves the panel open; responses from an obsolete world still cannot
+change the current world's interface.
+
 Preparing parenthood notes derive the caregiver household's usable edible
 reserve and required amount from the same captured society/inventory checkpoint
 as the owner snapshot. Birth and these notes share the lot ownership, carrier,
