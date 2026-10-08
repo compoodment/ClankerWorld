@@ -30,6 +30,7 @@ public sealed record AgentKnowledgeWritingProject(
     IReadOnlyList<AgentKnowledgeFact> Facts, long StartedTick, long LastWorkedTick, int WorkDone,
     IReadOnlyList<AgentKnowledgeMaterial> Materials)
 {
+    [JsonRequired] public IReadOnlyList<AgentRecipeKnowledge> Recipes { get; init; } = [];
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? OrderInstructionId { get; init; }
     [JsonIgnore] public IReadOnlyList<string> MaterialReservationIds => Materials.Select(item => item.ReservationId).ToArray();
     [JsonIgnore] public int WorkRequired => AgentKnowledgeRules.WritingWork(Kind);
@@ -48,6 +49,7 @@ public sealed record AgentKnowledgeArtifact(
     public string? WritingProjectId { get; init; }
     public IReadOnlyList<AgentKnowledgeMaterial> Materials { get; init; } = [];
     public string? SourceArtifactId { get; init; }
+    [JsonRequired] public IReadOnlyList<AgentRecipeKnowledge> Recipes { get; init; } = [];
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? OrderInstructionId { get; init; }
     [JsonIgnore] public IReadOnlyList<string> MaterialReservationIds => Materials.Select(item => item.ReservationId).ToArray();
 }
@@ -59,10 +61,11 @@ public sealed record PrivateWorldKnowledgeState(
 {
     [JsonRequired] public IReadOnlyList<AgentKnowledgeWritingProject> WritingProjects { get; init; } = [];
     [JsonRequired] public IReadOnlyList<AgentKnowledgeFact> EarlierFacts { get; init; } = [];
+    [JsonRequired] public IReadOnlyList<AgentRecipeKnowledge> Recipes { get; init; } = [];
     public static PrivateWorldKnowledgeState Empty { get; } = new([], []);
 }
 
-internal static class AgentKnowledgeRules
+internal static partial class AgentKnowledgeRules
 {
     public const int MaximumFactsPerAgent = 128;
     public const int MaximumArtifactsPerCreator = 8;
@@ -80,11 +83,11 @@ internal static class AgentKnowledgeRules
     public static void Validate(PrivateWorldKnowledgeState knowledge, SeededMap map,
         SocietyCheckpoint society, long worldTick)
     {
-        if (knowledge.Facts is null || knowledge.Artifacts is null || knowledge.WritingProjects is null || knowledge.EarlierFacts is null ||
+        if (knowledge.Facts is null || knowledge.Artifacts is null || knowledge.WritingProjects is null || knowledge.EarlierFacts is null || knowledge.Recipes is null ||
             knowledge.Facts.Any(item => item is null) || knowledge.Artifacts.Any(item => item is null) ||
             knowledge.EarlierFacts.Any(item => item is null) ||
-            knowledge.WritingProjects.Any(item => item is null) ||
-            knowledge.Artifacts.Any(item => !ValidText(item.Id, 128) || item.Facts is null || item.Facts.Any(fact => fact is null)))
+            knowledge.WritingProjects.Any(item => item is null || item.Recipes is null || item.Recipes.Any(recipe => recipe is null)) ||
+            knowledge.Artifacts.Any(item => !ValidText(item.Id, 128) || item.Facts is null || item.Facts.Any(fact => fact is null) || item.Recipes is null || item.Recipes.Any(recipe => recipe is null)))
             throw new InvalidDataException("The agent knowledge collections are missing or contain null records.");
         var agents = society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
         if (knowledge.Facts.Count > checked(agents.Count * MaximumFactsPerAgent) ||
@@ -128,7 +131,8 @@ internal static class AgentKnowledgeRules
                 artifact.CreatedTick < 0 || artifact.CreatedTick > worldTick ||
                 lot is null || lot.ItemKind != artifact.Kind || lot.Quantity != 1 ||
                 !ValidFacts(artifact.Facts, artifact.CreatorId, artifact.CreatedTick, artifact.SourceArtifactId) ||
-                artifact.Kind == "field_record" && artifact.Facts.Count != 1 ||
+                artifact.Facts.Count + artifact.Recipes.Count == 0 ||
+                artifact.Kind == "field_record" && artifact.Facts.Count > 1 ||
                 !ValidSource(artifact.SourceArtifactId, artifact.Kind, artifact.Facts, artifact.CreatedTick) ||
                 !ValidateMaterials(artifact.WritingProjectId, artifact.CreatorId, artifact.Kind, artifact.Materials, completed: true))
                 throw new InvalidDataException("An agent knowledge artifact has invalid facts, inputs or physical identity.");
@@ -141,7 +145,8 @@ internal static class AgentKnowledgeRules
                 project.WorkDone < 0 || project.WorkDone >= WritingWork(project.Kind) ||
                 project.CandidateId != (project.SourceArtifactId is null ? "knowledge_write:" + project.Kind : "knowledge_copy:" + project.SourceArtifactId) ||
                 !ValidFacts(project.Facts, project.ActorId, project.StartedTick, project.SourceArtifactId) ||
-                project.Kind == "field_record" && project.Facts.Count != 1 ||
+                project.Facts.Count + project.Recipes.Count == 0 ||
+                project.Kind == "field_record" && project.Facts.Count > 1 ||
                 !ValidSource(project.SourceArtifactId, project.Kind, project.Facts, project.StartedTick) ||
                 !ValidateMaterials(project.Id, project.ActorId, project.Kind, project.Materials, completed: false))
                 throw new InvalidDataException("An agent knowledge-writing project has invalid work, facts or reserved inputs.");
@@ -164,7 +169,7 @@ internal static class AgentKnowledgeRules
              original.CreatedTick <= fact.LearnedTick && original.Facts is not null && original.Facts.Any(other => SameDiscovery(fact, other)));
 
         bool ValidFacts(IReadOnlyList<AgentKnowledgeFact>? facts, string actor, long tick, string? sourceArtifactId) =>
-            facts is { Count: >= 1 and <= MaximumFactsPerArtifact } &&
+            facts is { Count: >= 0 and <= MaximumFactsPerArtifact } &&
             facts.Select(item => item?.Position).Distinct().Count() == facts.Count &&
             facts.All(fact => fact is not null && fact.OwnerId == actor && ValidFact(fact, tick) &&
                 (sourceArtifactId is null
@@ -206,7 +211,8 @@ internal static class AgentKnowledgeRules
         {
             if (validatedAncestry.Contains(artifact.Id)) return;
             if (!path.Add(artifact.Id)) throw new InvalidDataException("Knowledge artifacts contain cyclic provenance.");
-            foreach (var source in artifact.Facts.Select(fact => fact.SourceArtifactId).Append(artifact.SourceArtifactId)
+            foreach (var source in artifact.Facts.Select(fact => fact.SourceArtifactId)
+                         .Concat(artifact.Recipes.Select(recipe => recipe.SourceArtifactId)).Append(artifact.SourceArtifactId)
                          .Where(id => id is not null).Distinct(StringComparer.Ordinal))
                 CheckAncestry(artifacts[source!], path);
             path.Remove(artifact.Id);

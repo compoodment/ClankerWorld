@@ -233,7 +233,8 @@ public sealed record CognitionSelfContext(
     string? MedicalCareNote = null, string? TownMembershipNote = null,
     string? ToolMakingRequestNote = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? AllowedChildSurnames = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MarriageNote = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MarriageNote = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? KnownRecipes = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -414,6 +415,8 @@ public sealed record InhabitantObservation(
             self.EquipmentNote?.Length > 256 || self.ContinuityNote?.Length > 256 || self.DepartureNote?.Length > 256 ||
             self.CivicNote?.Length > 1024 || self.MedicalCareNote?.Length > 256 || self.TownMembershipNote?.Length > 256 ||
             self.ToolMakingRequestNote?.Length > 256 || self.MarriageNote?.Length > 256 ||
+            self.KnownRecipes is { } recipes && (recipes.Count > 16 || recipes.Any(recipe =>
+                string.IsNullOrWhiteSpace(recipe) || recipe.Length > 128 || recipe.Any(char.IsControl))) ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -980,6 +983,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
             medical_care = observation.Self?.MedicalCareNote,
             tool_making_request = observation.Self?.ToolMakingRequestNote,
             marriage = observation.Self?.MarriageNote,
+            known_recipes = observation.Self?.KnownRecipes,
             candidates = observation.Candidates.Select(candidate => new
             {
                 id = candidate.Id,
@@ -1198,6 +1202,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             medical_care = self.MedicalCareNote,
                             tool_making_request = self.ToolMakingRequestNote,
                             marriage = self.MarriageNote,
+                            known_recipes = self.KnownRecipes,
                             allowed_child_surnames = request.Observation.NeedsName ? self.AllowedChildSurnames : null,
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,

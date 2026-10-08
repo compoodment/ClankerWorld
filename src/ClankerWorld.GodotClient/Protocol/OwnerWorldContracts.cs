@@ -147,13 +147,17 @@ public sealed record OwnerWorldKnowledgeFact(
     string Acquisition,
     string? SourceAgentName);
 public sealed record OwnerWorldKnowledgeSite(int X, int Y, string Terrain, IReadOnlyList<string> ResourceKinds, string DiscovererName);
+public sealed record OwnerWorldRecipe(long WorldTick, string Name, string Acquisition, string? SourceAgentName);
 public sealed record OwnerWorldKnowledgeArtifact(
     string Id,
     string Kind,
     string Title,
     long CreatedTick,
     string CreatorName,
-    IReadOnlyList<OwnerWorldKnowledgeSite> Sites);
+    IReadOnlyList<OwnerWorldKnowledgeSite> Sites)
+{
+    public IReadOnlyList<string> RecipeNames { get; init; } = [];
+}
 /// <summary>
 /// The world's saved calendar. Season lengths and the clock offset come from
 /// the world's saved values; an older host leaves missing values at zero.
@@ -383,6 +387,7 @@ public sealed record OwnerWorldInhabitant(
     public IReadOnlyList<OwnerWorldAgentBelief> RecentBeliefs { get; init; } = [];
 
     public IReadOnlyList<OwnerWorldKnowledgeFact> RecentKnowledgeFacts { get; init; } = [];
+    public IReadOnlyList<OwnerWorldRecipe> KnownRecipes { get; init; } = [];
 
     public IReadOnlyList<OwnerWorldKnowledgeArtifact> KnowledgeArtifacts { get; init; } = [];
 

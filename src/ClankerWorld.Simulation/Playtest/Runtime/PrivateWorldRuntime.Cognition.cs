@@ -140,7 +140,10 @@ public sealed partial class PrivateWorldRuntime
                 AllowedChildSurnames: inhabitant.NeedsName && InhabitantNameRules.RequiresParentSurname(checkpoint, inhabitant.Id)
                     ? InhabitantNameRules.AllowedChildSurnames(checkpoint, inhabitant.Id) : null,
                 MarriageNote: marriages.SingleOrDefault(item => AgentMarriageRules.HasParticipant(item, inhabitant.Id)) is { } marriage
-                    ? AgentMarriageRules.Note(marriage, inhabitant.Id, checkpoint) : null);
+                    ? AgentMarriageRules.Note(marriage, inhabitant.Id, checkpoint) : null,
+                KnownRecipes: knowledge.Recipes.Where(item => item.OwnerId == inhabitant.Id)
+                    .OrderByDescending(item => item.LearnedTick).ThenBy(item => item.RecipeId, StringComparer.Ordinal).Take(16)
+                    .Select(item => worldContent.Recipes.Single(recipe => recipe.CanonicalId == item.RecipeId).DisplayName).ToArray());
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,

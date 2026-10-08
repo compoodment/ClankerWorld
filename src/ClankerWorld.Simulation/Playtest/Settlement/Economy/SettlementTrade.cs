@@ -52,11 +52,10 @@ public sealed partial class PrivateWorldRuntime
         {
             // An agent can offer a record they physically hold; a prospective
             // recipient wants it only if it contains a fact they have not learned.
-            if (item.OwnerId == actor ||
-                knowledge.Facts.Count(fact => fact.OwnerId == actor) >= AgentKnowledgeRules.MaximumFactsPerAgent)
+            if (item.OwnerId == actor)
                 return false;
             var artifact = knowledge.Artifacts.FirstOrDefault(candidate => candidate.LotId == item.Id);
-            return artifact?.Facts.Any(fact => !KnowsMapFact(actor, fact.Position)) == true;
+            return artifact is not null && HasUnknownArtifactContents(actor, artifact);
         }
 
         if (IsEdibleFood(kind))
