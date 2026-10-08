@@ -592,6 +592,15 @@ existing access permissions, routes and fuel use still apply.
 The lit destination must be a heating building the agent can use; a
 storm-shelter guest invitation alone does not grant use of a household hearth.
 
+During a storm, an agent with no House can shelter in their own Town's completed
+Town Hall. The full Hall footprint gives the same 45 protection points as an
+invited House. Warmth travel and generic shelter orders choose a reachable
+footprint tile, so an occupied anchor does not hide the rest of the Hall.
+Permission rechecks Town membership, absence of a House and weather at the Hall.
+It grants no hearth or stock access and does not satisfy the family housing gate
+or change birth placement. Unfinished orders recheck permission; completed
+arrivals remain historical after the storm or Hall disappears.
+
 The owner snapshot carries `darknessBasisPoints`, decided by the host from the
 same rule. The Godot client's `NightLayer` draws a deep blue wash, at most 40%
 opaque, over the visible map just above the ground, roads, buildings and trees,

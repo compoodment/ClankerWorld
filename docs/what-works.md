@@ -1186,8 +1186,11 @@ physically under the departure rules. The
 [Windows relocation checks](../playtest/599-overcrowding-relocation.md) remain
 pending.
 
-Until a household formed alone builds its House, its adult relies on clothing
-and natural storm cover. This is a basic
+Until a household formed alone builds its House, its adult relies on clothing,
+natural cover or their own Town's completed Town Hall during a storm. The Hall
+gives the same cover as an invited House, over its full footprint, without
+stock, hearth or household access. Residents who already have a House and
+visitors cannot use this refuge. This is a basic
 version: it has not been checked by hand in the Windows game yet. New Shelters,
 Storehouses,
 Cooking fires and Stone hearths are retired; standing ones in old saves remain.

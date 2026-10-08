@@ -49,7 +49,7 @@ public sealed partial class PrivateWorldRuntime
              IsWithinInteractionRange(caregiver.Position, person.Position, ResourceInteractionRange)));
 
     private bool FamilyResourcesReady(string actor) =>
-        FamilyFoodReady(actor) && AccessibleShelters(actor).Any();
+        FamilyFoodReady(actor) && AccessibleShelters(actor, includeStormRefuge: false).Any();
 
     private bool FamilyFoodReady(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
@@ -326,7 +326,7 @@ public sealed partial class PrivateWorldRuntime
             }
             // Losing shelter after agreement creates a housing need, not a
             // blocked birth. Keep the child near their caregiver in that case.
-            var birthPosition = AccessibleShelters(caregiverId).FirstOrDefault()?.Position ?? inhabitants[caregiverId].Position;
+            var birthPosition = AccessibleShelters(caregiverId, includeStormRefuge: false).FirstOrDefault()?.Position ?? inhabitants[caregiverId].Position;
             var site = map.Tiles.Where(tile => map.IsBuildable(tile.Position) &&
                 IsWithinInteractionRange(tile.Position, birthPosition, ResourceInteractionRange) &&
                 !inhabitants.Values.Any(resident => resident.Position == tile.Position)).Select(tile => (GridPoint?)tile.Position).FirstOrDefault();
