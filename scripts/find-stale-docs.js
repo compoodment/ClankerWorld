@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 
 const Root = path.join(__dirname, '..');
-// Pages that describe the game or the code. History (CHANGELOG.md, changes/) and playtest
+// Pages that describe the game or the code. History (CHANGELOG.md, changes/, archive/) and playtest
 // checks describe the past or a test, so they are left out.
 const Folders = ['docs', 'tools'];
 const Files = ['README.md'];
@@ -30,7 +30,7 @@ const OpenSectionPattern = /still to decide|leaning toward|suggestion|open quest
 function markdownFiles(dir) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(item => {
-    if (item.name.startsWith('.') || item.name === 'node_modules' || item.name === 'bin' || item.name === 'obj') return [];
+    if (item.name.startsWith('.') || item.name === 'node_modules' || item.name === 'bin' || item.name === 'obj' || item.name === 'archive') return [];
     const full = path.join(dir, item.name);
     if (item.isDirectory()) return markdownFiles(full);
     return item.name.endsWith('.md') ? [full] : [];

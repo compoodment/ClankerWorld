@@ -2,7 +2,7 @@
 title: Build and test
 type: development-reference
 status: active
-updated: 2026-10-06
+updated: 2026-10-08
 ---
 
 # Build and test
@@ -33,6 +33,13 @@ Use `--locked-mode` so an unexpected dependency change fails visibly.
 Shared compiler, analyzer and version settings live in
 [Directory.Build.props](../../Directory.Build.props). Use its version fields
 rather than adding a second version constant.
+
+The retained-guidance farming fixture waits for the provider's start signal by
+polling the native nonblocking tick path. A committed tick schedules background
+work but does not guarantee that its worker has started. The check covers
+immediate entry and entry after two more committed ticks. Its
+polls retain a forty-tick limit and a separate thirty-second cancellation guard
+for each tick, including after pause and reload.
 
 The client bundles one third-party font, Fusion Pixel 12px, in
 `src/ClankerWorld.GodotClient/UI/Theme/Fonts/`, under the SIL Open Font
