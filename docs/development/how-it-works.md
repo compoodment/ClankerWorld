@@ -829,6 +829,8 @@ prose. Canonical identity and known-owner checks still apply.
 Personal-model memory subjects use stable hash aliases for longer native IDs,
 as map-knowledge discoverers already do; saved belief ownership and subjects
 keep their complete identities.
+Memory salience indexes retain the same complete native owner identities while
+validating each indexed source against that owner's existing records.
 Private thoughts, provider payloads
 and unaccepted replies never enter that history. Prose has no world effect; the
 only ordinary-dialogue effect is mutual trust, offered during wrap-up and

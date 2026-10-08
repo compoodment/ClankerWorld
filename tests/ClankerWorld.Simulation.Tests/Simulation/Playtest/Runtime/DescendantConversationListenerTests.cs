@@ -101,6 +101,28 @@ public sealed class DescendantConversationListenerTests
             Assert.Equal(SocietyBeliefProvenance.Hearsay, belief.Provenance);
             Assert.Throws<InvalidOperationException>(() => SocietyFixture.RecordAgentBelief(left.Society,
                 belief with { Id = "belief:unknown-native-owner", OwnerId = "missing-listener" }));
+            // Salience indexes refer to the same genuine heard belief and native
+            // owner. Scoring it must not make an otherwise valid world unloadable.
+            var compacted = SocietyFixture.RecordAgentMemoryCompaction(left.Society, child,
+                [new SocietyAgentMemoryImportance(belief.Id, SocietyMemorySourceKind.Belief,
+                    belief.FormedTick, 5_000, 8_000, left.WorldTick)]);
+            SocietyFixture.Validate(compacted);
+            var compactedState = left.ExportState() with
+            {
+                Society = left.ExportState().Society with { Society = compacted },
+            };
+            using var compactedWorld = PrivateWorldRuntime.Restore(
+                PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(compactedState)),
+                _ => new ListenerProvider());
+            compactedWorld.Validate();
+            var index = Assert.Single(compactedWorld.Society.MemoryCompactions!);
+            Assert.Equal(child, index.OwnerId);
+            Assert.Equal(belief.Id, Assert.Single(index.Sources).SourceId);
+            Assert.Equal(beliefs, compactedWorld.Society.Beliefs);
+            Assert.Throws<InvalidDataException>(() => SocietyFixture.Validate(compacted with
+            {
+                MemoryCompactions = [index with { OwnerId = "missing-listener" }],
+            }));
         }
         else Assert.DoesNotContain(beliefs, item => item.OwnerId == child && item.SourceTurnId == turn.Id);
         left.Validate();

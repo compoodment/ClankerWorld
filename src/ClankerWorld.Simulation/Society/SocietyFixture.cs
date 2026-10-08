@@ -1327,7 +1327,8 @@ public static partial class SocietyFixture
         var beliefById = (checkpoint.Beliefs ?? []).ToDictionary(item => item.Id, StringComparer.Ordinal);
         foreach (var compaction in compactions)
         {
-            if (!IsCanonicalBoundedText(compaction.OwnerId, 128) || compaction.Sources is null ||
+            if (string.IsNullOrWhiteSpace(compaction.OwnerId) || compaction.OwnerId != compaction.OwnerId.Trim() ||
+                compaction.OwnerId.Any(char.IsControl) || compaction.Sources is null ||
                 compaction.Sources.Count is < 1 or > 256 ||
                 !checkpoint.Inhabitants.Any(item => item.Id == compaction.OwnerId))
                 throw new InvalidDataException("An agent memory compaction is malformed.");
