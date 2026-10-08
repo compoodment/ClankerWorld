@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 
 # Towns, buildings and government
@@ -948,10 +948,10 @@ connected banks are compared.
 disappear automatically when traffic stops, a building is removed or a Town is
 abandoned. There is one Road type; no temporary-versus-permanent class is
 needed. Exact inter-Town route timing, layout and rendering remain open.
-Diagonal travel/Roads remain in scope; diagonal moves
-must not pass through blocked corners. Playable foot movement now uses the strict
-  two-clear-shoulder rule and a 141% diagonal route cost; diagonal Road
-  construction and visuals are agreed above but not built yet.
+Diagonal movement must not pass through blocked corners. Playable foot movement
+uses the strict two-clear-shoulder rule and a 141% diagonal route cost. Town
+streets also take diagonal steps where the land allows, and their Road pieces
+join diagonally on the map. Roads between Towns remain unfinished.
 
 ### Still to decide
 
@@ -1594,7 +1594,7 @@ for other activities; this is not a fixed nutrition or hunger-drain formula.
 | Rope | House crafting; trial 3 fiber → 1 rope. | Sacks, carts, boats and later construction recipes. |
 | Clay | Dig a clay bank and carry clay. | Fired storage pots and water jugs. |
 | Pottery | House crafting; trial 2 clay + 1 wood → 1 vessel. | Reusable storage pots and water jugs, with separate item identities. |
-| Fresh water | Collect from a river or lake with a reusable jug and carry it. | Used in current porridge, bread and stew and Clinic medicine-making; animal care remains unfinished. |
+| Fresh water | Collect from a river or lake with a reusable jug and carry it. | Used in current porridge, bread and stew, Clinic medicine-making and animal care. |
 | Gold | Extract gold ore from a gold-bearing outcrop with an iron pickaxe, carry it to the Blacksmith and refine it with fuel. Ore and refined gold remain separate goods. | Ornaments, gifts and trade goods. |
 | Diamond | Extract from a diamond-bearing outcrop with an iron pickaxe. | Trade goods or a stone set into an ornament. |
 
