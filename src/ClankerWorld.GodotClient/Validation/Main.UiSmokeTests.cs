@@ -3928,6 +3928,7 @@ public partial class Main
             familyTreePanel.Hide();
             await VerifyAgentPanelsAsync();
             await VerifyRosterRefreshScrollAsync();
+            await VerifyRosterKeyboardAsync();
             await VerifyOrderListAsync();
             eventsPanel.Show();
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
