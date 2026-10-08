@@ -486,8 +486,15 @@ public sealed partial class PortBoatRuntimeTests
         }));
     }
 
-    /// <summary>An order to walk to a free buildable tile in the Town, well away from every Port's landing.</summary>
+    /// <summary>An order to walk to <see cref="FreeSpotAwayFromPorts"/>.</summary>
     private static string MoveAwayFromPorts(PrivateWorldRuntime world)
+    {
+        var spot = FreeSpotAwayFromPorts(world);
+        return $"move to {spot.X},{spot.Y}";
+    }
+
+    /// <summary>A free buildable tile in the Town, well away from every Port's landing.</summary>
+    private static GridPoint FreeSpotAwayFromPorts(PrivateWorldRuntime world)
     {
         var state = world.ExportState();
         var ports = world.WorldSimulation.Buildings.Where(building => world.WorldContent.Buildings
@@ -497,7 +504,7 @@ public sealed partial class PortBoatRuntimeTests
                 state.Map.IsReachableOnFoot(board, point) && state.Inhabitants.All(person => person.Position != point) &&
                 ports.All(port => state.Map.FootDistance(port.Position, point) >= 4))
             .OrderBy(point => state.Map.FootDistance(board, point)).ThenBy(point => point.Y).ThenBy(point => point.X).First();
-        return $"move to {spot.X},{spot.Y}";
+        return spot;
     }
 
     private static void AddLandingBlockers(BoatScenario scenario, string portId, int blockerOffset = 0)
