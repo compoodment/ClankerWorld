@@ -849,6 +849,12 @@ one accepted wrap-up), and each later provider request receives the committed
 public history so far. The wrap-up request receives the six public turns; a
 pending answer is never included or saved.
 
+Owner snapshots include every unfinished saved conversation and the 16 most
+recent closed conversations, ordered by last update and then ID. New snapshots
+and reconnects use the same projection, including each session's admitted public
+turns. This display bound does not change the 64-session save limit or mutate
+conversation records.
+
 Saving by itself keeps an unaccepted invitation pending, with its original
 deadline and the inviter's saved daily allowance. It has no current speaker;
 only acceptance assigns the first turn. When the 64-session save limit is

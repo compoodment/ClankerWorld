@@ -601,8 +601,10 @@ identities. A conversation can have up to six public
 turns and one wrap-up; both people must accept the same wrap-up before its
 structured effect applies. These conversation and daily-call limits are still
 provisional and need a Windows playtest. Private thoughts are never shared as
-conversation history. Other automatic experience capture and generated memory
-summaries remain unfinished.
+conversation history. Every unfinished conversation remains visible to the game,
+including after a reconnect or reload; recent closed history shows up to 16
+conversations. Other automatic experience capture and generated memory summaries
+remain unfinished.
 
 Partnered adults can propose marriage through that conversation's wrap-up.
 Each partner separately accepts or declines with their selected personal model.
