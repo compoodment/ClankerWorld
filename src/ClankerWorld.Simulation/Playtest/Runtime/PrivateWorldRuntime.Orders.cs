@@ -27,6 +27,7 @@ public sealed partial class PrivateWorldRuntime
             return null;
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
+        if (IsCartOrder(order.Action)) return CartOrderCandidateFor(instruction, person);
         if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
         if (IsTreePlantingOrder(order.Action)) return TreePlantingOrderCandidate(instruction, person);
         if (IsKnowledgeOrder(order.Action)) return KnowledgeOrderCandidateFor(instruction);
@@ -221,6 +222,11 @@ public sealed partial class PrivateWorldRuntime
         if (order.Action == "accept_guardianship")
         {
             ExecuteGuardianOrder(instruction, candidate);
+            return;
+        }
+        if (IsCartOrder(order.Action))
+        {
+            ExecuteCartOrderStep(instruction, person);
             return;
         }
         if (IsAnimalOrder(order.Action))
@@ -427,6 +433,8 @@ public sealed partial class PrivateWorldRuntime
         if (instruction.Order is { } treeOrder && IsTreePlantingOrder(treeOrder.Action))
             return TreePlantingOrderBlockedReason(instruction, person);
         if (instruction.Order is { } knowledgeOrder && IsKnowledgeOrder(knowledgeOrder.Action)) return KnowledgeOrderBlockedReason(instruction);
+        if (instruction.Order is { } cartOrder && IsCartOrder(cartOrder.Action))
+            return CartOrderBlocker(instruction, person) ?? "Waiting for the selected cart action.";
         if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))
             return AnimalOrderBlockedReason(instruction);
         if (instruction.Order is { } protective && IsShelterOrder(protective.Action))

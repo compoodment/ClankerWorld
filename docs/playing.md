@@ -387,6 +387,17 @@ whole jug and counts the water delivered; it cannot pour out part of a jug to
 meet a smaller request. Cancelling keeps goods where they actually are,
 including any supplies already picked up for delivery.
 
+To start pulling a cart, use **Pull my handcart** or **Attach my cart**.
+An adult or elder walks to a usable cart they own and attaches it. **Park my
+cart** unhitches the cart where it stands, keeping its cargo and ownership.
+Use **Attach cart at (12, 4)** or **Park cart at (12, 4)** to name the unique
+owned cart on that tile. The order keeps that cart even if its location changes;
+an ambiguous tile is not understood. Exact cart identities are also accepted.
+Queue, replacement, cancellation, urgent interruptions and saves retain the
+task. Broken or reserved carts, another attached cart, riding or leading an
+animal, and blocked routes give a reason. Loading, unloading and cart repair
+orders are not supported yet. Once attached, the cart follows normal movement.
+
 To mend worn personal equipment, use **Repair my basket**, **Repair two padded
 coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
 clothing, padded coats, rain cloaks, baskets and sacks. They collect real supplies
@@ -732,7 +743,9 @@ YYYY-MM-DD), and the top bar then names the season beside the weather.
 Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
-the routine helper and agent model settings. Main Menu Settings exposes Game Settings only.
+the routine helper and agent model settings. **World generation** shows the world's
+size, climate, east/west wrapping and seed as chosen at creation; these are
+read-only. Main Menu Settings exposes Game Settings only.
 
 Life pace and routine helper changes apply to the world shown when you submit them.
 If another device opens a different world before your request arrives, the
