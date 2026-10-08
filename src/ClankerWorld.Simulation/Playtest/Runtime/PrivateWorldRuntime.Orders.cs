@@ -165,7 +165,7 @@ public sealed partial class PrivateWorldRuntime
         CognitionCandidate? urgentCandidate)
     {
         if (IsShelterOrder(instruction.Order!.Action))
-            return NeedsUrgentFood(person) && urgentCandidate is not null && IsFoodSurvivalCandidate(urgentCandidate.Id) ||
+            return NeedsUrgentFood(person) && urgentCandidate is not null && IsFoodSurvivalCandidate(person.InhabitantId, urgentCandidate.Id) ||
                 orderCandidate is null && urgentCandidate is not null;
         if (NeedsUrgentWarmth(person))
             return urgentCandidate is not null &&
@@ -180,26 +180,26 @@ public sealed partial class PrivateWorldRuntime
         string inhabitantId, PlaytestInhabitantState person, OwnerQueuedInstruction? instruction = null) =>
         SelectOrderSurvivalCandidate(CreateCandidates(inhabitantId, person, restrictForOrder: false), person, instruction);
 
-    private static CognitionCandidate? SelectOrderSurvivalCandidate(
+    private CognitionCandidate? SelectOrderSurvivalCandidate(
         IEnumerable<CognitionCandidate> candidates, PlaytestInhabitantState person, OwnerQueuedInstruction? instruction)
     {
-        var available = candidates.Where(candidate => IsSurvivalCandidate(candidate.Id))
+        var available = candidates.Where(candidate => IsSurvivalCandidate(person.InhabitantId, candidate.Id))
             .OrderBy(candidate => candidate.DeterministicPriority)
             .ThenBy(candidate => candidate.Id, StringComparer.Ordinal).ToArray();
         if (instruction?.Order is { } order && IsShelterOrder(order.Action) && NeedsUrgentFood(person) &&
-            available.FirstOrDefault(candidate => IsFoodSurvivalCandidate(candidate.Id)) is { } food)
+            available.FirstOrDefault(candidate => IsFoodSurvivalCandidate(person.InhabitantId, candidate.Id)) is { } food)
             return food;
         return available.FirstOrDefault();
     }
 
-    private static bool IsFoodSurvivalCandidate(string candidateId) => candidateId is
+    private bool IsFoodSurvivalCandidate(string actor, string candidateId) => candidateId is
         "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
-        "harvest_food" or "seek_food" || candidateId.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal);
+        "harvest_food" or "seek_food" || candidateId.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal) ||
+        NeedsUrgentFood(inhabitants[actor]) && IsBusinessFoodCandidate(actor, candidateId);
 
-    private static bool IsSurvivalCandidate(string candidateId) => candidateId is
-        "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or "recover_household_delivery" or
-        "harvest_food" or "seek_food" or "wear_clothing" or "tend_fire" or "seek_warmth" ||
-        candidateId.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal);
+    private bool IsSurvivalCandidate(string actor, string candidateId) =>
+        IsFoodSurvivalCandidate(actor, candidateId) || candidateId is
+        "recover_household_delivery" or "wear_clothing" or "tend_fire" or "seek_warmth";
 
     private void ExecuteOrderStep(
         OwnerQueuedInstruction instruction,
@@ -413,7 +413,7 @@ public sealed partial class PrivateWorldRuntime
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
         if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))
-            return "Waiting for the named animal, permission, a legal route, carry space and physical feed or jug water.";
+            return AnimalOrderBlockedReason(instruction);
         if (instruction.Order is { } protective && IsShelterOrder(protective.Action))
             return ShelterOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "construct_building")

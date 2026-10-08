@@ -202,6 +202,8 @@ public sealed partial class PrivateWorldRuntime
             if (string.IsNullOrWhiteSpace(town.Id) || town.Id != town.Id.Trim() || town.Id.Length > 128 ||
                 town.Id.Any(char.IsControl) || string.IsNullOrWhiteSpace(town.Name) || town.Name != town.Name.Trim() ||
                 town.Name.Length > 120 || town.FoundedTick < 0 || town.FoundedTick > society.WorldTick ||
+                town.AbandonedSinceTick is { } abandoned &&
+                    (!town.IsAbandoned || abandoned < town.FoundedTick || abandoned > society.WorldTick) ||
                 town.OriginSite is { } origin && !map.IsBuildable(origin) ||
                 town.ResidentIds is null || town.AssignedBuildingIds is null || town.BorderTiles is null ||
                 town.ResidentIds.Distinct(StringComparer.Ordinal).Count() != town.ResidentIds.Count ||
