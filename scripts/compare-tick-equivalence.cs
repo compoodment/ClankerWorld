@@ -1,0 +1,94 @@
+// Compiled unchanged against each checkout, like measure-town-ticks.cs.
+using System.Collections.Concurrent;
+using System.IO.Compression;
+using System.Text.Json;
+using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.World;
+
+var output = args[0];
+var seeds = args[1].Split(',');
+var ticks = int.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture);
+var modes = args[3].Split(',');
+if (seeds.Length is < 1 or > 16 || seeds.Any(string.IsNullOrWhiteSpace) || ticks is < 1 or > 4096 ||
+    modes.Length is < 1 or > 2 || modes.Distinct().Count() != modes.Length || modes.Any(mode => mode is not ("generated" or "legacy")))
+    throw new ArgumentException("Use 1–16 nonempty seeds, 1–4096 ticks, and generated and/or legacy modes.");
+Directory.CreateDirectory(output);
+File.WriteAllText(Path.Combine(output, "run.json"), JsonSerializer.Serialize(new { Commit = args[4], WorkingTree = args[5], Seeds = seeds, Ticks = ticks, Modes = modes }));
+foreach (var mode in modes)
+{
+    for (var ordinal = 0; ordinal < seeds.Length; ordinal++)
+    {
+        var recorder = new RecordingChoices();
+        using var world = mode == "generated" ? CreateGenerated(seeds[ordinal], recorder) : new PrivateWorldRuntime(seeds[ordinal], _ => recorder);
+        world.Validate();
+        var directory = Path.Combine(output, $"{mode}-{ordinal:D2}");
+        Directory.CreateDirectory(directory);
+        for (var tick = 0; tick <= ticks; tick++)
+        {
+            var state = world.ExportState();
+            var prefix = Path.Combine(directory, $"tick-{tick:D6}");
+            using (var file = File.Create(prefix + ".checkpoint.gz"))
+            using (var compressed = new GZipStream(file, CompressionLevel.Fastest))
+                compressed.Write(PrivateWorldRuntimeCodec.Encode(state));
+            File.WriteAllText(prefix + ".events.json", JsonSerializer.Serialize(state.Events));
+            File.WriteAllText(prefix + ".digests.json", JsonSerializer.Serialize(recorder.Observations.ToArray()));
+            if (tick == ticks) break;
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var step = await world.AdvanceOneTickAsync(cancellationToken: cancellation.Token);
+            if (!step.Advanced) throw new InvalidOperationException($"{mode} seed {seeds[ordinal]} tick {tick}: {step.Outcome}");
+        }
+        world.Validate();
+        if (recorder.Observations.IsEmpty) throw new InvalidOperationException("No native observations were exercised.");
+        Console.WriteLine($"{mode} seed {seeds[ordinal]}: {ticks} ticks, {recorder.Observations.Count} observation digests.");
+    }
+}
+
+static PrivateWorldRuntime CreateGenerated(string seed, IDecisionProvider provider)
+{
+    var options = new GeographyOptions(seed, WorldSizePreset.Small);
+    var world = new PrivateWorldRuntime(seed, _ => provider, startPace: WorldStartPace.FounderSetup, geographyOptions: options);
+    var map = world.ExportState().Map;
+    var camp = map.Resources.Single(item => item.Id == "berry-patch").Position;
+    var occupied = map.Resources.Select(item => item.Position).Concat(map.CampObjects.Select(item => item.Position)).ToHashSet();
+    var anchor = map.Tiles.Select(tile => tile.Position)
+        .Where(point => map.IsBuildable(point) && !occupied.Contains(point))
+        .OrderBy(point => Math.Abs(point.X - camp.X) + Math.Abs(point.Y - camp.Y)).ThenBy(point => point.Y).ThenBy(point => point.X)
+        .Prepend(camp).First(point =>
+        {
+            if (FirstTownLayoutPlanner.Plan(map, point) is not { } layout) return false;
+            var taken = occupied.Concat(layout.RoadTiles).Concat(layout.Buildings.SelectMany(building =>
+                Enumerable.Range(0, building.Height).SelectMany(y => Enumerable.Range(0, building.Width)
+                    .Select(x => new GridPoint(building.Position.X + x, building.Position.Y + y))))).ToHashSet();
+            return map.Tiles.Count(tile => Math.Abs(tile.Position.X - point.X) <= 5 && Math.Abs(tile.Position.Y - point.Y) <= 5 &&
+                map.IsBuildable(tile.Position) && !taken.Contains(tile.Position)) >= PrivateWorldRuntime.RequiredFounders;
+        });
+    world.InitializeFirstTownContent();
+    world.AcceptFirstTownLayout(anchor);
+    var buildings = world.WorldSimulation.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+        world.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building.Position)).ToHashSet();
+    var roads = world.RoadTiles.ToHashSet();
+    var sites = map.Tiles.Where(tile => Math.Abs(tile.Position.X - anchor.X) <= 5 && Math.Abs(tile.Position.Y - anchor.Y) <= 5 &&
+        map.IsBuildable(tile.Position) && !occupied.Contains(tile.Position) && !buildings.Contains(tile.Position) && !roads.Contains(tile.Position))
+        .Take(PrivateWorldRuntime.RequiredFounders).Select(tile => tile.Position).ToArray();
+    for (var index = 0; index < sites.Length; index++) world.PlaceFounder($"founder:{index + 1:D32}", sites[index]);
+    world.StartWorld();
+    return world;
+}
+
+sealed class RecordingChoices : IDecisionProvider
+{
+    private readonly DeterministicDecisionProvider native = new();
+    public ConcurrentQueue<ObservationDigest> Observations { get; } = new();
+    public DecisionProviderKind Kind => native.Kind;
+    public long ProviderEpoch => native.ProviderEpoch;
+    public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+    {
+        var observation = request.Observation;
+        Observations.Enqueue(new(observation.InhabitantId, observation.WorldTick, observation.ObservationDigest));
+        return native.DecideAsync(request, cancellationToken);
+    }
+}
+
+sealed record ObservationDigest(string InhabitantId, long WorldTick, string Digest);

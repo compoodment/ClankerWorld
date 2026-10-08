@@ -52,6 +52,69 @@ host's versioned HTTP contract. Legacy web assets are diagnostic tools.
   visibly without replacing valid state or inventing replacement credentials.
   [Saves and replay](saves-and-replay.md) owns formats, migration and backup rules.
 
+## Runtime systems
+
+The approved runtime refactor is tracked in
+[#1377](https://github.com/compoodment/ClankerWorld/issues/1377). The runtime
+currently coordinates the simulation through a partial class. Its areas will
+move into systems in separate reviewed steps; the first step adds guards and
+does not move runtime code.
+
+A system owns its saved state, its rules and a small `I…World` interface for
+the services it needs from other areas. Saved state is an immutable record
+replaced on writes; a hot mutable collection instead replaces a `Version`
+token on every write. Pending model calls and other live work stay outside
+saved state. The runtime keeps the existing tick phases and calls each system
+at the point where its code runs today. Moved private methods remain one-line
+forwarders while callers and reflection-based tests still need them. A tick
+commit eventually assigns each system rather than copying individual fields.
+
+Shared read services will provide the event log, resident queries, named
+ground-occupancy layers and the separately planned goods query. Snapshot-keyed
+derived values must be pure, unsaved and absent from digests. Immutable
+snapshots can pass through the trusted tick copy by reference; replacing a
+snapshot invalidates its derived values without letting a discarded tick
+change committed caches. Positions, reservations and occupancy remain live
+query overlays. Later cache work adds a check that recomputes cache hits.
+
+Every step preserves these contracts:
+
+1. Keep every seeded SHA-256 hash input byte-identical: tag, seed, IDs and tick.
+2. Keep tick phase order, repeated phases and ID-sorted decision and turn application.
+3. Keep candidate-list order and action-prefix routing; choices feed saved observation digests.
+4. Keep dictionary insertion order and collection types where a first match has meaning.
+5. Append events through the shared sink at the same point; call order determines IDs.
+6. Keep checkpoint bytes, sorting and null-versus-empty choices; do not change the schema.
+7. Separate saved state from pending calls and other live work across the tick swap.
+8. Keep request Guids live-only and introduce no random values into world state.
+
+The architecture tests classify every runtime instance field in
+[`runtime-fields.json`](../../tests/ClankerWorld.Simulation.Tests/Architecture/runtime-fields.json)
+as snapshot state transferred on commit, live work retained by the coordinator,
+or scratch/derived diagnostic state. The `saved` category also includes derived
+values transferred with that snapshot, such as fertility and Road bridge decks;
+restore rebuilds them from saved inputs. Event handlers are live work too. They check
+the complete transfer list, and invoke the native commit with a prepared
+runtime to compare its encoded checkpoint and transferred values.
+
+The C# source scan records writer files for every inhabitant component in
+[`inhabitant-writers.json`](../../tests/ClankerWorld.Simulation.Tests/Architecture/inhabitant-writers.json).
+Construction writes all components, including defaults; collection replacement,
+insertion and removal have their own entry. New writer files fail the test.
+Removing a writer also fails until the baseline is lowered. Review a baseline
+change with the code it permits. The scan uses the pinned SDK's C# parser and
+type binding; it rejects binding errors except declarations whose regex
+implementation the real build generates.
+
+Before moving an area, check current open PRs that edit its methods and the
+goods-query steps tracked in #1366. Add ready overlapping PRs as blockers and
+tell draft authors which branch will move their code. Move one area, retain
+forwarders, remove its dead `checkpointSchemaVersion = StateSchemaVersion`
+assignments, extend these guards and document its boundary here. Run the
+[tick equivalence comparison](build-and-test.md#compare-tick-equivalence)
+against the exact base and include the result in the PR. Later steps extend
+the writer ratchet to the state they move.
+
 ## Clock and asynchronous decisions
 
 The current host aims for one tick per real second. New worlds save 360 ticks
