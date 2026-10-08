@@ -12,6 +12,8 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class PrivateWorldConversationTests
 {
+    private static readonly JsonSerializerOptions TalkHostJson = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions TalkGameJson = new() { PropertyNameCaseInsensitive = true };
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -102,7 +104,8 @@ public sealed partial class PrivateWorldConversationTests
         using var world = NormalPathWorld.CreateGenerated("normal-talk-order", _ => provider);
         var people = world.Inhabitants.OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray();
         provider.SpeakIds.UnionWith(people.Select(item => item.InhabitantId));
-        var pair = (from actor in people from target in people
+        var pair = (from actor in people
+                    from target in people
                     where actor.InhabitantId != target.InhabitantId
                     orderby world.ExportState().Map.FootDistance(actor.Position, target.Position) descending
                     select (actor, target)).First();
@@ -239,6 +242,27 @@ public sealed partial class PrivateWorldConversationTests
         Assert.Equal("refused", ReceivedTalkOrder(trimmed).TalkOutcome);
     }
 
+    [Fact]
+    public async Task ReplacingATalkTaskLetsItsConversationEndBeforeTheNextInvitation()
+    {
+        var provider = new TalkOrderProvider();
+        provider.SpeakIds.Add(ListenerId);
+        using var world = NewWorld("replace-active-talk", _ => provider);
+        world.StartWorld();
+        var first = world.SubmitInstruction(new("first-talk", "owner:test", InitiatorId, OwnerInstructionKind.MustDo, "Talk to " + InviteeId));
+        for (var tick = 0; tick < 20 && world.Conversations.All(item => item.Turns.Count == 0); tick++) await AdvanceTalkOrderTick(world);
+        Assert.NotEmpty(Assert.Single(world.Conversations).Turns);
+        var second = world.SubmitInstruction(new("next-talk", "owner:test", InitiatorId, OwnerInstructionKind.MustDo, "Talk to " + ListenerId));
+        for (var tick = 0; tick < 70 && !world.ExportState().CompletedInstructionIds!.Contains(second.InstructionId); tick++) await AdvanceTalkOrderTick(world);
+        Assert.Equal(2, world.Conversations.Count);
+        Assert.All(world.Conversations, item => Assert.Equal("agreed", item.Outcome));
+        var orders = world.ExportState().Instructions!;
+        Assert.Equal(("cancelled", 0), (orders.Single(item => item.InstructionId == first.InstructionId).Order!.Status,
+            orders.Single(item => item.InstructionId == first.InstructionId).Order!.CompletedUnits));
+        Assert.Equal(("finished", 1), (orders.Single(item => item.InstructionId == second.InstructionId).Order!.Status,
+            orders.Single(item => item.InstructionId == second.InstructionId).Order!.CompletedUnits));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -265,8 +289,7 @@ public sealed partial class PrivateWorldConversationTests
     private static ClankerWorld.GodotClient.UI.OwnerWorldInstructionOrder ReceivedTalkOrder(PrivateWorldRuntime world) =>
         Assert.Single(JsonSerializer.Deserialize<ClankerWorld.GodotClient.UI.OwnerWorldInstruction[]>(
             JsonSerializer.Serialize(new OwnerWorldObservationStore(world).GetSnapshot().Instructions,
-                new JsonSerializerOptions(JsonSerializerDefaults.Web)),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!, item => item.Order?.Action == "talk_to").Order!;
+                TalkHostJson), TalkGameJson)!, item => item.Order?.Action == "talk_to").Order!;
 
     private static async Task AdvanceTalkOrderTick(PrivateWorldRuntime world)
     {

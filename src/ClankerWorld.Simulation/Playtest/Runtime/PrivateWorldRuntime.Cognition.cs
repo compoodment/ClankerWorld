@@ -606,7 +606,7 @@ public sealed partial class PrivateWorldRuntime
 
         if (pendingInstruction is { } order)
         {
-            if (IsLinkedTalkOrder(order))
+            if (TalkOrderHasConversation(order))
             {
                 ApplyTalkOrderConversationDecision(order, decision);
                 return;
@@ -1338,7 +1338,7 @@ public sealed partial class PrivateWorldRuntime
         var urgentCandidate = urgent
             ? SelectOrderSurvivalCandidate(candidates, state, order)
             : null;
-        if (IsLinkedTalkOrder(order))
+        if (TalkOrderHasConversation(order))
             return candidates.Where(item => item.Id == "safe_idle" || item.Id.StartsWith("conversation_", StringComparison.Ordinal) ||
                 urgent && IsSurvivalCandidate(state.InhabitantId, item.Id)).ToList();
         var taskCandidate = OrderCandidateFor(order, state);

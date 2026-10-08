@@ -469,7 +469,8 @@ allowance checks. The task holds queued work until that exact conversation
 closes, then records its outcome and one attempt with a deterministic receipt.
 Refusal is a finished attempt, not consent. Linked orders preserve ordinary
 model choices for wrap-up, ending and mutual resumption; a MustDo never forces
-an affirmative choice. Urgent survival remains available. Active links keep
+an affirmative choice. A replacement talk task also lets an already active
+conversation finish before sending its own invitation. Urgent survival remains available. Active links keep
 closed history from being pruned before completion is credited. The owner
 projection reports the actual phase and saved outcome to the card.
 

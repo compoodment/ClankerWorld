@@ -31,6 +31,9 @@ public sealed partial class PrivateWorldRuntime
 
     private static bool IsLinkedTalkOrder(OwnerQueuedInstruction instruction) => instruction.Order is { Action: "talk_to", TalkConversationId: not null };
 
+    private bool TalkOrderHasConversation(OwnerQueuedInstruction instruction) => instruction.Order is { Action: "talk_to" } &&
+        (IsLinkedTalkOrder(instruction) || ConversationFor(instruction.TargetInhabitantId) is not null);
+
     private CognitionCandidate? TalkOrderCandidateFor(OwnerQueuedInstruction instruction, PlaytestInhabitantState person) =>
         IsLinkedTalkOrder(instruction) || TalkOrderBlocker(instruction, person) is null
             ? new("talk_to", IsLinkedTalkOrder(instruction) ? "Wait for the actual conversation's outcome, preserving each person's choices." :
@@ -105,7 +108,8 @@ public sealed partial class PrivateWorldRuntime
             ApplyCandidate(actor, person, candidate, reportIdle: true);
             return;
         }
-        var conversation = conversations.FirstOrDefault(item => item.Id == instruction.Order!.TalkConversationId);
+        var conversation = instruction.Order!.TalkConversationId is { } id
+            ? conversations.FirstOrDefault(item => item.Id == id) : ConversationFor(actor);
         if (conversation is null) return;
         // An order requires the attempt, never affirmative wrap-up or resumption consent.
         if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel &&
