@@ -14,17 +14,19 @@ public sealed class NewbornModelBindingCheckpointTests
 {
     private const string First = "founder:00000000000000000000000000000001";
     private const string Second = "founder:00000000000000000000000000000002";
-    private static readonly ConcurrentDictionary<int, Lazy<Task<byte[]>>> Prepared = new();
+    private static readonly ConcurrentDictionary<(int SeedSuffix, bool SeedIdentified), Lazy<Task<byte[]>>> Prepared = new();
 
     [Theory]
-    [InlineData(9, false)]
-    [InlineData(78, false)]
-    [InlineData(9, true)]
-    [InlineData(78, true)]
-    public async Task ARealNewbornBindsBothRolesAndRecoversItsSavedChoiceWithLongGeneratedIds(int seedSuffix, bool delayBinding)
+    [InlineData(9, false, true)]
+    [InlineData(78, false, true)]
+    [InlineData(9, true, true)]
+    [InlineData(78, true, true)]
+    [InlineData(9, false, false)]
+    [InlineData(9, true, false)]
+    public async Task ARealNewbornBindsBothRolesAndRecoversItsSavedChoiceWithLongGeneratedIds(int seedSuffix, bool delayBinding, bool seedIdentified)
     {
-        var state = PrivateWorldRuntimeCodec.Decode(await Prepared.GetOrAdd(seedSuffix,
-            length => new(() => BeforeBirth(length))).Value);
+        var state = PrivateWorldRuntimeCodec.Decode(await Prepared.GetOrAdd((seedSuffix, seedIdentified),
+            fixture => new(() => BeforeBirth(fixture.SeedSuffix, fixture.SeedIdentified))).Value);
         var directory = Directory.CreateTempSubdirectory("newborn-model-checkpoint-");
         try
         {
@@ -65,7 +67,7 @@ public sealed class NewbornModelBindingCheckpointTests
             }
             var birth = Assert.Single(world.Society.Births);
             var childId = birth.ChildId;
-            Assert.Equal(seedSuffix == 78, childId.Length > 128);
+            Assert.Equal(!seedIdentified || seedSuffix == 78, childId.Length > 128);
             Assert.Equal(SocietyAgeBand.Infant, world.Society.GetInhabitant(childId).AgeBand);
             var child = world.Inhabitants.Single(person => person.InhabitantId == childId);
             Assert.Equal("deterministic", child.ChildModelSelection!.Provider);
@@ -118,10 +120,14 @@ public sealed class NewbornModelBindingCheckpointTests
         finally { directory.Delete(recursive: true); }
     }
 
-    private static async Task<byte[]> BeforeBirth(int seedSuffix)
+    private static async Task<byte[]> BeforeBirth(int seedSuffix, bool seedIdentified)
     {
         using var generated = NormalPathWorld.CreateGenerated("social-talk-" + new string('x', seedSuffix), Providers);
         var state = generated.ExportState();
+        // Existing generated checkpoints keep their seed-based identity. Retain
+        // both sides of the ID-length boundary alongside fresh opaque identities.
+        if (seedIdentified)
+            state = state with { Society = state.Society with { Society = state.Society.Society with { WorldId = state.WorldSeed } } };
         var household = state.Society.Society.GetInhabitant(First).HouseholdId!;
         var home = state.WorldSimulation!.Buildings.Single(building => building.HouseholdId == household &&
             state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("house"));
