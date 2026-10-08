@@ -244,6 +244,13 @@ paper and cloth. Finished items count toward the order; identical accounts
 are not written again. More writing waits for new learning, supplies and room
 to carry them. Cancelled or replaced orders release their unused reservations.
 
+Adults can also be ordered to copy a held record, map or book, with a count or
+until cancelled. The source must be owned and carried, with every recorded site
+already known. A copy preserves its frozen contents and costs fresh native
+materials and work. The order counts only its own finished physical copies.
+Lost sources release unused reservations and leave the order waiting for that
+same source; identical accounts are not copied again.
+
 Urgently hungry agents may pause an order to drink usable carried milk,
 leaving their jug intact and resuming the pending task afterward.
 Urgently hungry adults may pause an order to buy ready food at a shop or

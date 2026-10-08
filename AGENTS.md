@@ -179,6 +179,7 @@ Use the [documentation guide](docs/README.md) to choose the right page.
 | Change saved state, events or compatibility | [Saves and replay](docs/development/saves-and-replay.md) |
 | Change owner access or device credentials | [Device pairing](docs/development/device-pairing.md) |
 | Build, check or package a change | [Build and test](docs/development/build-and-test.md) |
+| Find docs your change made false | `node scripts/find-stale-docs.js <names>` ([how](CONTRIBUTING.md#keep-documentation-and-the-changelog-useful)) |
 | Prepare an explicitly requested release | [Releasing](docs/development/releasing.md) |
 | Review, prune or add tests | [Test audit skill](skills/test-audit/SKILL.md) |
 | Review and merge pull requests | [Review-merge skill](skills/review-merge/SKILL.md) |
