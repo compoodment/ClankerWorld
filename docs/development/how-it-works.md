@@ -928,7 +928,9 @@ when each records sites its recipient has not learned; the existing consent,
 ownership, reservation and delivery checks still apply.
 
 Outward scouting checks occupied destinations and both diagonal corner tiles
-before ranking neighboring exits. If no legal outward exit remains, the scout
+before ranking neighboring exits. An attached cart also restricts exits to
+ordinary legal cart steps: cardinal movement without unroaded mountains.
+If no legal outward exit remains, the scout
 uses the existing return path instead of repeatedly targeting a blocked corner.
 Only completed movement adds a visited tile.
 
