@@ -7,7 +7,7 @@ public sealed partial class PrivateWorldRuntime
 {
     private sealed record BorrowedReturnEffect(string MoveId, string ItemKind, int Quantity);
 
-    private IEnumerable<InventoryLot> ReturnableBorrowedGoods(string actor) => BorrowedGoods(actor).Where(lot =>
+    private IEnumerable<InventoryLot> ReturnableBorrowedGoods(string actor) => CarriedBorrowedGoods(actor).Where(lot =>
         lot.DeliveryBuildingId is null && !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id) &&
         PhysicalUnreservedQuantity(lot) > 0 &&
         (!InventoryContainerRules.IsContainer(lot.ItemKind) || !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)));

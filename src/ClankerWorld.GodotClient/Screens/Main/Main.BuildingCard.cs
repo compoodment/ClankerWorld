@@ -215,6 +215,7 @@ public partial class Main
     private void ClearBuildingSelection()
     {
         CancelBuildingRemoval();
+        buildingManagementChoice.GetPopup().Hide();
         renderedBuildingManagementWorldId = null;
         renderedBuildingManagementId = null;
         selectedBuildingId = null;
@@ -262,9 +263,7 @@ public partial class Main
         var household = building.HouseholdId is { } householdId ? GameUiText.PartyName(snapshot, householdId) : null;
         var town = snapshot.Towns.FirstOrDefault(item => item.Id == building.TownId)?.Name;
         var owner = string.Join(" · ", new[] { household, town }.Where(part => part is not null));
-        var inside = snapshot.Inhabitants
-            .Where(person => !person.IsDraft && IsLiving(person) &&
-                footprint.HasPoint(new Vector2I(person.Position.X, person.Position.Y)))
+        var inside = PeopleInside(snapshot, building.InstanceId).GetValueOrDefault(building.InstanceId, [])
             .Select(person => person.DisplayName).Order(StringComparer.CurrentCulture).ToArray();
         var jobs = snapshot.ProductionJobs
             .Where(job => job.BuildingInstanceId == building.InstanceId &&
@@ -316,8 +315,9 @@ public partial class Main
             string.Join('|', building.ToolMakingRequests.Select(request => request.Id + ":" + request.Status + ":" + request.Blocker));
         var townHall = building.Tags?.Contains("town_hall", StringComparer.Ordinal) == true;
         var lantern = StreetLanternLight.IsLantern(building.Tags);
-        var lit = snapshot.DarknessBasisPoints > 500;
-        signature += $"|{townHall}|{lantern}|{(lantern && lit)}";
+        var abandoned = building.TownId is { } townId && snapshot.Towns.Any(town => town.Id == townId && town.IsAbandoned);
+        var lit = snapshot.DarknessBasisPoints > 500 && !abandoned;
+        signature += $"|{townHall}|{lantern}|{(lantern && lit)}|{(lantern && abandoned)}";
         var market = MarketForBuilding(snapshot, building.InstanceId);
         signature += "|" + (market is null ? string.Empty : MarketBuildingText(market, building.InstanceId));
         var port = IsPortBuilding(building);
@@ -359,7 +359,8 @@ public partial class Main
         {
             buildingQuickStatus.AddChild(new Label
             {
-                Text = lit ? "Lit · lights automatically at dusk · no fuel" : "Unlit · lights automatically at dusk · no fuel",
+                Text = abandoned ? "Dark · its Town is abandoned · lights again when someone resettles it"
+                    : lit ? "Lit · lights automatically at dusk · no fuel" : "Unlit · lights automatically at dusk · no fuel",
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
             });
             return;
@@ -410,6 +411,11 @@ public partial class Main
             ("Built", SplitClock(DisplayWorldClock(building.PlacedTick)).Date),
             ("Footprint", $"{building.Width} × {building.Height} tiles"),
         };
+        var footprint = Footprint(building);
+        var animals = snapshot.Animals.Where(animal => footprint.HasPoint(new Vector2I(animal.Position.X, animal.Position.Y)))
+            .OrderBy(animal => animal.Name, StringComparer.CurrentCulture).ThenBy(animal => animal.Id, StringComparer.Ordinal).ToArray();
+        if (animals.Length > 0)
+            facts.Add(("Animals here", string.Join('\n', animals.Select(GameUiText.AnimalDescription))));
         if ((townHall || market is not null || lantern || port) && snapshot.Towns.SelectMany(item => item.Projects)
                 .FirstOrDefault(project => project.CompletedBuildingId == building.InstanceId) is { } project)
         {
@@ -424,7 +430,9 @@ public partial class Main
         {
             facts.Add(("Docking spaces", PortUsageText(snapshot, building)));
             facts.Add(("Travel", "One passenger with carried goods · boats remain Town property"));
-            facts.Add(("Night lantern", "Lights automatically at dusk · no fuel"));
+            facts.Add(("Night lantern", building.TownId is { } portTown && snapshot.Towns.Any(item => item.Id == portTown && item.IsAbandoned)
+                ? "Dark · its Town is abandoned · lights again when someone resettles it"
+                : "Lights automatically at dusk · no fuel"));
         }
         if (building.StorageCapacity is { } capacity)
             facts.Add(("Storage", $"{building.StoredQuantity} / {capacity} items"));
@@ -561,13 +569,21 @@ public partial class Main
         if (!TryGetOwner(out _, out _, out _))
         {
             buildingManagementSection.Hide();
+            buildingManagementChoice.GetPopup().Hide();
             renderedBuildingManagementWorldId = null;
             renderedBuildingManagementId = null;
             return;
         }
 
-        var previousTarget = renderedBuildingManagementWorldId == snapshot.WorldId &&
-            renderedBuildingManagementId == building.InstanceId && buildingManagementChoice.Selected >= 0
+        var sameBuilding = renderedBuildingManagementWorldId == snapshot.WorldId &&
+            renderedBuildingManagementId == building.InstanceId;
+        var popup = buildingManagementChoice.GetPopup();
+        var focusedIndex = popup.Visible ? popup.GetFocusedItem() : -1;
+        var focusedTarget = sameBuilding && focusedIndex >= 0 && focusedIndex < buildingManagementChoice.ItemCount
+            ? buildingManagementChoice.GetItemMetadata(focusedIndex).AsString()
+            : null;
+        if (!sameBuilding) popup.Hide();
+        var previousTarget = sameBuilding && buildingManagementChoice.Selected >= 0
             ? buildingManagementChoice.GetItemMetadata(buildingManagementChoice.Selected).AsString()
             : null;
         buildingManagementSection.Show();
@@ -611,6 +627,20 @@ public partial class Main
                 break;
             }
         if (buildingManagementChoice.ItemCount > 0) buildingManagementChoice.Select(selectedTarget);
+        if (popup.Visible)
+        {
+            var restoredFocus = -1;
+            for (var index = 0; index < buildingManagementChoice.ItemCount; index++)
+                if (focusedTarget is not null && buildingManagementChoice.GetItemMetadata(index).AsString() == focusedTarget)
+                {
+                    restoredFocus = index;
+                    break;
+                }
+            if ((focusedTarget is not null && restoredFocus < 0) || buildingManagementChoice.ItemCount == 0)
+                popup.Hide();
+            else if (restoredFocus >= 0)
+                popup.SetFocusedItem(restoredFocus);
+        }
         renderedBuildingManagementWorldId = buildingManagementChoice.ItemCount > 0 ? snapshot.WorldId : null;
         renderedBuildingManagementId = buildingManagementChoice.ItemCount > 0 ? building.InstanceId : null;
         buildingManagementChoice.Visible = buildingManagementChoice.ItemCount > 0;

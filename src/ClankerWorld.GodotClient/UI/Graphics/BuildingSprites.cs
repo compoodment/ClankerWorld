@@ -113,6 +113,14 @@ public static partial class BuildingSprites
         _ => null,
     };
 
+    /// <summary>
+    /// Whether people under this building's roof are inside it, so the map
+    /// hides them and shows a count instead. Yards, piers, stalls, paths and
+    /// fittings are open air.
+    /// </summary>
+    public static bool HasInterior(BuildingKind kind) => kind is not (BuildingKind.AnimalYard or BuildingKind.MarketStall
+        or BuildingKind.Port or BuildingKind.Path or BuildingKind.Bedroll or BuildingKind.Hearth);
+
     /// <summary>Main roof color, also used as a flat fill at overview zoom.</summary>
     public static Color RoofColor(BuildingKind kind) => ApprovedArt.MainRoof(kind) ?? Palette(kind).Lit;
 

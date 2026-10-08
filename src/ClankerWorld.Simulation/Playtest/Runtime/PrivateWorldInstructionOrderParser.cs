@@ -156,6 +156,8 @@ internal static class PrivateWorldInstructionOrderParser
             position = actionStart;
             if (TryReadProductionOrder(end, repeatPrefix, keepPrefix) is { } productionOrder) return productionOrder;
             position = actionStart;
+            if (TryReadTreePlantingOrder(end, repeatPrefix, keepPrefix) is { } treeOrder) return treeOrder;
+            position = actionStart;
             if (TryReadFieldOrder(end, repeatPrefix, keepPrefix) is { } fieldOrder) return fieldOrder;
             position = actionStart;
             if (TryReadCustodyOrder(end, repeatPrefix, keepPrefix) is { } custodyOrder) return custodyOrder;
@@ -627,6 +629,36 @@ internal static class PrivateWorldInstructionOrderParser
             if (position != end) return null;
             return new(action, "queued", explicitQuantity ? quantity : 1, 0, "fields", repeat,
                 explicitQuantity, TargetPosition: targetPosition, TargetCropKind: crop);
+        }
+
+        private OwnerInstructionOrder? TryReadTreePlantingOrder(int end, bool repeat, bool keep)
+        {
+            if (!TryReadAnyWord("plant", "plants", "planting") || keep && tokens[position - 1].Value != "planting") return null;
+            _ = ReadWord("my");
+            var explicitQuantity = TryReadQuantity(out var quantity);
+            if (!explicitQuantity) _ = TryReadAnyWord("a", "an", "the", "some");
+            string action;
+            if (ReadWord("broadleaf")) action = "plant_broadleaf";
+            else if (ReadWord("conifer")) action = "plant_conifer";
+            else if (ReadWord("orchard")) action = "plant_orchard";
+            else action = "plant_tree";
+            var hasTree = TryReadAnyWord("tree", "trees");
+            if (!hasTree && action != "plant_orchard") return null;
+            GridPoint? targetPosition = null;
+            if (ReadWord("at"))
+            {
+                if (!TryReadCoordinate(out var target)) return null;
+                targetPosition = target;
+            }
+            if (ReadWord("until"))
+            {
+                if (!ReadWord("cancelled") && !ReadWord("canceled")) return null;
+                repeat = true;
+            }
+            if (!ReadWord("now")) _ = ReadWord("please");
+            if (position != end) return null;
+            return new(action, "queued", explicitQuantity ? quantity : 1, 0, "trees", repeat,
+                explicitQuantity, TargetPosition: targetPosition);
         }
 
         private bool TryReadCollectionLocation(ref GridPoint? targetPosition)
