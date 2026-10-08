@@ -224,7 +224,7 @@ public sealed partial class PrivateWorldRuntime
         .Where(lot => lot.OwnerId == term.ContributorId && ToolProgressionRules.IsTopLevelCarriedLot(lot, term.ContributorId) &&
             lot.DeliveryBuildingId is null && lot.ItemKind == term.ItemKind && (term.TargetId is null || lot.Id == term.TargetId) &&
             !InventoryContainerRules.IsContainer(lot.ItemKind) &&
-            !PersonalEquipmentRules.IsSelected(inhabitants[term.ContributorId].Equipment, lot.Id) && AvailableLotQuantity(lot) > 0)
+            !PersonalEquipmentRules.IsSelected(inhabitants[term.ContributorId].Equipment, lot.Id) && AvailableLotQuantity(lot) >= term.Quantity)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
     private bool NonviolentRemedyFeasible(TownRuntimeState town, TownRemedyTerm term)
@@ -427,7 +427,7 @@ public sealed partial class PrivateWorldRuntime
                 {
                     if (term.Kind == "return_goods")
                     {
-                        var lot = NonviolentReturnLot(term)!;
+                        var lot = NonviolentReturnLot(term with { Quantity = remaining })!;
                         var operation = $"remedy-return:{WorldTick}:{actor}:{nextEventId}";
                         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, operation, actor,
                             term.BeneficiaryId!, lot.Id, remaining, "voluntary_restitution"));

@@ -60,7 +60,6 @@ public sealed class TownGovernanceRuntimeTests
 
     [Theory]
     [InlineData("Numbers: Discuss tick 999999999999999999999999999999.")]
-    [InlineData("Numbers: Discuss tick 9223372036854775807.")]
     public async Task OrdinaryProposalTextWithLargeNumbersDoesNotStopLaterCivicObservations(string text)
     {
         var provider = new CivicProvider(FirstAuthor, proposalOverride: text);

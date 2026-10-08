@@ -984,19 +984,22 @@ public sealed partial class PrivateWorldRuntime
 
     private bool CanAcquireProjectInputs(IReadOnlyList<ContentQuantity> inputs, string? ownerId = null,
         string? residentId = null,
-        Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>? reachableToolCache = null)
+        Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>? reachableToolCache = null,
+        Lazy<PlacedBuilding[]>? accessibleWarehouses = null)
     {
         // Candidate evaluation is a read-only snapshot. Reuse a shared tool's route
         // result within one inhabitant's candidate query. Other callers start
         // fresh, and actions revalidate before gathering.
         reachableToolCache ??= new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
+        accessibleWarehouses ??= residentId is null ? null : new Lazy<PlacedBuilding[]>(
+            () => WarehousesAccessibleTo(residentId).ToArray(), LazyThreadSafetyMode.None);
         return inputs.All(input =>
         {
             var stored = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == input.ResourceId &&
                     (lot.OwnerId == (ownerId ?? HouseholdId) || inhabitants.ContainsKey(lot.OwnerId) &&
                         (ownerId is null || HouseholdFor(lot.OwnerId) == ownerId)))
                 .Sum(lot => (long)AvailableLotQuantity(lot));
-            var communal = residentId is null ? 0 : WarehousesAccessibleTo(residentId)
+            var communal = residentId is null ? 0 : accessibleWarehouses!.Value
                 .SelectMany(warehouse => society.Checkpoint.Inventory.Lots.Where(lot =>
                     lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
                     lot.ItemKind == input.ResourceId))

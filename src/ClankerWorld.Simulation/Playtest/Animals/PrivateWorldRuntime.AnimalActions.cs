@@ -116,6 +116,12 @@ public sealed partial class PrivateWorldRuntime
             if (choice.Action == "care" && needsSupply) return true;
         }
         if (choice.Action == "dismount") { EndAnimalRide(animal, "dismounted"); return true; }
+        if (choice.Action is "collect" or "saddle" && animalWorld.Animals.FirstOrDefault(other =>
+                other.RiderId == actor && other.Id != animal.Id) is { } riddenForWork)
+        {
+            EndAnimalRide(riddenForWork, "dismounted");
+            return true;
+        }
         if (person.Position != animal.Position && animal.LeaderId != actor)
         {
             MoveToward(actor, person, animal.Position, "animal_" + choice.Action);
@@ -182,7 +188,10 @@ public sealed partial class PrivateWorldRuntime
     }
     private List<(InventoryLot Lot, int Quantity)>? AnimalCareInputs(string actor, AnimalState animal, int feed, int water)
     {
-        var lots = AnimalSuppliesAtHand(actor, animal).ToArray();
+        var inventory = society.Checkpoint.Inventory;
+        var lots = AnimalSuppliesAtHand(actor, animal).Where(lot =>
+            inhabitants[actor].Position == animal.Position ||
+            PersonalEquipmentRules.IsPhysicallyCarried(inventory, lot, actor)).ToArray();
         var result = new List<(InventoryLot, int)>();
         string? FoodHousehold(InventoryLot lot) => lot.OwnerId == animal.HouseholdId ? animal.HouseholdId : HouseholdFor(actor);
         bool Take(Func<InventoryLot, bool> predicate, int needed)

@@ -328,7 +328,8 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private List<SpareCargoMove> OrdinarySpareCargo(string actor, int missing, string? protectedLotId = null,
-        params string[] additionallyProtectedLotIds)
+        IReadOnlyList<string>? additionallyProtectedLotIds = null,
+        IReadOnlyDictionary<string, int>? retainedLotQuantities = null)
     {
         if (missing <= 0) return [];
         var equipment = inhabitants[actor].Equipment;
@@ -336,7 +337,7 @@ public sealed partial class PrivateWorldRuntime
         var spare = inventory.Lots
             .Where(lot => (lot.OwnerId == actor || lot.OwnerId == HouseholdFor(actor)) &&
                 PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
-                lot.Id != protectedLotId && !additionallyProtectedLotIds.Contains(lot.Id, StringComparer.Ordinal) &&
+                lot.Id != protectedLotId && additionallyProtectedLotIds?.Contains(lot.Id, StringComparer.Ordinal) != true &&
                 lot.DeliveryBuildingId is null &&
                 !PersonalEquipmentRules.IsSelected(equipment, lot.Id) &&
                 !AgentKnowledgeRules.IsArtifactKind(lot.ItemKind) &&
@@ -350,8 +351,10 @@ public sealed partial class PrivateWorldRuntime
         var moves = new List<SpareCargoMove>();
         foreach (var lot in spare)
         {
+            var available = Math.Max(0, lot.Quantity - (retainedLotQuantities?.GetValueOrDefault(lot.Id) ?? 0));
+            if (available == 0) continue;
             var vessel = InventoryContainerRules.IsContainer(lot.ItemKind);
-            var quantity = vessel ? 1 : Math.Min(missing, lot.Quantity);
+            var quantity = vessel ? 1 : Math.Min(missing, available);
             var physicalQuantity = vessel ? ContainerFamilyQuantity(inventory, lot.Id) : quantity;
             moves.Add(new(lot, quantity, physicalQuantity));
             missing -= physicalQuantity;
