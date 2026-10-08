@@ -38,7 +38,8 @@ public sealed partial class TownMembershipTests
         Assert.Equal(JsonSerializer.Serialize(state.WorldSimulation!.Buildings), JsonSerializer.Serialize(world.WorldSimulation.Buildings));
         Assert.Equal(state.Society.Society.Inventory.Lots.Select(lot => (lot.Id, lot.OwnerId, lot.Quantity)),
             world.Society.Inventory.Lots.Select(lot => (lot.Id, lot.OwnerId, lot.Quantity)));
-        Assert.Equal(state.HouseholdLandUseRights, world.ExportState().HouseholdLandUseRights);
+        Assert.Equal(JsonSerializer.Serialize(state.HouseholdLandUseRights),
+            JsonSerializer.Serialize(world.ExportState().HouseholdLandUseRights));
         Assert.Equal(founded.BorderTiles, TownLandRightsRules.OrderTiles(world.ExportState().TownLandTitles!
             .Where(title => title.TownId == founded.Id).SelectMany(title => title.Tiles)));
         foreach (var child in children)

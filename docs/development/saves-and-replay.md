@@ -1104,7 +1104,7 @@ previous Town and care-group count; initial First Town events keep their format.
 The choice binds the current physical site and is rechecked when applied.
 Competing or delayed replies cannot claim another Town's land, move membership
 twice or supply free property. `TownFoundingTests` covers generated-world
-founding, care-group membership, existing owned and foreign Houses, claimed
+founding, care-group membership, existing owned and foreign Houses and fields, claimed
 land, competing and delayed hosted choices, exact replay/reload and discarded
 prepared ticks. Routine Windows playtesting remains pending.
 
