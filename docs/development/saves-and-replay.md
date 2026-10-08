@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # Saves and replay
@@ -26,6 +26,16 @@ may fail the existing regeneration checks and are refused and preserved; no
 terrain migration is provided. New saves with default weather store a null
 profile list to select the reduced built-in preset. Explicit profile lists
 keep their configured weather weights.
+
+Checkpoint encoding still performs full map acceptance. Only the derived
+camp-reachability traversal may be reused when its actual topology and origin
+remain unchanged. Loaded maps start without that process-local cache, and
+borrowed-data edits require a fresh traversal. Placement, layers, canonical
+digests, generated-map checks and atomic checkpoint publication remain required.
+No cache state or new fields are saved; the checkpoint schema and canonical
+bytes are unchanged. [How it works](how-it-works.md) owns the runtime cache boundary, and
+[Camp reachability measurements](camp-reachability-measurements.md) records the
+matched native save/reload, rollback and continuation comparisons.
 
 Private-world schema 60 adds exclusive physical handcart attachments. A cart
 and its cargo are existing inventory lot relationships, with the cart's ground
