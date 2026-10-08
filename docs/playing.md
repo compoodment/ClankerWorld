@@ -510,6 +510,12 @@ and survives saving or reconnecting; it covers the recent records still kept
 by the server. Goods changing owners in the same building do not count as a
 physical addition or removal.
 
+Grass and tree canopies follow the seasons: brighter in spring, their usual
+colours in summer, warmer in autumn and more muted in winter. Snow still
+appears only where the world records it. Panning, zooming and loading a world
+keep the same seasonal treatment, including the terrain and tree pictures in
+tile inspection.
+
 Every day has a night, with a short dusk and dawn. Nights are longest in winter
 and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
 start of spring and autumn, about 2 min 24 s of a six-minute day; from 20:24
@@ -879,7 +885,7 @@ to see the animals standing there. Use its exact unique name or ID in a Must do 
 **Tame Moss**, **Lead home Moss**, **Care for Moss**, or **Collect from Moss**.
 **Repeat care for Moss** and **Repeat collect from Moss** keep the task active
 until cancelled. When the animal is elsewhere in the yard, the adult picks up
-the feed and water jug before walking to it. Care beside the yard stock can
+feed and enough jug water before walking to it. Care beside the yard stock can
 use those supplies directly. The adult walks and brings actual available
 supplies; an order waits when permission, supplies, product, space or a route
 is missing. Care without safe feed or jug water shows a blocker and can resume

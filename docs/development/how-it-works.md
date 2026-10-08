@@ -1361,6 +1361,15 @@ size, and shows the per-tile mountain and hill art for a chunk until its relief
 is ready. It also warms hills' overview color and shows "Landform: Hills" in
 tile inspection. Hill travel cost and passability are not decided.
 
+The client's `LandscapePalette` applies the approved seasonal colour rule to
+grass and canopy ramps from the observed world season. Summer retains the base
+art. World load prepares four overview textures and the shared 16 px and 32 px
+ground and tree atlases; a season change selects those resources without
+rebuilding the map or relief chunks. Transition rims, overview trees and tile
+inspection use the same treatment. Fruit, trunks, shadows, rock, water and
+permanent snow retain their original colours. Night and regional weather still
+draw above the landscape, and winter colour alone does not add snow.
+
 All of these numbers are **provisional**. They were chosen from fixed-seed
 measurements, not owner-reviewed maps, and live in `TerrainPlacementRules`.
 Current fixed-world tests require 25–45% forest-grass tree coverage, and every
@@ -1934,6 +1943,12 @@ approved partial withdrawals. An explicit destination prevents fallback to
 another store. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
+
+Flour hauling from the Farmhouse to the House checks each source with the
+actual haul planner before choosing it. A broken pot or another unusable
+source does not hide later usable flour. Pickup repeats this selection;
+reservations, carrying room, destination space, whole-vessel transfers and
+the existing partial flour withdrawals still apply.
 
 Ordinary milling can draw needed household grain from its Silo into its
 Farmhouse. Available and inbound Farmhouse grain reduce the pickup; recipe
@@ -3091,7 +3106,8 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   `replant_tree` also uses a tree seed.
   Replanting selects stumps reachable from the acting agent, including on
   disconnected islands, and skips stumps with no unoccupied route into reach.
-- **Orchard trees** are `growing`, `fruiting` or `picked`. Fruit is seasonal in
+- **Orchard trees** are `sapling` immediately after planting, then `growing`,
+  `fruiting` or `picked`. Fruit is seasonal in
   `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
   worlds) and falls when that season ends. New worlds start in spring, so
   orchards start without fruit.
@@ -3114,8 +3130,10 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
 - **Art.** `UI/Graphics/TreeArtManifest.cs` in the client is the one list of
   tree art: species, stage, asset ID, sprite, source, licence and review
   status. The map reads its sprites and stage names from it. Broadleaf and
-  conifer mature, sapling and stump sprites and the three orchard stages are
-  approved art from the October 1 review; the tree-seed item has no art yet. The
+  conifer mature, sapling and stump sprites and the three established orchard
+  sprites are approved art from the October 1 review. Orchard saplings reuse
+  the approved growing sprite with a separate terrain code, preserving the
+  host's saved stage; the tree-seed item has no art yet. The
   [pixel-art style guide](art-style.md) explains how art is reviewed.
 - **Logs.** The host logs `tree_planting` outcomes (planted, refused,
   replanted, seed collected) with the agent ID and a bounded detail.
@@ -3287,8 +3305,11 @@ ordinary revalidated choices. Native orders bind an exact animal name or ID.
 Care spends actual unreserved grain/greens and jug water at the animal or yard;
 food, planting and workstation reserves stay protected. For care away from the
 actor's tile, input selection accepts only physically carried supplies. This
-keeps the existing supply path collecting both feed and a water jug before
-approaching the animal, including after a partial pickup. At the animal's tile,
+keeps the existing supply path collecting feed and enough usable jug water before
+approaching the animal, including after a partial pickup. Water may be split
+across jugs or content lots; fetching counts the usable water already carried
+and rechecks each whole jug against reservations and free carrying space.
+At the animal's tile,
 permitted local yard stock remains usable directly. Physical supply trips
 retain the owning household. Cancelling or replacing an animal order releases
 only a supply trip matching its actor, animal and action, without relocating,
