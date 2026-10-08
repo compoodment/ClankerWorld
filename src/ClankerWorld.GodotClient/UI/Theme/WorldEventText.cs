@@ -256,6 +256,7 @@ public static class WorldEventText
             "town_admission_lapsed" => $"{Name(snapshot, Field(worldEvent.Detail, 1))} did not join {civicTownName}: the approval no longer fits their circumstances.",
             "town_building_assigned" => "A building joined the first Town.",
             "town_border_expanded" => "The first Town border expanded.",
+            "town_founded" when worldEvent.Detail.Contains('|') => $"{Name(snapshot, Field(worldEvent.Detail, 1))} founded {civicTownName}.",
             "town_founded" => "Your first Town is founded.",
             "bridge_built" when parts.Length > 0 && parts[0] == "road" => "A new Road crosses a river on a new bridge.",
             "bridge_built" => "Agents crossed a river here so often that a bridge was built.",

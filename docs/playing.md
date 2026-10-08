@@ -564,6 +564,16 @@ approval never gives a House or household place. The agent's Profile shows
 their Town, what it lets them do and their admission status, and the Event Log
 notes approvals, admissions and approvals that no longer apply.
 
+An adult standing on buildable unclaimed land away from existing Town borders
+can choose to found a new Town through their personal model. Suggest founding
+there to the agent; the choice must still be legal when it executes. The adult
+leaves their previous Town, and dependent children who shared it follow without
+moving or changing care. The first council contains the new Town's adult
+residents. Founding gives no House, goods or household place. Existing household
+buildings and fields stay owned; another household's property blocks the site.
+A House built outside all Towns stays an ordinary household House until an adult
+chooses to found there. Later visitors need the new council's admission.
+
 Residents can also propose laws as a **subject: rule**, applying to the Town's
 claimed land, a nearby recorded site, or residents wherever they travel. Council
 votes adopt, amend or repeal them. The Towns page shows their scope and effective
