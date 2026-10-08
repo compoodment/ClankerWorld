@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # Saves and replay
@@ -976,6 +976,7 @@ current alpha cutoff.
 | Schema 98 | Existing inventory events retain exact physical storage additions/removals by building and item kind, with signed quantities. Event identities, trade receipts, rollback and bounded archival remain intact. Malformed changes and earlier alpha schemas are refused; no migration or history reconstruction is added. |
 | Schema 99 | Towns retain the latest abandonment tick independently of bounded events. Revival clears it; missing markers, future or pre-founding ticks, and markers on lived-in Towns are refused. Earlier alpha saves are refused and preserved without migration. |
 | Schema 100 | Actual observations refresh current personal map facts. The required bounded `EarlierFacts` ledger backs unchanged artifacts and writing snapshots; duplicate, orphaned, future and mismatched versions are refused. Native writing, copying, planting, cancellation and current-format continuation retain exact contents and paid materials. Earlier alpha saves are refused and preserved without migration. |
+| Schema 101 | Boat transport requires compact retired-request sequence ranges. Checkpoint compaction durably archives full older closed requests before retaining all active requests and the latest 40 closed requests. Ranges and live requests cover each issued sequence exactly once, including gaps around older active travelers. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -1130,6 +1131,26 @@ Ports, status, boat and settlement time. Validation rejects mismatched payment,
 owner, passenger or request, duplicate physical or incoming dock claims, invalid
 water steps and an active passenger separated from the boat. Waiting requests
 hold no boat reservation; terminal history remains saved.
+
+Schema 101 requires non-null `RetiredRequestRanges`, empty until the first
+retirement. When more than 40 requests are closed, checkpoint compaction keeps
+all waiting and underway requests and the latest 40 closed requests by sequence,
+matching the existing owner view. The older full records go into
+`ClosedBoatRequests` in the same digest-addressed history segment as event
+prefixes. The segment is fsync-written before the smaller checkpoint is
+published or installed in the live runtime. Preparing a plan or failing either
+write leaves the live queue unchanged. The ordinary host saves after each
+advanced tick; a runtime used without persistence keeps its records until saved.
+
+Retired sequence ranges are ordered, disjoint and merged. They account for each
+issued sequence exactly once together with the live requests, while preserving
+gaps for older waiting or underway travelers. Retirement never alters journey
+bindings, paid boat/Port records, cargo or ownership. Later closing an older
+trip archives its exact final record and merges adjacent ranges. A checkpoint
+with retired requests requires an archive head; missing or corrupt referenced
+segments still refuse loading and preserve the checkpoint. Strict reload,
+paired continuation, refused prepared ticks, failed archive/checkpoint writes,
+arrival, blocked return and passenger death are covered by native checks.
 
 Council boat permission is an explicit typed field on its proposal draft and
 adopted law version. The exact known visitor or standing grant, canonical rule,

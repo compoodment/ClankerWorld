@@ -86,7 +86,7 @@ public sealed class PrivateWorldStateFile
         if (compactHistory)
         {
             var plan = PrivateWorldHistory.Prepare(state);
-            if (plan.Segment.Streams.Count > 0)
+            if (plan.Segment.Streams.Count > 0 || plan.Segment.ClosedBoatRequests is { Count: > 0 })
             {
                 var bytes = JsonSerializer.SerializeToUtf8Bytes(plan.Segment);
                 var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
