@@ -3057,6 +3057,8 @@ the existing search radius.
 
 Adults tame, care, collect, supply, lead, saddle, mount and dismount through
 ordinary revalidated choices. Native orders bind an exact animal name or ID.
+Order progress follows the completed animal action, including when fetching a
+supply at the animal completes that action in the same tick.
 Care spends actual unreserved grain/greens and jug water at the animal or yard;
 food, planting and workstation reserves stay protected. For care away from the
 actor's tile, input selection accepts only physically carried supplies. This
