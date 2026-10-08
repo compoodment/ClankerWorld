@@ -7,7 +7,10 @@ namespace ClankerWorld.Simulation.Playtest;
 public sealed record TownLandRequestedOutcome(string Kind, string? HouseholdId = null, long? AgreedEndTick = null);
 
 public sealed record TownLandFilingRequest(IReadOnlyList<GridPoint> Tiles,
-    TownLandRequestedOutcome RequestedOutcome, string Statement);
+    TownLandRequestedOutcome RequestedOutcome, string Statement)
+{
+    public TownPropertyRequest? Property { get; init; }
+}
 
 public sealed record TownLandRequestResolution(string RequestId, string TownId, string CaseId,
     string RulingId, IReadOnlyList<GridPoint> Tiles, long Tick);
@@ -78,6 +81,7 @@ public sealed record TownLandCase(string Id, string Key, string Kind, long Filed
     public string TownId { get; init; } = "";
     public IReadOnlyList<string> DirectStakeIds { get; init; } = [];
     public IReadOnlyList<TownLandCaseRead> Reads { get; init; } = [];
+    public TownPropertyCase? Property { get; init; }
 }
 
 /// <summary>A replayable bounded permission change, or an already authorized building-footprint reassignment.</summary>
