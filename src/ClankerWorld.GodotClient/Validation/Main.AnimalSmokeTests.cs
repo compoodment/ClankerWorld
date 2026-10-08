@@ -85,10 +85,10 @@ public partial class Main
         // Walking steps: each move to the next tile shows the next step, facing the move; standing still a
         // while shows the standing drawing again; a long jump, such as a reload, is no step.
         var walkSize = (int)eweSprite.Size.X;
-        bool Shows(AnimalMapSprite shown, int facing, int step)
+        bool Shows(AnimalMapSprite shown, int facing, int step, bool shorn = true)
         {
             using var onMap = shown.Texture.GetImage();
-            using var art = AnimalSprites.Sprite("sheep", facing, false, false, shorn: true, size: walkSize, step: step);
+            using var art = AnimalSprites.Sprite("sheep", facing, false, false, shorn: shorn, size: walkSize, step: step);
             return shown.Step == step && HandcartPixelDigest(onMap) == HandcartPixelDigest(art);
         }
         var walking = (AnimalMapSprite)eweSprite;
@@ -110,7 +110,7 @@ public partial class Main
         if (!Shows(walking, AgentSprites.FacingToward(1, 0), 1))
             throw new InvalidOperationException("A short move after relocation must start with the first walking step.");
         RenderMap(map with { WorldTick = 7, Animals = [animal, ewe with { Position = new(111, 61), LifeStage = "deceased" }, wild] });
-        if (!Shows(walking, AgentSprites.FacingToward(1, 0), 0))
+        if (!Shows(walking, AgentSprites.FacingToward(1, 0), 0, shorn: false))
             throw new InvalidOperationException("A dead animal must immediately stop stepping even at the same tile.");
         RenderMap(map with { WorldTick = 8, Animals = [animal, ewe with { Position = new(112, 61) }, wild] });
         if (!Shows(walking, AgentSprites.FacingToward(1, 0), 1))
