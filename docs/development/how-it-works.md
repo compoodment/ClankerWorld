@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # How the game works
@@ -1165,6 +1165,15 @@ configuration ceiling is 2,048. The remaining eight slots stay
 free for sites the running world adds, such as the three settlement sites
 beside the first Town. Grove surfaces still use the 24-tile limit; the larger
 budget supplies the denser trees on forest grass.
+
+World-systems chunk manifests own immutable resource snapshots, including input
+supplied through record replacements. An unchanged manifest reuses successful
+structural and digest validation by object identity; new or loaded manifests
+are fully checked. Current-world bounds and duplicate chunk coordinates remain
+checked on every validation, alongside changing weather and ecology. The weak
+validation cache is process data only. See [Saves and replay](saves-and-replay.md)
+for the load boundary and [Chunk validation measurements](chunk-validation-measurements.md)
+for the bounded allocation and timing comparison.
 
 **Hills** are dry land below mountain height (215), at least 190 high and within
 the hill reach of a connected mountain region (counting diagonal steps as one).
