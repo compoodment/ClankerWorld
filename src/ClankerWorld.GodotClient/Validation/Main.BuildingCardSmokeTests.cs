@@ -290,7 +290,7 @@ public partial class Main
         if (fruitSlot.TooltipText != "Fruit × 3" || fruitSlot.CustomMinimumSize.Y <= fruitSlot.CustomMinimumSize.X - 8)
             throw new InvalidOperationException("A named item slot must leave room for its name and say what it holds.");
         fruitSlot.Free();
-        VerifyBuildingManagementRefresh(baseMap);
+        await VerifyBuildingManagementRefreshAsync(baseMap);
         await VerifyMarketCardsAsync(baseMap);
         await VerifyBuildingStorageHistoryAsync(baseMap);
     }
@@ -442,7 +442,7 @@ public partial class Main
                 new(position, [position], [position]), false);
     }
 
-    private void VerifyBuildingManagementRefresh(OwnerWorldSnapshot baseMap)
+    private async Task VerifyBuildingManagementRefreshAsync(OwnerWorldSnapshot baseMap)
     {
         var previousRegistration = registration;
         var previousKey = deviceKey;
@@ -473,6 +473,36 @@ public partial class Main
             OpenBuildingDetails();
             if (!buildingManagementSection.Visible || buildingManagementChoice.ItemCount != 3)
                 throw new InvalidOperationException("A paired owner must receive the host's household choices and the unowned option.");
+            var popup = buildingManagementChoice.GetPopup();
+            async Task KeyAsync(string action)
+            {
+                Input.ParseInputEvent(new InputEventAction { Action = action, Pressed = true });
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                Input.ParseInputEvent(new InputEventAction { Action = action, Pressed = false });
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            }
+            async Task HighlightSecondOwnerAsync()
+            {
+                // Let a preceding popup close finish before opening the next interaction.
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                buildingManagementChoice.Select(0);
+                buildingManagementChoice.ShowPopup();
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                popup.SetFocusedItem(0);
+                await KeyAsync("ui_down");
+                if (!popup.Visible || popup.GetFocusedItem() != 1 || buildingManagementChoice.Selected != 0)
+                    throw new InvalidOperationException($"Down must highlight the second owner without committing it: visible={popup.Visible}, focused={popup.GetFocusedItem()}, selected={buildingManagementChoice.Selected}, world={buildingCardSnapshot?.WorldId}.");
+            }
+            await HighlightSecondOwnerAsync();
+            await KeyAsync("ui_accept");
+            if (popup.Visible || ChosenOwner() != "household:three")
+                throw new InvalidOperationException("Enter must commit the keyboard-highlighted owner and close the menu.");
+            await HighlightSecondOwnerAsync();
+            for (var refresh = 1; refresh <= 3; refresh++)
+                RenderBuildingCard(map with { WorldTick = map.WorldTick + refresh });
+            await KeyAsync("ui_accept");
+            if (popup.Visible || ChosenOwner() != "household:three")
+                throw new InvalidOperationException($"Observation refreshes must preserve the open owner menu's keyboard choice: visible={popup.Visible}, focused={popup.GetFocusedItem()}, selected={buildingManagementChoice.Selected}.");
             buildingManagementChoice.Select(1);
             RenderBuildingCard(map with { WorldTick = map.WorldTick + 1 });
             if (ChosenOwner() != "household:three")
@@ -485,6 +515,30 @@ public partial class Main
             RenderBuildingCard(reordered);
             if (ChosenOwner() != "household:three" || buildingManagementChoice.Selected != 0)
                 throw new InvalidOperationException("Owner choices must survive reordered display names by household ID.");
+            RenderBuildingCard(map);
+            await HighlightSecondOwnerAsync();
+            RenderBuildingCard(reordered);
+            await KeyAsync("ui_accept");
+            if (popup.Visible || ChosenOwner() != "household:three" || buildingManagementChoice.Selected != 0)
+                throw new InvalidOperationException("An open keyboard choice must follow its household identity when names reorder.");
+            RenderBuildingCard(map);
+            await HighlightSecondOwnerAsync();
+            RenderBuildingCard(map with { Stockpiles = map.Stockpiles.Where(item => item.OwnerId != "household:three").ToArray() });
+            await KeyAsync("ui_accept");
+            if (popup.Visible || ChosenOwner() != "household:two")
+                throw new InvalidOperationException("Removing the highlighted owner must close the menu without selecting another household by its old index.");
+            RenderBuildingCard(map);
+            await HighlightSecondOwnerAsync();
+            RenderBuildingCard(map with { WorldId = "changed-popup-world" });
+            if (popup.Visible || ChosenOwner() != "household:two")
+                throw new InvalidOperationException("Changing worlds must close an open owner menu and reset its choice.");
+            RenderBuildingCard(map);
+            await HighlightSecondOwnerAsync();
+            SelectBuilding(second.InstanceId);
+            if (popup.Visible || ChosenOwner() != "household:two")
+                throw new InvalidOperationException("Changing buildings must close an open owner menu and reset its choice.");
+            SelectBuilding(workshop.InstanceId);
+            OpenBuildingDetails();
             buildingManagementChoice.Select(2);
             RenderBuildingCard(map);
             if (ChosenOwner() != string.Empty)

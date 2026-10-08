@@ -2,7 +2,7 @@
 title: Build and test
 type: development-reference
 status: active
-updated: 2026-10-06
+updated: 2026-10-08
 ---
 
 # Build and test
@@ -33,6 +33,13 @@ Use `--locked-mode` so an unexpected dependency change fails visibly.
 Shared compiler, analyzer and version settings live in
 [Directory.Build.props](../../Directory.Build.props). Use its version fields
 rather than adding a second version constant.
+
+The retained-guidance farming fixture waits for the provider's start signal by
+polling the native nonblocking tick path. A committed tick schedules background
+work but does not guarantee that its worker has started. The check covers
+immediate entry and entry after two more committed ticks. Its
+polls retain a forty-tick limit and a separate thirty-second cancellation guard
+for each tick, including after pause and reload.
 
 The client bundles one third-party font, Fusion Pixel 12px, in
 `src/ClankerWorld.GodotClient/UI/Theme/Fonts/`, under the SIL Open Font
@@ -66,17 +73,28 @@ when every part of the Verify workflow passes:
 - **scope** decides which of the other jobs the change needs.
 - **checks** runs the workflow-script tests and the label list, the Godot
   client check, `dotnet format` and the Windows export.
-- **tests (1)** to **tests (6)** split the Release test suite between them, so
-  it runs on six machines at once.
+- **tests (1)** to **tests (8)** split the Release test suite between them, so
+  it runs on eight machines at once.
 
-**test-times** then compares the run's test times with main's latest green run
-and lists the tests that grew most in the run summary. It warns when the tests
-both runs have take 40% and two minutes longer in total; tests that slow down
+**test-times** then compares the run's test times with main's, taking each
+test's median over main's last three green runs, and lists the tests that grew
+most in the run summary. It warns when the tests the run shares with main take
+40% and two minutes longer in total; tests that slow down
 without changing usually mean the simulation got slower, for players too. It
 never warns about a single test: one test can take two to four times as long or
 as short between runs of the same code, depending on which tests share the
 runner with it, while the total varies by about a tenth. This job is not part
 of `verify` and never blocks a merge on its own.
+
+Many small slowdowns can add up without any one of them warning, so every
+Monday the **Test time budget** workflow adds up main's test times, each test at
+its median over main's last five green runs, and compares the total with the
+budget in
+[.github/scripts/test-time-budget.js](../../.github/scripts/test-time-budget.js).
+Over the budget, it opens one P2 tooling issue listing the slowest tests and
+classes, and refreshes it each week while main stays over. Once main is a
+twentieth under the budget, it closes the issue, unless someone holds it. If the
+extra time is really needed, raise the budget in a pull request that says why.
 
 A pull request that changes only documentation (Markdown files and anything
 under `docs/`) runs the workflow-script checks and the documentation tests on
@@ -92,16 +110,18 @@ can change a test result. A change to one of those files, to anything under
 Pushes to main always run everything. A newer push to a pull request cancels
 its older run.
 
-The test jobs split the tests by how long each took in main's latest green run,
-so new slow tests spread out on their own and nobody needs to rebalance them by
-hand. Each test job uploads its durations as a `test-timings-<job>` artifact;
-**scope** downloads main's latest set and
-[.github/scripts/ci-plan.js](../../.github/scripts/ci-plan.js) plans the split:
+The test jobs split the tests by how long each took on main, so new slow tests
+spread out on their own and nobody needs to rebalance them by hand. Each test
+job uploads its durations as a `test-timings-<job>` artifact; **scope**
+downloads those of main's last three green runs with
+[.github/scripts/main-timings.sh](../../.github/scripts/main-timings.sh), and
+[.github/scripts/ci-plan.js](../../.github/scripts/ci-plan.js) plans the split
+from each test's median, because one run's times swing too much to balance by:
 
 - xUnit runs four test classes at once on a runner's four cores, and a class's
   tests one after another. A class too long for one job is split by method.
 - A test runs in the first job whose filter names it, and the last job runs
-  every test no filter names, so a test that is new since main's run, or
+  every test no filter names, so a test that is new since main's runs, or
   renamed, still runs exactly once.
 - If main's timings can't be read, the split falls back to the fixed one in
   `PinnedShards`.
@@ -194,7 +214,7 @@ code, durability checks or test assertions.
 
 Hands-on checks above describe useful verification, not a blanket pre-merge
 playtest gate. Routine owner playtesting may follow merge under
-[Drafts and readiness](../../CONTRIBUTING.md#drafts-and-readiness). Keep pending
+[Change and verification rules](../../CONTRIBUTING.md#change-and-verification-rules). Keep pending
 playtests explicit in the [playtest list](#windows-playtests); do not equate a
 passing automated check with actual play.
 The separate release gates still apply when preparing a release.
@@ -246,11 +266,24 @@ dotnet test tests/ClankerWorld.Simulation.Tests/ClankerWorld.Simulation.Tests.cs
 ```
 
 These checks cover front matter on pages under `docs/`, local links and linked
-headings in every Markdown file, and that each entry in `changes/` starts with
-a `- ` bullet. They do not check that any particular page exists. The
+headings in every Markdown file, that each entry in `changes/` starts with
+a `- ` bullet, and that game-design chapters don't describe what is built,
+such as "not built yet" or "remains unfinished". They do not check that any particular page exists. The
 documentation test reads each page with both LF and CRLF line endings, and CI
 also runs it on a Windows checkout. That job is separate from a Windows game
 playtest and from the native provider-storage checks.
+
+To find sentences a change may have made false, search every page for the
+names of what changed:
+
+```bash
+node scripts/find-stale-docs.js "orchard" "plant_orchard"
+```
+
+It lists each paragraph, list item or table row that names one of them and
+says something is missing, unfinished or undecided, or that sits under a
+**Still to decide** heading. Read each one: the search finds candidates, and
+only reading decides whether a sentence is still true.
 
 ## Disk space
 

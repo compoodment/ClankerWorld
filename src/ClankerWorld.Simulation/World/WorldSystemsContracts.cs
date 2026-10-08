@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
@@ -507,18 +508,38 @@ public sealed record EcologyState(IReadOnlyList<EcologyResource> Resources)
     private static readonly ConditionalWeakTable<EcologyState, Dictionary<string, int>> Indexes = new();
 
     public EcologyResource GetResource(string id)
+        => TryGetIndexedResource(id, out var resource) ? resource : RequiredResource(id);
+
+    public bool TryGetResource(string id, [NotNullWhen(true)] out EcologyResource? resource)
+    {
+        if (TryGetIndexedResource(id, out resource)) return true;
+        resource = OptionalResource(id);
+        return resource is not null;
+    }
+
+    private bool TryGetIndexedResource(string id, [NotNullWhen(true)] out EcologyResource? resource)
     {
         var index = Indexes.GetValue(this, static state => IndexById(state.Resources));
         if (id is not null && index.TryGetValue(id, out var position) && position >= 0 &&
-            position < Resources.Count && Resources[position] is { } resource &&
-            string.Equals(resource.Id, id, StringComparison.Ordinal))
+            position < Resources.Count && Resources[position] is { } indexed &&
+            string.Equals(indexed.Id, id, StringComparison.Ordinal))
         {
-            return resource;
+            resource = indexed;
+            return true;
         }
 
-        // Missing and duplicate IDs keep the original error.
-        return Resources.Single(resource => string.Equals(resource.Id, id, StringComparison.Ordinal));
+        resource = null;
+        return false;
     }
+
+    // Keep fallback predicates off the indexed path, so successful lookups
+    // allocate no per-call closure. Changed caller-owned lists still work,
+    // and required missing IDs or duplicate IDs keep their original errors.
+    private EcologyResource RequiredResource(string id) =>
+        Resources.Single(resource => string.Equals(resource.Id, id, StringComparison.Ordinal));
+
+    private EcologyResource? OptionalResource(string id) =>
+        Resources.SingleOrDefault(resource => string.Equals(resource.Id, id, StringComparison.Ordinal));
 
     private static Dictionary<string, int> IndexById(IReadOnlyList<EcologyResource> resources)
     {
