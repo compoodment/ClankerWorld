@@ -25,6 +25,24 @@ public sealed partial class PrivateWorldRuntime
     private const int ExplorationCooldownTicks = 180;
     private const int ExplorationMemoryLimit = 256;
 
+    private PlaytestInhabitantState CompleteExplorationGoal(string actor, PlaytestInhabitantState person)
+    {
+        if (person.Exploration?.Goal is not { } goal) return person;
+        var completed = person with
+        {
+            Exploration = person.Exploration with
+            {
+                OutingPath = [],
+                Returning = false,
+                Goal = null,
+                LastOutingTick = WorldTick,
+            },
+        };
+        inhabitants[actor] = completed;
+        AppendEvent("exploration_goal_found", $"{actor}:{goal.Kind}:{goal.Target}");
+        return completed;
+    }
+
     private void AddExplorationCandidate(List<CognitionCandidate> candidates, string actor, PlaytestInhabitantState person)
     {
         if (NeedsUrgentFood(person) || NeedsUrgentWarmth(person))

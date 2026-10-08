@@ -89,24 +89,6 @@ public sealed partial class PrivateWorldRuntime
         return KnownExplorationSources(actor, person, goal.Target).Any();
     }
 
-    private PlaytestInhabitantState CompleteExplorationGoal(string actor, PlaytestInhabitantState person)
-    {
-        if (person.Exploration?.Goal is not { } goal) return person;
-        var completed = person with
-        {
-            Exploration = person.Exploration with
-            {
-                OutingPath = [],
-                Returning = false,
-                Goal = null,
-                LastOutingTick = WorldTick,
-            },
-        };
-        inhabitants[actor] = completed;
-        AppendEvent("exploration_goal_found", $"{actor}:{goal.Kind}:{goal.Target}");
-        return completed;
-    }
-
     private static void ValidateExplorationGoalBindings(IEnumerable<PlaytestInhabitantState> people,
         IEnumerable<OwnerQueuedInstruction> instructions)
     {
