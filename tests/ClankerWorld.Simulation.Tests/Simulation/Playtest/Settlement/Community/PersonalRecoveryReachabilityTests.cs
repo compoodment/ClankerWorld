@@ -52,8 +52,14 @@ public sealed class PersonalRecoveryReachabilityTests
         state = FarmFieldTests.WithInventory(state, inventory) with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-                ? person with { Position = house.Position, HungerBasisPoints = 10_000, Project = null,
-                    LastDecisionContext = null, Survival = new SurvivalCondition() } : person).ToArray(),
+                ? person with
+                {
+                    Position = house.Position,
+                    HungerBasisPoints = 10_000,
+                    Project = null,
+                    LastDecisionContext = null,
+                    Survival = new SurvivalCondition()
+                } : person).ToArray(),
         };
         var chooser = new RecoveryChooser(builtin);
         var bytes = PrivateWorldRuntimeCodec.Encode(state);
