@@ -344,6 +344,9 @@ are not available to personal collection or storage.
 
 Borrowed-return orders such as "return two borrowed cloth" and "return one
 borrowed water jug" put carried household goods back in their owner's House.
+This includes a collected milk jug even when a Store or market stall could
+stock it instead. The whole jug and its milk return together; reservations and
+committed deliveries remain protected.
 They preserve ownership and pin the selected House and source lot while work
 is pending. A default task returns one available load; an explicit quantity
 caps the last move. Only a physical return earns progress. Unavailable goods,
@@ -746,9 +749,9 @@ does not put goods into the heir's carried load: ground goods stay on their
 tile, stored goods retain their storage, and goods held by a living carrier
 stay with that carrier. Goods the deceased carried are dropped at their last
 tile. A pot, jug or handcart always goes to one heir together with what it
-holds. A Town keeps its share in its Warehouse while there is room. Food, a
-handcart, goods that do not fit, and shares for heirs who have died since
-follow the household path, as do
+holds. A Town keeps its share in its Warehouse while there is room. All food,
+including eggs, milk and their meals, follows the household path. So do
+handcarts, goods that do not fit, and shares for heirs who have died since, plus
 interrupted, unknown or invalid choices, so no goods are created or lost.
 
 The will may also leave short final words. When the estate is divided, each
@@ -991,7 +994,8 @@ reserves the actual boat and one destination space; incoming boats count toward
 six spaces. Waiting travelers may cancel. A blocked arrival waits one unpaused
 world day before returning to a usable origin, keeping passenger and goods
 aboard. If neither landing is usable, it continues waiting. Ordinary survival
-still applies aboard; passengers may eat carried food.
+still applies aboard; passengers may eat carried food or drink fresh, available
+milk from a usable carried jug. Drinking spends one portion and keeps the jug.
 
 Boat positions, passengers, cargo and active requests appear on the map and
 Towns page. Port inspection shows moored boats and incoming reservations.

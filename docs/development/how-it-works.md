@@ -214,6 +214,9 @@ its ownership and credits one vessel, never its contents as extra progress.
 subjects. It binds the carried source lot and its owning household's exact
 House before travel. The shared borrowed-return helper rechecks custody,
 ownership, reservations, whole-vessel space and the destination at execution.
+Explicit returns select carried borrowed goods independently of ordinary milk
+stocking alternatives. A possible Store or market destination does not exclude
+a milk jug; committed deliveries and active animal-supply trips still do.
 Only a committed relocation receipt earns `goods_items` or `return_loads`.
 Cancellation never undoes completed movement or changes goods ownership.
 When an explicit storage or return moves the exact hoe or sickle used by that
@@ -2309,7 +2312,10 @@ Goods carried by the deceased are dropped at their last tile. A Town heir's
 part goes to its Warehouse as Town stock while the Warehouse has
 room and stores that kind; the runtime passes each Town's Warehouse, free room
 and refused kinds (food, and handcarts, which stay on the ground) as
-`SocietyTownStore`. Whatever the will cannot deliver (a share for an heir who
+`SocietyTownStore`. Food refusal and Warehouse validation use the inventory's
+food classifier, including eggs, milk, cooked eggs, milk porridge and rich
+meals. The refusal set is built from actual stock only when a Town bequest is
+due. Whatever the will cannot deliver (a share for an heir who
 has since died, food, a handcart or goods beyond the room) follows the
 household default: an equal split between the living household
 beneficiaries, with the first in ID order taking leftovers, or communal stock
@@ -2735,7 +2741,11 @@ or lost departure permission settles unused requests. Six moored or incoming
 claims exhaust a Port. All free docks are tried for a connected route.
 
 Transport follows saved cardinal water steps while avoiding other boats and
-reservations. Underway cognition permits waiting and eating carried food;
+reservations. Passenger cognition permits waiting, eating carried food and
+drinking available carried milk while traveling or waiting for landing. Milk
+uses the same ownership, freshness, reservation and usable-jug checks as on
+land; drinking consumes one portion, restores 3,000 fullness points and keeps
+the jug. Candidate construction and action admission both permit that action;
 foot work and conversations cannot move the passenger away from the boat.
 A blocked arrival retains its reservation for one world day, then reserves a
 usable origin for return. When neither landing works, it keeps waiting. Native
