@@ -45,7 +45,7 @@ public sealed class WaitingMarkerProposal : IArtProposal
     };
 
     /// <summary>A 4 × 3 tile corner of the reference Town around the agent at (8, 4), with the marker drawn the way AgentMarker would.</summary>
-    public static Image Frame(char option, int size, int frame, bool badge)
+    public static Image Frame(char option, int size, int frame, bool badge, bool clientArt = false)
     {
         if (!Scenes.TryGetValue(size, out var scene))
             Scenes[size] = scene = SceneComposer.Render(SceneSpec.TownCorner(), new ArtSet(), size);
@@ -59,7 +59,10 @@ public sealed class WaitingMarkerProposal : IArtProposal
         {
             case 'a': canvas.Cloud(frame); break;
             case 'b': canvas.Hourglass(frame); break;
-            default: canvas.Orbit(frame); break;
+            default:
+                if (clientArt) canvas.ClientOrbit(frame);
+                else canvas.Orbit(frame);
+                break;
         }
         return image;
     }
@@ -190,6 +193,12 @@ public sealed class WaitingMarkerProposal : IArtProposal
         /// C: a small gold spark circling just above the head with a short
         /// fading trail, dimmer while it passes behind; no chip or bubble.
         /// </summary>
+        public void ClientOrbit(int frame)
+        {
+            foreach (var (position, color) in AgentSprites.WaitingSparkFrame(side, frame))
+                Pixel(position.X, position.Y, color);
+        }
+
         public void Orbit(int frame)
         {
             var center = new Vector2(side / 2f, side / 2f - Drawn * 0.33f);

@@ -1,7 +1,7 @@
 # Waiting-for-model marker
 
-When an agent's model is slow to reply, the agent stands still and looks
-frozen. The owner agreed on October 8 ([#1247](https://github.com/compoodment/ClankerWorld/issues/1247))
+When an agent's model is slow to reply, the map needs to show that it is
+waiting. The owner agreed on October 8 ([#1247](https://github.com/compoodment/ClankerWorld/issues/1247))
 that a waiting agent shows a small marker on the map, and that the Event Log
 adds a line only when the model actually fails. This proposal draws three
 markers on an agent in the reference Town, at 32 px (close) and 16 px (mid
@@ -39,7 +39,9 @@ map.
   agent and what happened. It gets no line for a slow reply that arrives, and
   no repeat while the same problem continues.
 
-## Questions for the review
+## Recorded review
 
-1. Which marker should the map use: A, B or C?
-2. Is about two seconds the right wait before it appears?
+The owner selected **C · Circling spark** on October 8, recorded by Claude Code
+session 62ab178e in [#1315](https://github.com/compoodment/ClankerWorld/issues/1315).
+The client uses that drawing unchanged. The two-second delay remains
+provisional for playtesting.

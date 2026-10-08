@@ -280,6 +280,7 @@ public static class WorldEventText
             "paused" => "The world was paused.",
             "resumed" => "The world resumed.",
             "model_call_warning" => DescribeModelCallWarning(parts),
+            "model_attempt_status" => DescribeModelFailure(worldEvent.Detail, snapshot),
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
         };
     }
@@ -486,6 +487,22 @@ public static class WorldEventText
         snapshot?.Inhabitants.FirstOrDefault(person => person.Id == id)?.DisplayName
         ?? (string.IsNullOrEmpty(id) || id.Contains(':', StringComparison.Ordinal)
             ? "Someone" : GameUiText.HumanizeIdentifier(id));
+
+    private static string DescribeModelFailure(string detail, OwnerWorldSnapshot? snapshot)
+    {
+        var separator = detail.LastIndexOf(':');
+        if (separator <= 0) return "A model reply failed.";
+        var name = Name(snapshot, detail[..separator]);
+        var reason = detail[(separator + 1)..] switch
+        {
+            "missing_key" => "the model key is missing",
+            "usage_limit" => "the usage limit was reached",
+            "unusable_reply" => "the model sent an unusable reply",
+            "timed_out" => "the model reply timed out",
+            _ => "the model is unavailable",
+        };
+        return $"{name} could not get a model reply: {reason}.";
+    }
 
     private static string LeadingName(OwnerWorldSnapshot? snapshot, string detail)
     {

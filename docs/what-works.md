@@ -200,6 +200,11 @@ unusable reply uses the safe fallback and finishes that attempt without another
 paid repair request. The agent card shows whether the model is ready, waiting,
 canceled, missing a key, out of allowed calls, unable to give a usable reply,
 timed out or unavailable. It shows the last accepted model choice separately.
+A small circling gold spark appears after two seconds of waiting and clears
+on reply or pause. It remains separate from the conversation badge. The Event
+Log names the agent and failure reason once while the same problem continues;
+a successful reply allows a later failure to appear again. Waiting, successful
+replies and canceled requests do not add rows.
 Those facts survive a refresh and save/reload. The paired Windows/model-wait
 check remains in [the playtest list](../playtest/453-model-choices-and-checks.md).
 

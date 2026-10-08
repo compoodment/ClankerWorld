@@ -292,6 +292,10 @@ everything that is available in the current build. See [what works today](../wha
   provider doesn't make it look frozen. The Event Log adds one line only when
   the provider actually fails. What the agent may do while it waits is in
   [The world](world.md#world-time-pausing-and-slow-models).
+  The owner selected **C · Circling spark** from the October 8 marker review
+  on [#1315](https://github.com/compoodment/ClankerWorld/issues/1315), recorded
+  in its discussion. The proposed short delay is two seconds; it remains
+  provisional for playtesting.
 - **Agreed after the September 30 building panel review:** selecting a
   building opens a small **quick card** beside it, like an agent's: its roof,
   name and owner (household or Town), one line on what is happening there (who

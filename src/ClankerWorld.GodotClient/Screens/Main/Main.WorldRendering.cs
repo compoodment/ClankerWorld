@@ -443,6 +443,9 @@ public partial class Main
                 actorMarker.ObserveTile(snapshot.WorldId, new Vector2I(inhabitant.Position.X, inhabitant.Position.Y),
                     mapWidth, snapshot.WrapsEastWest);
                 actorMarker.Activity = AgentMarker.ActivityFor(inhabitant);
+                actorMarker.ObserveModelWait(snapshot.WorldId,
+                    inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "model-status")?.Detail == "waiting",
+                    snapshot.Authoring?.IsPaused == true);
                 var actorTooltip = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)} · " +
                     (inhabitant.PublicIntention?.Summary ?? "taking in the world");
                 var conversation = LatestConversationFor(snapshot, inhabitant.Id);

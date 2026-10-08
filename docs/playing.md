@@ -173,6 +173,11 @@ centers the camera on them, and back (or **Escape**) returns from the Profile
 to the small card. Inspection does not pause time, and reading private thoughts
 does not tell other agents.
 
+A small gold spark circles above an agent after its model has been waiting
+for two seconds. It disappears when the reply arrives or the world pauses.
+The spark is separate from the conversation bubble. Slow replies add no Event
+Log entry; a failed reply adds one line naming the agent and the problem.
+
 **Memories** shows what the agent remembers, believes and has mapped as cards,
 newest first, with a tab for each kind. A belief shows how sure they are and
 whether they saw it or heard it from someone; a map record shows each place
