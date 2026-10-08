@@ -1944,6 +1944,12 @@ another store. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
 
+Flour hauling from the Farmhouse to the House checks each source with the
+actual haul planner before choosing it. A broken pot or another unusable
+source does not hide later usable flour. Pickup repeats this selection;
+reservations, carrying room, destination space, whole-vessel transfers and
+the existing partial flour withdrawals still apply.
+
 Ordinary milling can draw needed household grain from its Silo into its
 Farmhouse. Available and inbound Farmhouse grain reduce the pickup; recipe
 demand, free storage, reservations, carrying room and both walking routes
