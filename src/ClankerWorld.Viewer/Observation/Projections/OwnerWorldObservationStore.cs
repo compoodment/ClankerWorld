@@ -847,7 +847,7 @@ public sealed partial class OwnerWorldObservationStore
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
                         order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind, order.TargetEquipmentKind, order.TargetCropKind,
                         order.TargetOutputKind, order.TargetItemKind, order.TargetBuildingKind, order.TargetAnimalId,
-                        order.TargetKnowledgeKind) : null))
+                        order.TargetKnowledgeKind, order.TargetCartLotId) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages

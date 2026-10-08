@@ -215,7 +215,7 @@ seeking a food source, harvesting food, gathering supported raw materials,
 storing personal raw materials or equipment, collecting personal raw materials,
 ready-to-eat food or equipment, repairing supported personal
 clothing, carrying aids and tools, household field work, and moving to an exact
-tile, and supported non-food production recipes. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
+tile, attaching/parking owned handcarts, and supported non-food production recipes. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
 quantities or leftover words are rejected as not understood rather than mapped
@@ -1944,6 +1944,12 @@ another store. Ready-to-eat greens and fruit go to
 the household's House. Neither stock nor ownership moves
 remotely.
 
+Flour hauling from the Farmhouse to the House checks each source with the
+actual haul planner before choosing it. A broken pot or another unusable
+source does not hide later usable flour. Pickup repeats this selection;
+reservations, carrying room, destination space, whole-vessel transfers and
+the existing partial flour withdrawals still apply.
+
 Ordinary milling can draw needed household grain from its Silo into its
 Farmhouse. Available and inbound Farmhouse grain reduce the pickup; recipe
 demand, free storage, reservations, carrying room and both walking routes
@@ -3013,6 +3019,25 @@ boat-request and retired-range counts. See
 archive-write ordering and recovery checks.
 
 ## Physical handcarts
+
+Orders accept `Attach/Pull [my] cart/handcart` and `Park/Unhitch [my]
+cart/handcart`, optionally prefixed with `Please`. A complete exact cart lot
+ID binds immediately. `at (x, y)` uses the existing strict coordinate parser
+and binds only one owned cart at that tile; ambiguous targets are not guessed.
+An unspecified attach task selects an accessible, usable owned cart when it
+starts; unspecified parking selects the actor's actual attached cart. The first
+executed step persists `TargetCartLotId`, so later ownership or route changes
+block that cart rather than redirecting the order.
+
+The common order lifecycle handles queue, replacement, cancellation and urgent
+survival interruptions. Cart steps call `ApplyHandcartCandidate` and earn one
+`cart_tasks` unit only when the selected native hitch changes as requested.
+A deterministic per-instruction receipt binds the actor, action and cart.
+Strict validation checks the target's identity and cart kind, task shape and
+receipt; owner and Godot projections retain the optional target. Neither a
+pre-existing attachment nor an unrelated parking effect completes an order.
+Loading, unloading and repair orders remain separate work.
+
 
 `InventoryContainerRules.Handcart` is a single ground-position inventory lot.
 Its condition, owner and child cargo lots are authoritative inventory facts;
