@@ -387,6 +387,17 @@ whole jug and counts the water delivered; it cannot pour out part of a jug to
 meet a smaller request. Cancelling keeps goods where they actually are,
 including any supplies already picked up for delivery.
 
+To start pulling a cart, use **Pull my handcart** or **Attach my cart**.
+An adult or elder walks to a usable cart they own and attaches it. **Park my
+cart** unhitches the cart where it stands, keeping its cargo and ownership.
+Use **Attach cart at (12, 4)** or **Park cart at (12, 4)** to name the unique
+owned cart on that tile. The order keeps that cart even if its location changes;
+an ambiguous tile is not understood. Exact cart identities are also accepted.
+Queue, replacement, cancellation, urgent interruptions and saves retain the
+task. Broken or reserved carts, another attached cart, riding or leading an
+animal, and blocked routes give a reason. Loading, unloading and cart repair
+orders are not supported yet. Once attached, the cart follows normal movement.
+
 To mend worn personal equipment, use **Repair my basket**, **Repair two padded
 coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
 clothing, padded coats, rain cloaks, baskets and sacks. They collect real supplies
