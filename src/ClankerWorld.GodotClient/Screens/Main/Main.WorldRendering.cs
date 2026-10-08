@@ -69,6 +69,9 @@ public partial class Main
         inhabitantCanonicalXs.Clear();
         foreach (var visual in mapObjectVisuals.Values) visual.QueueFree();
         mapObjectVisuals.Clear();
+        foreach (var badge in occupancyBadges.Values) badge.QueueFree();
+        occupancyBadges.Clear();
+        occupancyCanonicalXs.Clear();
         mapObjectCanonicalXs.Clear();
         handcartFacings.Clear();
         animalFacings.Clear();
@@ -381,6 +384,9 @@ public partial class Main
                 building.Width, building.Height);
         }
 
+        // People inside a building are hidden; the building shows how many instead.
+        var peopleInside = PeopleInside(snapshot);
+        var hiddenInside = peopleInside.Values.SelectMany(people => people).Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var group in snapshot.Inhabitants
             .Where(inhabitant => !inhabitant.IsDraft && string.Equals(inhabitant.Lifecycle, "active", StringComparison.OrdinalIgnoreCase))
             .GroupBy(inhabitant => PositionKey(inhabitant.Position)))
@@ -426,7 +432,7 @@ public partial class Main
                 }
                 actorMarker.Caption = GameUiText.ActorMapLabel(inhabitant.DisplayName);
                 actorMarker.Variant = AgentSprites.VariantFor(inhabitant.Id);
-                actorMarker.Visible = !snapshot.Animals.Any(animal => animal.RiderId == inhabitant.Id);
+                actorMarker.Visible = !snapshot.Animals.Any(animal => animal.RiderId == inhabitant.Id) && !hiddenInside.Contains(inhabitant.Id);
                 actorMarker.Stage = AgentSprites.StageIndex(
                     inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail);
                 // Facing and frame only present what the observation says:
@@ -464,6 +470,7 @@ public partial class Main
             inhabitantCanonicalXs.Remove(removedId);
         }
 
+        RenderOccupancyBadges(snapshot, peopleInside);
         RenderTileInspection(snapshot);
         RenderAgentConversationReader(snapshot);
         PositionSelectedInhabitantCard(snapshot);

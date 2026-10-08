@@ -140,9 +140,12 @@ Every entry is also there as a bare transparent `.sprite`.
 
 ### Not done
 
-- Walking frames, and lying, eating or sleeping poses. (Diagonal facings
-  were added in round 3.)
+- Lying, eating or sleeping poses, which wait for the game to give animals
+  those states. You chose walking-step option B on October 7; its game
+  integration is awaiting merge in #1191. (Diagonal facings were added in
+  round 3.)
 - The horse's cargo state (the content list mentions rider or cargo).
-- Young animals (chicks, lambs, calves), animal pens, feeders and coops.
-- Nothing in the game draws animals yet, and nobody has checked these in the
-  running game; they were judged only from the rendered PNGs.
+- Coops. Young animals and the animal yard, with its trough and hay, were
+  approved in round 4 (see `Round4.md`).
+- The game now draws every animal, adult and young, in all eight facings at
+  32 and 16 px (#1102). Nobody has checked them on Windows yet.
