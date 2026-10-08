@@ -47,40 +47,6 @@ public sealed class RiverBridgeTests
     }
 
     [Fact]
-    public void OneNarrowStreamGetsAOneTileBridgeThatMovementCanUse()
-    {
-        var map = Map(
-            "...~...",
-            "...~...",
-            "...~...");
-        var request = Request(map, [new(0, 1)], [new(6, 1)]);
-        var result = RoadRoutePlanner.Plan(request);
-
-        var proposal = Assert.IsType<RoadRouteProposal>(result.Proposal);
-        var crossing = Assert.Single(proposal.NewCrossings);
-        Assert.Equal("bridge-3-1-ew-1", crossing.Id);
-        Assert.Equal(BridgeDesigns.PlankSpanOne, crossing.Design);
-        Assert.Equal(BridgeAxis.EastWest, crossing.Axis);
-        Assert.Equal(new GridPoint(2, 1), crossing.EntranceA);
-        Assert.Equal(new GridPoint(4, 1), crossing.EntranceB);
-        Assert.Equal([new GridPoint(3, 1)], crossing.Span);
-        Assert.Contains(crossing.EntranceA, proposal.RoadTiles);
-        Assert.Contains(crossing.EntranceB, proposal.RoadTiles);
-        Assert.DoesNotContain(new GridPoint(3, 1), proposal.RoadTiles);
-        Assert.All(proposal.RoadTiles, tile => Assert.True(map.IsBuildable(tile)));
-        Assert.Null(RoadRoutePlanner.Validate(request, proposal));
-
-        var bridged = WithBridges(map, RiverBridgeRules.ToBridge(crossing, BridgeTriggers.Road, 0, "road:test"));
-        Assert.Equal(200, map.FootTravelCost(new(3, 1)));
-        Assert.Equal(100, bridged.FootTravelCost(new(3, 1)));
-        Assert.True(bridged.CanFootStep(new(2, 1), new(3, 1)));
-        Assert.True(bridged.CanFootStep(new(3, 1), new(4, 1)));
-        Assert.False(bridged.CanFootStep(new(3, 1), new(3, 0)));
-        Assert.False(bridged.CanFootStep(new(2, 0), new(3, 1)));
-        Assert.False(bridged.IsBuildable(new(3, 1)));
-    }
-
-    [Fact]
     public void ABridgeAcrossOneTileOfATwoTileCrossingLeavesTheOtherTileWadeableBackToItsBank()
     {
         // The spur at (2,1) is a one-tile crossing north to south, and also

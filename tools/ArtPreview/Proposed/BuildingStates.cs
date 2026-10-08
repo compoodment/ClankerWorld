@@ -265,9 +265,23 @@ internal static class States
         return image;
     }
 
+    /// <summary>A construction stage over its ground.</summary>
     public static Image Stage(Subject s, int stage)
     {
         var image = s.Ground();
+        Sheet.Blend(image, StageArt(s, stage, image), 0, 0);
+        return image;
+    }
+
+    /// <summary>
+    /// A construction stage on its own, transparent outside the site, as the
+    /// game draws it over the map. <paramref name="ground"/> is read only to
+    /// keep a bridge's piles off its banks; a pier's land is the tile row on
+    /// its door side.
+    /// </summary>
+    public static Image StageArt(Subject s, int stage, Image? ground = null)
+    {
+        var image = Bitmap.Empty(s.TilesWide * 32, s.TilesHigh * 32);
         var mask = s.Mask;
         var b = Bounds(mask);
         var w = s.TilesWide * 32;
@@ -295,8 +309,8 @@ internal static class States
                 LanternStage(image, s, b, stage);
                 break;
             default:
-                if (stage == 1) StakeOut(image, s, b, onWater);
-                else Frame(image, s, b, stage);
+                if (stage == 1) StakeOut(image, s, b, onWater, ground);
+                else Frame(image, s, b, stage, ground);
                 break;
         }
         Materials(image, s, b, stage);
@@ -304,11 +318,11 @@ internal static class States
     }
 
     /// <summary>Stage 1: corner stakes with a string line between them (piles already driven over water).</summary>
-    private static void StakeOut(Image image, Subject s, Rect2I b, bool onWater)
+    private static void StakeOut(Image image, Subject s, Rect2I b, bool onWater, Image? ground = null)
     {
         if (onWater)
         {
-            Piles(image, s, b);
+            Piles(image, s, b, ground);
             return;
         }
         int left = b.Position.X, top = b.Position.Y, right = b.End.X - 1, bottom = b.End.Y - 1;
@@ -325,13 +339,13 @@ internal static class States
     }
 
     /// <summary>Piles driven along both edges of a pier or bridge every six pixels, following its outline, each with a ripple; none on land.</summary>
-    private static void Piles(Image image, Subject s, Rect2I b)
+    private static void Piles(Image image, Subject s, Rect2I b, Image? ground)
     {
         var lengthwise = b.Size.Y >= b.Size.X;
         var ripple = new Color(1, 1, 1, 0.35f);
         void Pile(int x, int y)
         {
-            if (IsLand(image, x, y)) return;
+            if (OnLand(s, x, y) || s.Kind == Build.Bridge && ground is not null && IsLand(ground, x, y)) return;
             Blend(image, x - 1, y, ripple); Blend(image, x + 2, y + 1, ripple);
             Rect(image, x, y, 2, 2, Timber.Edge);
             Blend(image, x, y, Timber.Light);
@@ -357,7 +371,7 @@ internal static class States
     /// the walls stand and the finished roof covers the back of the structure,
     /// with open rafters over the rest and a ladder at the front.
     /// </summary>
-    private static void Frame(Image image, Subject s, Rect2I b, int stage)
+    private static void Frame(Image image, Subject s, Rect2I b, int stage, Image? ground = null)
     {
         var mask = s.Mask;
         var w = mask.GetLength(0);
@@ -377,7 +391,7 @@ internal static class States
             };
             return onSide && MathF.Abs(along - s.DoorMiddle) < 3.5f;
         }
-        if (timberOnly && stage == 2) Piles(image, s, b);
+        if (timberOnly && stage == 2) Piles(image, s, b, ground);
         for (var y = 0; y < h; y++)
             for (var x = 0; x < w; x++)
             {
@@ -762,6 +776,15 @@ internal static class States
                 if (tall) Blend(image, x, y - 2, ruin && Hash(x, y, 4) % 9 == 0 ? Flower : Leaf.Highlight);
             }
     }
+
+    /// <summary>A pier's landward tile row, on its door side, where no piles are driven.</summary>
+    private static bool OnLand(Subject s, int x, int y) => s.Kind == Build.Pier && s.Door switch
+    {
+        DoorSide.North => y < 32,
+        DoorSide.East => x >= s.TilesWide * 32 - 32,
+        DoorSide.West => x < 32,
+        _ => y >= s.TilesHigh * 32 - 32,
+    };
 
     /// <summary>A pixel shows land when it is mostly green rather than water blue.</summary>
     private static bool IsLand(Image image, int x, int y)

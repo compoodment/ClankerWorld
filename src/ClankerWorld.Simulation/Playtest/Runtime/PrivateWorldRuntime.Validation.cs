@@ -306,7 +306,7 @@ public sealed partial class PrivateWorldRuntime
                     !(storage.HouseholdId == lot.OwnerId && definition.Tags.Any(IsHouseholdBuildingTag) ||
                       (people.ContainsKey(lot.OwnerId) || HasEstateStorage(lot)) && storage.HouseholdId is not null &&
                       definition.Tags.Contains("house", StringComparer.Ordinal) ||
-                      storage.TownId == lot.OwnerId && storage.HouseholdId is null && !WarehouseFoodKinds.Contains(lot.ItemKind) &&
+                      storage.TownId == lot.OwnerId && storage.HouseholdId is null && !InventoryContainerRules.IsFood(lot.ItemKind) &&
                       definition.Tags.Contains("warehouse", StringComparer.Ordinal)))
                     throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid building storage location.");
             }

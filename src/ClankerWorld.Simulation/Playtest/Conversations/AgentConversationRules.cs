@@ -668,7 +668,7 @@ public static class AgentConversationRules
         AgentConversation conversation,
         string speakerId) =>
         listenerIds.Count <= MaximumListenersPerTurn &&
-        listenerIds.All(id => !string.IsNullOrWhiteSpace(id) && id.Length <= 128 && id == id.Trim() && !id.Any(char.IsControl)) &&
+        listenerIds.All(id => !string.IsNullOrWhiteSpace(id) && id == id.Trim() && !id.Any(char.IsControl)) &&
         listenerIds.Distinct(StringComparer.Ordinal).Count() == listenerIds.Count &&
         listenerIds.Contains(OtherParticipant(conversation, speakerId), StringComparer.Ordinal) &&
         !listenerIds.Contains(speakerId, StringComparer.Ordinal);

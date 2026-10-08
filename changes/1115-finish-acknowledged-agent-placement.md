@@ -1,0 +1,1 @@
+- Add Agent now closes as soon as placement succeeds. A failed model-settings refresh preserves the placement confirmation, so another map click cannot accidentally add another agent.

@@ -65,6 +65,8 @@ public sealed partial class PrivateWorldRuntime
         if (HouseholdBuildingWithTag(household, kind!) is not null) return false;
         failure = "Only a household holding a Farmhouse can build a Silo.";
         if (kind == "silo" && FarmhouseForHousehold(household) is null) return false;
+        failure = "The household needs a completed House before it can build an animal yard.";
+        if (kind == AnimalContent.YardTag && HouseForHousehold(household) is null) return false;
         failure = "Another household member is already planning this building.";
         var householdId = household;
         if (inhabitants.Values.Any(other => other.InhabitantId != actor &&

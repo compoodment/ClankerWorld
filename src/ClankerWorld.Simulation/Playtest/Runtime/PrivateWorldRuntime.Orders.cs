@@ -196,7 +196,8 @@ public sealed partial class PrivateWorldRuntime
     private bool IsFoodSurvivalCandidate(string actor, string candidateId) => candidateId is
         "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
         "harvest_food" or "seek_food" || candidateId.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal) ||
-        NeedsUrgentFood(inhabitants[actor]) && IsBusinessFoodCandidate(actor, candidateId);
+        NeedsUrgentFood(inhabitants[actor]) &&
+        (IsBusinessFoodCandidate(actor, candidateId) || IsMarketFoodCandidate(actor, candidateId));
 
     private bool IsSurvivalCandidate(string actor, string candidateId) =>
         IsFoodSurvivalCandidate(actor, candidateId) || candidateId is
@@ -421,7 +422,7 @@ public sealed partial class PrivateWorldRuntime
         if (instruction.Order is { } treeOrder && IsTreePlantingOrder(treeOrder.Action))
             return TreePlantingOrderBlockedReason(instruction, person);
         if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))
-            return "Waiting for the named animal, permission, a legal route, carry space and physical feed or jug water.";
+            return AnimalOrderBlockedReason(instruction);
         if (instruction.Order is { } protective && IsShelterOrder(protective.Action))
             return ShelterOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "construct_building")

@@ -205,10 +205,16 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
     }
 
+    private bool CanReachWorkstation(string actor, PlacedBuilding building)
+    {
+        var position = inhabitants[actor].Position;
+        return position == building.Position || FindUnoccupiedRoute(actor, position, building.Position, 0).Count > 0;
+    }
+
     private void AddWorkstationSupplyCandidate(List<CognitionCandidate> candidates, string actor)
     {
         if (!AdultResident(actor) || CarriedHouseDelivery(actor) is not null ||
-            WorkstationSupplyNeeds(actor).FirstOrDefault() is not { } need)
+            WorkstationSupplyNeeds(actor).FirstOrDefault(need => CanReachWorkstation(actor, need.Building)) is not { } need)
             return;
         candidates.Add(new CognitionCandidate(SupplyWorkstationPrefix + need.ItemKind,
             $"Bring {need.ItemKind} into the household {need.Definition.DisplayName} for its work.",
@@ -218,7 +224,8 @@ public sealed partial class PrivateWorldRuntime
     private void SupplyWorkstation(string actor, PlaytestInhabitantState state, string itemKind)
     {
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
-            WorkstationSupplyNeeds(actor).FirstOrDefault(item => item.ItemKind == itemKind) is not { } need)
+            WorkstationSupplyNeeds(actor).FirstOrDefault(item => item.ItemKind == itemKind &&
+                CanReachWorkstation(actor, item.Building)) is not { } need)
             return;
         var building = need.Building;
         if (need.Carried is { } carried)

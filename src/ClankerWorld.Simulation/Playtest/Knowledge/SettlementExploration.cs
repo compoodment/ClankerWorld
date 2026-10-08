@@ -91,9 +91,11 @@ public sealed partial class PrivateWorldRuntime
 
         var occupied = inhabitants.Values.Where(item => item.InhabitantId != actor)
             .Select(item => item.Position).ToHashSet();
+        var pullingCart = AttachedHandcart(actor) is not null;
         var next = map.FootNeighbors(person.Position)
             .Where(point => map.IsPassable(point) && !occupied.Contains(point) &&
                 !exploration.OutingPath.Contains(point))
+            .Where(point => !pullingCart || LegalHandcartStep(person.Position, point))
             // Match movement's corner occupancy rules before ranking exits.
             .Where(point => !map.IsDiagonalFootStep(person.Position, point) ||
                 !occupied.Contains(new GridPoint(point.X, person.Position.Y)) &&
@@ -118,7 +120,7 @@ public sealed partial class PrivateWorldRuntime
         var visited = exploration.VisitedTiles.Contains(moved.Position)
             ? exploration.VisitedTiles
             : exploration.VisitedTiles.Append(moved.Position).TakeLast(ExplorationMemoryLimit).ToArray();
-        var learned = !exploration.VisitedTiles.Contains(moved.Position) && RecordKnowledgeFact(actor, moved.Position);
+        var learned = RecordKnowledgeFact(actor, moved.Position);
         inhabitants[actor] = moved with
         {
             Exploration = exploration with
@@ -161,6 +163,8 @@ public sealed partial class PrivateWorldRuntime
         inhabitants[actor] = person with { Exploration = exploration };
         MoveToward(actor, inhabitants[actor], destination, "explore_return");
         var moved = inhabitants[actor];
+        if (moved.Position != person.Position)
+            RecordKnowledgeFact(actor, moved.Position);
         if (moved.Position == destination && exploration.OutingPath.Count > 1)
             inhabitants[actor] = moved with
             {

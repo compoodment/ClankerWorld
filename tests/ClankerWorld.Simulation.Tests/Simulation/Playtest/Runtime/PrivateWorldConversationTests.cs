@@ -567,7 +567,7 @@ public sealed partial class PrivateWorldConversationTests
             var stateFile = new PrivateWorldStateFile(statePath, id =>
                 id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
             var log = new RecordingLogger<PrivateWorldConversationTests>();
-            var effects = new ProviderUsageWorldEffects(world, stateFile, new object(), log);
+            var effects = new ProviderUsageWorldEffects(world, stateFile, usage, new object(), log);
             usage.LimitReached += effects.PauseAtLimit;
             world.StartWorld();
 

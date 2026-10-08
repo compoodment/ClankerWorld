@@ -198,6 +198,9 @@ public partial class Main
         public TaskCompletionSource RenameReceived { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         // When set, the host holds its rename reply until the check releases it.
         public TaskCompletionSource? ReleaseRename { get; set; }
+        public bool FailAgentPlacement { get; set; }
+        public bool FailPlacementProviderStatus { get; set; }
+        public System.Collections.Concurrent.ConcurrentQueue<OwnerAgentPlacementAction> AgentPlacements { get; } = new();
 
         public WorldActionSmokeHost(string publicKey)
         {
@@ -271,6 +274,25 @@ public partial class Main
             Requests.Enqueue(context.Request.Url!.AbsolutePath);
             switch (context.Request.Url!.AbsolutePath)
             {
+                case OwnerPairingEndpoints.OwnerAgentPlace:
+                    var placement = envelope.GetProperty("action").Deserialize<OwnerAgentPlacementAction>(JsonOptions)!;
+                    AgentPlacements.Enqueue(placement);
+                    if (FailAgentPlacement)
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled placement refusal." };
+                    }
+                    else response = new OwnerAgentPlacementReceipt(placement.AgentId, "household:" + placement.AgentId);
+                    break;
+                case OwnerPairingEndpoints.OwnerProviderStatus:
+                    if (FailPlacementProviderStatus)
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled settings refresh failure." };
+                    }
+                    else response = new OwnerProviderConfigurationStatus("openai", "openai", 0,
+                        [new("openai", "placement-smoke-model", true)]);
+                    break;
                 case OwnerPairingEndpoints.ChallengeIssue:
                     response = new OwnerChallenge(Authority, "smoke-device", Guid.NewGuid().ToString("N"),
                         "smoke-nonce", DateTimeOffset.UtcNow.AddMinutes(1),

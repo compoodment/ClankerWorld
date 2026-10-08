@@ -1,10 +1,11 @@
 // Decides what the Verify workflow (.github/workflows/ci.yml) runs:
 //   node ci-plan.js scope < changed-files   prints code= and tests=: whether to run the code checks and the test suite
 //   node ci-plan.js matrix                  prints shards=[1,2,...], one entry per test job
-//   node ci-plan.js plan <timings-dir>      prints filter_1=... and so on, one dotnet test --filter per test job
+//   node ci-plan.js plan <main-dir>         prints filter_1=... and so on, one dotnet test --filter per test job
 //   node ci-plan.js filter <shard>          prints the fixed fallback filter for one test job
 //   node ci-plan.js slow <results-dir>      lists a job's slowest tests and warns about very slow ones
 //   node ci-plan.js compare <main-dir> <run-dir>  compares a run's test times with main's and warns when tests got slower
+// A <main-dir> holds the timings of main's latest green runs, one folder per run (main-timings.sh).
 // Every test runs in exactly one job: a test belongs to the first shard with an entry that names it,
 // and the last shard runs everything no entry names, so new or renamed tests always run.
 const fs = require('fs');
@@ -15,47 +16,24 @@ const { isDocumentation } = require('./pr-labels.js');
 const Cores = 4;
 // CI warns about a single test slower than this, because no run can finish before its slowest test.
 const SlowTestSeconds = 300;
-// CI warns when the tests both runs have, taken together, take this much longer than in main's latest
-// green run. Only the total is steady enough to warn on: a single test's time swings two to four times
-// between runs of the same code, depending on which tests share the runner's cores with it.
+// CI warns when the tests a run shares with main, taken together, take this much longer than on main.
+// Only the total is steady enough to warn on: a single test's time swings two to four times between
+// runs of the same code, depending on which tests share the runner's cores with it.
 const SuiteSlowerRatio = 1.4;
 const SuiteSlowerSeconds = 120;
 
-// The fallback split, used when the latest main run's timings can't be read. "Class" names a whole
-// test class, apart from tests an earlier shard already names; "Class.Method" names one test method,
-// or several that start with that text. Normally `plan` splits the tests from measured timings.
+// The fallback split, used when main's timings can't be read: the heaviest classes on main, four to a
+// job, and everything else in the last job. "Class" names a whole test class, apart from tests an
+// earlier shard already names; "Class.Method" names one test method, or several that start with that
+// text. Normally `plan` splits the tests from measured timings.
 const PinnedShards = [
-  [
-    'SettlementParenthoodTests.ContinuityDeadlineWithoutARequest',
-    'ConcreteMealTests',
-    'ToolProgressionRuntimeTests',
-    'SpoiledHouseholdDeliveryTests',
-  ],
-  [
-    'SettlementParenthoodTests.ChildCanGrowIntoAWorkingAdult',
-    'PersonalEquipmentTests',
-    'FoodRoutingTests',
-    'WorkstationSourceReserveTests',
-  ],
-  [
-    'SettlementParenthoodTests.OutsideHouseholdRelativeGetsFirstOffer',
-    'BusinessTradeTests',
-    'SettlementSurvivalTests',
-    'HouseRelocationRuntimeTests',
-  ],
-  [
-    'RestaurantBusinessPipelineTests',
-    'BuildingExpansionTests',
-    'OrnamentProductionTests',
-    'PotteryContentTests',
-  ],
-  [
-    'SettlementParenthoodTests.ContinuityResumesPostponedAcceptance',
-    'SettlementParenthoodTests.ContinuityCoupleMayPostpone',
-    'FarmFieldTests',
-    'OrnamentTradeTests',
-    'DamagedCheckpointEntryTests',
-  ],
+  ['RestaurantBusinessPipelineTests', 'NativeOrchardObservationTests', 'PortBoatRuntimeTests', 'OrnamentTradeTests'],
+  ['PrivateWorldConstructionOrderTests', 'PersonalEquipmentTests', 'PrivateWorldFieldOrderTests', 'OrnamentProductionTests'],
+  ['ConcreteMealTests', 'PrivateWorldDeliveryOrderTests', 'FarmFieldTests', 'HandcartRuntimeTests'],
+  ['SettlementParenthoodTests', 'PrivateWorldCollectionOrderTests', 'PotteryContentTests', 'ExplorationBridgeSaveTests'],
+  ['BusinessTradeTests', 'PrivateWorldExpansionOrderTests', 'ToolMakingRequestTests', 'BuildingExpansionTests'],
+  ['PrivateWorldRuntimeTests', 'NewbornModelBindingCheckpointTests', 'CookedMealBirthTests', 'TownReleasedMaterialRecoveryTests'],
+  ['AnimalPipelineTests', 'TownMembershipTests', 'MarketConstructionRuntimeTests', 'PrivateWorldProductionOrderTests'],
 ];
 
 const EntryPattern = /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)?$/;
@@ -148,6 +126,33 @@ function readTimings(dir) {
   return times;
 }
 
+function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+// Each test's median seconds over main's runs in `dir`, one folder per run named by its run ID, how
+// many runs had timings and their IDs. One run's times swing too much to split the tests by, or to
+// compare a change with.
+function readMainTimings(dir) {
+  const folders = dir && fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).filter(item => item.isDirectory()) : [];
+  const samples = {};
+  const ids = [];
+  for (const folder of folders.sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    const times = readTimings(path.join(dir, folder.name));
+    if (Object.keys(times).length === 0) continue;
+    ids.push(folder.name);
+    for (const [name, seconds] of Object.entries(times)) (samples[name] ??= []).push(seconds);
+  }
+  const times = Object.fromEntries(Object.entries(samples).map(([name, values]) => [name, median(values)]));
+  return { times, runs: ids.length, ids };
+}
+
+function mainRuns(runs) {
+  return runs === 1 ? "main's latest green run" : `main's last ${runs} green runs`;
+}
+
 // A job's estimated time. xUnit runs `cores` classes at once and a class's tests one after another,
 // and it may start any class last, so the estimate is (total - longest class) / cores + longest class.
 function jobSeconds(job, cores) {
@@ -205,15 +210,16 @@ function planShards(times, count = shardCount(), cores = Cores) {
   };
 }
 
-// The filters for every test job, from the timings in `dir`, or the fixed split when there are none.
+// The filters for every test job, from main's timings in `dir`, or the fixed split when there are none.
 function planFilters(dir) {
-  const times = readTimings(dir);
+  const { times, runs } = readMainTimings(dir);
   const plan = planShards(times);
   const shards = plan ? plan.named : PinnedShards;
   const lines = [`source=${plan ? 'timings' : 'fixed'}`];
   for (let shard = 1; shard <= shardCount(shards); shard++) lines.push(`filter_${shard}=${testFilter(shard, shards)}`);
   const note = plan
-    ? `Split ${Object.keys(times).length} measured tests; estimated minutes per job: ${plan.minutes.map(m => m.toFixed(1)).join(', ')}.`
+    ? `Split ${Object.keys(times).length} tests measured in ${mainRuns(runs)}; ` +
+      `estimated minutes per job: ${plan.minutes.map(m => m.toFixed(1)).join(', ')}.`
     : 'No timings from main could be read; using the fixed split.';
   return { lines, note };
 }
@@ -230,14 +236,14 @@ function slowReport(times, limit = SlowTestSeconds, top = 10) {
   return { summary, warnings };
 }
 
-// Compares a run's test times with main's latest green run, so a change that makes existing tests
-// slower shows up even when no single test reaches the slow-test limit. A slower simulation usually
-// slows many tests at once, and players' ticks with them.
-function compareTimings(main, run, top = 10) {
+// Compares a run's test times with main's, each test's median over main's last `runs` green runs, so a
+// change that makes existing tests slower shows up even when no single test reaches the slow-test limit.
+// A slower simulation usually slows many tests at once, and players' ticks with them.
+function compareTimings(main, run, { runs = 1, top = 10 } = {}) {
   const common = Object.keys(run).filter(name => name in main).sort();
   const heading = '### Test time against main';
   if (common.length === 0) {
-    return { summary: `${heading}\n\nNo timings from main's latest green run to compare with.\n`, warnings: [] };
+    return { summary: `${heading}\n\nNo timings from main's recent green runs to compare with.\n`, warnings: [] };
   }
   const changes = common.map(name => ({ name, before: main[name], after: run[name], added: run[name] - main[name] }));
   const before = changes.reduce((sum, change) => sum + change.before, 0);
@@ -248,8 +254,9 @@ function compareTimings(main, run, top = 10) {
     .map(change => `| ${change.name} | ${Math.round(change.before)} | ${Math.round(change.after)} | ${percent(change.added / Math.max(change.before, 0.1))} |`);
   const summary = [
     heading, '',
-    `The ${common.length} tests both runs have took ${Math.round(after)} s here and ${Math.round(before)} s in main's latest green run ` +
-      `(${percent(after / before - 1)}). The total varies by about a tenth between runs of the same code.`, '',
+    `The ${common.length} tests this run shares with main took ${Math.round(after)} s here and ${Math.round(before)} s on main ` +
+      `(${percent(after / before - 1)}), taking each test's median over ${mainRuns(runs)}. ` +
+      'The total varies by about a tenth between runs of the same code.', '',
     'The tests that grew most are below. A single test can take two to four times as long or as short between runs, ' +
       'depending on which tests share the runner with it, so look for a pattern rather than one test.', '',
     '| Test | Main (s) | Here (s) | Change |', '| --- | --- | --- | --- |', ...rows, '',
@@ -257,8 +264,8 @@ function compareTimings(main, run, top = 10) {
   const advice = 'Find out why before merging: fix it, or say in the pull request why the extra time is needed ' +
     '(docs/development/build-and-test.md#how-ci-runs).';
   const warnings = after >= before * SuiteSlowerRatio && after - before >= SuiteSlowerSeconds
-    ? [`::warning title=Tests got slower::The tests both runs have took ${Math.round(after)} seconds, ` +
-      `${percent(after / before - 1)} on main's latest green run. ${advice}`]
+    ? [`::warning title=Tests got slower::The tests this run shares with main took ${Math.round(after)} seconds, ` +
+      `${percent(after / before - 1)} against ${mainRuns(runs)}. ${advice}`]
     : [];
   return { summary, warnings };
 }
@@ -318,9 +325,14 @@ if (require.main === module) {
     console.error(note);
     console.log(lines.join('\n'));
   } else if (command === 'slow' || command === 'compare') {
-    const { summary, warnings } = command === 'slow'
-      ? slowReport(readTimings(value))
-      : compareTimings(readTimings(value), readTimings(process.argv[4]));
+    let report;
+    if (command === 'slow') {
+      report = slowReport(readTimings(value));
+    } else {
+      const { times, runs } = readMainTimings(value);
+      report = compareTimings(times, readTimings(process.argv[4]), { runs });
+    }
+    const { summary, warnings } = report;
     if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);
     else console.log(summary);
     for (const warning of warnings) console.log(warning);
@@ -332,6 +344,6 @@ if (require.main === module) {
 
 module.exports = {
   PinnedShards, Cores, SlowTestSeconds, SuiteSlowerRatio, SuiteSlowerSeconds, namePart,
-  clause, shardCount, testFilter, parseTrx, readTimings, planShards, planFilters, slowReport, compareTimings,
+  clause, shardCount, testFilter, parseTrx, readTimings, median, readMainTimings, planShards, planFilters, slowReport, compareTimings,
   compiledFiles, planScope, main,
 };
