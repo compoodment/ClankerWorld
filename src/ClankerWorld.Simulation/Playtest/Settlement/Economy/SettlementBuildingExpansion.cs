@@ -87,7 +87,8 @@ public sealed partial class PrivateWorldRuntime
         .Sum(job =>
         {
             var recipe = worldContent.Recipes.Single(item => item.CanonicalId == job.RecipeId);
-            return Math.Max(0, recipe.Outputs.Sum(item => item.Amount) - job.InputReservationIds
+            return Math.Max(0, recipe.Outputs.Where(item => item.ResourceId != InventoryContainerRules.Handcart)
+                .Sum(item => item.Amount) - job.InputReservationIds
                 .Select(society.Checkpoint.Inventory.GetReservation).Where(reservation =>
                     society.Checkpoint.Inventory.GetLot(reservation.LotId).StorageBuildingId == buildingId)
                 .Sum(reservation => reservation.Quantity));
@@ -138,7 +139,7 @@ public sealed partial class PrivateWorldRuntime
             ? AvailableWarehouseStock(actor, itemKind) : Enumerable.Empty<InventoryLot>();
         return society.Checkpoint.Inventory.Lots
             .Where(lot => lot.OwnerId == owner && lot.ItemKind == itemKind &&
-                lot.StorageBuildingId != building.InstanceId && lot.DeliveryBuildingId is null &&
+                lot.StorageBuildingId != building.InstanceId && lot.DeliveryBuildingId is null && lot.CarrierId is null &&
                 lot.GroundPosition != site && lot.ContainerLotId is null && AvailableLotQuantity(lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Where(lot => CanReachSharedItem(actor, lot))

@@ -397,7 +397,9 @@ requests one building or one expansion stage. Repeating requests and larger
 counts are not understood. Progress reaches one only when the building work
 actually finishes. Queue, cancellation and save/reload preserve the task;
 cancelling leaves collected goods in place and releases unused expansion
-materials. Urgent survival pauses the work before it resumes.
+materials. Expansion leaves borrowed goods with the person carrying them;
+returning them to their owning House makes them available again. Urgent
+survival pauses the work before it resumes.
 
 Use **Seek shelter**, **Take cover** or **Shelter in my House** to reach
 permitted cover. Add **at (12, 4)** to require that location. A storm guest
@@ -437,6 +439,8 @@ A building's storage-space bar shows how much of its recorded limit is used,
 with exact used/limit numbers. It counts all stored goods, including materials
 held for work and goods belonging to someone else. It updates when goods move
 or an expansion increases the limit. Hover over the bar for the exact count.
+Making a personal handcart leaves this space available because the finished
+cart goes on the ground.
 
 **Details** also lists recent recorded storage changes: positive quantities
 were added, negative quantities were removed or used, with the date and time
