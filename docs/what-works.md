@@ -628,7 +628,9 @@ tile; care at the stock tile can use it directly. Care uses grain before
 ready-to-eat greens when available, and may combine grain with spare greens
 across lots. An incomplete safe feed or water load spends nothing. Care orders
 explain missing safe feed and jug water, while valid supply fetching stays
-active. They resume when physical supplies become available. Cared adult hens
+active. They resume when physical supplies become available. Building Details lists animals standing within its footprint,
+with their names, care, ready products and permissions; animals on open ground
+remain available in tile inspection. Cared adult hens
 supply eggs daily, cows two milk daily,
 and sheep two wool every three days. One batch waits for local collection. Milk needs a
 household jug that contains milk or is empty; water and milk never mix.

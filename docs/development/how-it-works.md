@@ -3095,6 +3095,11 @@ position without changing its owner. Cart attachments and boat travel exclude
 ridden or led animals. Godot projects and draws the authoritative animal state
 with young/adult headings, mounted horses, yard art, inspection and event text.
 
+Building Details lists animals whose current observed positions lie within
+the building footprint, using the same `GameUiText.AnimalDescription` as tile
+inspection and hover help. It refreshes with the snapshot and grants no animal
+ownership or care permission.
+
 Collection from another animal and saddling another horse prepare with
 `EndAnimalRide` on their own tick, without product transfer, saddle fitting or
 order credit. The following native action rechecks permissions and foot
