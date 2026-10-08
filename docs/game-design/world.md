@@ -335,9 +335,8 @@ still needs playtesting.
   map, and roads can also run diagonally. The playable foot route finder now
   supports diagonal steps at 141% of cardinal entry cost and requires both
   orthogonal shoulder tiles to be passable; occupied shoulders also block a
-  live diagonal move. Diagonal Town Roads are also built and drawn on the map;
-  see [Towns](towns.md#how-roads-and-bridges-appear). Roads between Towns remain
-  unfinished.
+  live diagonal move. Diagonal Town Roads are drawn on the map too; see
+  [Towns](towns.md#how-roads-and-bridges-appear).
 
 ### Weather over time
 
