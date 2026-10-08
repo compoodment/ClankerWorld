@@ -368,6 +368,7 @@ public sealed record InhabitantObservation(
                         "collect your own stored or dropped food" or
                         "deliver the requested goods to a permitted building" or
                         "make the requested goods at a permitted workstation" or
+                        "write the requested record, map or book from your learned sites using real materials" or
                         "construct the requested household building at a permitted site" or
                         "complete the requested building's next permitted expansion" or
                         "reach the requested permitted shelter" or
@@ -382,6 +383,7 @@ public sealed record InhabitantObservation(
                         "repair your own worn tool" or
                         "till a field for your household" or
                         "plant the requested crop in your household field" or
+                        "plant the requested tree using a real seed outside Town borders" or
                         "tend your household crop" or
                         "harvest your household crop" or
                         "travel to the exact tile named in this order" or

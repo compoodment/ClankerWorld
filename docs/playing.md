@@ -226,6 +226,15 @@ not add a model request for every step or tick.
 Urgent hunger can pause an order to buy and eat food at a shop or Restaurant,
 using the adult's own payment and carrying space. The order remains pending.
 
+Adults can follow **Write a field record**, **Draw a map**, or **Bind a book**.
+They use sites they have personally learned and collect permitted paper and,
+for a book, cloth. The order counts a written item only when the real work
+finishes. **Write two maps** requests two items; **Keep drawing maps** continues
+until cancelled. Once the current account has been written, further writing
+waits for newly learned information. Missing supplies or carrying space also
+leave the order waiting with a reason. **Cancel task** releases that order's
+unused reserved supplies.
+
 Food orders can eat carried food, collect accessible household food to eat,
 travel to a food source, or gather berries, fruit or wild greens. Use simple
 phrases such as "eat 3 berries", "gather berries from berry-patch" or "go to
@@ -325,6 +334,18 @@ unused planting stock. Add **at (12, 4)** to keep the task on that field tile.
 Ordinary crop and seed hauling tries another permitted farm store when the
 preferred one cannot fit the load. For example, a filled pot goes to the
 Farmhouse if the Silo has too little room for the pot and its contents.
+
+To plant trees, try **Plant a conifer tree**, **Plant two broadleaf trees**,
+**Plant an orchard**, or **Keep planting trees**. Adults use real tree seeds
+from felling or orchard seeds from fruit picking. They can fetch their own
+stored seeds or permitted household or Warehouse stock before planting.
+Each completed sapling counts as one tree; collecting a seed and walking do
+not count. Without a species, wood trees follow the nearby forest.
+Add **at (12, 4)** for an exact tile outside Town borders. Occupied or
+unsuitable ground, missing seeds, carrying limits and blocked routes leave
+the task waiting with a reason. An exact tile never changes to another tile,
+so requesting several trees on one tile stops after the first sapling.
+Queue, cancel and save/reload work as for other tasks.
 
 To move supplies for a household or Town, name both the goods and the destination:
 
@@ -440,6 +461,11 @@ materials currently held for that job. **Can make** lists the recipes registered
 for that exact building size and their quantities. Each still needs real
 materials and an adult allowed to work there. Reading the list teaches no
 agent and starts no work. Back (or **Escape**) returns to the small card.
+
+In a paired world, **Change owner** keeps your selected owner and an open
+menu's keyboard highlight as the world updates, including when owner names
+change order. Press **Enter** to select the highlighted owner. If that owner
+becomes unavailable, the menu closes so you can choose from the current list.
 
 A building's storage-space bar shows how much of its recorded limit is used,
 with exact used/limit numbers. It counts all stored goods, including materials

@@ -55,6 +55,12 @@ stored goods, including other owners' goods and materials held for work; the
 household's item grid is a separate view. An older host without a recorded
 limit keeps its item grid and has no guessed capacity bar.
 
+People inside a building, standing under its roof, are hidden from the map.
+At close and mid zoom the building shows a small badge in its top-right corner
+with how many people are inside; hovering it names them, and the building's
+card lists them. People in an open yard, on a pier or at a Market stall stay
+on the map.
+
 On a fresh server, Continue opens New World instead of entering the retired
 test camp. The normal map preview and acceptance steps still apply, and saved
 worlds with founders or other progress keep opening normally.
@@ -231,6 +237,12 @@ every open order, in the order they will be done, and the agent's six latest
 closed orders, which closed suggestions no longer push out. The game draws
 both from the host's snapshot and keeps no order list of its own, so after a
 reconnect or reload they show what the host holds.
+
+Adults can be ordered to write field records, draw maps or bind books, with a
+count or until cancelled. They use their own learned sites and real paper or
+paper and cloth. Finished items count toward the order; identical accounts
+are not written again. More writing waits for new learning, supplies and room
+to carry them. Cancelled or replaced orders release their unused reservations.
 
 Urgently hungry adults may pause an order to buy ready food at a shop or
 Restaurant, including continuing an open food purchase. They need their own
@@ -682,7 +694,7 @@ neglect deaths, horse-drawn carts and animal boat transport remain excluded.
 | Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic, Restaurant or optional Store it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. Adult residents can supply and build a Town Hall, Market, street lantern, Port or communal boat after the Council approves its exact site and budget, as described below. |
 | House resident places, expansion and guests | Basic version | A House gives three resident places per tile, or four when one recorded domestic family unit is at least two people and a strict majority. Travelers and infants count; dead people and invited storm guests do not. A full House can be expanded for more places when the work completes. Add Agent and unanimous household admission check the House's room before adding someone to a household that holds one. Birth still completes into the primary caregiver's current household and can make it overcrowded; the building card and agent context show the count and limit. Existing overcrowding gives eligible adults one unpaused world day to move, with volunteers first and sole caregivers protected; notices, requests and expansion progress appear in agent inspection. Adult household members may also expand a nearly full House for storage; adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Expansion keeps identity, stock and cooking jobs, reserves materials and cancels safely if space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
 | Local exploration and physical knowledge goods | Basic version | Short outings record personal knowledge. Scouting with an attached cart respects its movement limits. Actual revisits refresh changed terrain and resources, and planting teaches the planter; distant agents keep their own accounts. Existing written items and unfinished writing retain their original contents. A House makes paper from real fiber and jug-carried water; adults use paper to write field records and maps, or paper and cloth to bind books. Reading, sharing and trading teach only their actual contents to the recipient. Adults can exchange records, maps or books of the same kind when both contain discoveries the recipient has not learned. Copies cost fresh materials. Purposeful distant exploration is unfinished. |
-| Trade, relationships, conversations and teaching | Basic version | One-for-one barter, where both people must meet and have room for what they receive. Spare carried goods can come from separate stacks while keeping one usable unit of the same kind; individual artifacts and unworn ornaments keep their existing exception. Positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Close biological relatives cannot become partners or plan a child together: parents and children, grandparents and grandchildren, full or half siblings, and aunts or uncles with their nieces or nephews. First cousins can; shared households and caregiving do not count as kinship. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson when both can reach its teaching site. An isolated teacher does not hide another available teacher. The learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
+| Trade, relationships, conversations and teaching | Basic version | One-for-one barter, where both people must meet and have room for what they receive. Spare carried goods can come from separate stacks while keeping one usable unit of the same kind; individual artifacts and unworn ornaments keep their existing exception. Positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Close biological relatives cannot become partners or plan a child together: parents and children, grandparents and grandchildren, full or half siblings, and aunts or uncles with their nieces or nephews. First cousins can; shared households and caregiving do not count as kinship. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson when both can reach its teaching site. An adult carrying out an active Must Do task is unavailable as a teacher until it finishes or is cancelled; ordinary suggestive guidance still permits teaching. An isolated teacher does not hide another available teacher. The learner keeps the skill, teacher and time, and the agent card shows them. Skills currently change no access or work speed. Pricing, currency, conflict and broader group dialogue remain unfinished. |
 | Household shops | Basic version | Adults can offer exact goods for goods kept at a nearby Farmhouse, Blacksmith, Tailor Shop, Clinic, Restaurant or Store. Both traders meet there before anything changes hands. The buyer carries the purchase; payment goes into household stock at that shop. Buyers can seek better tool tiers, clothing that protects them better in the current weather or medicine for an observed illness. Store goods must be carried in first. The building card shows the terms and progress; cancelled offers release both lots. Buying grants no access to private stock, cooking, treatment or household membership. A customer may ask a Blacksmith household for a tool before it is stocked. The household may accept or refuse; accepted work uses its own real materials, and a finished tool is purchased through the usual physical barter. No payment, price promise or future ownership is created by the request. Request status and any missing-input or storage blocker appear on the Blacksmith and relevant agent cards; [its Windows checklist](../playtest/564-tool-making.md) is pending. Market stall trading is described below. Restaurant adults buy missing ingredients and customers buy meals after walking to a shop in their own Town. Its [Windows checklist](../playtest/561-concrete-meals.md) is pending. Barter rates and shelf sizes are provisional. |
 | Clinic supplies and illness care | Basic version | Reachable renewable herb patches supply a household-held 1×1 or 1×2 Clinic. It makes medicine from herbs, wood and water in a reusable jug; a House or Tailor Shop cuts cloth into bandages. One real medicine dose reduces illness gradually. Adults choose up to 16 named caregivers through a fresh accepted personal-model decision and may revoke permission. The last free permission still offers nearby alternatives. Self-care and a dependent's accepted caregiver use their existing authority. Jev, failed replies, repeated intentions and owner orders cannot grant adult permission. Interrupted treatment stops without refunding the spent dose. A caregiver who starts fetching medicine remembers the patient and where they last saw them, brings back one dose and treats only a consenting patient they can find nearby. Saving during either leg keeps the trip; withdrawal of permission stops it. Saving keeps permission and progress; pausing stops recovery time. Injury causes and bandage treatment remain deferred. Automated checks cover this path; [the Windows playtest](../playtest/565-clinic-care.md) remains pending. |
 | Parenthood, guardians, life stages and death | Basic version | Ordinary consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed, is full, or has lost its House; a missing home is recorded as a housing need, and the other parent stays put. If the current primary caregiver dies or ends care, living relatives, household adults and then Town residents are asked in order, and each wider group keeps the earlier ones. A willing adult must accept; until then the child's card and Event Log say “Needs a guardian,” nearby adults may still feed them, and the player can suggest an adult who is being asked in a message. An adult can also be ordered to accept a named child through the same active search; Queue, Cancel task and normal eligibility checks still apply. A completed House with room in the same known Town permits household placement at acceptance. Otherwise care stays accepted while a pending move waits for a suitable home: the guardian collects the child and accompanies them to their House, including in another Town. Household and Town membership change together on arrival, after care authority and room are checked again; birth records stay unchanged. The agent card shows waiting, travel and blockers, and pending moves survive save/load. Infant care, child talk/play/help and age restrictions are enforced. Children can choose another reachable person when nearer contacts are on cooldown for all their social actions; up to three available contacts are offered. Children can recall newly recorded talk, play and learning experiences after save/load, including those with generated identities. Only adults can have children; elders cannot, and a plan ends if either partner becomes an elder before the birth. While fewer than eight non-elders live, the continuity rule lets a partnered couple with no infant put off a child for up to two days but not refuse. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
@@ -798,8 +810,8 @@ with weeds and boarded doors. Once it has stood empty for a full season they
 look falling apart, with holes in the roofs, fallen planks and saplings; a
 revived Town looks lived in again. Its street lanterns and its Port's pier
 lantern stay dark at night; the street lanterns also fade, gathering moss and
-weeds, and its bridges fade and lose boards, then whole planks once the Town
-falls apart.
+weeds, the lantern fittings on its buildings fade with them, and its bridges
+fade and lose boards, then whole planks once the Town falls apart.
 Founding another Town remains unfinished.
 
 Each founded Town has its own council. Its recorded living adult residents
@@ -1322,8 +1334,10 @@ a tree seed. An adult carrying a tree seed may replant a stump, or plant a new
 broadleaf or conifer on grass or forest ground outside the Town, and the Event
 Log says so. Trees are never planted on sand, water, rock, snow, buildings or
 Roads or bridge entrances; a refused planting keeps the seed. A sapling takes 3 days to grow. Trees
-do not spread on their own. This is a basic version: agents have seeds only
-after felling a tree, and you cannot yet tell an agent where to plant.
+do not spread on their own. Tree-planting tasks support quantities, a chosen
+species and an exact tile outside Town borders. Adults fetch a real permitted
+seed if needed, walk to the site and count only completed saplings. See the
+[task examples](playing.md#look-around).
 
 Orchard fruit trees bear fruit only in autumn. They are growing (leaves only)
 the rest of the year and drop any fruit left when autumn ends. A picked tree
@@ -1357,9 +1371,12 @@ keep the existing cart icon while the
 is pending.
 Agents face the way they last moved and show walking steps, and carrying,
 working, talking or hurt poses chosen from what the game already knows about
-them. A mountain range near the camera can show the earlier per-tile art for
-a moment while its relief is drawn. Picked, harvested and per-site depleted
-states are drawn but need the game to track them. The interface uses wooden
+them. Mountain relief is drawn nearest the middle of the view first, and for
+the ring just outside it ahead of time, so panning rarely shows the earlier
+per-tile mountain art; where it does, as just after a world loads, the relief
+fades in over a fifth of a second. Natural sites show their approved picked,
+harvested and depleted drawings from what the game already tracks about each
+site. The interface uses wooden
 frames and parchment panels, with pixel fonts:
 Fusion Pixel for body text and Timber capitals for headings. The Main Menu shows
 the ClankerWorld logo over an animated pixel-art valley with snowy mountains
