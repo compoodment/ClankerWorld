@@ -1901,7 +1901,10 @@ guardian needs a recorded Town and a completed household House with room;
 acceptance creates neither a House nor a resident place.
 
 The guardian first reaches the child, then accompanies them to the selected
-House through ordinary movement. The guardian waits for a child who falls
+House through ordinary movement. Collections keep acceptance order among
+currently reachable children; an unreachable collection does not hold up another
+accepted child. An ongoing escort stays together, and blocked collections retry
+after the available journeys finish. The guardian waits for a child who falls
 behind. Urgent food and warmth needs may interrupt the journey without
 removing accepted care. Capacity, current care authority, Town membership and
 the House's identity are checked again before placement. Only arrival together
@@ -1995,6 +1998,13 @@ to each stocked permitted Warehouse, using movement's exact destination,
 diagonal, shared entrance and attached handcart rules. If none is reachable,
 preparation continues to its existing material-gathering fallback. Collection
 still rechecks authority, available stock and carrying room at the Warehouse.
+
+Ordinary workstation supply choices and execution check the adult's current
+native route to each destination before selecting its missing input. An
+occupied earlier workshop does not hide a reachable House or another workshop.
+The route is checked again as the actor moves; reaching a shared household
+building can make another delivery possible. Supply still uses actual carried
+or accessible stock, ownership, receiving space and carrying limits.
 
 Blacksmith input hauling checks the actor's current unoccupied pickup route
 and the source-to-shop route before selecting household or permitted Town
@@ -2105,6 +2115,13 @@ include only collection of edible food the adult may legally retrieve. This
 filter runs before the candidate limit; normal Market choices retain their
 existing order. Collection still needs a fresh personal LLM choice and the
 usual ownership, reservation, route and receiving-space checks.
+The owner-order survival classifier revalidates an edible collection against
+the same Market choices, so urgent retrieval can interrupt an unrelated task.
+It grants no new stock access or trade consent; the original order and its
+progress remain available after the emergency. An interrupted order executes
+collection only for the actual fresh admitted personal LLM choice. A matching
+accepted intention can continue walking to the stall between decisions; it
+cannot collect through the automatic continuation path.
 Ordinary collection uses physical unreserved quantities, so spoiled stock can
 be reclaimed from a current or former stall without deleting or refreshing it.
 Urgent food collection additionally requires usable food; spoilage never
@@ -3087,6 +3104,11 @@ permission loss ends riding; dismount puts unreserved excess cargo at the actual
 position without changing its owner. Cart attachments and boat travel exclude
 ridden or led animals. Godot projects and draws the authoritative animal state
 with young/adult headings, mounted horses, yard art, inspection and event text.
+
+Building Details lists animals whose current observed positions lie within
+the building footprint, using the same `GameUiText.AnimalDescription` as tile
+inspection and hover help. It refreshes with the snapshot and grants no animal
+ownership or care permission.
 
 Collection from another animal and saddling another horse prepare with
 `EndAnimalRide` on their own tick, without product transfer, saddle fitting or

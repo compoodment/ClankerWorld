@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # Playing the current game
@@ -301,6 +301,9 @@ production stock as personal property.
 When carrying several water jugs, agents can refill one with room even if
 another is full. They still need a reachable riverbank or lakeshore and enough
 carrying space for the water.
+
+When returning a jug, agents leave jugs needed for other work alone and choose
+one that fits in the House with all its contents.
 
 To return borrowed stock, use **Return two borrowed cloth**, **Return two
 borrowed bread** or **Return one borrowed water jug**. The agent carries the
@@ -638,8 +641,9 @@ even if they spoil. Other housemates can collect household stock once borrowing
 ends; the borrower may collect it while holding the stall.
 Suggestions can guide these choices, but an Order cannot force
 a sale or give away goods. An urgently hungry owner can still retrieve their
-available food from a stall and eat it. Other Market work waits until urgent
-hunger passes. The
+available food from a stall and eat it, including during an unrelated active
+Order. That survival interruption keeps the task and its progress. Other
+Market work waits until urgent hunger passes. The
 [Market hands-on checklist](../playtest/564-market-stalls.md) remains pending.
 
 Residents can also propose a **stone street lamp** or **hanging street lantern**
@@ -813,7 +817,8 @@ Households receive no starting animals. Look for wild chickens, sheep, cows or
 horses near wild greens and fresh water.
 
 Click an animal's tile for its name, age, household, care, ready product and
-permissions. Use its exact unique name or ID in a Must do order, for example
+permissions. If the animal is inside a building, open that building's **Details**
+to see the animals standing there. Use its exact unique name or ID in a Must do order, for example
 **Tame Moss**, **Lead home Moss**, **Care for Moss**, or **Collect from Moss**.
 **Repeat care for Moss** and **Repeat collect from Moss** keep the task active
 until cancelled. When the animal is elsewhere in the yard, the adult picks up

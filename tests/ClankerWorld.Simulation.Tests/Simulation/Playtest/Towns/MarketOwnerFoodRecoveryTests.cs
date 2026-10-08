@@ -1,3 +1,4 @@
+using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
@@ -8,9 +9,15 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class MarketOwnerFoodRecoveryTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task HungryOwnersRetrieveAndEatTheirActuallyDepositedMarketFood(bool urgent)
+    [InlineData(false, 0, "personal")]
+    [InlineData(true, 0, "personal")]
+    [InlineData(true, 1, "personal")]
+    [InlineData(true, 2, "personal")]
+    [InlineData(true, 1, "walking")]
+    [InlineData(true, 1, "jev")]
+    [InlineData(true, 1, "idle")]
+    [InlineData(true, 1, "invalid")]
+    public async Task HungryOwnersRetrieveAndEatTheirActuallyDepositedMarketFood(bool urgent, int orderMode, string choiceMode)
     {
         var state = await PaidMarketWorld.StateAsync();
         var seller = state.Inhabitants.OrderBy(person => person.InhabitantId, StringComparer.Ordinal).First().InhabitantId;
@@ -85,23 +92,101 @@ public sealed class MarketOwnerFoodRecoveryTests
                 ? person with { HungerBasisPoints = urgent ? 1_900 : 2_100, LastDecisionContext = null }
                 : person).ToArray(),
         };
-        var choices = RecoveryChoices(seller);
-        using var world = PrivateWorldRuntime.Restore(ready, choices.CreateProvider);
-        using var replay = PrivateWorldRuntime.Restore(ready, RecoveryChoices(seller).CreateProvider);
-        world.Validate();
-        var before = Meals(world, seller);
-        for (var tick = 0; tick < 12; tick++)
+        if (choiceMode == "walking")
         {
+            var occupied = ready.WorldSimulation!.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+                    ready.WorldContent!.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building))
+                .Concat(ready.Inhabitants.Where(person => person.InhabitantId != seller).Select(person => person.Position))
+                .ToHashSet();
+            var stallSite = MarketContent.StallSite(market.Site, 0);
+            var start = MarketContent.PlazaTiles(market.Site)
+                .Where(point => ready.Map.IsPassable(point) && !occupied.Contains(point))
+                .OrderByDescending(point => ready.Map.FootDistance(point, stallSite)).First();
+            Assert.True(ready.Map.FootDistance(start, stallSite) > 2);
+            ready = PaidMarketWorld.At(ready, seller, start);
+        }
+        var mayRetrieve = choiceMode is "personal" or "walking";
+        var choices = RecoveryChoices(seller, choiceMode);
+        using var world = PrivateWorldRuntime.Restore(ready, choices.CreateProvider);
+        using var replay = PrivateWorldRuntime.Restore(ready, RecoveryChoices(seller, choiceMode).CreateProvider);
+        string? instructionId = null;
+        if (orderMode != 0)
+        {
+            var request = new OwnerInstructionRequest("market-food-order", "owner:test", seller,
+                OwnerInstructionKind.MustDo, "repeat gather wood");
+            instructionId = world.SubmitInstruction(request).InstructionId;
+            Assert.Equal(instructionId, replay.SubmitInstruction(request).InstructionId);
+        }
+        world.Validate();
+        var initialBytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
+        Assert.Equal(initialBytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        var lastInitialEvent = world.ExportState().Events[^1].EventId;
+        var before = Meals(world, seller);
+        // An order keeps its ordinary 30-tick personal-decision cadence at arrival.
+        for (var tick = 0; tick < (choiceMode == "walking" ? 42 : 12); tick++)
+        {
+            if (orderMode == 2 && tick == 6)
+            {
+                var cancellation = new OwnerOrderCancelRequest("stop-market-food-order", "owner:test", world.Society.WorldId,
+                    seller, instructionId!);
+                Assert.True(world.CancelOrder(cancellation).Changed);
+                Assert.True(replay.CancelOrder(cancellation).Changed);
+            }
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+            if (choiceMode == "walking" && tick == 0)
+            {
+                Assert.NotNull(world.Society.Inventory.GetLot(food.LotId).GroundPosition);
+                var walkingBytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+                using var loaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(walkingBytes),
+                    RecoveryChoices(seller, choiceMode).CreateProvider);
+                using var uninterrupted = PrivateWorldRuntime.Restore(world.ExportState(),
+                    RecoveryChoices(seller, choiceMode).CreateProvider);
+                Assert.Equal(walkingBytes, PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
+                Assert.True((await loaded.AdvanceOneTickAsync()).Advanced);
+                Assert.True((await uninterrupted.AdvanceOneTickAsync()).Advanced);
+                Assert.Equal(PrivateWorldRuntimeCodec.Encode(uninterrupted.ExportState()),
+                    PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
+            }
         }
-        Assert.Contains(choices.OfferedTo(seller), candidate => candidate.Id.StartsWith("market_collect:", StringComparison.Ordinal) &&
-            candidate.Description.Contains(" berries ", StringComparison.Ordinal));
-        Assert.True(Meals(world, seller) > before);
-        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id == food.LotId && lot.GroundPosition is not null);
+        if (mayRetrieve)
+        {
+            Assert.Contains(choices.OfferedTo(seller), candidate => candidate.Id.StartsWith("market_collect:", StringComparison.Ordinal) &&
+                candidate.Description.Contains(" berries ", StringComparison.Ordinal));
+            Assert.True(Meals(world, seller) > before,
+                $"{choiceMode}: hunger={world.Inhabitants.Single(person => person.InhabitantId == seller).HungerBasisPoints}, " +
+                $"food={world.Society.Inventory.Lots.FirstOrDefault(lot => lot.Id == food.LotId)}, " +
+                $"events={string.Join(';', world.ExportState().Events.Where(item => item.EventId > lastInitialEvent).TakeLast(8).Select(item => item.Kind + ':' + item.Detail))}");
+            Assert.True(world.Inhabitants.Single(person => person.InhabitantId == seller).HungerBasisPoints > 2_100);
+            Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id == food.LotId && lot.GroundPosition is not null);
+            if (choiceMode == "walking")
+                Assert.True(world.ExportState().Events.Count(item => item.EventId > lastInitialEvent && item.Kind == "inhabitant_moved" &&
+                    item.Detail.StartsWith(seller + ":", StringComparison.Ordinal) && item.Detail.EndsWith(":market_collect", StringComparison.Ordinal)) >= 2);
+        }
+        else
+        {
+            Assert.Equal(before, Meals(world, seller));
+            Assert.Equal((seller, 4), (world.Society.Inventory.GetLot(food.LotId).OwnerId, world.Society.Inventory.GetLot(food.LotId).Quantity));
+            Assert.NotNull(world.Society.Inventory.GetLot(food.LotId).GroundPosition);
+            Assert.Null(world.Society.Inventory.GetLot(food.LotId).CarrierId);
+        }
         Assert.Equal((seller, 2), (world.Society.Inventory.GetLot(wood.LotId).OwnerId, world.Society.Inventory.GetLot(wood.LotId).Quantity));
-        if (urgent)
+        if (instructionId is not null)
+        {
+            var order = Assert.Single(world.ExportState().Instructions!, item => item.InstructionId == instructionId).Order!;
+            var actualHarvests = world.ExportState().Events.Count(item => item.EventId > lastInitialEvent &&
+                item.Kind == "material_gathered" && item.Detail.StartsWith(seller + ":wood:", StringComparison.Ordinal));
+            Assert.Equal(("gather_material", actualHarvests, true), (order.Action, order.CompletedUnits, order.RepeatUntilCancelled));
+            if (orderMode == 2) Assert.Equal("cancelled", order.Status);
+            else
+            {
+                Assert.NotEqual("cancelled", order.Status);
+                Assert.NotEqual("finished", order.Status);
+            }
+        }
+        if (urgent && mayRetrieve)
             Assert.DoesNotContain(choices.Offered.First(item => item.Actor == seller).Candidates, candidate => candidate.Id.StartsWith("market_collect:", StringComparison.Ordinal) &&
                 candidate.Description.Contains(" wood ", StringComparison.Ordinal));
         world.Validate();
@@ -120,13 +205,16 @@ public sealed class MarketOwnerFoodRecoveryTests
         "fruit_porridge", "bread", "stew", "restaurant_meal", "cooked_eggs", "milk_porridge", "rich_meal",
     };
 
-    private static MarketRulesPolicy RecoveryChoices(string seller) => new()
+    private static MarketRulesPolicy RecoveryChoices(string seller, string choiceMode) => new(
+        choiceMode == "jev" ? DecisionProviderKind.Jev : DecisionProviderKind.LargeLanguageModel)
     {
-        Choose = (actor, candidates) => actor == seller
-            ? candidates.FirstOrDefault(candidate => candidate.Id == "consume_food") ??
+        Choose = (actor, candidates) => actor != seller || choiceMode == "idle"
+            ? candidates.Single(candidate => candidate.Id == "safe_idle")
+            : choiceMode == "invalid"
+                ? new CognitionCandidate("not_offered", "Unusable response.", 0)
+                : candidates.FirstOrDefault(candidate => candidate.Id == "consume_food") ??
                 candidates.FirstOrDefault(candidate => candidate.Id.StartsWith("market_collect:", StringComparison.Ordinal) &&
                     candidate.Description.Contains(" berries ", StringComparison.Ordinal)) ??
-                candidates.Single(candidate => candidate.Id == "safe_idle")
-            : candidates.Single(candidate => candidate.Id == "safe_idle"),
+                    candidates.Single(candidate => candidate.Id == "safe_idle"),
     };
 }
