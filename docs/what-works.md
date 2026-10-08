@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # What works today
@@ -1008,6 +1008,14 @@ connected water, including the world’s east/west seam. Boats remain Town
 property. Residents may use their Town’s boats; visitors need a Council-adopted
 individual or standing permission. Permission grants no membership or stock
 access. Ordinary law text does not authorize travel.
+
+**Travel by boat to Port at (196, 13)** orders an adult to the Port at its
+listed tile. The destination stays bound to that Port. The agent walks to a
+usable departure approach and joins the normal trip queue; the order creates
+no boat or permission. Only arrival at the requested Port finishes it.
+Cancelling or replacing a waiting order releases its request. Once aboard,
+the passenger and goods finish the existing safe journey or recovery, even
+if the order is cancelled. Returning to departure does not complete the order.
 
 The oldest currently usable request boards first. A blocked request keeps its
 place without holding a boat or blocking another usable traveler. Departure

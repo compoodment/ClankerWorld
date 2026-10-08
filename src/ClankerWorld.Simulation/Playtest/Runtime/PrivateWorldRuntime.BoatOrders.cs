@@ -62,6 +62,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var actor = instruction.TargetInhabitantId;
         var binding = instruction.Order!.BoatTravel!;
+        if (PassengerBoat(actor) is not null) return "The passenger must finish their current boat journey before starting another trip.";
         if (Port(binding.DestinationPortId) is not { } destination) return "The requested Port is no longer available.";
         if (!PortIsLegal(destination)) return "The destination Port or its land approach is blocked.";
         if (BoundBoatRequest(instruction) is { Status: "waiting" } request)
@@ -131,8 +132,12 @@ public sealed partial class PrivateWorldRuntime
 
     private static void ValidateBoatOrderBindings(PrivateWorldRuntimeState state)
     {
+        if (!(state.Instructions ?? []).Any(instruction => instruction.Order?.Action == "travel_by_boat") &&
+            !state.BoatTransport.Requests.Any(request => request.OrderInstructionId is not null)) return;
         var instructions = (state.Instructions ?? []).ToDictionary(instruction => instruction.InstructionId, StringComparer.Ordinal);
         var requests = state.BoatTransport.Requests.ToDictionary(request => request.Id, StringComparer.Ordinal);
+        var requestsByInstruction = state.BoatTransport.Requests.Where(request => request.OrderInstructionId is not null)
+            .ToLookup(request => request.OrderInstructionId!, StringComparer.Ordinal);
         foreach (var request in requests.Values.Where(request => request.OrderInstructionId is not null))
         {
             if (!instructions.TryGetValue(request.OrderInstructionId!, out var instruction) ||
@@ -147,10 +152,14 @@ public sealed partial class PrivateWorldRuntime
             if (!IsValidBoatOrderShape(order)) throw new InvalidDataException("A boat order must retain one stable destination and real arrival progress.");
             var binding = order.BoatTravel!;
             var port = state.WorldSimulation?.Buildings.FirstOrDefault(port => port.InstanceId == binding.DestinationPortId);
-            if (port is not null && (port.Position != order.TargetPosition || !state.WorldContent!.Buildings.Any(definition =>
+            if (port is null && !(state.Towns ?? []).SelectMany(town => town.Projects).Any(project =>
+                    project.CompletedBuildingId == binding.DestinationPortId && project.RemovedTick is not null &&
+                    project.Plan.Site == order.TargetPosition && state.WorldContent!.Buildings.Any(definition =>
+                        definition.CanonicalId == project.Plan.DefinitionId && PortNavigationRules.IsPort(definition))) ||
+                port is not null && (port.Position != order.TargetPosition || !state.WorldContent!.Buildings.Any(definition =>
                     definition.CanonicalId == port.DefinitionId && PortNavigationRules.IsPort(definition))))
                 throw new InvalidDataException("A boat order's named Port must match its saved destination tile.");
-            var owned = requests.Values.Where(request => request.OrderInstructionId == instruction.InstructionId).OrderBy(request => request.Sequence).ToArray();
+            var owned = requestsByInstruction[instruction.InstructionId].ToArray();
             var latest = owned.LastOrDefault();
             if (binding.RequestId != latest?.Id || latest is not null &&
                 (order.Status == "finished" && latest.Status != "arrived" ||

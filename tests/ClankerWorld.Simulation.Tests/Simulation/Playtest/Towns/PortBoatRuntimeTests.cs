@@ -618,6 +618,7 @@ public sealed partial class PortBoatRuntimeTests
         internal string TripActor { get; set; } = Author;
         internal bool CancelWaiting { get; set; }
         internal bool GrantAll { get; set; }
+        internal bool RevokeBoatAccess { get; set; }
         internal bool LeaveToTown { get; set; }
         internal string? HoldActor { get; set; }
         internal TaskCompletionSource<CognitionDecisionResponse> HeldReply { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -653,6 +654,16 @@ public sealed partial class PortBoatRuntimeTests
                     selected = candidates.FirstOrDefault(candidate => candidate.Id.StartsWith("boat_cancel:", StringComparison.Ordinal));
                 if (selected is null && policy.GrantAll && actor == Author)
                     selected = candidates.FirstOrDefault(candidate => candidate.Id.Contains("|boat_access|all|", StringComparison.Ordinal));
+                if (selected is null && policy.RevokeBoatAccess && actor == Author)
+                {
+                    var law = policy.World!.Towns[0].Government!.Laws.FirstOrDefault(law =>
+                        TownLawRules.IsInForce(law) && TownLawRules.Current(law).BoatAccess is not null);
+                    if (law is not null) selected = candidates.FirstOrDefault(candidate =>
+                        candidate.Id.Contains("|repeal|" + law.Id + "|", StringComparison.Ordinal));
+                    // Propose once, then visit/read/vote through the normal civic
+                    // path rather than repeatedly trying the same pending repeal.
+                    if (selected is not null) policy.RevokeBoatAccess = false;
+                }
                 if (selected is null && policy.Build && actor == Author &&
                     !projects.Any(project => project.Stage is not ("completed" or "cancelled")))
                 {

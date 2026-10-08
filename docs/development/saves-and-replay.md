@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # Saves and replay
@@ -370,7 +370,7 @@ offers keep their history. Strict loading rejects a missing or unrelated
 predecessor instead of reconstructing obligations or moving earlier physical
 receipts into the replacement. Previously written accepted renegotiations with
 a lost predecessor are refused and preserved. No saved fields or event shapes
-change, and current schema 100 is retained.
+change; that repair adds no checkpoint fields.
 
 Schema 97 adds `CarriedAvailableQuantityBefore` to native public-service
 receipts. It snapshots the usable personal stock of the donated kind before
@@ -829,7 +829,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 100. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 101. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -976,6 +976,7 @@ current alpha cutoff.
 | Schema 98 | Existing inventory events retain exact physical storage additions/removals by building and item kind, with signed quantities. Event identities, trade receipts, rollback and bounded archival remain intact. Malformed changes and earlier alpha schemas are refused; no migration or history reconstruction is added. |
 | Schema 99 | Towns retain the latest abandonment tick independently of bounded events. Revival clears it; missing markers, future or pre-founding ticks, and markers on lived-in Towns are refused. Earlier alpha saves are refused and preserved without migration. |
 | Schema 100 | Actual observations refresh current personal map facts. The required bounded `EarlierFacts` ledger backs unchanged artifacts and writing snapshots; duplicate, orphaned, future and mismatched versions are refused. Native writing, copying, planting, cancellation and current-format continuation retain exact contents and paid materials. Earlier alpha saves are refused and preserved without migration. |
+| Schema 101 | Owner Port-travel orders bind the exact destination Port and latest native boat request. Requests retain their originating instruction; sequential retry and actual destination-arrival receipts are validated. Cancellation preserves underway recovery, and return to departure supplies no completion. Earlier alpha saves are refused and preserved without migration. |
 
 ### Tool-making requests
 
@@ -1130,6 +1131,16 @@ Ports, status, boat and settlement time. Validation rejects mismatched payment,
 owner, passenger or request, duplicate physical or incoming dock claims, invalid
 water steps and an active passenger separated from the boat. Waiting requests
 hold no boat reservation; terminal history remains saved.
+
+Schema 101 adds `OwnerInstructionOrder.BoatTravel`, containing the stable
+destination Port ID and latest request ID, and optional `BoatTripRequest.OrderInstructionId`.
+Validation binds each ordered request to the same instruction, passenger and
+destination, disallows overlapping retries, and requires the latest actual
+`arrived` request for a finished order. Unknown Ports, changed destination
+tiles and invented progress are refused; a removed Port remains identifiable
+through its paid construction record. Cancelled orders may retain an underway
+or settled journey, but never an unused waiting request. Native arrival
+receipts survive event-history compaction; events alone cannot prove completion.
 
 Council boat permission is an explicit typed field on its proposal draft and
 adopted law version. The exact known visitor or standing grant, canonical rule,
