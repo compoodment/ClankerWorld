@@ -34,6 +34,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidateBoatTransport(CaptureState());
         ValidateAnimalState(CaptureState());
+        ValidateCartOrderBindings(society.Checkpoint.Inventory, instructionsByIdempotency.Values);
         ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
             society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates);
@@ -489,6 +490,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
         ValidateBoatTransport(state);
+        ValidateCartOrderBindings(state.Society.Society.Inventory, state.Instructions ?? []);
         ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
             state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates);
@@ -624,6 +626,7 @@ public sealed partial class PrivateWorldRuntime
             "finished" or "cancelled" or "not_understood";
         var terminal = order.Status is "finished" or "cancelled" or "not_understood";
         var isCompleted = completedInstructionIds.Contains(instruction.InstructionId, StringComparer.Ordinal);
+        if (!IsCartOrder(order.Action) && order.TargetCartLotId is not null) return false;
         if ((order.TargetAnimalId is not null) != IsAnimalOrder(order.Action)) return false;
         if (!knownStatus || (order.Status == "queued" && !instruction.Queue) ||
             order.BlockedReason is { Length: > 256 } || order.BlockedReason?.Any(char.IsControl) == true ||
@@ -652,6 +655,12 @@ public sealed partial class PrivateWorldRuntime
             terminal != isCompleted)
             return false;
 
+        if (IsCartOrder(order.Action))
+            return (order.TargetCartLotId is null || IsValidInstructionIdentifier(order.TargetCartLotId) && order.TargetCartLotId == order.TargetCartLotId.Trim()) &&
+                order.RequestedUnits == 1 && order.CompletedUnits is >= 0 and <= 1 && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
+                order.ProgressUnit == "cart_tasks" && order.TargetFoodKind is null && order.TargetAgentId is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.Status != "not_understood" && (order.Status == "finished") == (order.CompletedUnits == 1) &&
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.TargetCartLotId is not null && order.LastEffectId == CartOrderEffectId(instruction));
         if (IsAnimalOrder(order.Action))
             return !string.IsNullOrWhiteSpace(order.TargetAnimalId) && order.TargetAnimalId.Length <= 128 &&
                 !order.TargetAnimalId.Any(char.IsControl) && order.RequestedUnits == 1 && order.CompletedUnits >= 0 &&

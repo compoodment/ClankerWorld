@@ -354,7 +354,9 @@ public sealed record InhabitantObservation(
                 message.RunEpoch < 0 || message.RunEpoch > RunEpoch || message.SubmissionSequence <= 0 ||
                 !instructionIds.Add(message.InstructionId) ||
                 message.Kind == "must_do" && message.UnderstoodTask is not
-                    ("care for the named animal with real feed and jug water" or
+                    ("reach and attach the selected owned handcart" or
+                        "park the selected attached handcart here with its cargo intact" or
+                        "care for the named animal with real feed and jug water" or
                         "collect the named animal's ready products locally" or
                         "tame the named wild animal for your household" or
                         "lead the named animal to its household yard" or
