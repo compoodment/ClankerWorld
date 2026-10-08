@@ -2892,7 +2892,8 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   standalone regeneration calculation without repeating configuration checks
   for each resource. No validation result is retained across batches: changed
   profile lists and newly loaded inputs are checked again. Standalone
-  `EcologyRules.Regenerate` still validates its own configuration and resource.
+  `EcologyRules.Regenerate` still validates its own configuration, and each
+  resource is checked again during regeneration as before.
 - **Owner orders** accept bounded tree counts, repeat-until-cancelled work,
   optional broadleaf/conifer/orchard species and an exact planting tile. The
   parser, observer guidance and strict saved-order validation use the same
