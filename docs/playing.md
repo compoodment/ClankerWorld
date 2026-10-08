@@ -173,6 +173,14 @@ centers the camera on them, and back (or **Escape**) returns from the Profile
 to the small card. Inspection does not pause time, and reading private thoughts
 does not tell other agents.
 
+Agents can keep scouting beyond a short local trip and choose when to return
+to where they started. They learn from the places they actually reach, and
+keep their discoveries when they return. You can Suggest that an agent scout
+farther or return; their own model still chooses whether to follow that
+suggestion. Urgent food or warmth needs may interrupt a trip. A return goes
+around other people where possible; if it stays blocked, the Event Log records
+that the trip ended without reaching its start.
+
 **Memories** shows what the agent remembers, believes and has mapped as cards,
 newest first, with a tab for each kind. A belief shows how sure they are and
 whether they saw it or heard it from someone; a map record shows each place
@@ -491,6 +499,12 @@ and survives saving or reconnecting; it covers the recent records still kept
 by the server. Goods changing owners in the same building do not count as a
 physical addition or removal.
 
+Grass and tree canopies follow the seasons: brighter in spring, their usual
+colours in summer, warmer in autumn and more muted in winter. Snow still
+appears only where the world records it. Panning, zooming and loading a world
+keep the same seasonal treatment, including the terrain and tree pictures in
+tile inspection.
+
 Every day has a night, with a short dusk and dawn. Nights are longest in winter
 and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
 start of spring and autumn, about 2 min 24 s of a six-minute day; from 20:24
@@ -515,7 +529,9 @@ is on, the top of the log offers **Add a newcomer**, which opens Add Agent.
 Opening the offer adds nobody and makes no paid model call. **Agents** lists
 everyone with their portrait and what they are doing, and tags anyone
 **Hungry**, **Cold** or **Ill**. Click a row to find that agent, or
-double-click it to open their Profile.
+double-click it to open their Profile. With the list focused, use **Up** and
+**Down** to browse its rows and **Enter** to open the chosen Profile. The list
+stays open while you move between rows.
 
 **Add Agent** configures and places another adult after starting. Placement
 shows the household and Town that the selected tile would give the adult.
