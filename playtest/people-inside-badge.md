@@ -1,0 +1,2 @@
+- Watch a household at close zoom while someone goes into their House. They should disappear from the map at the door, the House should show a small badge with a person and "1" in its top-right corner, and hovering the badge should name them. When they come out, they should appear again and the badge should go. ([#1183](https://github.com/compoodment/ClankerWorld/pull/1183))
+- Find someone standing in an animal yard or on a Port's pier. They should stay visible, with no badge on the yard or the Port. ([#1183](https://github.com/compoodment/ClankerWorld/pull/1183))
