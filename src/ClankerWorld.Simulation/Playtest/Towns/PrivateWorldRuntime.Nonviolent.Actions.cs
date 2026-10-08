@@ -118,7 +118,7 @@ public sealed partial class PrivateWorldRuntime
                 state = AddNonviolentEvidence(state, state.Cases.Single(current => current.Id == item.Id),
                     new("law:" + law.Id + ":" + version.Version, revision.Number, "record", "record_inspection", actor,
                         LandHearingLawToken(law, version), TownLandHearingRules.LawVersion(version), item.Allegation.ConductTick,
-                        actor, WorldTick, lawText[..Math.Min(256, lawText.Length)]), actor, council);
+                        actor, WorldTick, NonviolentExcerpt(lawText, 256)), actor, council);
                 state = TownNonviolentRules.Inspect(state, item.Id, revision.Number, actor, WorldTick);
                 state = AcquireNonviolentInspectedSources(town with { Nonviolent = state, Governance = council },
                     state.Cases.Single(current => current.Id == item.Id), actor);

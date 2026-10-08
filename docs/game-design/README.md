@@ -2,7 +2,7 @@
 title: Game design
 type: game-design-index
 status: active
-updated: 2026-10-01
+updated: 2026-10-08
 ---
 
 # Game design
@@ -60,10 +60,22 @@ The player's [role and intervention controls](interface-and-art.md#player-guidan
 are agreed: the observer can send suggestions and orders through the game's
 normal rules. These controls do not mean every intended action is built yet.
 
-Still-open topics include knowledge across generations, government and the economy, medicine and
-injuries, art references and invention assets, the details of save branches
-and mod compatibility. Work out the intended experience before narrowing these choices
-to what the current prototype can already do.
+Government and the economy is still partly open. Taxes
+([#1255](https://github.com/compoodment/ClankerWorld/issues/1255)) and
+currency ([#1256](https://github.com/compoodment/ClankerWorld/issues/1256))
+were answered on October 8, but physical law enforcement and war still wait
+on the detailed combat design. Also answered on October 8: knowledge across
+generations ([#1246](https://github.com/compoodment/ClankerWorld/issues/1246)),
+medicine and injuries ([#1267](https://github.com/compoodment/ClankerWorld/issues/1267)),
+invention pictures ([#1270](https://github.com/compoodment/ClankerWorld/issues/1270)),
+save branch names and autosave rotation
+([#1251](https://github.com/compoodment/ClankerWorld/issues/1251)) and mod
+compatibility ([#1272](https://github.com/compoodment/ClankerWorld/issues/1272)).
+The October 1 art review settled art references: the
+[pixel-art style guide](../development/art-style.md) and its art reviews.
+Each chapter's **Still to decide** lists what remains. Work out the intended
+experience before narrowing these choices to what the current prototype can
+already do.
 
 [Earlier design conversations](../archive/vision-interview-history.md) are kept
 for reference. The current chapters take precedence over their earlier answers.
