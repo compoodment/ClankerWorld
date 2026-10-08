@@ -1,0 +1,1 @@
+- On the paired world: run a generated Small or Medium world, gather a resource and let the weather change, then save and reopen it. Resources, weather and world time should retain their saved state and continue normally after resuming. ([#1203](https://github.com/compoodment/ClankerWorld/issues/1203))

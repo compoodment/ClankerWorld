@@ -15,37 +15,58 @@ namespace ClankerWorld.GodotClient.UI;
 /// </summary>
 public static class AnimalSprites
 {
-    /// <summary>What one animal looks like, for the texture cache.</summary>
-    private readonly record struct Look(string Species, int Facing, bool Young, bool Mounted, bool Saddled, bool Shorn, int Size);
+    /// <summary>What one animal looks like, for the texture cache. <see cref="Step"/> is 0 standing, or walking step 1 or 2.</summary>
+    private readonly record struct Look(string Species, int Facing, bool Young, bool Mounted, bool Saddled, bool Shorn, int Size, int Step);
 
     private static readonly Dictionary<Look, Texture2D> Textures = [];
 
-    public static Texture2D Texture(string species, int facing, bool young, bool mounted, bool saddled = false, bool shorn = false, int size = 32)
+    public static Texture2D Texture(string species, int facing, bool young, bool mounted, bool saddled = false, bool shorn = false, int size = 32,
+        int step = 0)
     {
-        var look = Normalize(species, facing, young, mounted, saddled, shorn, size);
+        var look = Normalize(species, facing, young, mounted, saddled, shorn, size, step);
         if (Textures.TryGetValue(look, out var texture)) return texture;
         texture = ImageTexture.CreateFromImage(Sprite(look));
         Textures.Add(look, texture);
         return texture;
     }
 
-    public static Image Sprite(string species, int facing, bool young, bool mounted, bool saddled = false, bool shorn = false, int size = 32) =>
-        Sprite(Normalize(species, facing, young, mounted, saddled, shorn, size));
+    public static Image Sprite(string species, int facing, bool young, bool mounted, bool saddled = false, bool shorn = false, int size = 32,
+        int step = 0) =>
+        Sprite(Normalize(species, facing, young, mounted, saddled, shorn, size, step));
 
     /// <summary>
     /// Only a grown horse is ridden or saddled, and riding implies the saddle;
     /// only a grown sheep is shorn. Anything else draws as a horse.
     /// </summary>
-    private static Look Normalize(string species, int facing, bool young, bool mounted, bool saddled, bool shorn, int size)
+    private static Look Normalize(string species, int facing, bool young, bool mounted, bool saddled, bool shorn, int size, int step)
     {
         species = species is "chicken" or "sheep" or "cow" ? species : "horse";
         var horse = species == "horse" && !young;
         mounted &= horse;
         return new(species, (facing % 8 + 8) % 8, young, mounted, horse && (saddled || mounted), shorn && species == "sheep" && !young,
-            size >= 24 ? 32 : 16);
+            size >= 24 ? 32 : 16, step is 1 or 2 ? step : 0);
     }
 
-    private static Image Sprite(Look look) => (look.Species, look.Young) switch
+    private static Image Sprite(Look look)
+    {
+        var gait = (look.Species, look.Young) switch
+        {
+            ("chicken", false) => "chicken",
+            ("chicken", true) => "chick",
+            ("sheep", false) => look.Shorn ? "shorn" : "sheep",
+            ("sheep", true) => "lamb",
+            ("cow", false) => "cow",
+            ("cow", true) => "calf",
+            (_, true) => "foal",
+            _ => "horse",
+        };
+        var previous = Walking.Current;
+        Walking.Current = Walking.For(gait, look.Step, look.Size);
+        try { return Draw(look); }
+        finally { Walking.Current = previous; }
+    }
+
+    private static Image Draw(Look look) => (look.Species, look.Young) switch
     {
         ("chicken", false) => Chicken(look.Facing, look.Size),
         ("chicken", true) => Chick(look.Facing, look.Size),
@@ -138,7 +159,8 @@ public static class AnimalSprites
     /// </summary>
     private readonly record struct BodyFrame(Vector2 Origin, Vector2 Forward, Vector2 Right, float Unit)
     {
-        public Vector2 At(float along, float across = 0) => Origin + Forward * (along * Unit) + Right * (across * Unit);
+        public Vector2 At(float along, float across = 0) =>
+            Origin + Forward * (Walking.Along(along) * Unit) + Right * (Walking.Across(along, across) * Unit);
 
         /// <summary>Whether a screen point lies inside an oval given in body units.</summary>
         public bool InPart(Vector2 point, float along, float across, float halfAlong, float halfAcross) =>
@@ -218,6 +240,7 @@ public static class AnimalSprites
         }
 
         paint.Oval(f.At(1.0f) + new Vector2(1, 3) * f.Unit, f.Forward, 12.4f * f.Unit, 6.6f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
 
         // Tail: a thin rope lying back from the rump with a dark tuft at the end.
         if (!small)
@@ -301,6 +324,7 @@ public static class AnimalSprites
         bool Inside(Vector2 q) => InFleece(q) || InHead(q);
 
         paint.Oval(f.At(-0.6f) + new Vector2(1, 3) * f.Unit, f.Forward, 8.8f * f.Unit, (shorn ? 4.2f : 5.6f) * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
 
         var shadeRim = small ? 0.8f : 1.4f;
         var lightRim = small ? 0.7f : 1.2f;
@@ -374,6 +398,7 @@ public static class AnimalSprites
             : HenTail;
 
         paint.Oval(f.At(-0.4f) + new Vector2(1, 3) * f.Unit, f.Forward, 6.0f * f.Unit, 4.2f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
 
         // The beak pokes out of the outline ahead of the head, like an agent's nose.
         var beak = f.At(small ? 6.4f : 6.8f);
@@ -428,7 +453,7 @@ public static class AnimalSprites
         var d = Direction(facing);
         var s = Side(d);
         var o = new Vector2(16, 16) * p - d * (0.6f * p);   // the withers, a little behind the cell centre
-        Vector2 At(float along, float across = 0) => o + d * (along * p) + s * (across * p);
+        Vector2 At(float along, float across = 0) => o + d * (Walking.Along(along) * p) + s * (Walking.Across(along, across) * p);
         var diagonal = IsDiagonal(facing);
         var forwardStep = PixelStep(d);
 
@@ -452,6 +477,7 @@ public static class AnimalSprites
         }
 
         paint.Oval(o + new Vector2(1, 3) * p, d, 13.5f * p, 5.4f * p, Shadow);
+        Walking.Legs(paint, At, d, p);
 
         // Tail: a tuft swinging a little to one side, under the rump.
         var tailRoot = At(-10.0f);
@@ -552,6 +578,7 @@ public static class AnimalSprites
         bool InWing(Vector2 q) => f.InPart(q, -0.7f, -2.0f, 1.3f, 0.8f) || f.InPart(q, -0.7f, 2.0f, 1.3f, 0.8f);
         bool Inside(Vector2 q) => InBody(q) || InHead(q) || (!small && InWing(q));
         paint.Oval(f.At(-0.2f) + new Vector2(1, 2) * f.Unit, f.Forward, 3.4f * f.Unit, 2.8f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
         var beak = f.At(small ? 4.2f : 4.4f);
         paint.Disc(beak, small ? 0.5f : 0.8f, Outline);
         paint.Coat(Inside, Outline, q => !small && InWing(q) && !InHead(q) ? ChickWing : ChickDown,
@@ -596,6 +623,7 @@ public static class AnimalSprites
             || f.InPart(q, 3.6f + headAt, 2.3f, 0.7f, 1.1f);
         bool Inside(Vector2 q) => InFleece(q) || InHead(q);
         paint.Oval(f.At(-0.4f) + new Vector2(1, 2) * f.Unit, f.Forward, 5.8f * f.Unit, 3.8f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
         paint.Coat(Inside, Outline, q => InFleece(q) ? Wool : SheepFace, small ? 0.8f : 1.2f, small ? 0.7f : 1.0f);
         if (small) return image;
         bool Interior(Vector2 q) => InFleece(q - TowardLight * 1.4f) && InFleece(q + TowardLight * 1.2f) && !InHead(q);
@@ -651,6 +679,7 @@ public static class AnimalSprites
             return false;
         }
         paint.Oval(f.At(0.6f) + new Vector2(1, 2) * f.Unit, f.Forward, 8.4f * f.Unit, 4.4f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
         if (!small)
         {
             var tailRoot = f.At(-6.6f, 0.4f);
@@ -694,6 +723,7 @@ public static class AnimalSprites
             return f.InPart(q, 6.0f, -1.9f, 1.0f, 0.7f) || f.InPart(q, 6.0f, 1.9f, 1.0f, 0.7f);
         }
         paint.Oval(f.At(0.6f) + new Vector2(1, 2) * f.Unit, f.Forward, 9.0f * f.Unit, 3.6f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
         var tailRoot = f.At(-6.6f);
         var tailTip = f.At(-8.6f, -0.6f);
         var tailAxis = (tailTip - tailRoot).Normalized();
@@ -1084,6 +1114,78 @@ public static class AnimalSprites
                 lastY = y;
                 Pixel(x, y, color);
             }
+        }
+    }
+
+    /// <summary>
+    /// Walking steps (option B, approved by computment on October 7), copied
+    /// from <c>tools/ArtPreview/Proposed/AnimalWalk.cs</c>: step 0 is the
+    /// standing drawing; on steps 1 and 2 a front hoof shows ahead of the
+    /// chest on one side and the hind hoof behind the rump on the other, then
+    /// they swap, and the tail swings. Birds show one foot behind them at a
+    /// time and bob their heads.
+    /// </summary>
+    private static class Walking
+    {
+        public static Gait Current;
+
+        public readonly record struct Leg(float Along, float Across);
+
+        /// <summary>One frame of a gait, in 32 px units along and across the animal.</summary>
+        public readonly record struct Gait(float NeckAt, float TailAt, float Nod, float Swish, Leg[] Out, float HalfAlong, float HalfAcross, Color Hoof)
+        {
+            public float Along(float along) => along >= NeckAt ? along + Nod : along;
+            public float Across(float along, float across) => across + (along <= TailAt ? Swish : 0);
+        }
+
+        public static float Along(float along) => Current.Out is null ? along : Current.Along(along);
+
+        public static float Across(float along, float across) => Current.Out is null ? across : Current.Across(along, across);
+
+        /// <summary>The leg tips stepping out, drawn under the body so only the tips show.</summary>
+        public static void Legs(Painter paint, Func<float, float, Vector2> at, Vector2 forward, float unit)
+        {
+            if (Current.Out is not { Length: > 0 } legs) return;
+            foreach (var leg in legs)
+            {
+                var point = at(leg.Along, leg.Across);
+                paint.Oval(point, forward, Current.HalfAlong * unit + 0.85f, Current.HalfAcross * unit + 0.85f, Outline);
+                paint.Oval(point, forward, Current.HalfAlong * unit, Current.HalfAcross * unit, Current.Hoof);
+            }
+        }
+
+        /// <summary>
+        /// One animal's gait: where parts start nodding (the neck) and swinging
+        /// (the tail tip), how far, and the two leg tips that show at a step,
+        /// just ahead of the chest and just behind the rump, on opposite sides.
+        /// </summary>
+        private readonly record struct Build(float NeckAt, float TailAt, float Nod, float Swish,
+            Leg Front, Leg Hind, float HalfAlong, float HalfAcross, string Hoof, bool Bird = false);
+
+        private static Build Of(string animal) => animal switch
+        {
+            "cow" => new(5.0f, -11.0f, 1.0f, 1.4f, new(7.0f, 3.9f), new(-10.8f, 3.4f), 1.3f, 1.1f, "2E2420"),
+            "horse" => new(5.6f, -11.5f, 1.0f, 1.4f, new(7.2f, 3.3f), new(-10.8f, 2.9f), 1.3f, 1.0f, "3F2A1A"),
+            "sheep" or "shorn" => new(4.2f, -99f, 0.8f, 0f, new(4.6f, 3.9f), new(-8.4f, 2.8f), 1.1f, 1.0f, "524C48"),
+            "chicken" => new(2.8f, -3.8f, 1.3f, 0.8f, default, new(-3.6f, 2.6f), 0.9f, 0.7f, "F2CC5E", Bird: true),
+            "chick" => new(1.0f, -99f, 1.0f, 0f, default, new(-2.4f, 1.8f), 0.7f, 0.6f, "E0893F", Bird: true),
+            "lamb" => new(2.2f, -99f, 0.8f, 0f, new(2.8f, 2.8f), new(-5.4f, 2.0f), 0.9f, 0.8f, "524C48"),
+            "calf" => new(3.4f, -7.6f, 0.8f, 1.0f, new(4.6f, 2.8f), new(-7.2f, 2.4f), 1.0f, 0.9f, "2E2420"),
+            _ => new(4.0f, -7.4f, 0.8f, 1.0f, new(4.8f, 2.4f), new(-7.2f, 2.2f), 1.0f, 0.8f, "6E4E31"),   // foal
+        };
+
+        public static Gait For(string animal, int step, int size)
+        {
+            if (step == 0) return default;
+            var b = Of(animal);
+            // At 16 px a unit is half a pixel, so every movement doubles to still show.
+            var scale = size < 24 ? 2f : 1f;
+            var sign = step == 1 ? 1f : -1f;
+            var nod = b.Bird ? (step == 1 ? b.Nod : -b.Nod * 0.6f) * scale : 0;
+            var legs = b.Bird
+                ? new[] { b.Hind with { Across = b.Hind.Across * -sign } }
+                : new[] { b.Front with { Across = b.Front.Across * -sign }, b.Hind with { Across = b.Hind.Across * sign } };
+            return new Gait(b.NeckAt, b.TailAt, nod, b.Swish * -sign * scale, legs, b.HalfAlong, b.HalfAcross, new Color(b.Hoof));
         }
     }
 }

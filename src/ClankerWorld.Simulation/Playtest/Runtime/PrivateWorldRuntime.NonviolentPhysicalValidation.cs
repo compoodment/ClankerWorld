@@ -144,7 +144,7 @@ public sealed partial class PrivateWorldRuntime
                         var text = "Applicable law at the alleged act: " + TownLawRules.Text(wording.Subject, wording.Rule);
                         if (evidence.Kind != "record" || evidence.Acquisition != "record_inspection" ||
                             evidence.SourceAgentId != evidence.SubmittedByAgentId || evidence.SourceVersion != TownLandHearingRules.LawVersion(wording) ||
-                            evidence.ObservedTick != file.Allegation.ConductTick || evidence.Text != text[..Math.Min(256, text.Length)] ||
+                            evidence.ObservedTick != file.Allegation.ConductTick || evidence.Text != NonviolentExcerpt(text, 256) ||
                             !file.Reads.Any(read => read.AgentId == evidence.SubmittedByAgentId && read.ReadTick == evidence.SubmittedTick &&
                                 read.EvidenceIds.Contains(evidence.Id, StringComparer.Ordinal)))
                             throw new InvalidDataException("A cited law record requires its exact historical wording and actual public file inspection.");
