@@ -1221,18 +1221,20 @@ cannot be built on; peaks are impassable.
 Agent routing also allows cardinal swimming steps through wider rivers and
 lakes. `SwimmingRules` keeps those steps separate from ordinary foot movement,
 so carts, animals, Roads and building placement retain their terrain rules.
-Provisional swimming cost is 800 per step, with 200 warmth lost on each committed
-step touching swimming water, including arrival on shore. Starting requires
-at least 6,000 warmth, illness below 2,500 and no more than four physically
-carried units; worn equipment does not count as cargo. A rider, an animal
+Provisional swimming cost is 800 per step, with at least 75 warmth lost on each
+committed tick in swimming water, including waiting between steps. Starting
+requires at least 6,000 warmth, illness below 2,500 and no more than four
+physically carried units, including vessel contents. Equipped clothing and
+carry aids follow the usual cargo exemptions. A rider, an animal
 leader or a cart puller cannot start swimming, and moving dependants must also
 meet the starting conditions. Infants and adults carrying guardian-placement
 dependants cannot start. A swimmer whose condition changes can still leave
 the water. Occupancy, bridge entrances and ordinary wading restrictions remain
 authoritative; the sea cannot be swum. Route searches cache swimming eligibility
 alongside terrain, Roads and occupancy. Swimming is projected from the actual
-water position, and the map presents it with water motion around the existing
-approved sprite. No sprite atlas or saved movement-mode field changes.
+water position, and the map alternates existing approved poses and displays
+**Swimming** beside the agent. No sprite atlas or saved movement-mode field
+changes.
 
 Checkpoint map acceptance keeps a weak, derived camp-reachability cache for
 each map's current starting point. Before reuse it compares actual terrain,

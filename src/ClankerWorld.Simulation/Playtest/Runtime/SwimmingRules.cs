@@ -9,15 +9,16 @@ public static class SwimmingRules
 {
     // Provisional values for hands-on playtesting, as agreed in #1288.
     public const int StepCost = 800;
-    public const int WarmthLossPerStep = 200;
+    public const int WarmthLossPerTick = 75;
     public const int MinimumStartingWarmth = 6_000;
     public const int MaximumStartingIllness = 2_499;
     public const int MaximumCarriedUnits = 4;
 
     public static bool IsSwimmingWater(SeededMap map, GridPoint point) =>
-        map.Contains(point) && !map.IsPassable(point) &&
+        map.Contains(point) &&
         (map.HydrologyAt(point) is WaterKind.Lake or WaterKind.River ||
-         map.HydrologyAt(point) is null && map.TerrainKindAt(point) is TerrainKind.Lake or TerrainKind.River);
+         map.HydrologyAt(point) is null && map.TerrainKindAt(point) is TerrainKind.Lake or TerrainKind.River) &&
+        !map.IsPassable(point);
 
     public static bool CanStep(SeededMap map, GridPoint from, GridPoint to) =>
         map.CanFootStep(from, to) ||

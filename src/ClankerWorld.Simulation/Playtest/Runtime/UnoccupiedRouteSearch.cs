@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Harness;
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// Dijkstra's search over free foot steps from one origin, for routes that
+/// Dijkstra's search over legal traveler steps from one origin, for routes that
 /// avoid occupied tiles, run only as far as the questions asked of it need.
 /// Tiles leave the queue in one fixed order (cost, then row, column and the
 /// order they were queued) whatever is asked, and a tile's route is final once
@@ -26,7 +26,7 @@ public sealed class UnoccupiedRouteSearch : IDisposable
     private int finished;
     private bool disposed;
 
-    /// <param name="map">The map whose foot steps the search follows.</param>
+    /// <param name="map">The map whose legal steps the search follows.</param>
     /// <param name="origin">Where every route starts, even if it is occupied.</param>
     /// <param name="occupied">Tiles a route may not enter, nor cut past diagonally. The search keeps the set, so it must not change.</param>
     /// <param name="stepCost">The cost of one foot step; it must stay the same while the search is used.</param>

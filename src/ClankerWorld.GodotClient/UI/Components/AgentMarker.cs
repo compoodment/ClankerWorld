@@ -140,9 +140,9 @@ public partial class AgentMarker : Control
     }
 
     /// <summary>
-    /// The frame drawn now. Hurt and carrying show even mid-step, because those
-    /// drawings already read while moving; otherwise a step shows its walk
-    /// frame and a standing agent shows their activity.
+    /// The frame drawn now. Swimming alternates existing work and still poses.
+    /// On land, hurt and carrying show mid-step; otherwise a moving agent
+    /// shows a walk frame and a standing agent shows their activity.
     /// </summary>
     public bool Swimming
     {
@@ -157,15 +157,16 @@ public partial class AgentMarker : Control
         }
     }
 
-    public AgentFrame Frame => swimming ? activity == AgentFrame.Hurt ? AgentFrame.Hurt : AgentFrame.Work
+    public AgentFrame Frame => swimming ? activity == AgentFrame.Hurt ? AgentFrame.Hurt
+        : (int)(swimmingSeconds * 2) % 2 == 0 ? AgentFrame.Work : AgentFrame.Still
         : activity is AgentFrame.Hurt or AgentFrame.Carry ? activity
         : step != AgentFrame.Still ? step : activity;
 
     /// <summary>
-    /// The name shows only while the agent is selected or hovered, so a busy
-    /// Town stays clear. It is drawn once the figure is large enough to read.
+    /// Selected or hovered agents show their name; swimmers show an activity
+    /// label. Text is drawn once the figure is large enough to read.
     /// </summary>
-    public bool NameShown => (selected || hovered) && caption.Length > 0;
+    public bool NameShown => swimming || (selected || hovered) && caption.Length > 0;
 
     public AgentMarker()
     {
@@ -301,17 +302,6 @@ public partial class AgentMarker : Control
             DrawArc(center + new Vector2(0, drawn * 0.06f), drawn * 0.36f, 0, Mathf.Tau, 32,
                 selected ? SelectedColor : HoveredColor, Math.Max(1.5f, drawn / 18f));
         }
-        if (swimming)
-        {
-            // Water motion surrounds the approved sprite; the host tile remains the hit target.
-            var waterCenter = center + new Vector2(0, drawn * 0.18f);
-            var pulse = (float)(Math.Sin(swimmingSeconds * 4) * 0.025);
-            DrawArc(waterCenter, drawn * (0.30f + pulse), 0.15f, Mathf.Pi - 0.15f, 20,
-                new Color("BEE6EF"), Math.Max(1f, drawn / 24f));
-            DrawArc(waterCenter, drawn * (0.40f - pulse), Mathf.Pi + 0.15f, Mathf.Tau - 0.15f, 20,
-                new Color("BEE6EF"), Math.Max(1f, drawn / 24f));
-            sprite.Position += new Vector2(0, -drawn * pulse);
-        }
         var atlasSize = drawn >= 24 ? 32 : 16;
         var frame = Frame;
         DrawTextureRectRegion(AgentSprites.PoseAtlas(variant, stage, facing, frame, atlasSize), sprite,
@@ -320,7 +310,7 @@ public partial class AgentMarker : Control
         if (!NameShown || drawn < NameMinimum) return;
         var font = UiFonts.Text;
         var fontSize = UiFonts.Body * TextScale;
-        var text = caption.Length > 14 ? caption[..13] + "..." : caption;
+        var text = swimming ? "Swimming" : caption.Length > 14 ? caption[..13] + "..." : caption;
         var textSize = font.GetStringSize(text, HorizontalAlignment.Left, -1, fontSize);
         // Light letters with a dark pixel edge and no box, gold for the selected agent.
         var baseline = new Vector2(Mathf.Floor(center.X - textSize.X / 2),

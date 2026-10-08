@@ -317,7 +317,7 @@ public sealed partial class PrivateWorldRuntime
                     // A temporary pedestrian obstruction should wait, not cause a drop/pickup loop.
                     var warehouse = NeedsUrgentFood(person) || NeedsUrgentWarmth(person) ? null :
                         WarehousesForTown(town.Id).FirstOrDefault(item => StorageRoomAfterInboundDeliveries(item.InstanceId) > 0 &&
-                            map.IsReachableOnFoot(person.Position, item.Position));
+                            CanReachByFootOrSwimming(actor, person.Position, item.Position));
                     if (warehouse is null)
                     {
                         yield return new(TownProjectChoiceId(TownProjectReturnPrefix, project.Id, lot.Id, "ground"),

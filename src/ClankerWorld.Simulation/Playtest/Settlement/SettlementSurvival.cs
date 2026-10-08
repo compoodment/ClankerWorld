@@ -93,7 +93,9 @@ public sealed partial class PrivateWorldRuntime
             IsWithinInteractionRange(person.Position, building.Position,
                 building.HouseholdId is null ? 2 : 0)) ? 90 : 0;
         var loss = Math.Max(0, OutdoorExposure(person.Position) - protection);
-        return -loss + heat + (loss == 0 ? 20 : 0);
+        return SwimmingRules.IsSwimmingWater(map, person.Position)
+            ? -Math.Max(SwimmingRules.WarmthLossPerTick, loss - heat)
+            : -loss + heat + (loss == 0 ? 20 : 0);
     }
 
     private bool IsProtectiveProject(SettlementProject? project) =>

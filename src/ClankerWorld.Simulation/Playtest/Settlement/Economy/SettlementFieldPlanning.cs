@@ -88,7 +88,7 @@ public sealed partial class PrivateWorldRuntime
     // the field and seed choice legal while they pass so the selected task can
     // retry its physical route instead of being replaced by another crop.
     private bool CanReachField(string actor, GridPoint from, GridPoint destination) =>
-        from == destination || map.IsReachableOnFoot(from, destination);
+        from == destination || CanReachByFootOrSwimming(actor, from, destination);
 
     private bool FarmNeedsFood(string householdId)
     {
@@ -145,7 +145,7 @@ public sealed partial class PrivateWorldRuntime
                 (requirePickupRoute
                     ? CanWalkToFieldOrderSite(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
                         HouseholdStockInteractionRange(lot))
-                    : map.IsReachableOnFoot(inhabitants[actor].Position, HouseholdStockPosition(lot))));
+                    : CanReachByFootOrSwimming(actor, inhabitants[actor].Position, HouseholdStockPosition(lot))));
     }
 
     private void ApplyFieldCandidate(string actor, PlaytestInhabitantState state, string candidate, string? orderInstructionId = null)

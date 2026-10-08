@@ -977,7 +977,7 @@ public sealed partial class PrivateWorldRuntime
             .ThenBy(resource => resource.Id, StringComparer.Ordinal)
             .FirstOrDefault(resource =>
                 CanGatherFromSource(actor, itemKind, resource, reachableToolCache) &&
-                map.IsReachableOnFoot(inhabitants[actor].Position, resource.Position) &&
+                CanReachByFootOrSwimming(actor, inhabitants[actor].Position, resource.Position) &&
                 (IsWithinInteractionRange(inhabitants[actor].Position, resource.Position, ResourceInteractionRange) ||
                  FindUnoccupiedRoute(actor, inhabitants[actor].Position, resource.Position, ResourceInteractionRange).Count > 0));
     }
@@ -1018,7 +1018,7 @@ public sealed partial class PrivateWorldRuntime
                     continue;
 
                 var sourceQuantity = worldSystems.Ecology.GetResource(resource.Id).Quantity;
-                if (sourceQuantity <= 0 || !map.IsReachableOnFoot(position, resource.Position))
+                if (sourceQuantity <= 0 || !CanReachByFootOrSwimming(residentId, position, resource.Position))
                     continue;
 
                 var gatherQuantity = AvailableGatherQuantity(residentId, input.ResourceId, resource, reachableToolCache);

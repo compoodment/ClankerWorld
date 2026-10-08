@@ -203,7 +203,7 @@ public sealed partial class PrivateWorldRuntime
     private GridPoint? FindFreshWaterShore(string actor, GridPoint origin)
     {
         foreach (var point in FreshWaterShorePositions()
-                     .Where(point => map.IsReachableOnFoot(origin, point))
+                     .Where(point => CanReachByFootOrSwimming(actor, origin, point))
                      .OrderBy(point => map.FootDistance(origin, point))
                      .ThenBy(point => point.Y).ThenBy(point => point.X))
         {
@@ -265,7 +265,7 @@ public sealed partial class PrivateWorldRuntime
             CarriedWaterJugForRefill(actor) is not { } jug)
             return;
         var inventory = society.Checkpoint.Inventory;
-        if (!map.IsReachableOnFoot(person.Position, shore) ||
+        if (!CanReachByFootOrSwimming(actor, person.Position, shore) ||
             FindUnoccupiedRoute(actor, person.Position, shore, 0).Count == 0)
             return;
         if (person.Position != shore)

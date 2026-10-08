@@ -68,10 +68,6 @@ public sealed partial class PrivateWorldRuntime
         inhabitants[inhabitantId] = state with
         {
             Position = next,
-            Survival = SwimmingRules.IsSwimmingWater(map, state.Position) || SwimmingRules.IsSwimmingWater(map, next)
-                ? (state.Survival ?? new SurvivalCondition()) with
-                { WarmthBasisPoints = Math.Max(0, (state.Survival?.WarmthBasisPoints ?? 10_000) - SwimmingRules.WarmthLossPerStep) }
-                : state.Survival,
             MoveWaitTicks = 0,
             TravelCooldownTicks = (travelCost + 99) / 100 - 1 +
                 SettlementIllnessRules.TravelDelayTicks(state.Survival?.IllnessBasisPoints ?? 0),
@@ -191,7 +187,7 @@ public sealed partial class PrivateWorldRuntime
     private IEnumerable<MapResource> EligibleFoodSources(string actor, GridPoint position) => map.Resources
         .Where(resource => resource.Kind is "food" or "fruit" &&
             resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
-            map.IsReachableOnFoot(position, resource.Position))
+            CanReachByFootOrSwimming(actor, position, resource.Position))
         .OrderBy(resource => map.FootDistance(resource.Position, position))
         .ThenBy(resource => resource.Id, StringComparer.Ordinal)
         .Where(resource => IsWithinInteractionRange(position, resource.Position, ResourceInteractionRange) ||

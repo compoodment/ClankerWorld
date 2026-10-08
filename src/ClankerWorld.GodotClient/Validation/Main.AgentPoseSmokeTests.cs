@@ -78,10 +78,10 @@ public partial class Main
         var swimmer = walker with { Route = walker.Route with { Status = "swim" } };
         marker = Show(4, 1, swimmer);
         Expect(marker, 6, AgentFrame.Work, "swimming instead of walking");
-        if (!marker.Swimming || !marker.TooltipText.Contains("Swimming", StringComparison.Ordinal))
+        if (!marker.Swimming || !marker.NameShown || !marker.TooltipText.Contains("Swimming", StringComparison.Ordinal))
             throw new InvalidOperationException("The map must visibly distinguish authoritative swimming movement.");
         marker._Process(AgentMarker.StepSeconds + 0.1);
-        Expect(marker, 6, AgentFrame.Work, "between slow swimming steps");
+        Expect(marker, 6, AgentFrame.Still, "between slow swimming steps");
         marker = Show(5, 1);
         if (marker.Swimming) throw new InvalidOperationException("The water movement must stop after returning to shore.");
         Expect(marker, 6, AgentFrame.Walk1, "walking again on shore");

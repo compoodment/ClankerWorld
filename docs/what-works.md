@@ -1306,7 +1306,7 @@ speed, and a two-tile river at a provisional third of walking speed. Eligible
 agents can swim wider rivers and lakes much more slowly, losing warmth and
 carrying at most four units. Cold, ill or heavily loaded agents do not start
 swimming. Carts and animals stay on their existing land routes; the sea still
-requires a boat. Swimming has its own water motion on the map. Communal boats
+requires a boat. Swimming has its own motion and label on the map. Communal boats
 travel between completed Ports over connected water. Swimming and two-tile
 wading still need hands-on Windows playtesting.
 Peaks are impassable; mountains and peaks cannot hold construction. Town

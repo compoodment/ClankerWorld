@@ -128,7 +128,7 @@ public sealed partial class PrivateWorldRuntime
                  knowledge.Facts.Any(fact => fact.OwnerId == instruction.TargetInhabitantId &&
                     fact.Position == resource.Position &&
                     fact.ResourceKinds.Contains(FoodKnowledgeKind(resource), StringComparer.Ordinal))) &&
-                map.IsReachableOnFoot(person.Position, resource.Position))
+                CanReachByFootOrSwimming(instruction.TargetInhabitantId, person.Position, resource.Position))
             .OrderBy(resource => map.FootDistance(person.Position, resource.Position))
             .ThenBy(resource => resource.Id, StringComparer.Ordinal)
             .FirstOrDefault(resource => IsWithinInteractionRange(person.Position, resource.Position, ResourceInteractionRange) ||

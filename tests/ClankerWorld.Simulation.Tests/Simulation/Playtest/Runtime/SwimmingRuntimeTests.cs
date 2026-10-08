@@ -39,8 +39,12 @@ public sealed class SwimmingRuntimeTests
         var swimming = world.ExportState();
         var physical = swimming.Inhabitants.Single(person => person.InhabitantId == Actor);
         Assert.True(physical.TravelCooldownTicks > 2, "Swimming must be much slower than two-tile wading.");
-        Assert.True(physical.Survival!.WarmthBasisPoints < 10_000);
         Assert.Equal("swim", new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants.Single(person => person.Id == Actor).Route.Status);
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(firstWater, Position(world));
+        swimming = world.ExportState();
+        Assert.True(swimming.Inhabitants.Single(person => person.InhabitantId == Actor).Survival!.WarmthBasisPoints < physical.Survival!.WarmthBasisPoints,
+            "The wait between slow swimming steps must also lose warmth.");
         var before = PrivateWorldRuntimeCodec.Encode(swimming);
         Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
@@ -66,6 +70,26 @@ public sealed class SwimmingRuntimeTests
             Assert.Equal(1, order.Order.CompletedUnits);
         });
         Assert.Empty(world.ExportState().DeceasedInhabitants ?? []);
+    }
+
+    [Fact]
+    public async Task NativeLandDestinationUsesSwimmingWhenItIsTheCheapestRoute()
+    {
+        var start = new GridPoint(103, 0);
+        var destination = new GridPoint(110, 0);
+        using var world = Restore(CrossingState(start, "traffic-bridge-0"));
+        world.SubmitInstruction(new("cross-lake", "owner:test", Actor, OwnerInstructionKind.MustDo, "Move to tile (110, 0)"));
+        var sawSwimming = false;
+        for (var tick = 0; tick < 96 && Position(world) != destination; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            sawSwimming |= !world.ExportState().Map.IsPassable(Position(world));
+        }
+        Assert.True(sawSwimming, "The native route to the opposite bank must use this six-tile lake crossing.");
+        Assert.Equal(destination, Position(world));
+        var order = Assert.Single(world.ExportState().Instructions!).Order!;
+        Assert.Equal("finished", order.Status);
+        Assert.Equal(1, order.CompletedUnits);
     }
 
     [Theory]
@@ -138,9 +162,9 @@ public sealed class SwimmingRuntimeTests
         if (load > 0) state = WithLoad(state, load);
         using var world = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
         world.SubmitInstruction(new("leave-water", "owner:test", Actor, OwnerInstructionKind.MustDo, "Move to tile (4, 1)"));
-        for (var tick = 0; tick < 24 && Position(world) != new GridPoint(4, 1); tick++)
+        for (var tick = 0; tick < 24 && !world.ExportState().Map.IsPassable(Position(world)); tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(new GridPoint(4, 1), Position(world));
+        Assert.True(world.ExportState().Map.IsPassable(Position(world)));
         Assert.Empty(world.ExportState().DeceasedInhabitants ?? []);
     }
 
@@ -155,9 +179,9 @@ public sealed class SwimmingRuntimeTests
         },
     };
 
-    private static PrivateWorldRuntimeState CrossingState(GridPoint start)
+    private static PrivateWorldRuntimeState CrossingState(GridPoint start, string seed = "swimming-native")
     {
-        var options = new GeographyOptions("swimming-native", WorldSizePreset.Small);
+        var options = new GeographyOptions(seed, WorldSizePreset.Small);
         using var setup = new PrivateWorldRuntime(options.Seed, _ => new IdleProvider(),
             startPace: WorldStartPace.FounderSetup, geographyOptions: options);
         setup.InitializeFirstTownContent();

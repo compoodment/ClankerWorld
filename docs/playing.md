@@ -863,8 +863,9 @@ seed. If the world name is missing, enter it and choose **Preview again**.
 
 Agents can wade rivers one or two tiles wide. A healthy agent with enough
 warmth and a light load can also swim wider rivers and lakes, much more slowly,
-losing warmth as they move. The map shows water motion around a swimmer; their
-tooltip says **Swimming**. Cold or ill agents, loads above four carried units,
+losing warmth as they move. The map shows the agent swimming with a
+**Swimming** label; their tooltip says the same. Cold or ill agents, loads above
+four carried units,
 carts and accompanying animals prevent a new swim. The sea still needs a boat.
 An agent already swimming can reach shore if their condition changes, and an
 unfinished crossing survives saving and loading. Swimming speed, warmth loss
