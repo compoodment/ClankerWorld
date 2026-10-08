@@ -3021,8 +3021,8 @@ archive-write ordering and recovery checks.
 ## Physical handcarts
 
 Orders accept `Attach/Pull [my] cart/handcart` and `Park/Unhitch [my]
-cart/handcart`, optionally prefixed with `Please`. A complete exact cart lot
-ID binds immediately. `at (x, y)` uses the existing strict coordinate parser
+cart/handcart`, plus `Repair [my] cart/handcart`, optionally prefixed with
+`Please`. A complete exact cart lot ID binds immediately. `at (x, y)` uses the existing strict coordinate parser
 and binds only one owned cart at that tile; ambiguous targets are not guessed.
 An unspecified attach task selects an accessible, usable owned cart when it
 starts; unspecified parking selects the actor's actual attached cart. The first
@@ -3030,13 +3030,28 @@ executed step persists `TargetCartLotId`, so later ownership or route changes
 block that cart rather than redirecting the order.
 
 The common order lifecycle handles queue, replacement, cancellation and urgent
-survival interruptions. Cart steps call `ApplyHandcartCandidate` and earn one
+survival interruptions. Attach and park steps call `ApplyHandcartCandidate`
+and earn one
 `cart_tasks` unit only when the selected native hitch changes as requested.
 A deterministic per-instruction receipt binds the actor, action and cart.
 Strict validation checks the target's identity and cart kind, task shape and
 receipt; owner and Godot projections retain the optional target. Neither a
 pre-existing attachment nor an unrelated parking effect completes an order.
-Loading, unloading and repair orders remain separate work.
+Repair selects an accessible owned worn or broken cart when no target is named,
+then binds it before the first collection or movement step. It collects missing
+wood, iron fittings and rope through the existing permitted stock action,
+requiring space for the whole remaining set and a clear route to the cart.
+It calls the native repair action only with actual carried inputs. Completion
+requires the selected cart's condition to improve and records a bounded receipt
+tying the instruction, actor, cart and native repair tick together. Strict load
+validation also requires the three exact completed material reservations for
+that actor and tick. Existing `TargetCartLotId` and `LastEffectId` fields carry
+this evidence; no new save field or schema version is added. A healthy cart
+cannot count as a repair, and foreign or reserved carts remain blocked.
+Collected supplies stay physically carried when a task is cancelled or replaced;
+repair reserves and consumes all three inputs atomically, with no unfinished
+cart-repair reservation to release. Cargo and hitches retain their normal state.
+Loading and unloading orders remain separate work.
 
 
 `InventoryContainerRules.Handcart` is a single ground-position inventory lot.

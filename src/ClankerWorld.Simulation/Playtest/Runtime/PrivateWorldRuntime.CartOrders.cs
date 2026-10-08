@@ -8,7 +8,7 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private static bool IsCartOrder(string action) => action is "attach_handcart" or "park_handcart";
+    private static bool IsCartOrder(string action) => action is "attach_handcart" or "park_handcart" or "repair_handcart";
 
     private OwnerInstructionOrder? ParseCartOrder(string text, string actor)
     {
@@ -16,7 +16,7 @@ public sealed partial class PrivateWorldRuntime
         text = text.Trim();
         if (text.StartsWith("please ", StringComparison.OrdinalIgnoreCase)) text = text[7..].TrimStart();
         foreach (var (verb, action) in new[] { ("attach", "attach_handcart"), ("pull", "attach_handcart"),
-                     ("park", "park_handcart"), ("unhitch", "park_handcart") })
+                     ("park", "park_handcart"), ("unhitch", "park_handcart"), ("repair", "repair_handcart") })
         {
             if (!text.StartsWith(verb + " ", StringComparison.OrdinalIgnoreCase)) continue;
             var subject = text[(verb.Length + 1)..].Trim();
@@ -51,6 +51,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetCartLotId is { } target)
             return society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.Id == target && lot.ItemKind == InventoryContainerRules.Handcart);
         if (order.Action == "park_handcart") return AttachedHandcart(actor);
+        if (order.Action == "repair_handcart") return CartForRepairOrder(actor, person);
         return society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == InventoryContainerRules.Handcart &&
                 lot.OwnerId == actor && IsValidInstructionIdentifier(lot.Id) && CanPullHandcart(lot) && !handcartHitches.Any(hitch => hitch.CartLotId == lot.Id))
             .OrderBy(lot => map.FootDistance(person.Position, CartPosition(lot))).ThenBy(lot => lot.Id, StringComparer.Ordinal)
@@ -63,6 +64,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (CartOrderBlocker(instruction, person) is not null) return null;
         var cart = CartForOrder(instruction, person)!;
+        if (instruction.Order!.Action == "repair_handcart") return CartRepairOrderCandidateFor(instruction, cart);
         return new(instruction.Order!.Action == "park_handcart" ? "park_handcart" : AttachCartPrefix + cart.Id,
             instruction.Order.Action == "park_handcart" ? "Park the selected attached cart here, retaining its cargo." :
                 "Reach and attach the selected owned cart through its normal physical action.", 0, cart.Id);
@@ -71,10 +73,11 @@ public sealed partial class PrivateWorldRuntime
     private string? CartOrderBlocker(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
         var actor = instruction.TargetInhabitantId;
-        if (!AdultResident(actor)) return "Only an adult can pull or park a handcart.";
+        if (!AdultResident(actor)) return "Only an adult can pull, park or repair a handcart.";
         var cart = CartForOrder(instruction, person);
         if (cart is null) return "Waiting for an accessible owned cart suitable for this task.";
         if (cart.OwnerId != actor) return "You do not own the selected cart.";
+        if (instruction.Order!.Action == "repair_handcart") return CartRepairOrderBlocker(actor, person, cart);
         if (instruction.Order!.Action == "park_handcart")
             return AttachedHandcart(actor)?.Id == cart.Id ? null : "The selected cart is not attached to you.";
         if (cart.ConditionBasisPoints == 0) return "The selected cart is broken; it needs repair before pulling.";
@@ -101,6 +104,11 @@ public sealed partial class PrivateWorldRuntime
             { Order = instructionsByIdempotency[instruction.IdempotencyKey].Order! with { TargetCartLotId = cart.Id } };
             instructionsByIdempotency[instruction.IdempotencyKey] = instruction;
         }
+        if (instruction.Order!.Action == "repair_handcart")
+        {
+            ExecuteCartRepairOrderStep(instruction, person, cart);
+            return;
+        }
         var wasAttached = AttachedHandcart(instruction.TargetInhabitantId)?.Id == cart.Id;
         var parking = instruction.Order!.Action == "park_handcart";
         ApplyHandcartCandidate(instruction.TargetInhabitantId, person, parking ? "park_handcart" : AttachCartPrefix + cart.Id);
@@ -116,8 +124,19 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateCartOrderBindings(InventoryCheckpoint inventory, IEnumerable<OwnerQueuedInstruction> instructions)
     {
         var carts = inventory.Lots.Where(lot => lot.ItemKind == InventoryContainerRules.Handcart).Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
+        Dictionary<string, InventoryReservation>? repairReservations = null;
         foreach (var instruction in instructions)
-            if (instruction.Order is { } order && IsCartOrder(order.Action) && order.TargetCartLotId is { } id && !carts.Contains(id))
+        {
+            if (instruction.Order is not { } order || !IsCartOrder(order.Action)) continue;
+            if (order.TargetCartLotId is { } id && !carts.Contains(id))
                 throw new InvalidDataException("A cart order references a missing handcart.");
+            if (order.Action != "repair_handcart" || order.CompletedUnits == 0) continue;
+            repairReservations ??= inventory.Reservations.ToDictionary(item => item.Id, StringComparer.Ordinal);
+            if (CartRepairOrderReceiptTick(instruction, inventory.WorldTick) is not { } tick ||
+                !CartRepairKinds.All(kind => repairReservations.TryGetValue($"cart-repair:{tick}:{instruction.TargetInhabitantId}:{kind}", out var input) &&
+                    input.OwnerId == instruction.TargetInhabitantId && input.Quantity == 1 && input.Purpose == "equipment_repair" &&
+                    input.ExpiryTick == tick + 1 && input.State == InventoryReservationState.Completed))
+                throw new InvalidDataException("A cart repair order lacks its actual consumed repair inputs.");
+        }
     }
 }

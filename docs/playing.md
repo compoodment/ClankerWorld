@@ -395,8 +395,19 @@ owned cart on that tile. The order keeps that cart even if its location changes;
 an ambiguous tile is not understood. Exact cart identities are also accepted.
 Queue, replacement, cancellation, urgent interruptions and saves retain the
 task. Broken or reserved carts, another attached cart, riding or leading an
-animal, and blocked routes give a reason. Loading, unloading and cart repair
-orders are not supported yet. Once attached, the cart follows normal movement.
+animal, and blocked routes give a reason. Once attached, the cart follows normal movement.
+
+Use **Repair my cart**, **Repair cart at (12, 4)** or **Repair handcart** followed
+by its exact identity to repair one owned worn or broken cart. The agent keeps
+that cart, collects one wood, iron fitting and rope from permitted household
+or Town stock if needed, reaches it and spends the actual carried supplies.
+The repair restores the cart where it stands and preserves its ownership and
+cargo, including damaged cargo.
+Missing supplies, carrying space, reservations, another owner's cart and blocked
+routes explain why the order waits. A healthy cart needs no repair and does not
+finish the task. Queue, cancellation, replacement, urgent interruptions and
+saves keep the target and real progress; cancelling leaves collected supplies
+in the agent's hands. Loading and unloading orders are not supported yet.
 
 To mend worn personal equipment, use **Repair my basket**, **Repair two padded
 coats**, or **Keep repairing basic garments**. Adults and elders can repair basic

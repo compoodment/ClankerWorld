@@ -398,6 +398,7 @@ public sealed partial class PrivateWorldRuntime
     {
         "attach_handcart" => "reach and attach the selected owned handcart",
         "park_handcart" => "park the selected attached handcart here with its cargo intact",
+        "repair_handcart" => "repair the selected owned handcart with real carried supplies",
         "animal_care" => "care for the named animal with real feed and jug water",
         "animal_collect" => "collect the named animal's ready products locally",
         "animal_tame" => "tame the named wild animal for your household",

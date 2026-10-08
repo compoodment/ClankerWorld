@@ -46,6 +46,15 @@ roundtrips retain loaded parked carts and mid-journey hitches; rollback retains
 the previous physical position and every cargo quantity. Earlier alpha saves
 are refused and preserved; no migration is added.
 
+Current cart repair orders retain their stable target and a completion receipt
+in the existing order fields. The receipt binds the instruction, actor, cart
+and native repair tick; reload requires that tick's three exact consumed wood,
+iron-fitting and rope reservations. Real carried supplies, the broken cart's
+cargo and pending order survive reload and refused-tick rollback. Cancellation
+keeps collected goods and creates no unfinished repair reservation. The schema
+version stays unchanged; a build without cart repair orders refuses saves
+containing that action and keeps the original file.
+
 Private-world schema 31 records an agent's learned skills and each lesson's
 skill instead of a work role. Skills retain their first learning time and
 optional teacher ID, including in deceased profiles. Loading validates those
