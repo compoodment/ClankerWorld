@@ -19,19 +19,22 @@ setup, four founder placements, Start World and 12 ordinary ticks with local
 idle providers. These worlds naturally contain eight untamed animals. Generation,
 native ticks, checkpoint encoding and replay are outside timed searches.
 
-Each phase has five warmups and 50 synchronous samples. A search enumerates every
+Each phase has five warmups and 50 synchronous samples. P50 and P95 use
+nearest rank: sample `ceil(percentile × count)` in ascending order. A search enumerates every
 animal's ordered candidate IDs. Cold-index searches create a fresh ecology state
 with the same resources each time; their measurement includes index construction.
 Warm searches reuse one unchanged ecology state. Real feeding replaces that state
 after consumption, so it can require another index.
 
-| World | Original median / p95 (ms) | Warm indexed median / p95 (ms) | Original / warm bytes | Cold indexed median / p95 (ms) | Cold bytes |
+| World | Original p50 / p95 (ms) | Warm indexed p50 / p95 (ms) | Original / warm bytes | Cold indexed p50 / p95 (ms) | Cold bytes |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Small, 1,973 resources | 0.571 / 0.678 | 0.057 / 0.095 | 515,528 / 7,376 | 0.131 / 0.190 | 72,884 |
 | Medium, 6,740 resources | 7.033 / 22.511 | 0.558 / 0.656 | 1,749,096 / 7,280 | 0.783 / 0.936 | 203,851 |
 
 [Raw samples, ordered candidates and source hashes](measurements/1197-wild-forage.json)
-retain all 50 samples for each phase. The original predicate is also measured
+retain all 50 samples for each phase. The original-query hash covers the exact
+UTF-8 embedded source string, including its LF newlines and indentation, with
+no trailing newline. The original predicate is also measured
 in the optimized process as a paired control. The native baseline allocation
 regressions fail on the original production query and pass after the fix.
 

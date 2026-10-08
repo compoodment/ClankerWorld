@@ -9,7 +9,8 @@
     "seed": "wild-forage-cost-audit",
     "warmups": 5,
     "samples": 50,
-    "originalQuerySha256": "f05494d70ef0fc54ae9a038cb7caf85baee94292f3644480115c27d6bb5e7668",
+    "originalQueryHashScope": "SHA-256 of the UTF-8 originalQuerySource string, preserving its embedded LF newlines and indentation, without a trailing newline.",
+    "originalQuerySha256": "8a45a2ab672cfc849ba3e00cba709c9741d0a5326469e87ffe4a8d50d75c3dd2",
     "sourceSha256": {
       "src/ClankerWorld.Simulation/Playtest/Animals/PrivateWorldRuntime.WildAnimals.cs": "143170609f04ba67c30c0d71ed0eaa925347aa330b42a6840d5f824617417040",
       "src/ClankerWorld.Simulation/World/WorldSystemsContracts.cs": "72fc7eb85454af2771ee4fa47c640cd9ca40c9cd5af5f28e7ed015c915c08720",
