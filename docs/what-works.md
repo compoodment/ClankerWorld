@@ -443,6 +443,10 @@ prerequisites, material ownership, carrying, travel and construction work
 still apply. An existing building or somebody else's project never counts as
 the ordered completion.
 
+Construction uses Town Warehouse supplies only when the builder can reach
+them. A blocked stocked Warehouse does not stop the builder from gathering
+reachable materials elsewhere; its stock stays in place.
+
 A construction order can replace the agent's unpaid ordinary building or
 crafting plan. It starts fresh construction work and pays the normal costs;
 the earlier plan's work does not count toward the order. A production job
@@ -1086,6 +1090,9 @@ Starter household use rights cover the footprints of the buildings assigned to
 each household. New fields cannot occupy land another household holds or has
 requested. Ordinary household land requests and grants cannot take over another
 household's field; challenges to recorded use rights remain disputes.
+Add Agent closes when the host acknowledges placement. A later model-settings
+refresh failure keeps the placement confirmation and asks the player to reopen
+Game Settings; another map click does not add another agent.
 Add Agent uses building/field ownership and recorded use
 rights, then Town title or border: one clear household claim sets the household,
 and land claimed by one Town gives Town membership. A building's current owner

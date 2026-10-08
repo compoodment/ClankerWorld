@@ -1970,6 +1970,12 @@ elsewhere in the household is not on-site stock. Missing inputs block the
 project under its existing retry rules, without granting another household's
 materials or implicitly transporting remote goods.
 
+Construction input selection checks the builder's current unoccupied route
+to each stocked permitted Warehouse, using movement's exact destination,
+diagonal, shared entrance and attached handcart rules. If none is reachable,
+preparation continues to its existing material-gathering fallback. Collection
+still rechecks authority, available stock and carrying room at the Warehouse.
+
 Blacksmith input hauling checks the actor's current unoccupied pickup route
 and the source-to-shop route before selecting household or permitted Town
 Warehouse stock. An occupied earlier lot does not hide later reachable stock.
@@ -2583,6 +2589,12 @@ Godot uses it to keep an **Add a newcomer** offer in the Event Log while the
 rule is on in a started world, even when the transition event has left bounded
 history. The link opens the existing Add Agent controls and rechecks the current
 snapshot when clicked; it neither places an agent nor asks for a paid model call.
+
+Godot ends Add Agent placement mode on the current world's signed placement
+receipt, before refreshing provider status. Failure of that separate read keeps
+the placement confirmation and explains how to refresh model settings. A refused
+placement leaves the panel open; responses from an obsolete world still cannot
+change the current world's interface.
 
 Preparing parenthood notes derive the caregiver household's usable edible
 reserve and required amount from the same captured society/inventory checkpoint
