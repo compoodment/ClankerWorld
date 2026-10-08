@@ -178,6 +178,9 @@ public sealed class PrivateWorldStateFile
 
     internal void VerifyRequiredHistory(string? historyArchiveHead, IReadOnlyList<RetiredBoatRequestRange> retiredRequests)
     {
+        // No archive means no disk work. Preserve the no-history path so
+        // selection can prepare its transaction before checkpoint publication.
+        if (historyArchiveHead is null && retiredRequests.Count == 0) return;
         lock (gate) VerifyHistory(historyArchiveHead, retiredRequests);
     }
 
