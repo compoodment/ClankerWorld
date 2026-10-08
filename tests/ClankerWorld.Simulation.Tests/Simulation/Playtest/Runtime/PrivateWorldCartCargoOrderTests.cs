@@ -16,13 +16,24 @@ public sealed class PrivateWorldCartCargoOrderTests
     });
 
     [Theory]
-    [InlineData("Load 3 wood into my cart z-cart", false, 3)]
-    [InlineData("Unload 2 wood from my cart z-cart", true, 2)]
-    [InlineData("Unload 2 wood from my cart z-cart onto the ground", true, 2)]
-    public async Task ExactQuantityUsesSelectedCartAndSurvivesRollbackReloadAndReplay(string text, bool loaded, int moved)
+    [InlineData("Load 3 wood into my cart z-cart", false, 3, false)]
+    [InlineData("Load 3 wood into my cart z-cart", false, 3, true)]
+    [InlineData("Unload 2 wood from my cart z-cart", true, 2, false)]
+    [InlineData("Unload 2 wood from my cart z-cart onto the ground", true, 2, false)]
+    public async Task ExactQuantityUsesSelectedCartAndSurvivesRollbackReloadAndReplay(string text, bool loaded, int moved, bool approach)
     {
         var state = await CargoState(loaded);
         var actor = state.Inhabitants[0].InhabitantId;
+        if (approach)
+        {
+            var site = state.Map.FootNeighbors(state.Inhabitants[0].Position)
+                .First(point => state.Map.IsPassable(point) && state.Inhabitants.All(person => person.Position != point));
+            state = WithInventory(state, state.Society.Society.Inventory with
+            {
+                Lots = state.Society.Society.Inventory.Lots.Select(lot => lot.Id is "z-cart" or "cargo"
+                ? lot with { GroundPosition = new(site.X, site.Y) } : lot).ToArray()
+            });
+        }
         using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
         var receipt = world.SubmitInstruction(Request("cargo", actor, text));
         var submitted = Assert.Single(world.ExportState().Instructions!).Order!;
@@ -33,10 +44,15 @@ public sealed class PrivateWorldCartCargoOrderTests
         using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new IdleProvider());
         Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        for (var tick = 0; tick < 4; tick++)
+        for (var tick = 0; tick < (approach ? 8 : 4); tick++)
         {
+            var before = world.Inhabitants[0].Position;
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            var after = world.Inhabitants[0].Position;
+            if (before != after) Assert.True(state.Map.CanFootStep(before, after));
+            if (Assert.Single(world.ExportState().Instructions!).Order!.CompletedUnits > 0)
+                Assert.Equal(new InventoryGroundPosition(after.X, after.Y), world.Society.Inventory.GetLot("z-cart").GroundPosition);
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
         }
         var order = Assert.Single(world.ExportState().Instructions!).Order!;
