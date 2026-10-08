@@ -117,10 +117,17 @@ public sealed class WaterJugReturnSelectionTests
             (point.X == house.Position.X || point.Y == house.Position.Y) && state.Map.IsPassable(point) &&
             state.Inhabitants.All(person => person.Position != point)) : house.Position;
         var previous = state.Inhabitants.Single(person => person.InhabitantId == actor).Position;
-        state = state with { Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
-            { Position = origin, HungerBasisPoints = 10_000, Equipment = null, Survival = person.Survival is { } survival
-                ? survival with { WarmthBasisPoints = 10_000, NutritionBasisPoints = 10_000 } : null }
-            : person.Position == origin ? person with { Position = previous } : person).ToArray() };
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
+            {
+                Position = origin,
+                HungerBasisPoints = 10_000,
+                Equipment = null,
+                Survival = person.Survival is { } survival
+                    ? survival with { WarmthBasisPoints = 10_000, NutritionBasisPoints = 10_000 } : null
+            } : person.Position == origin ? person with { Position = previous } : person).ToArray()
+        };
         var other = otherFirst ? "jug-a" : "jug-b";
         var returned = otherFirst ? "jug-b" : "jug-a";
         var inventory = state.Society.Society.Inventory;
