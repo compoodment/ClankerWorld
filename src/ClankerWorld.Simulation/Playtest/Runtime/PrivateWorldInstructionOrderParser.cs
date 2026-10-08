@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Harness;
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// Parses supported food, inventory, repair, field, production, custody, movement, guardian, building and shelter orders.
+/// Parses supported food, inventory, repair, field, production, writing, custody, movement, guardian, building and shelter orders.
 /// Every token must belong to one of these forms; unconsumed text is not guessed.
 /// </summary>
 internal static class PrivateWorldInstructionOrderParser
@@ -146,6 +146,8 @@ internal static class PrivateWorldInstructionOrderParser
             var repeatPrefix = keepPrefix || ReadWord("repeat") || ReadWord("repeatedly");
 
             var actionStart = position;
+            if (TryReadKnowledgeOrder(end, repeatPrefix, keepPrefix) is { } knowledgeOrder) return knowledgeOrder;
+            position = actionStart;
             if (TryReadShelterOrder(end, repeatPrefix) is { } shelterOrder) return shelterOrder;
             position = actionStart;
             if (TryReadBuildingOrder(end, repeatPrefix) is { } buildingOrder) return buildingOrder;
@@ -153,6 +155,8 @@ internal static class PrivateWorldInstructionOrderParser
             if (TryReadDeliveryOrder(end, repeatPrefix, keepPrefix) is { } deliveryOrder) return deliveryOrder;
             position = actionStart;
             if (TryReadProductionOrder(end, repeatPrefix, keepPrefix) is { } productionOrder) return productionOrder;
+            position = actionStart;
+            if (TryReadTreePlantingOrder(end, repeatPrefix, keepPrefix) is { } treeOrder) return treeOrder;
             position = actionStart;
             if (TryReadFieldOrder(end, repeatPrefix, keepPrefix) is { } fieldOrder) return fieldOrder;
             position = actionStart;
@@ -478,6 +482,42 @@ internal static class PrivateWorldInstructionOrderParser
             return true;
         }
 
+        private OwnerInstructionOrder? TryReadKnowledgeOrder(int end, bool repeat, bool keep)
+        {
+            if (position >= end) return null;
+            var word = tokens[position].Value;
+            var verb = word switch
+            {
+                "write" or "writing" => "write",
+                "draw" or "drawing" => "draw",
+                "bind" or "binding" => "bind",
+                "copy" or "copying" => "copy",
+                _ => null,
+            };
+            if (verb is null || keep && !word.EndsWith("ing", StringComparison.Ordinal)) return null;
+            position++;
+            var explicitQuantity = TryReadQuantity(out var quantity);
+            if (!explicitQuantity)
+            {
+                _ = ReadWord("a") || ReadWord("the");
+                quantity = 1;
+            }
+            var field = ReadWord("field");
+            var kind = TryReadAnyWord("record", "records") ? "field_record"
+                : TryReadAnyWord("map", "maps") ? "field_map"
+                : !field && TryReadAnyWord("book", "books") ? "book" : null;
+            if (kind is null || verb == "draw" && kind != "field_map" || verb == "bind" && kind != "book") return null;
+            if (ReadWord("until"))
+            {
+                if (!TryReadAnyWord("cancelled", "canceled")) return null;
+                repeat = true;
+            }
+            if (!ReadWord("now")) _ = ReadWord("please");
+            return position == end ? new OwnerInstructionOrder(verb == "copy" ? "copy_knowledge" : "write_knowledge", "queued", quantity, 0,
+                verb == "copy" ? "copies" : "artifacts", repeat, explicitQuantity)
+            { TargetKnowledgeKind = kind } : null;
+        }
+
         private OwnerInstructionOrder? TryReadProductionOrder(int end, bool repeat, bool keep)
         {
             if (position >= end || tokens[position].Kind != TokenKind.Word) return null;
@@ -589,6 +629,36 @@ internal static class PrivateWorldInstructionOrderParser
             if (position != end) return null;
             return new(action, "queued", explicitQuantity ? quantity : 1, 0, "fields", repeat,
                 explicitQuantity, TargetPosition: targetPosition, TargetCropKind: crop);
+        }
+
+        private OwnerInstructionOrder? TryReadTreePlantingOrder(int end, bool repeat, bool keep)
+        {
+            if (!TryReadAnyWord("plant", "plants", "planting") || keep && tokens[position - 1].Value != "planting") return null;
+            _ = ReadWord("my");
+            var explicitQuantity = TryReadQuantity(out var quantity);
+            if (!explicitQuantity) _ = TryReadAnyWord("a", "an", "the", "some");
+            string action;
+            if (ReadWord("broadleaf")) action = "plant_broadleaf";
+            else if (ReadWord("conifer")) action = "plant_conifer";
+            else if (ReadWord("orchard")) action = "plant_orchard";
+            else action = "plant_tree";
+            var hasTree = TryReadAnyWord("tree", "trees");
+            if (!hasTree && action != "plant_orchard") return null;
+            GridPoint? targetPosition = null;
+            if (ReadWord("at"))
+            {
+                if (!TryReadCoordinate(out var target)) return null;
+                targetPosition = target;
+            }
+            if (ReadWord("until"))
+            {
+                if (!ReadWord("cancelled") && !ReadWord("canceled")) return null;
+                repeat = true;
+            }
+            if (!ReadWord("now")) _ = ReadWord("please");
+            if (position != end) return null;
+            return new(action, "queued", explicitQuantity ? quantity : 1, 0, "trees", repeat,
+                explicitQuantity, TargetPosition: targetPosition);
         }
 
         private bool TryReadCollectionLocation(ref GridPoint? targetPosition)

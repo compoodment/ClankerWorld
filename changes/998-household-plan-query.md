@@ -1,0 +1,1 @@
+- Reduce repeated household building-plan work in grown Towns by computing each proposed building identity once per design.

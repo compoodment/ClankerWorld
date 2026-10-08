@@ -1,0 +1,3 @@
+- On the paired world: give an adult with an orchard seed a legal planting order. After the seed is consumed, a fruitless orchard tree should appear on the chosen tile immediately. ([#1293](https://github.com/compoodment/ClankerWorld/issues/1293))
+- Zoom in and out around the planted orchard, wait for ordinary refreshes, then save and reload. The same tree should stay visible on its tile. ([#1293](https://github.com/compoodment/ClankerWorld/issues/1293))
+- Let the planted orchard mature and reach its fruiting season. Fruit should appear, and harvesting should remove the fruit while leaving the tree visible. ([#1293](https://github.com/compoodment/ClankerWorld/issues/1293))

@@ -37,4 +37,6 @@ body:
     id: risks
     attributes:
       label: Saves, replay and docs
-      description: Does this change what gets saved or how the world is reconstructed? Which docs need updating? Technical details are welcome here when needed.
+      description: Does this change what gets saved or how the world is reconstructed? Which pages need updating, and which sentences will it make false (`node scripts/find-stale-docs.js <names>` finds them)? Technical details are welcome here when needed.
+    validations:
+      required: true
