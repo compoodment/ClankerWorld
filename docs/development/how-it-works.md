@@ -1065,12 +1065,26 @@ anyone else's private stock. Two artifacts of the same kind can be exchanged
 when each records sites its recipient has not learned; the existing consent,
 ownership, reservation and delivery checks still apply.
 
+Scouting has no fixed eight-step turn-back. `explore` continues an outward
+outing; the separate `explore_return` choice starts a return to its origin.
+These choices use the existing 30-tick reconsideration cadence and ordinary
+guidance-triggered requests, not a new request for each movement step. An
+ongoing return can also continue through `explore`, preserving its waypoints.
+The starting warmth estimate keeps its eight-step trial budget and grows with
+the recorded return distance. If that budget no longer permits more outward
+travel, only the return choice remains; existing urgent survival rules still
+interrupt either leg.
+
 Outward scouting checks occupied destinations and both diagonal corner tiles
 before ranking neighboring exits. An attached cart also restricts exits to
 ordinary legal cart steps: cardinal movement without unroaded mountains.
 If no legal outward exit remains, the scout
 uses the existing return path instead of repeatedly targeting a blocked corner.
 Only completed movement adds a visited tile.
+An outward path never repeats a tile and is bounded by the map's tile count.
+The recent visited/discovery lists keep at most 256 entries; the existing
+personal knowledge limits are unchanged. Validation rejects looping or
+oversized saved paths and retains historical bridge checks for actual steps.
 
 If intervening legal movement interrupts outward scouting, a new outward path
 starts at the actual position without inventing missing steps. On the return
@@ -1205,6 +1219,16 @@ dry-ground speed, end to end along the bridge only (see
 [Roads and bridges](#roads-and-bridges)). Mountains are slower to cross and
 cannot be built on; peaks are impassable.
 
+Checkpoint map acceptance keeps a weak, derived camp-reachability cache for
+each map's current starting point. Before reuse it compares actual terrain,
+water, elevation, surface, wrapping and bridge-axis data with an owned topology
+snapshot. A changed origin or borrowed collection invalidates that result; a
+fresh traversal uses owned data so an old terrain index cannot hide tile edits.
+Placement, layer and manifest checks still run on every acceptance. No route
+rules change. See [Saves and replay](saves-and-replay.md) for the load boundary
+and [Camp reachability measurements](camp-reachability-measurements.md) for native
+save, allocation and exact continuation evidence.
+
 Resources are placed in bounded 16×16 cells with climate and cover biases, then
 recorded in their actual 64×64 chunks. Sparse/Normal/Abundant provisionally
 attempt alternating cells, one site per cell or two sites per cell. Food choices
@@ -1336,6 +1360,15 @@ relief layer from the saved elevation (`UI/Map/ReliefRenderer.cs`): it renders
 size, and shows the per-tile mountain and hill art for a chunk until its relief
 is ready. It also warms hills' overview color and shows "Landform: Hills" in
 tile inspection. Hill travel cost and passability are not decided.
+
+The client's `LandscapePalette` applies the approved seasonal colour rule to
+grass and canopy ramps from the observed world season. Summer retains the base
+art. World load prepares four overview textures and the shared 16 px and 32 px
+ground and tree atlases; a season change selects those resources without
+rebuilding the map or relief chunks. Transition rims, overview trees and tile
+inspection use the same treatment. Fruit, trunks, shadows, rock, water and
+permanent snow retain their original colours. Night and regional weather still
+draw above the landscape, and winter colour alone does not add snow.
 
 All of these numbers are **provisional**. They were chosen from fixed-seed
 measurements, not owner-reviewed maps, and live in `TerrainPlacementRules`.
@@ -3054,7 +3087,8 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   `replant_tree` also uses a tree seed.
   Replanting selects stumps reachable from the acting agent, including on
   disconnected islands, and skips stumps with no unoccupied route into reach.
-- **Orchard trees** are `growing`, `fruiting` or `picked`. Fruit is seasonal in
+- **Orchard trees** are `sapling` immediately after planting, then `growing`,
+  `fruiting` or `picked`. Fruit is seasonal in
   `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
   worlds) and falls when that season ends. New worlds start in spring, so
   orchards start without fruit.
@@ -3077,8 +3111,10 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
 - **Art.** `UI/Graphics/TreeArtManifest.cs` in the client is the one list of
   tree art: species, stage, asset ID, sprite, source, licence and review
   status. The map reads its sprites and stage names from it. Broadleaf and
-  conifer mature, sapling and stump sprites and the three orchard stages are
-  approved art from the October 1 review; the tree-seed item has no art yet. The
+  conifer mature, sapling and stump sprites and the three established orchard
+  sprites are approved art from the October 1 review. Orchard saplings reuse
+  the approved growing sprite with a separate terrain code, preserving the
+  host's saved stage; the tree-seed item has no art yet. The
   [pixel-art style guide](art-style.md) explains how art is reviewed.
 - **Logs.** The host logs `tree_planting` outcomes (planted, refused,
   replanted, seed collected) with the agent ID and a bounded detail.
@@ -3250,8 +3286,11 @@ ordinary revalidated choices. Native orders bind an exact animal name or ID.
 Care spends actual unreserved grain/greens and jug water at the animal or yard;
 food, planting and workstation reserves stay protected. For care away from the
 actor's tile, input selection accepts only physically carried supplies. This
-keeps the existing supply path collecting both feed and a water jug before
-approaching the animal, including after a partial pickup. At the animal's tile,
+keeps the existing supply path collecting feed and enough usable jug water before
+approaching the animal, including after a partial pickup. Water may be split
+across jugs or content lots; fetching counts the usable water already carried
+and rechecks each whole jug against reservations and free carrying space.
+At the animal's tile,
 permitted local yard stock remains usable directly. Physical supply trips
 retain the owning household. Cancelling or replacing an animal order releases
 only a supply trip matching its actor, animal and action, without relocating,
