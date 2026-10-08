@@ -39,11 +39,12 @@ public sealed partial class PrivateWorldRuntime
         return new("animal_order", "Follow the order for " + animal.Name + ", using its actual location, permissions and physical supplies.", 0, animal.Id);
     }
 
+    // Admission can inspect replacement supplies before execution releases an unrelated retained trip.
     private bool HasAnimalCareOrderSupplies(string actor, AnimalState animal) => MayCareForAnimal(actor, animal) &&
         (AnimalCareInputs(actor, animal, AnimalRules.Definition(animal.Species).DailyFeed,
             AnimalRules.Definition(animal.Species).DailyWater) is not null ||
          animalWorld.SupplyTrips.Any(trip => trip.ActorId == actor && trip.AnimalId == animal.Id && trip.Action == "care") ||
-         AnimalSupplyChoices(actor).Any(supply => supply.AnimalId == animal.Id && supply.Action == "care"));
+         AnimalSupplyChoices(actor, ignoreActiveTrip: true).Any(supply => supply.AnimalId == animal.Id && supply.Action == "care"));
 
     private string AnimalOrderBlockedReason(OwnerQueuedInstruction instruction) =>
         instruction.Order is { Action: "animal_care", TargetAnimalId: { } id } && Animal(id) is { DiedTick: null } animal &&
