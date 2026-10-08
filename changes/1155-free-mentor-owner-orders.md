@@ -1,0 +1,1 @@
+- Adults carrying out an active Must Do task are no longer offered as free teachers. Cancelling or finishing the task makes lessons available again, and pending requests can continue after cancellation.

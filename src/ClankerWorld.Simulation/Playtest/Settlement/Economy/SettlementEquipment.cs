@@ -58,7 +58,8 @@ public sealed partial class PrivateWorldRuntime
         // Borrowed goods, carried by this agent or by another member, are not theirs to take.
         .Where(lot => AvailableLotQuantity(lot) > 0 && lot.DeliveryBuildingId is null &&
             (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) ||
-                lot.OwnerId == HouseholdFor(actor) && lot.CarrierId is null && CanReachSharedItem(actor, lot)))
+                lot.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId &&
+                lot.CarrierId is null && CanReachSharedItem(actor, lot)))
         .Concat(AvailableWarehouseStock(actor)).DistinctBy(lot => lot.Id);
 
     private InventoryLot? BetterGarment(string actor)

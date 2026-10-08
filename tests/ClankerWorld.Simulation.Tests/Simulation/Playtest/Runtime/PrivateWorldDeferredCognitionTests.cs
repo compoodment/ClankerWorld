@@ -319,8 +319,10 @@ public sealed class PrivateWorldDeferredCognitionTests
             saved.Society.Cognition.Queue.Single(item => item.InhabitantId == NameTargetId).TriggerIds);
         Assert.False(Encoding.UTF8.GetString(savedJson).Contains("isNameRetry", StringComparison.OrdinalIgnoreCase));
 
-        provider.ReleaseSecond.TrySetResult(true);
-        await provider.SecondReturned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(provider.SecondCancellationToken.IsCancellationRequested);
+        var canceledReply = provider.CompleteSecondReply();
+        Assert.True(canceledReply.IsCompletedSuccessfully);
+        Assert.Equal("Restored Name", (await canceledReply).ChosenName);
         Assert.Equal(completedBeforeCancellation, world.ExportState().Events.Count(item =>
             item.Kind == "hosted_decision_completed"));
         Assert.Equal(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
@@ -609,6 +611,10 @@ public sealed class PrivateWorldDeferredCognitionTests
         bool failSecond = false) : IDecisionProvider
     {
         private int callCount;
+        private readonly TaskCompletionSource<CognitionDecisionResponse> heldSecondReply =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private CognitionDecisionResponse? secondReply;
+        private Task<CognitionDecisionResponse>? secondResponseTask;
 
         public SequencedHostedProvider(params NameReply[] replies)
             : this((IReadOnlyList<NameReply>)replies)
@@ -618,42 +624,38 @@ public sealed class PrivateWorldDeferredCognitionTests
         public ConcurrentQueue<InhabitantObservation> ObservedRequests { get; } = new();
         public TaskCompletionSource<bool> FirstReturned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> SecondStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<bool> ReleaseSecond { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<bool> SecondReturned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> SecondFailed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public InhabitantObservation? SecondObservation { get; private set; }
+        public CancellationToken SecondCancellationToken { get; private set; }
         public int CallCount => Volatile.Read(ref callCount);
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 1;
 
-        public async ValueTask<CognitionDecisionResponse> DecideAsync(
+        public Task<CognitionDecisionResponse> CompleteSecondReply()
+        {
+            // Complete the actual provider response on the test thread. A separate
+            // post-release continuation would only measure thread-pool scheduling.
+            Assert.True(heldSecondReply.TrySetResult(Assert.IsType<CognitionDecisionResponse>(secondReply)));
+            return Assert.IsAssignableFrom<Task<CognitionDecisionResponse>>(secondResponseTask);
+        }
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(
             CognitionDecisionRequest request,
             CancellationToken cancellationToken = default)
         {
             var call = Interlocked.Increment(ref callCount);
             var observation = request.Observation;
             ObservedRequests.Enqueue(observation);
-            if (call == 2)
-            {
-                SecondObservation = observation;
-                SecondStarted.TrySetResult(true);
-                if (holdSecond)
-                {
-                    if (ignoreSecondCancellation)
-                        await ReleaseSecond.Task;
-                    else
-                        await ReleaseSecond.Task.WaitAsync(cancellationToken);
-                }
-            }
-
             if (failSecond && observation.IsNameRetry)
             {
                 if (call == 2)
                 {
+                    SecondObservation = observation;
+                    SecondCancellationToken = cancellationToken;
+                    SecondStarted.TrySetResult(true);
                     SecondFailed.TrySetResult(true);
-                    SecondReturned.TrySetResult(true);
                 }
-                throw new HttpRequestException("test transport failure");
+                return ValueTask.FromException<CognitionDecisionResponse>(new HttpRequestException("test transport failure"));
             }
 
             var reply = replies[Math.Min(call - 1, replies.Count - 1)];
@@ -673,9 +675,21 @@ public sealed class PrivateWorldDeferredCognitionTests
                 probabilities,
                 Usage: new CognitionUsage("test-model", 10, 2),
                 ChosenName: reply.Name);
+            if (call == 2)
+            {
+                SecondObservation = observation;
+                SecondCancellationToken = cancellationToken;
+                secondReply = response;
+                if (holdSecond)
+                    secondResponseTask = ignoreSecondCancellation
+                        ? heldSecondReply.Task
+                        : heldSecondReply.Task.WaitAsync(cancellationToken);
+                SecondStarted.TrySetResult(true);
+                if (holdSecond)
+                    return new ValueTask<CognitionDecisionResponse>(secondResponseTask!);
+            }
             if (call == 1) FirstReturned.TrySetResult(true);
-            if (call == 2) SecondReturned.TrySetResult(true);
-            return response;
+            return ValueTask.FromResult(response);
         }
     }
 

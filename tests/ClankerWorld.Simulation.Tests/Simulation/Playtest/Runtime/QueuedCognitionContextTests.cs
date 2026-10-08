@@ -255,19 +255,24 @@ public sealed class QueuedCognitionContextTests
         }
     }
 
-    [Fact]
-    public async Task RetainedGuidanceResumesInTheNewEpochWhileFieldWorkIsPending()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RetainedGuidanceResumesInTheNewEpochWhileFieldWorkIsPending(bool delayedStartup)
     {
         var (state, farmer, _, point) = await FarmFieldTests.ReadyFarmer("retained-farm-guidance");
         var provider = new HeldIdleProvider(holdSecond: true, ignoreCancellation: true,
             replyText: "Old farm reply.", firstCandidatePrefix: "farm:Harvest:");
         using var world = PrivateWorldRuntime.Restore(state, id => id == farmer ? provider : new QuietProvider());
+        // A committed tick schedules the worker; it need not have entered the
+        // provider yet. Keep a control that requires two more real ticks.
+        if (delayedStartup) provider.CanStart = () => world.WorldTick >= state.Society.Society.WorldTick + 3;
         var replacement = new HeldIdleProvider(replyText: "Farm reply after reload.");
         PrivateWorldRuntime? restored = null;
         try
         {
-            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            await AdvanceUntil(world, () => provider.Started.Task.IsCompleted,
+                "The first farm request did not start within forty ticks.");
             Assert.Contains(Assert.Single(provider.Requests).Candidates, item => item.Id.StartsWith("farm:Harvest:", StringComparison.Ordinal));
             var message = world.SubmitInstruction(new OwnerInstructionRequest("farm-held-guidance", "owner:test", farmer,
                 OwnerInstructionKind.Suggestive, "Look for a grove after you eat."));
@@ -344,7 +349,8 @@ public sealed class QueuedCognitionContextTests
     private static int Accepted(PrivateWorldRuntime world) => world.ExportState().Events.Count(item =>
         item.Kind == "hosted_decision_completed" && item.Detail.StartsWith(Actor + ":", StringComparison.Ordinal));
 
-    private static async Task AdvanceUntil(PrivateWorldRuntime world, Func<bool> done)
+    private static async Task AdvanceUntil(PrivateWorldRuntime world, Func<bool> done,
+        string failureMessage = "The queued decision was not admitted within forty ticks.")
     {
         for (var tick = 0; tick < 40 && !done(); tick++)
         {
@@ -361,7 +367,7 @@ public sealed class QueuedCognitionContextTests
             }
             if (!done()) await Task.Delay(5);
         }
-        Assert.True(done(), "The queued decision was not admitted within forty ticks.");
+        Assert.True(done(), failureMessage);
     }
 
     private sealed class HeldIdleProvider(bool holdSecond = false, bool ignoreCancellation = false, string? replyText = null,
@@ -370,6 +376,7 @@ public sealed class QueuedCognitionContextTests
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 1;
         public ConcurrentQueue<InhabitantObservation> Requests { get; } = new();
+        public Func<bool> CanStart { get; set; } = () => true;
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -378,6 +385,7 @@ public sealed class QueuedCognitionContextTests
         public TaskCompletionSource<bool> SecondReturned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
+            while (!CanStart()) await Task.Delay(1, cancellationToken);
             Requests.Enqueue(request.Observation);
             var ordinal = Requests.Count;
             var second = ordinal == 2;

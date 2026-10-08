@@ -1,0 +1,1 @@
+- Household suppliers choose reachable workshops instead of repeatedly trying to deliver to a blocked building while another building needs their supplies.
