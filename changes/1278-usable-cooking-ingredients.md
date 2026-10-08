@@ -1,0 +1,1 @@
+- Cooking selects healthy ingredients when a broken pot or jug remains in the same building, and leaves the broken vessel and its contents untouched.

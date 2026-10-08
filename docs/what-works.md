@@ -430,6 +430,9 @@ the recipe name. Every batch makes two servings, so "cook four house bread"
 requires two paid batches; odd serving counts are not understood. Plain
 "cook porridge" is ambiguous and does not replace the current order.
 
+Cooking ignores ingredients inside broken vessels and uses healthy on-site
+alternatives. The broken pot or jug and its contents stay unchanged.
+
 House and Restaurant ingredient supplies use their native demand, cooking
 reserves, carrying and whole-jug rules. Named prepared foods can be collected
 as personal property, returned when borrowed, delivered as spare carried food
