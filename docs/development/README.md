@@ -16,6 +16,7 @@ For the game itself, start with [playing](../playing.md),
 | Understand the components and rules to preserve | [How the game works](how-it-works.md) |
 | Restore dependencies, build and check a change | [Build and test](build-and-test.md) |
 | Compare construction query costs and native state equivalence | [Construction query measurements](construction-query-measurements.md) |
+| Measure wild-animal forage searches and allocation | [Wild forage measurements](wild-forage-measurements.md) |
 | Measure cached server observations and allocation | [Cached observation measurements](cached-observation-measurements.md) |
 | Draw, review or change game art | [Pixel-art style guide](art-style.md) |
 | Approve devices or understand request security | [Device pairing](device-pairing.md) |
