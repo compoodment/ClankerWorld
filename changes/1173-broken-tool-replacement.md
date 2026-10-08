@@ -1,0 +1,1 @@
+- Require replacement for fully broken tools during ordinary repair, matching tool repair orders; worn tools still use real repair materials.
