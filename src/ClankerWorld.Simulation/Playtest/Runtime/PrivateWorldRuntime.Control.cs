@@ -127,6 +127,7 @@ public sealed partial class PrivateWorldRuntime
                 CancelConstructionForOrder(instruction);
                 CancelExpansionForOrder(instruction);
                 CancelAnimalSupplyForOrder(instruction);
+                CancelKnowledgeWritingForOrder(instruction);
                 status = "cancelled";
                 AppendEvent("instruction_order_cancelled", $"{instruction.TargetInhabitantId}:{instruction.InstructionId}:owner");
             }
@@ -343,6 +344,7 @@ public sealed partial class PrivateWorldRuntime
             CancelConstructionForOrder(instruction);
             CancelExpansionForOrder(instruction);
             CancelAnimalSupplyForOrder(instruction);
+            CancelKnowledgeWritingForOrder(instruction);
             AppendEvent("instruction_order_cancelled", $"{inhabitantId}:{instruction.InstructionId}:replaced");
         }
         checkpointSchemaVersion = StateSchemaVersion;
@@ -426,6 +428,7 @@ public sealed partial class PrivateWorldRuntime
         "return_borrowed" => "return borrowed goods to their owning household's House",
         "deliver_stock" => "deliver the requested goods to a permitted building",
         "produce_item" => "make the requested goods at a permitted workstation",
+        "write_knowledge" => "write the requested record, map or book from your learned sites using real materials",
         "construct_building" => "construct the requested household building at a permitted site",
         "expand_building" => "complete the requested building's next permitted expansion",
         _ => null,
