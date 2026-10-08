@@ -77,6 +77,7 @@ public sealed partial class PrivateWorldRuntime
         {
             Work = new(workerId, kind, FarmFieldRules.WorkTicks(kind), WorldTick, reservationId, crop,
                 hoeLotId, sickleLotId, orderInstructionId),
+            LastWorkedTick = WorldTick,
         });
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("field_work_started", $"{workerId}:{FarmFieldRules.FieldId(position)}:{kind}");
@@ -135,7 +136,24 @@ public sealed partial class PrivateWorldRuntime
             }
             if (field.ReplantingReservationId is { } reserve && !ActiveFarmReservation(reserve))
                 SetFarmField(fields.Single(item => item.Position == field.Position) with { ReplantingReservationId = null });
+            var current = fields.Single(item => item.Position == field.Position);
+            if (current.Work is null && WorldTick - current.LastWorkedTick >= FarmFieldRules.IdleTicksBeforeGrass(worldSystems.Config))
+                ReturnFieldToGrass(current);
         }
+    }
+
+    /// <summary>
+    /// Removes a field nobody has worked for a full season. Any crop still on
+    /// it is lost and the seed kept back for replanting is freed; harvested
+    /// goods already on the ground and the land's fertility stay.
+    /// </summary>
+    private void ReturnFieldToGrass(FarmFieldState field)
+    {
+        if (field.ReplantingReservationId is { } reserve && ActiveFarmReservation(reserve))
+            ApplyInventoryTransition(inventory => InventoryFixture.ReleaseReservation(inventory, reserve, "field_returned_to_grass"));
+        fields.RemoveAll(item => item.Position == field.Position);
+        checkpointSchemaVersion = StateSchemaVersion;
+        AppendEvent("field_returned_to_grass", $"{FarmFieldRules.FieldId(field.Position)}:{field.HouseholdId}");
     }
 
     private bool ActiveFarmReservation(string id) => society.Checkpoint.Inventory.Reservations.Any(reservation =>
@@ -194,9 +212,9 @@ public sealed partial class PrivateWorldRuntime
         {
             ApplyToolWork(workerId, toolPlans.ToArray());
             if (FieldWorkToolsAvailable(workerId, work))
-                SetFarmField(field with { Work = work });
+                SetFarmField(field with { Work = work, LastWorkedTick = WorldTick });
             else
-                CancelFarmWork(field with { Work = work });
+                CancelFarmWork(field with { Work = work, LastWorkedTick = WorldTick });
             return true;
         }
         switch (work.Kind)
@@ -231,6 +249,8 @@ public sealed partial class PrivateWorldRuntime
                 CompleteFieldHarvest(field, toolPlans);
                 break;
         }
+        if (fields.SingleOrDefault(item => item.Position == field.Position) is { } finished)
+            SetFarmField(finished with { LastWorkedTick = WorldTick });
         completed = field with { Work = work };
         CreditCompletedWork(workerId, "farming");
         AppendEvent(work.Kind == FarmWorkKind.Till ? "field_prepared" : work.Kind == FarmWorkKind.Plant ? "field_planted" :

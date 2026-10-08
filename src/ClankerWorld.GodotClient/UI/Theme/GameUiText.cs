@@ -316,7 +316,7 @@ public static class GameUiText
             "expansion_order_paused" or "expansion_order_resumed" or
             "build_started" or "build_completed" or "recipe_started" or "recipe_completed" or "house_tool_made" or
             "field_work_started" or "field_prepared" or "field_planted" or "field_tended" or "field_harvested" or
-            "field_ready" or "field_work_interrupted" or "crop_weather_loss" or
+            "field_ready" or "field_work_interrupted" or "field_returned_to_grass" or "crop_weather_loss" or
             "crop_moisture_effect" or "food_harvested" or "food_consumed" or "tree_planted" or "tree_replanted" or "child_born" or
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
             "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or

@@ -28,6 +28,7 @@ public sealed partial class PrivateWorldRuntime
         {
             if (!fertility.CanFarm(field.Position) || occupied.Contains(field.Position) || !Enum.IsDefined(field.Stage) ||
                 !society.Households.Any(household => household.Id == field.HouseholdId) || field.Cycle < 0 ||
+                field.LastWorkedTick < 0 || field.LastWorkedTick > society.WorldTick ||
                 field.Stage is FarmFieldStage.Preparing or FarmFieldStage.Prepared && field.Crop is not null ||
                 field.Stage is not (FarmFieldStage.Preparing or FarmFieldStage.Prepared) &&
                     (!FarmFieldRules.IsCrop(field.Crop) || field.PlantedTick < 0 || field.PlantedTick > society.WorldTick ||
