@@ -326,6 +326,18 @@ Ordinary crop and seed hauling tries another permitted farm store when the
 preferred one cannot fit the load. For example, a filled pot goes to the
 Farmhouse if the Silo has too little room for the pot and its contents.
 
+To plant trees, try **Plant a conifer tree**, **Plant two broadleaf trees**,
+**Plant an orchard**, or **Keep planting trees**. Adults use real tree seeds
+from felling or orchard seeds from fruit picking. They can fetch their own
+stored seeds or permitted household or Warehouse stock before planting.
+Each completed sapling counts as one tree; collecting a seed and walking do
+not count. Without a species, wood trees follow the nearby forest.
+Add **at (12, 4)** for an exact tile outside Town borders. Occupied or
+unsuitable ground, missing seeds, carrying limits and blocked routes leave
+the task waiting with a reason. An exact tile never changes to another tile,
+so requesting several trees on one tile stops after the first sapling.
+Queue, cancel and save/reload work as for other tasks.
+
 To move supplies for a household or Town, name both the goods and the destination:
 
 - **Haul four grain to my Farmhouse** moves available household farm stock.
