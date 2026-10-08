@@ -475,9 +475,14 @@ public partial class Main
             : new Vector2(Math.Max(14, (UiSize.X - size.X) / 2), Math.Max(HudTop, (UiSize.Y - size.Y) / 2));
     }
 
+    private Theme? renderedAgentCardTheme;
+
     /// <summary>Profile, Speak and card buttons carry pixel icons in the current theme.</summary>
     private void RefreshAgentCardIcons()
     {
+        // Camera and observation refreshes keep the same theme. The compact
+        // styles use logical margins and inherit the interface's scaling.
+        if (ReferenceEquals(renderedAgentCardTheme, UiTheme.Theme)) return;
         var palette = UiTheme.Current;
         var dark = palette.Name == "dark";
         var wood = dark ? new Color("C99A62") : new Color("9C6C42");
@@ -505,6 +510,7 @@ public partial class Main
             ContentMarginRight = 2,
             ContentMarginBottom = 2,
         });
+        renderedAgentCardTheme = UiTheme.Theme;
     }
 
     private void CenterOnSelectedAgent()
