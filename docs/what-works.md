@@ -1404,6 +1404,12 @@ materials still lack a complete production chain.
 
 ## Saves, keys and inventions
 
+The game warns when free space on the server's save volumes is below a
+provisional 1 GiB. The notice stays visible while autosaves run, appears in
+Save World before saving or overwriting, and clears when space recovers.
+Unknown space is shown separately. These checks never prevent a save or delay
+an emergency checkpoint; an actual disk-full write can still fail.
+
 Worlds keep their own saves, model assignments and autosave settings. API keys,
 pairing and the model-call count and limit belong to the installation. The
 Windows host protects stored keys for the current Windows user; Unix hosts use
@@ -1434,7 +1440,7 @@ metadata is isolated so sound saves remain reachable. During the alpha, a save
 from an older build may stop loading after an update; the game refuses it with a
 reason and keeps the file. The agreed [mod compatibility](game-design/inventions-and-mods.md#inventions-mods-and-technology)
 and [recovery-history cleanup](game-design/saves.md#explicit-deletion) rules
-await implementation; their copy counts and disk-space thresholds stay provisional. Technical rules
+await implementation; cleanup copy counts and the available disk-space warning's threshold stay provisional. Technical rules
 are in [saves and replay](development/saves-and-replay.md).
 
 The Mod Library lists the current world's recorded packages read-only, one card each with

@@ -58,6 +58,9 @@ public partial class Main
     private async Task PulseAsync()
     {
         ExpireStatusToast(refreshSucceeded: false);
+        if (registration is not null && !registeredEndpointInvalid)
+            _ = RefreshSaveDiskSpaceAsync();
+        else saveDiskWarningPanel.Hide();
         if (pendingPairing is not null)
         {
             await PollPairingAsync();

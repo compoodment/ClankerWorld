@@ -139,6 +139,14 @@ public sealed class OwnerWorldApi
             action, deviceKey, cancellationToken);
     }
 
+    public Task<SaveDiskSpaceStatus> GetSaveDiskSpaceAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerControlAction, SaveDiskSpaceStatus>(
+            serverUri, authority, deviceId, "/api/v1/owner/saves/disk-status",
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("save-disk-status"),
+            new OwnerControlAction("save-disk-status"), deviceKey, cancellationToken);
+
     public Task<WorldAutosaveSettings> ConfigureAutosaveAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
         OwnerAutosaveConfigurationAction action, IOwnerDeviceSigner deviceKey,

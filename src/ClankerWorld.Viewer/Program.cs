@@ -120,6 +120,11 @@ builder.Services.AddSingleton<PrivateWorldStateFile>(services => new PrivateWorl
 builder.Services.AddSingleton(services => new ManualWorldSaveStore(privateRuntimeStatePath,
     services.GetRequiredService<ILogger<ManualWorldSaveStore>>(),
     services.GetRequiredService<ProviderConfigurationStore>().WorldMutationGate));
+builder.Services.AddSingleton<ISaveDiskSpaceProbe, SaveDiskSpaceProbe>();
+builder.Services.AddSingleton(services => new SaveDiskSpaceMonitor(privateRuntimeStatePath,
+    services.GetRequiredService<ISaveDiskSpaceProbe>(), services.GetRequiredService<ILogger<SaveDiskSpaceMonitor>>()));
+if (isPrivateWorld)
+    builder.Services.AddHostedService(services => services.GetRequiredService<SaveDiskSpaceMonitor>());
 builder.Services.AddSingleton<PrivateWorldRuntime>(services =>
 {
     var runtime = services.GetRequiredService<PrivateWorldStateFile>().LoadOrCreate(runtimeSeed);
