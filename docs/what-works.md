@@ -65,6 +65,10 @@ On a fresh server, Continue opens New World instead of entering the retired
 test camp. The normal map preview and acceptance steps still apply, and saved
 worlds with founders or other progress keep opening normally.
 
+Generated maps always end in polar sea at the north and south edges, two rows
+deep, whatever the climate settings, so agents never walk into the map's edge.
+Worlds generated before this change no longer load; their saves are kept.
+
 New worlds open paused with no old camp. Choosing the first Town lays a winding
 main road with side streets, then places two Houses, a Warehouse, Farmhouse and
 Blacksmith along them, each with its door facing its packed-dirt Road and a short

@@ -750,6 +750,13 @@ The save format and schema number do not change. As with any unloadable active
 world, the host will not start until that save is moved aside. Hills are drawn
 from the saved elevation and water layers, so nothing extra is saved for them.
 
+The polar sea rows at the north and south edges
+([#1317](https://github.com/compoodment/ClankerWorld/issues/1317)) also change
+every generated map, in the same way: there is no generator switch or
+migration, a generated world saved before them fails the regeneration check
+with the same message, and its file is kept. The save format and schema number
+do not change.
+
 Mountain massifs ([#683](https://github.com/compoodment/ClankerWorld/issues/683))
 change elevation, rivers, climate and resources for every generated world, so
 the terrain version saved in `GeographyOptions` (`balancedVisibilityVersion`)

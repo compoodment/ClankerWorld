@@ -147,6 +147,12 @@ public static class GeographyGenerator
         "This world's map was made by an older terrain generator, before mountains formed massifs. " +
         "This build cannot rebuild that map, so the world is not loaded; its save is kept.";
     public const int ChunkSize = 64;
+
+    /// <summary>
+    /// Rows at the north and south map edges that are always polar sea, so
+    /// no agent walks into an edge it cannot see (agreed October 8, #1249).
+    /// </summary>
+    public const int PolarEdgeRows = 2;
     public const int MaximumCandidateAttempts = 3;
 
     public static (int Width, int Height) Dimensions(WorldSizePreset size) => size switch
@@ -256,6 +262,10 @@ public static class GeographyGenerator
             covered += histogram[waterLevel++];
         for (var index = 0; index < length; index++)
             if (elevation[index] <= waterLevel) water[index] = (byte)WaterKind.Lake;
+        // The edge rows are open water before oceans, rivers and massifs are
+        // worked out, so the sea they belong to is classified with them and
+        // nothing later treats them as land.
+        SinkPolarEdges(elevation, water, width, height, waterLevel, WaterKind.Lake);
 
         ClassifyOceans(water, width, height, options.WrapEastWest);
         if (options.HydrologyVersion >= 1)
@@ -284,8 +294,35 @@ public static class GeographyGenerator
                 climate[index] = (byte)chosen;
             }
         }
+        // Massifs and rivers may have touched the edge rows; they end as cold polar sea whatever the climate setting.
+        SinkPolarEdges(elevation, water, width, height, waterLevel, WaterKind.Ocean);
+        foreach (var index in PolarEdgeIndexes(width, height))
+        {
+            climate[index] = (byte)ClimateZone.Polar;
+            temperature[index] = Math.Min(temperature[index], (byte)40);
+        }
         return new GeneratedGeography(width, height, options.WrapEastWest, elevation, rainfall, water,
             temperature, climate, drainage);
+    }
+
+    /// <summary>Whether a row is one of the polar sea rows at the north or south edge.</summary>
+    public static bool IsPolarEdgeRow(int y, int height) => y < PolarEdgeRows || y >= height - PolarEdgeRows;
+
+    private static IEnumerable<int> PolarEdgeIndexes(int width, int height)
+    {
+        for (var y = 0; y < height; y++)
+            if (IsPolarEdgeRow(y, height))
+                for (var x = 0; x < width; x++)
+                    yield return y * width + x;
+    }
+
+    private static void SinkPolarEdges(byte[] elevation, byte[] water, int width, int height, int waterLevel, WaterKind kind)
+    {
+        foreach (var index in PolarEdgeIndexes(width, height))
+        {
+            elevation[index] = (byte)Math.Min(elevation[index], waterLevel);
+            water[index] = (byte)kind;
+        }
     }
 
     /// <summary>
@@ -339,6 +376,7 @@ public static class GeographyGenerator
         var visited = new bool[water.Length];
         var largest = new List<int>();
         var borderBodies = new List<int>();
+        var polarBodies = new List<int>();
         var queue = new Queue<int>();
         Span<int> neighbors = stackalloc int[4];
         for (var start = 0; start < water.Length; start++)
@@ -346,6 +384,7 @@ public static class GeographyGenerator
             if (water[start] != (byte)WaterKind.Lake || visited[start]) continue;
             var component = new List<int>();
             var touchesBorder = false;
+            var touchesPole = false;
             visited[start] = true;
             queue.Enqueue(start);
             while (queue.TryDequeue(out var current))
@@ -353,7 +392,8 @@ public static class GeographyGenerator
                 component.Add(current);
                 var x = current % width;
                 var y = current / width;
-                touchesBorder |= y == 0 || y == height - 1 || (!wrap && (x == 0 || x == width - 1));
+                touchesPole |= y == 0 || y == height - 1;
+                touchesBorder |= touchesPole || (!wrap && (x == 0 || x == width - 1));
                 var neighborCount = WriteNeighbors(current, width, height, wrap, neighbors);
                 for (var neighborIndex = 0; neighborIndex < neighborCount; neighborIndex++)
                 {
@@ -366,11 +406,12 @@ public static class GeographyGenerator
 
             if (component.Count > largest.Count) largest = component;
             if (touchesBorder) borderBodies.AddRange(component);
+            if (touchesPole) polarBodies.AddRange(component);
         }
 
         // Open-map border water is sea; on a wrapped cylindrical map there is
-        // no east/west border, so keep the largest sea even if it misses a pole.
-        foreach (var index in wrap ? largest : borderBodies) water[index] = (byte)WaterKind.Ocean;
+        // no east/west border, so keep the largest sea and the polar seas.
+        foreach (var index in wrap ? largest.Concat(polarBodies) : borderBodies) water[index] = (byte)WaterKind.Ocean;
         if (water.All(value => value != (byte)WaterKind.Ocean))
             foreach (var index in largest) water[index] = (byte)WaterKind.Ocean;
     }
