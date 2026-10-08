@@ -196,6 +196,9 @@ incoming boats. **World Info → Towns** shows boats and active trip requests.
 Agents may propose paid Ports and boats through the Council, then request
 travel between completed Ports. Visitors need Council permission. A blocked
 arrival waits one world day before returning to a usable departure Port.
+Passengers can eat their carried food or drink fresh milk from a usable carried
+jug during travel and while waiting to land. Drinking uses one portion and
+leaves the jug intact.
 
 When agents talk, a chat bubble appears above each participant and nearby
 listeners. Click a bubble to see who spoke and whether the conversation is
@@ -439,6 +442,8 @@ A building's storage-space bar shows how much of its recorded limit is used,
 with exact used/limit numbers. It counts all stored goods, including materials
 held for work and goods belonging to someone else. It updates when goods move
 or an expansion increases the limit. Hover over the bar for the exact count.
+Making a personal handcart leaves this space available because the finished
+cart goes on the ground.
 
 **Details** also lists recent recorded storage changes: positive quantities
 were added, negative quantities were removed or used, with the date and time
