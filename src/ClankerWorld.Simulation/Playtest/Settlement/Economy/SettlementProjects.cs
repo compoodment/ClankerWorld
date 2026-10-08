@@ -703,7 +703,9 @@ public sealed partial class PrivateWorldRuntime
             var work = (hammer?.WorkUnits ?? 1) + ProjectPracticeBonus(state, project);
             if (hammer is not null)
                 ApplyToolWork(inhabitantId, hammer);
-            SetProject(inhabitantId, project with { Stage = "working", WorkDone = Math.Min(ProjectWorkTicks, project.WorkDone + work), Blocker = null });
+            var done = SkilledWorkProgress(inhabitantId,
+                building is not null ? SettlementSkillKind.Building : SkillForRecipe(recipe!), project.WorkDone, work);
+            SetProject(inhabitantId, project with { Stage = "working", WorkDone = Math.Min(ProjectWorkTicks, done), Blocker = null });
             return;
         }
         ApplyBuildDecision(inhabitantId, state, project.CandidateId);

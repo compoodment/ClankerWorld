@@ -1,0 +1,2 @@
+- Give one adult a matching skill with the paused developer editor, then compare the same paid work with an unskilled adult using the same tools and materials. Check construction, field work, production and repair; save during work and check the shorter timer or progress continues after reload.
+- Let an unskilled adult finish work or a practical lesson, then repeat matching work. Confirm the skill remains in their Profile and that missing tools, materials or household permission still prevent work.

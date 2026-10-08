@@ -208,8 +208,10 @@ public sealed class PersonalEquipmentTests
         });
     }
 
-    [Fact]
-    public async Task TimedRepairResumesAfterCodecReloadAndSpendsOnlyItsReservedCloth()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TimedRepairResumesAfterCodecReloadAndSpendsOnlyItsReservedCloth(bool skilled)
     {
         var (state, shop) = TailorTestWorld.Create("equipment-repair", 0);
         var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == Alpha).Id;
@@ -222,6 +224,7 @@ public sealed class PersonalEquipmentTests
             Inhabitants = state.Inhabitants.Select(item => item.InhabitantId == actor
                 ? item with { Position = position, HungerBasisPoints = 9_000, Survival = new(), Equipment = new("repair-coat") } : item).ToArray(),
         };
+        state = SettlementSkillWorkTests.WithSkill(state, actor, skilled ? SettlementSkillKind.Crafting : null);
         IDecisionProvider Provider(string id) => new Choices(id == actor ? ["repair_equipment"] : []);
         using var first = PrivateWorldRuntime.Restore(state, Provider);
         for (var tick = 0; tick < 30 && first.ExportState().Inhabitants.Single(item => item.InhabitantId == actor).Equipment?.Repair is null; tick++)
@@ -233,6 +236,7 @@ public sealed class PersonalEquipmentTests
         for (var tick = 0; tick < 12 && resumed.ExportState().Inhabitants.Single(item => item.InhabitantId == actor).Equipment?.Repair is not null; tick++)
             Assert.True((await resumed.AdvanceOneTickAsync()).Advanced);
         Assert.Null(resumed.ExportState().Inhabitants.Single(item => item.InhabitantId == actor).Equipment?.Repair);
+        Assert.Equal(skilled ? 6 : 8, resumed.WorldTick - working.Society.Society.WorldTick);
         Assert.Equal(1, resumed.Society.Inventory.GetLot("repair-cloth").Quantity);
         Assert.InRange(resumed.Society.Inventory.GetLot("repair-coat").ConditionBasisPoints, 7_800, 8_000);
         Assert.All(repair.MaterialReservationIds, id => Assert.Equal(InventoryReservationState.Completed, resumed.Society.Inventory.GetReservation(id).State));
