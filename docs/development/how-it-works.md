@@ -3062,8 +3062,11 @@ food, planting and workstation reserves stay protected. For care away from the
 actor's tile, input selection accepts only physically carried supplies. This
 keeps the existing supply path collecting both feed and a water jug before
 approaching the animal, including after a partial pickup. At the animal's tile,
-permitted local yard stock remains usable directly. Physical supply trips
-retain the owning household. Cancelling or replacing an animal order releases
+permitted local yard stock remains usable directly. Supply pickup leaves
+household sale stock on an actively borrowed Market stall. Once borrowing
+ends, that stock can be collected through the normal ownership, reservation,
+capacity and travel checks. Physical supply trips retain the owning household.
+Cancelling or replacing an animal order releases
 only a supply trip matching its actor, animal and action, without relocating,
 transferring or spending its cargo. Executing a new animal order also discards
 an unrelated retained trip, including one loaded from a previously cancelled

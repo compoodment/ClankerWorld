@@ -34,7 +34,8 @@ public sealed partial class PrivateWorldRuntime
             (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) || lot.OwnerId == household &&
                 (lot.CarrierId is null || PersonalEquipmentRules.IsCarried(lot, actor)) && (HouseholdFor(actor) == household ||
                     lot.StorageBuildingId == yard.InstanceId || PersonalEquipmentRules.IsCarried(lot, actor))) &&
-            !HasActiveContainerReservation(inventory, lot.Id) && (lot.StorageBuildingId is null || CanRemoveWorkstationStock(inventory, lot, 1)))
+            !OnBorrowedMarketStall(lot) && !HasActiveContainerReservation(inventory, lot.Id) &&
+            (lot.StorageBuildingId is null || CanRemoveWorkstationStock(inventory, lot, 1)))
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
         foreach (var animal in animals.OrderBy(animal => animal.Id, StringComparer.Ordinal))
         {
