@@ -1643,6 +1643,7 @@ public partial class Main
                 throw new InvalidOperationException("The Town panel must not show operator diagnostics such as revisions or digests.");
             RenderTownExtras(sample);
             await VerifyWorldInfoPagesAsync();
+            VerifySeasonalLandscape(sample);
             // Top-bar panels hug their contents, and short text leaves no empty space below it.
             foreach (var panel in new PanelContainer[] { rosterPanel, eventsPanel, worldInfoPanel, filtersPanel, worldOverviewPanel })
             {
@@ -2728,6 +2729,10 @@ public partial class Main
                 throw new InvalidOperationException("Keeping the active task visible must preserve the newest unread suggestion and the four-message history limit.");
             foreach (var (productionOrder, expectedSummary) in new (OwnerWorldInstructionOrder Order, string Summary)[]
             {
+                (new("write_knowledge", "doing", 3, 1, "artifacts", false, TargetKnowledgeKind: "field_map"),
+                    "Doing · Writing field map · 1/3 items written"),
+                (new("copy_knowledge", "doing", 3, 1, "copies", false, TargetKnowledgeKind: "book"),
+                    "Doing · Copying book · 1/3 copies made"),
                 (new("produce_item", "doing", 4, 2, "output_items", false, TargetOutputKind: "cloth"),
                     "Doing · Making cloth · 2/4 items made"),
                 (new("produce_item", "doing", 2, 1, "production_batches", false, TargetOutputKind: "gold"),
@@ -3928,6 +3933,7 @@ public partial class Main
             familyTreePanel.Hide();
             await VerifyAgentPanelsAsync();
             await VerifyRosterRefreshScrollAsync();
+            await VerifyRosterKeyboardAsync();
             await VerifyOrderListAsync();
             eventsPanel.Show();
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });

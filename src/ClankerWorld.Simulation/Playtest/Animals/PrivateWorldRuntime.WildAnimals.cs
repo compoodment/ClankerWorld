@@ -12,10 +12,7 @@ public sealed partial class PrivateWorldRuntime
         if (animal.WildFedUntilTick <= tick)
         {
             var occupied = WildAnimalRouteOccupants(animal);
-            var forage = map.Resources.Where(source => source.NaturalObjectKind == "wild_greens" &&
-                    worldSystems.Ecology.Resources.Any(resource => resource.Id == source.Id && resource.Quantity >= definition.DailyFeed) &&
-                    map.FootDistance(animal.Position, source.Position) <= 12)
-                .OrderBy(source => map.FootDistance(animal.Position, source.Position)).ThenBy(source => source.Id, StringComparer.Ordinal)
+            var forage = WildAnimalForageSources(map, worldSystems.Ecology, animal)
                 .FirstOrDefault(source => map.IsReachableOnFoot(animal.Position, source.Position) &&
                     SharedUnoccupiedRoute(animal.Position, occupied, source.Position, 1).Count > 0);
             if (forage is null) return animal;
@@ -45,6 +42,15 @@ public sealed partial class PrivateWorldRuntime
         if (animal.WildFedUntilTick > tick && animal.WildWaterUntilTick > tick)
             SetAnimal(animal = animal with { CareUntilTick = Math.Min(animal.WildFedUntilTick, animal.WildWaterUntilTick) });
         return animal;
+    }
+
+    internal static IOrderedEnumerable<MapResource> WildAnimalForageSources(SeededMap map, EcologyState ecology, AnimalState animal)
+    {
+        var feed = AnimalRules.Definition(animal.Species).DailyFeed;
+        return map.Resources.Where(source => source.NaturalObjectKind == "wild_greens" &&
+                map.FootDistance(animal.Position, source.Position) <= 12 &&
+                ecology.TryGetResource(source.Id, out var resource) && resource.Quantity >= feed)
+            .OrderBy(source => map.FootDistance(animal.Position, source.Position)).ThenBy(source => source.Id, StringComparer.Ordinal);
     }
 
     private AnimalState MoveWildAnimalToward(AnimalState animal, GridPoint destination, long tick, int range)

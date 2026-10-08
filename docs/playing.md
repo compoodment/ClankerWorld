@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # Playing the current game
@@ -173,6 +173,14 @@ centers the camera on them, and back (or **Escape**) returns from the Profile
 to the small card. Inspection does not pause time, and reading private thoughts
 does not tell other agents.
 
+Agents can keep scouting beyond a short local trip and choose when to return
+to where they started. They learn from the places they actually reach, and
+keep their discoveries when they return. You can Suggest that an agent scout
+farther or return; their own model still chooses whether to follow that
+suggestion. Urgent food or warmth needs may interrupt a trip. A return goes
+around other people where possible; if it stays blocked, the Event Log records
+that the trip ended without reaching its start.
+
 **Memories** shows what the agent remembers, believes and has mapped as cards,
 newest first, with a tab for each kind. A belief shows how sure they are and
 whether they saw it or heard it from someone; a map record shows each place
@@ -187,6 +195,8 @@ icon. Hover over one or inspect its tile to see its owner, parked or pulled
 state, condition and actual cargo.
 The owner's agent card also lists their carts. A broken cart keeps its goods;
 its owner can unload here or repair it with carried wood, iron fittings and rope.
+When several owned carts share a tile, each cart's cargo remains available for
+unloading, even if another cart is empty or broken.
 A cart holds loose goods separately from the agent's own carrying limit.
 
 Boats show their last heading and rowing or shipped oars. Hover over one or
@@ -225,6 +235,23 @@ not add a model request for every step or tick.
 
 Urgent hunger can pause an order to buy and eat food at a shop or Restaurant,
 using the adult's own payment and carrying space. The order remains pending.
+
+Adults can follow **Write a field record**, **Draw a map**, or **Bind a book**.
+They use sites they have personally learned and collect permitted paper and,
+for a book, cloth. The order counts a written item only when the real work
+finishes. **Write two maps** requests two items; **Keep drawing maps** continues
+until cancelled. Once the current account has been written, further writing
+waits for newly learned information. Missing supplies or carrying space also
+leave the order waiting with a reason. **Cancel task** releases that order's
+unused reserved supplies.
+
+Adults can also follow **Copy a field record**, **Copy a map**, or **Copy a book**.
+They must own and carry a source of that kind and already know every site it
+contains. Copying uses fresh paper and, for a book, cloth, and preserves the
+source's account. **Copy two maps** or **Keep copying maps** waits for another
+eligible account after the first copy; identical contents are not copied again.
+If the source is lost during work, unused reservations are released and the
+order waits for that same source to return. Cancelling stops the paid work.
 
 Food orders can eat carried food, collect accessible household food to eat,
 travel to a food source, or gather berries, fruit or wild greens. Use simple
@@ -302,6 +329,9 @@ When carrying several water jugs, agents can refill one with room even if
 another is full. They still need a reachable riverbank or lakeshore and enough
 carrying space for the water.
 
+When returning a jug, agents leave jugs needed for other work alone and choose
+one that fits in the House with all its contents.
+
 To return borrowed stock, use **Return two borrowed cloth**, **Return two
 borrowed bread** or **Return one borrowed water jug**. The agent carries the
 goods back to their owning
@@ -322,6 +352,18 @@ unused planting stock. Add **at (12, 4)** to keep the task on that field tile.
 Ordinary crop and seed hauling tries another permitted farm store when the
 preferred one cannot fit the load. For example, a filled pot goes to the
 Farmhouse if the Silo has too little room for the pot and its contents.
+
+To plant trees, try **Plant a conifer tree**, **Plant two broadleaf trees**,
+**Plant an orchard**, or **Keep planting trees**. Adults use real tree seeds
+from felling or orchard seeds from fruit picking. They can fetch their own
+stored seeds or permitted household or Warehouse stock before planting.
+Each completed sapling counts as one tree; collecting a seed and walking do
+not count. Without a species, wood trees follow the nearby forest.
+Add **at (12, 4)** for an exact tile outside Town borders. Occupied or
+unsuitable ground, missing seeds, carrying limits and blocked routes leave
+the task waiting with a reason. An exact tile never changes to another tile,
+so requesting several trees on one tile stops after the first sapling.
+Queue, cancel and save/reload work as for other tasks.
 
 To move supplies for a household or Town, name both the goods and the destination:
 
@@ -438,6 +480,11 @@ for that exact building size and their quantities. Each still needs real
 materials and an adult allowed to work there. Reading the list teaches no
 agent and starts no work. Back (or **Escape**) returns to the small card.
 
+In a paired world, **Change owner** keeps your selected owner and an open
+menu's keyboard highlight as the world updates, including when owner names
+change order. Press **Enter** to select the highlighted owner. If that owner
+becomes unavailable, the menu closes so you can choose from the current list.
+
 A building's storage-space bar shows how much of its recorded limit is used,
 with exact used/limit numbers. It counts all stored goods, including materials
 held for work and goods belonging to someone else. It updates when goods move
@@ -451,6 +498,12 @@ of each change. The newest entries come first. The list refreshes while open
 and survives saving or reconnecting; it covers the recent records still kept
 by the server. Goods changing owners in the same building do not count as a
 physical addition or removal.
+
+Grass and tree canopies follow the seasons: brighter in spring, their usual
+colours in summer, warmer in autumn and more muted in winter. Snow still
+appears only where the world records it. Panning, zooming and loading a world
+keep the same seasonal treatment, including the terrain and tree pictures in
+tile inspection.
 
 Every day has a night, with a short dusk and dawn. Nights are longest in winter
 and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
@@ -476,7 +529,9 @@ is on, the top of the log offers **Add a newcomer**, which opens Add Agent.
 Opening the offer adds nobody and makes no paid model call. **Agents** lists
 everyone with their portrait and what they are doing, and tags anyone
 **Hungry**, **Cold** or **Ill**. Click a row to find that agent, or
-double-click it to open their Profile.
+double-click it to open their Profile. With the list focused, use **Up** and
+**Down** to browse its rows and **Enter** to open the chosen Profile. The list
+stays open while you move between rows.
 
 **Add Agent** configures and places another adult after starting. Placement
 shows the household and Town that the selected tile would give the adult.
@@ -638,8 +693,9 @@ even if they spoil. Other housemates can collect household stock once borrowing
 ends; the borrower may collect it while holding the stall.
 Suggestions can guide these choices, but an Order cannot force
 a sale or give away goods. An urgently hungry owner can still retrieve their
-available food from a stall and eat it. Other Market work waits until urgent
-hunger passes. The
+available food from a stall and eat it, including during an unrelated active
+Order. That survival interruption keeps the task and its progress. Other
+Market work waits until urgent hunger passes. The
 [Market hands-on checklist](../playtest/564-market-stalls.md) remains pending.
 
 Residents can also propose a **stone street lamp** or **hanging street lantern**
@@ -813,7 +869,8 @@ Households receive no starting animals. Look for wild chickens, sheep, cows or
 horses near wild greens and fresh water.
 
 Click an animal's tile for its name, age, household, care, ready product and
-permissions. Use its exact unique name or ID in a Must do order, for example
+permissions. If the animal is inside a building, open that building's **Details**
+to see the animals standing there. Use its exact unique name or ID in a Must do order, for example
 **Tame Moss**, **Lead home Moss**, **Care for Moss**, or **Collect from Moss**.
 **Repeat care for Moss** and **Repeat collect from Moss** keep the task active
 until cancelled. When the animal is elsewhere in the yard, the adult picks up

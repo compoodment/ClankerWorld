@@ -127,6 +127,11 @@ third of a second.
 
 ## Not done in round 1
 
+Since then the game draws people facing the way they last moved, with the
+walk, carry, work, talk and hurt frames numbered as below, and draws the
+horse, saddled or bare, with or without a rider (see `Animals.md`). The list
+below is kept as it was written.
+
 - Only the round-1 list is drawn as separate entries. The other facings for
   the walk frames, horse and rider, and the other stage and variant
   combinations, are not shown as entries, though the drawing already produces
