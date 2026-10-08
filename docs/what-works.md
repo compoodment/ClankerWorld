@@ -298,7 +298,9 @@ An adult can also follow "Become guardian for Lina", using the full name of a
 child with an open guardian search. The name is resolved once to that child,
 so a later rename does not redirect the task. Acceptance uses the search's
 current eligibility rules and finishes only after primary care is assigned.
-House capacity and same-Town rules still govern relocation. This is one
+House capacity and same-Town rules still govern relocation. A blocked collection
+route does not prevent another accepted child with a clear route from moving
+home; the blocked move keeps its accepted guardian and retries later. This is one
 acceptance, not a repeated task; other non-food task domains remain in
 [#587](https://github.com/compoodment/ClankerWorld/issues/587).
 

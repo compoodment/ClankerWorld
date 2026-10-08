@@ -1901,7 +1901,10 @@ guardian needs a recorded Town and a completed household House with room;
 acceptance creates neither a House nor a resident place.
 
 The guardian first reaches the child, then accompanies them to the selected
-House through ordinary movement. The guardian waits for a child who falls
+House through ordinary movement. Collections keep acceptance order among
+currently reachable children; an unreachable collection does not hold up another
+accepted child. An ongoing escort stays together, and blocked collections retry
+after the available journeys finish. The guardian waits for a child who falls
 behind. Urgent food and warmth needs may interrupt the journey without
 removing accepted care. Capacity, current care authority, Town membership and
 the House's identity are checked again before placement. Only arrival together
