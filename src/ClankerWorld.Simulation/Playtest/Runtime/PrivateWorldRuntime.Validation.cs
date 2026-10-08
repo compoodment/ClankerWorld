@@ -34,6 +34,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidateBoatTransport(CaptureState());
         ValidateAnimalState(CaptureState());
+        ValidateTalkOrderBindings(instructionsByIdempotency.Values, conversations);
         ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
             society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates);
@@ -489,6 +490,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
         ValidateBoatTransport(state);
+        ValidateTalkOrderBindings(state.Instructions ?? [], state.Conversations ?? []);
         ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
             state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates);
@@ -624,6 +626,7 @@ public sealed partial class PrivateWorldRuntime
             "finished" or "cancelled" or "not_understood";
         var terminal = order.Status is "finished" or "cancelled" or "not_understood";
         var isCompleted = completedInstructionIds.Contains(instruction.InstructionId, StringComparer.Ordinal);
+        if (order.Action != "talk_to" && (order.TalkConversationId is not null || order.TalkOutcome is not null)) return false;
         if ((order.TargetAnimalId is not null) != IsAnimalOrder(order.Action)) return false;
         if (!knownStatus || (order.Status == "queued" && !instruction.Queue) ||
             order.BlockedReason is { Length: > 256 } || order.BlockedReason?.Any(char.IsControl) == true ||
@@ -652,6 +655,15 @@ public sealed partial class PrivateWorldRuntime
             terminal != isCompleted)
             return false;
 
+        if (order.Action == "talk_to")
+            return order.TargetAgentId is { } target && people.Contains(target) && target != instruction.TargetInhabitantId &&
+                order.RequestedUnits == 1 && order.CompletedUnits is >= 0 and <= 1 && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
+                order.ProgressUnit == "conversations" && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.Status != "not_understood" && (order.Status == "finished") == (order.CompletedUnits == 1) &&
+                (order.TalkConversationId is null || !string.IsNullOrWhiteSpace(order.TalkConversationId) && order.TalkConversationId.Length <= 512 &&
+                    order.TalkConversationId == order.TalkConversationId.Trim() && !order.TalkConversationId.Any(char.IsControl)) &&
+                (order.CompletedUnits == 0 ? order.TalkOutcome is null && order.LastEffectId is null :
+                    order.TalkConversationId is not null && IsTalkOutcome(order.TalkOutcome) && order.LastEffectId == TalkOrderEffectId(instruction));
         if (IsAnimalOrder(order.Action))
             return !string.IsNullOrWhiteSpace(order.TargetAnimalId) && order.TargetAnimalId.Length <= 128 &&
                 !order.TargetAnimalId.Any(char.IsControl) && order.RequestedUnits == 1 && order.CompletedUnits >= 0 &&

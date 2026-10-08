@@ -271,6 +271,15 @@ order the world keeps for them: the current one, the queue in the order it will
 be done, and their six latest closed orders. Each shows your words, and any
 reply from the agent is set apart from the game's status.
 
+Use **Talk to Ari**, **Talk with Ari Vale** or **Speak to** followed by a
+person's exact name or ID to attempt one face-to-face invitation. The agent
+walks to them normally, and the named person can decline. Both need their own
+available conversation model and allowance. The card shows the invitation,
+acceptance, stopped conversation or outcome; a finished talk attempt can have
+been refused. Queued work waits for the conversation to end. Loading an
+accepted unfinished conversation stops it until both people choose to resume.
+Cancelling the order removes the task; it does not make either person agree.
+
 When a child needs a guardian, an adult can follow **Become guardian for Élodie Vale**,
 using the child's full name. Names with accents work when typed or pasted,
 including accents entered separately from their letters. The adult still has to be eligible in the current

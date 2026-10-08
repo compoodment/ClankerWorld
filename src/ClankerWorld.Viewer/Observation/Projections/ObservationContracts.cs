@@ -274,7 +274,10 @@ public sealed record ViewerInstructionOrder(
     string? TargetOutputKind = null,
     string? TargetItemKind = null,
     string? TargetBuildingKind = null,
-    string? TargetAnimalId = null);
+    string? TargetAnimalId = null,
+    string? TalkConversationId = null,
+    string? TalkStatus = null,
+    string? TalkOutcome = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 

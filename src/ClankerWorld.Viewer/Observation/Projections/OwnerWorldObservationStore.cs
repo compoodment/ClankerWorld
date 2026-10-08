@@ -820,7 +820,11 @@ public sealed partial class OwnerWorldObservationStore
                         order.ProgressUnit, order.RepeatUntilCancelled, order.TargetFoodKind,
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
                         order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind, order.TargetEquipmentKind, order.TargetCropKind,
-                        order.TargetOutputKind, order.TargetItemKind, order.TargetBuildingKind, order.TargetAnimalId) : null))
+                        order.TargetOutputKind, order.TargetItemKind, order.TargetBuildingKind, order.TargetAnimalId,
+                        order.TalkConversationId,
+                        (state.Conversations ?? []).FirstOrDefault(item => item.Id == order.TalkConversationId) is { } talk
+                            ? ConversationStatus(talk.Status) : order.TalkOutcome is not null ? "closed" : null,
+                        order.TalkOutcome) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages

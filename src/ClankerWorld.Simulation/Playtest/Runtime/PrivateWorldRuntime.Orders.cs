@@ -27,6 +27,7 @@ public sealed partial class PrivateWorldRuntime
             return null;
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
+        if (order.Action == "talk_to") return TalkOrderCandidateFor(instruction, person);
         if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
 
         if (IsShelterOrder(order.Action))
@@ -228,6 +229,9 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "talk_to":
+                ExecuteTalkOrderStep(instruction, person);
+                return;
             case "seek_shelter":
             case "tend_fire":
             case "inspect_shelter_site":
@@ -413,6 +417,7 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "talk_to") return TalkOrderBlocker(instruction, person) ?? "Waiting for the conversation outcome.";
         if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))
             return AnimalOrderBlockedReason(instruction);
         if (instruction.Order is { } protective && IsShelterOrder(protective.Action))

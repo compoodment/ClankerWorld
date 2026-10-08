@@ -851,6 +851,7 @@ public partial class Main
             "seek_food" => "Going to a food site",
             "move_to" => "Going to a tile",
             "accept_guardianship" => "Becoming a guardian",
+            "talk_to" => "Talking with the named person",
             "animal_care" => "Caring for an animal",
             "animal_collect" => "Collecting animal products",
             "animal_tame" => "Taming an animal",
@@ -869,6 +870,24 @@ public partial class Main
         var reason = order.Status is "blocked" or "interrupted" or "cancelled" && !string.IsNullOrWhiteSpace(order.BlockedReason)
             ? $" · {order.BlockedReason}"
             : string.Empty;
+        var conversation = order.Action != "talk_to" ? string.Empty : " · " + (order.TalkOutcome switch
+        {
+            "agreed" => "Conversation completed",
+            "refused" => "Invitation refused",
+            "deadline" => "Invitation expired",
+            "daily_limit" => "Conversation allowance reached",
+            "disagreed" => "Conversation ended without agreement",
+            "withdrawn" => "Conversation ended",
+            "participant_unavailable" => "Person unavailable",
+            _ => order.TalkStatus switch
+            {
+                "proposed" => "Invitation awaiting their choice",
+                "ready" or "awaiting_speaker" => "Invitation accepted; talking",
+                "wrap_up" => "Waiting for both people's wrap-up choices",
+                "suspended" => "Stopped; both people must choose to resume",
+                _ => "Attempting an invitation",
+            },
+        });
         var heard = !includeHeard || instruction.ObservedTick is null ? string.Empty : " · Heard by their personal model";
         var state = order.Status switch
         {
@@ -885,7 +904,7 @@ public partial class Main
         // The game understood no task in an order it could not act on, so there is none to name.
         return order.Status == "not_understood" && order.Action == "unknown"
             ? $"{state}{heard}"
-            : $"{state} · {task}{units}{reason}{heard}";
+            : $"{state} · {task}{units}{conversation}{reason}{heard}";
     }
 
     private static string OrderItemName(string? kind) => kind switch
@@ -899,6 +918,7 @@ public partial class Main
     private static string ProgressUnitLabel(string unit) => unit switch
     {
         "food_items" => "food items",
+        "conversations" => "talk attempts completed",
         "material_items" => "items",
         "equipment_items" => "equipment items",
         "goods_items" => "items",
