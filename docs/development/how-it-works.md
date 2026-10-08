@@ -887,7 +887,9 @@ conversation turns stay protected after closing. Correction links and source
 validation include both ledgers, while trimming old dialogue clears obsolete
 turn references in both. The daily rule makes no provider call, runs with Jev
 and the routine helper off, and commits or rolls back with the native tick.
-Its event contains only archived experience/belief counts. Authoritative life,
+Its event contains only archived experience/belief counts. Deceased historical
+profiles inspect both ledgers without sharing that evidence with living agents.
+Authoritative life,
 relationship, skill and order state is unchanged. Automatic experience capture
 and narrative summarization are unfinished.
 

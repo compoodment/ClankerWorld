@@ -1541,7 +1541,8 @@ public sealed partial class OwnerWorldObservationStore
     }
 
     private static ViewerAgentMemory[] MemoriesFor(PrivateWorldRuntimeState state, string ownerId) =>
-        state.Society.Society.Memories
+        (state.Society.Society.GetInhabitant(ownerId).Status == SocietyInhabitantStatus.Dead
+            ? state.Society.Society.AllMemories() : state.Society.Society.Memories)
             .Where(memory => memory.OwnerId == ownerId && memory.TombstonedTick is null)
             .OrderByDescending(memory => memory.SourceTick)
             .ThenBy(memory => memory.Id, StringComparer.Ordinal)
@@ -1555,7 +1556,8 @@ public sealed partial class OwnerWorldObservationStore
             .ToArray();
 
     private static ViewerAgentBelief[] BeliefsFor(PrivateWorldRuntimeState state, string ownerId) =>
-        (state.Society.Society.Beliefs ?? [])
+        (state.Society.Society.GetInhabitant(ownerId).Status == SocietyInhabitantStatus.Dead
+            ? state.Society.Society.AllBeliefs() : state.Society.Society.Beliefs ?? [])
             .Where(belief => belief.OwnerId == ownerId)
             .OrderByDescending(belief => belief.FormedTick)
             .ThenBy(belief => belief.Id, StringComparer.Ordinal)

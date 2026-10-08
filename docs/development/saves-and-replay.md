@@ -1198,7 +1198,9 @@ Loading and pausing do not run archiving or reset source age. A refused native
 tick preserves both ledgers byte for byte; current-format save/reload and paired
 replay retain the same archive boundary, evidence and corrections. Archive
 events contain counts only, with no private source text. Ordinary recall and
-owner recent-memory lists use active records. Earlier formats are refused and
+living agents' recent-memory lists use active records. Deceased historical
+profiles inspect retained records from both ledgers, filtered to their original
+owner. Earlier formats are refused and
 preserved; no archive migration, helper summary or automatic deletion is added.
 
 ## Paid Markets and stall trade
