@@ -743,7 +743,9 @@ YYYY-MM-DD), and the top bar then names the season beside the weather.
 Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
-the routine helper and agent model settings. Main Menu Settings exposes Game Settings only.
+the routine helper and agent model settings. **World generation** shows the world's
+size, climate, east/west wrapping and seed as chosen at creation; these are
+read-only. Main Menu Settings exposes Game Settings only.
 
 Life pace and routine helper changes apply to the world shown when you submit them.
 If another device opens a different world before your request arrives, the
