@@ -27,6 +27,16 @@ terrain migration is provided. New saves with default weather store a null
 profile list to select the reduced built-in preset. Explicit profile lists
 keep their configured weather weights.
 
+Checkpoint encoding still performs full map acceptance. Only the derived
+camp-reachability traversal may be reused when its actual topology and origin
+remain unchanged. Loaded maps start without that process-local cache, and
+borrowed-data edits require a fresh traversal. Placement, layers, canonical
+digests, generated-map checks and atomic checkpoint publication remain required.
+No cache state or new fields are saved; the checkpoint schema and canonical
+bytes are unchanged. [How it works](how-it-works.md) owns the runtime cache boundary, and
+[Camp reachability measurements](camp-reachability-measurements.md) records the
+matched native save/reload, rollback and continuation comparisons.
+
 Private-world schema 60 adds exclusive physical handcart attachments. A cart
 and its cargo are existing inventory lot relationships, with the cart's ground
 position retained while pulled or parked. Loading verifies one cart per puller,
@@ -1331,8 +1341,10 @@ move to the new lot; rejected splits leave state and event history unchanged.
 
 The active recovery checkpoint is encoded and fsync-written after every advanced
 one-second tick. Older history is compacted into digest-addressed segments.
-Hot event lists are bounded, but long-term segment retention and larger-world
-write cost are not yet measured.
+Hot event lists are bounded, but long-term segment retention is not yet measured.
+[Camp reachability measurements](camp-reachability-measurements.md) records native
+checkpoint write costs for both supported world sizes; it does not measure
+long-term history growth.
 
 Before replacing the active checkpoint, its writer loads the exact encoded
 bytes through the current codec. A serialization or validation mismatch refuses
