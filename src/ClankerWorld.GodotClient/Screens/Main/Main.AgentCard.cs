@@ -853,6 +853,8 @@ public partial class Main
             "seek_food" => "Going to a food site",
             "move_to" => "Going to a tile",
             "accept_guardianship" => "Becoming a guardian",
+            "attach_handcart" => "Attaching a handcart",
+            "park_handcart" => "Parking a handcart",
             "animal_care" => "Caring for an animal",
             "animal_collect" => "Collecting animal products",
             "animal_tame" => "Taming an animal",
@@ -921,6 +923,7 @@ public partial class Main
         "arrivals" => "sites reached",
         "harvests" => "harvest batches",
         "guardianships" => "care assignments",
+        "cart_tasks" => "cart tasks completed",
         "animal_tasks" => "animal tasks completed",
         _ => unit,
     };

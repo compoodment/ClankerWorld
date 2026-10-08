@@ -1254,6 +1254,33 @@ public partial class Main
                 cognitionSettingsPanel.GetParent() != worldSettingsContent ||
                 cognitionSettingsPanel.GetIndex() != worldSettingsContent.GetChildCount() - 1)
                 throw new InvalidOperationException($"World Settings must open at the top, keep the Game page's width, end with Agent model and leave Model calls to Game Settings: {gameMenuPanel.Size.X} vs {gamePageWidth}.");
+            // Values come from the observed world's saved choices, never the New World form.
+            var generationSample = new OwnerWorldSnapshot("generation-world", 0, "generation-map",
+                [new(0, 0, "meadow")], [], [], null, 0)
+            {
+                Generation = new OwnerWorldGeneration("settings-seed", "Small", "Uniform", "Dry", false, true),
+            };
+            Render(generationSample, []);
+            if (!generationSettingsRows.IsVisibleInTree() || generationSize.Text != "Small" ||
+                generationClimate.Text != "Uniform · Dry · Latitude cooling off" ||
+                generationWrapping.Text != "East/west only" || generationSeed.Text != "settings-seed" ||
+                generationSettingsRows.FindChildren("*", "", recursive: true, owned: false)
+                    .Any(control => control is BaseButton or LineEdit or TextEdit or Godot.Range))
+                throw new InvalidOperationException("World generation must display saved choices as read-only text.");
+            Render(generationSample with
+            {
+                WorldId = "other-generation-world",
+                Generation = new OwnerWorldGeneration(new string('s', 120), "Medium", "Balanced", "Temperate", true, false),
+            }, []);
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (generationSize.Text != "Medium" || generationSeed.Text != new string('s', 120) ||
+                generationClimate.Text != "Balanced · Colder toward the poles" || generationWrapping.Text != "Off" ||
+                !Mathf.IsEqualApprox(gameMenuPanel.Size.X, gamePageWidth))
+                throw new InvalidOperationException("Loading another world must replace its generation choices and wrap long seeds within the Settings width.");
+            Render(generationSample with { Generation = null }, []);
+            if (generationSettingsRows.Visible || generationSeed.Text.Length != 0 ||
+                !generationSettingsHint.Text.Contains("not available", StringComparison.Ordinal))
+                throw new InvalidOperationException("A host without generation choices must clear the previous world's values and explain their absence.");
             ShowPauseMenuButtons();
             menuQuitToMainButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!quitToMenuConfirmation.Visible)
@@ -2258,7 +2285,7 @@ public partial class Main
                      {
                          ("broadleaf", new[] { "seed", "sapling", "mature", "stump" }),
                          ("conifer", new[] { "seed", "sapling", "mature", "stump" }),
-                         ("orchard", new[] { "growing", "fruiting", "picked" }),
+                         ("orchard", new[] { "sapling", "growing", "fruiting", "picked" }),
                      })
                 foreach (var stage in stages)
                     if (TreeArtManifest.For(species, stage) is not { } art || string.IsNullOrWhiteSpace(art.AssetId) ||
@@ -3030,6 +3057,7 @@ public partial class Main
             await VerifyAgentPosesAsync(sample, founder);
             await VerifyMountainReliefAsync();
             await VerifyDesertAndSnowArtAsync();
+            VerifyOrchardSaplingAppearance(sample);
             var crowded = sample with
             {
                 WorldId = "ui-marker-bounds",
