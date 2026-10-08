@@ -1,0 +1,1 @@
+- Adults can stock a spare tool in their household Store when identical tools share one carried lot. They still keep one best usable tool in each family. ([#1072](https://github.com/compoodment/ClankerWorld/issues/1072))
