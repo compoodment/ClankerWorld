@@ -163,6 +163,11 @@ does not divert goods promised to another building or held for sale.
 
 ## Clock and asynchronous decisions
 
+Restoring an existing world, including an isolated proposed tick, starts with
+its saved world systems. It does not generate a disposable initial ecology,
+chunk set or weather state. New worlds still generate those systems normally;
+ordinary loads still validate saved data and check deterministic map identity.
+
 The current host aims for one tick per real second. New worlds save 360 ticks
 per day and a 40-day year with four ten-day seasons; lifecycle thresholds are
 3/15/45/60 days. Newly created playable worlds start at 06:00 on Spring 1,
@@ -1304,6 +1309,15 @@ configuration ceiling is 2,048. The remaining eight slots stay
 free for sites the running world adds, such as the three settlement sites
 beside the first Town. Grove surfaces still use the 24-tile limit; the larger
 budget supplies the denser trees on forest grass.
+
+World-systems chunk manifests own immutable resource snapshots, including input
+supplied through record replacements. An unchanged manifest reuses successful
+structural and digest validation by object identity; new or loaded manifests
+are fully checked. Current-world bounds and duplicate chunk coordinates remain
+checked on every validation, alongside changing weather and ecology. The weak
+validation cache is process data only. See [Saves and replay](saves-and-replay.md)
+for the load boundary and [Chunk validation measurements](chunk-validation-measurements.md)
+for the bounded allocation and timing comparison.
 
 **Hills** are dry land below mountain height (215), at least 190 high and within
 the hill reach of a connected mountain region (counting diagonal steps as one).
