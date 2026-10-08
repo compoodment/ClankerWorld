@@ -194,7 +194,12 @@ people, relationships, what the agent carries or what it is doing now
 ([#255](https://github.com/compoodment/ClankerWorld/issues/255)). Better pacing
 or thought quality from these changes has not been proven in live play.
 
-One slow model can wait while other agents and the world continue. A legal
+One slow model can wait while other agents and the world continue. The waiting
+agent keeps its already chosen physical task, including ongoing project work,
+lessons and trips. Built-in rules meet urgent food or warmth needs and provide
+practical care for nearby dependants. New civic, family, ownership and work
+commitments wait for a personal-model choice; a delay starts no new agreement
+and adds no failure line to the Event Log. A legal
 choice is accepted even when the model reports low confidence. A failed or
 unusable reply uses the safe fallback and finishes that attempt without another
 paid repair request. The agent card shows whether the model is ready, waiting,

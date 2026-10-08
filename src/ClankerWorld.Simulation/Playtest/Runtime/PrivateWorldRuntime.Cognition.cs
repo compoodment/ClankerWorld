@@ -424,12 +424,17 @@ public sealed partial class PrivateWorldRuntime
             }
             var order = PendingInstructionFor(inhabitant.Id);
             var waitingForModel = pendingHosted.Contains(inhabitant.Id);
-            if (waitingForModel && order is null)
+            if (waitingForModel && (order is null || !NeedsUrgentFood(state) && !NeedsUrgentWarmth(state)))
             {
                 // A delayed reply supplies no new choice. Urgent survival and nearby
                 // practical care may interrupt the task the agent already chose.
-                orderActorsHandledThisTick.Add(inhabitant.Id);
-                if (TryApplyWaitingRoutine(inhabitant.Id, state)) continue;
+                if (order is null) orderActorsHandledThisTick.Add(inhabitant.Id);
+                if (TryApplyWaitingRoutine(inhabitant.Id, state))
+                {
+                    orderActorsHandledThisTick.Add(inhabitant.Id);
+                    if (order is not null) SetOrderStatus(order, "interrupted", "Caring for a nearby dependent.");
+                    continue;
+                }
             }
             if (order is null && ContinueGuardianPlacement(inhabitant.Id)) continue;
             if (IsConversationBusy(inhabitant.Id))
@@ -595,7 +600,7 @@ public sealed partial class PrivateWorldRuntime
         id.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal);
 
     private static bool CanContinuePendingTask(PlaytestInhabitantState state, string id) =>
-        IsWaitingSurvivalCandidate(id) || id is "safe_idle" or "knowledge_continue" or "haul_household_stock" or
+        IsWaitingSurvivalCandidate(id) || IsTownProjectCandidate(id) || id is "knowledge_continue" or "haul_household_stock" or
             "store_household_food" or "store_town_resources" or "haul_farm_grain" or "haul_farm_flour" or
             "haul_smith_input" or "gather_smith_ore" or "deliver_smith_ore" or "collect_water_jug" or "return_water_jug" or
             "store_food_in_pot" ||

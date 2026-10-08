@@ -584,6 +584,22 @@ Gathering and collecting household food check free carrying capacity before
 starting a step. A provider fallback leaves the order blocked for a bounded
 normal retry; it cannot strand the task permanently on `safe_idle`.
 
+Pending personal-model work also preserves already chosen non-order physical
+tasks. `ApplyContinuingIntentions` continues existing repairs, accepted lessons,
+field work, projects and bounded travel. Outstanding social or civic choices do
+not by themselves stop an existing project or lesson while its model is waiting;
+the normal physical access, illness, consent and fresh-choice guards still apply.
+Important civic acts, family and ownership changes, new projects and lessons
+cannot be repeated through the pending-task path. Existing civic, Market,
+ornament and donation intentions continue only their ordinary physical walk.
+Built-in urgent food/warmth takes priority; otherwise a waiting adult may feed
+or tend a needy dependent already within interaction range, using actual goods
+and the normal care transition without accepting a new caregiver relationship.
+A waiting routine and an ordinary continuation take at most one action per
+agent in a tick, and an admitted reply excludes that agent from waiting routines.
+These transitions use the prepared tick and the existing save/replay format;
+no provider reply, paid retry or failure event is fabricated for an ordinary delay.
+
 The owner snapshot sends every open message, plus the six most recently
 submitted closed orders and, separately, the six most recently submitted closed
 suggestions for each agent, whether or not a personal model heard them. An
