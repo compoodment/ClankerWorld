@@ -5,6 +5,7 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class PortBoatRuntimeTests
 {
+    private static readonly Lazy<Task<byte[]>> PaidPermissionBoat = new(() => BuildPaidBoatAsync(ticksPerDay: 96));
     [Fact]
     public async Task OwnerBoatOrderUsesPaidBoatAndFinishesOnlyAtItsNamedPortAcrossReload()
     {
@@ -217,7 +218,10 @@ public sealed partial class PortBoatRuntimeTests
     public async Task VisitorBoatOrderWaitsForActualCouncilPermissionAndLosingItCancelsTheUnusedRequest()
     {
         var policy = new BoatPolicy();
-        using var scenario = new BoatScenario(PrivateWorldRuntimeCodec.Decode(await PaidBoat.Value), policy);
+        // A 24-tick day ends before the proposer can read and vote through
+        // their ordinary 30-tick personal-decision cadence. Keep this native
+        // civic window long enough for all four required resident votes.
+        using var scenario = new BoatScenario(PrivateWorldRuntimeCodec.Decode(await PaidPermissionBoat.Value), policy);
         var origin = scenario.World.WorldSimulation.Buildings.Single(port => port.InstanceId == scenario.World.Boats[0].DockedPortId);
         var state = scenario.World.ExportState();
         var outside = state.Map.Tiles.Where(tile => state.Map.IsBuildable(tile.Position) &&
@@ -238,6 +242,10 @@ public sealed partial class PortBoatRuntimeTests
         Assert.Equal("blocked", BoatOrder(scenario.World, receipt).Status);
         Assert.Contains("permission", BoatOrder(scenario.World, receipt).BlockedReason, StringComparison.Ordinal);
         Assert.Empty(scenario.World.BoatRequests);
+        var noticePlace = scenario.World.Towns[0].OriginSite!.Value;
+        var move = scenario.World.SubmitInstruction(new("proposer-at-notice-place", "owner:test", BoatPolicy.Author,
+            OwnerInstructionKind.MustDo, FormattableString.Invariant($"move to ({noticePlace.X}, {noticePlace.Y})")));
+        await scenario.UntilAsync(() => BoatOrder(scenario.World, move).Status == "finished", 40);
         policy.GrantAll = true;
         await scenario.UntilAsync(() => TownBoatAccessRules.Allows(scenario.World.Towns[0], Visitor, scenario.World.WorldTick), 120);
         policy.GrantAll = false;
