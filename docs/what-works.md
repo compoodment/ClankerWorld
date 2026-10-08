@@ -944,6 +944,7 @@ agreement. Towns lists the assets and personal choices. Personal goods retain
 their owners and entrance collection access; membership, Town title and crops
 stay unchanged. Changed assets or claimants require a fresh notice, and active
 work, deliveries and reservations block the physical transfer.
+
 Non-land cases have a separate protected mandate. Reports retain the conduct,
 applicable law version and actual evidence sources. Response windows,
 independent judges and reasoned findings lead to explanations, warnings or

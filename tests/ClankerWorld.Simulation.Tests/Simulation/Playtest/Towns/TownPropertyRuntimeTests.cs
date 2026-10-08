@@ -109,7 +109,8 @@ public sealed partial class TownLandHearingRuntimeTests
             lot.StorageBuildingId == PropertyHouse && lot.Id.EndsWith("#transfer:personal-held", StringComparison.Ordinal));
         Assert.Equal(Filer, world.ExportState().Society.Society.Inventory.GetLot(personal.Id).OwnerId);
         using var collector = PrivateWorldRuntime.Restore(world.ExportState(), _ => new PropertyProvider { Collect = personal.Id });
-        await PropertyUntil(collector, () => collector.ExportState().Society.Society.Inventory.GetLot(personal.Id).CarrierId == Filer, 16);
+        await PropertyUntil(collector, () => PersonalEquipmentRules.IsPhysicallyCarried(collector.ExportState().Society.Society.Inventory,
+            collector.ExportState().Society.Society.Inventory.GetLot(personal.Id), Filer), 16);
         Assert.Equal(Filer, collector.ExportState().Society.Society.Inventory.GetLot(personal.Id).OwnerId);
         collector.Validate();
     }
