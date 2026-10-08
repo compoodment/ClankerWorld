@@ -825,7 +825,16 @@ one wrap-up. Responses must match the saved conversation revision, run epoch,
 request and speaker; stale or malformed replies are not admitted. Public turns
 carry a bounded list of agents who were actually close enough to hear. A
 separate memory extraction gives those listeners hearsay claims tied to the
-turn ID, with duplicate and owner checks. Private thoughts, provider payloads
+turn ID, with duplicate and owner checks. Listener and belief-owner references
+retain complete native inhabitant IDs, including longer identities created by
+birth; they do not share the length bounds for caller-provided belief IDs and
+prose. Canonical identity and known-owner checks still apply.
+Personal-model memory subjects use stable hash aliases for longer native IDs,
+as map-knowledge discoverers already do; saved belief ownership and subjects
+keep their complete identities.
+Memory salience indexes retain the same complete native owner identities while
+validating each indexed source against that owner's existing records.
+Private thoughts, provider payloads
 and unaccepted replies never enter that history. Prose has no world effect; the
 only ordinary-dialogue effect is mutual trust, offered during wrap-up and
 applied only after both participants accept the same proposal.
@@ -919,7 +928,9 @@ when each records sites its recipient has not learned; the existing consent,
 ownership, reservation and delivery checks still apply.
 
 Outward scouting checks occupied destinations and both diagonal corner tiles
-before ranking neighboring exits. If no legal outward exit remains, the scout
+before ranking neighboring exits. An attached cart also restricts exits to
+ordinary legal cart steps: cardinal movement without unroaded mountains.
+If no legal outward exit remains, the scout
 uses the existing return path instead of repeatedly targeting a blocked corner.
 Only completed movement adds a visited tile.
 
@@ -1756,7 +1767,12 @@ needing to be hungry themselves; current care authority, usable food,
 reservations, capacity and real travel are checked again at execution.
 
 House pickup counts the whole vessel family against carrying and destination
-space; loose deliveries keep their four-unit limit. An unusable carried
+space; loose deliveries keep their four-unit limit. Loose-stock selection
+also checks movement's current unoccupied pickup and source-to-House routes
+before choosing a pile. Candidates, ordinary pickup and House-stock delivery
+orders share that selection, so an occupied first pile does not hide later
+reachable goods. Ownership, reservations and whole-vessel checks still apply.
+An unusable carried
 delivery leaves ordinary hauling and can offer `recover_household_delivery`.
 Candidate and action both check the current household-owned destination,
 physical load, selected or repaired gear, active family reservations and a
@@ -3050,6 +3066,12 @@ Animal gifts, sales and named outsider permissions need fresh, admitted personal
 model choices. Built-in fallback and forced orders cannot give personal consent.
 Receiving space and the exact payment lot are checked again on acceptance;
 transfer clears old permissions and preserves position for physical leading.
+
+Care for a different animal first ends the actor's existing ride through the
+normal dismount operation, then approaches the care target on foot. That
+preparation earns no care-order progress and spends no feed or water. The
+horse and reserved saddle keep their position and ownership; excess cargo
+uses the existing dismount rules before care rechecks its actual inputs.
 
 A cared adult horse has one real reserved saddle and one adult rider. Movement
 uses the normal legal route and occupancy rules, halves walking cost and admits
