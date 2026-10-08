@@ -167,6 +167,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.DeliveryRoute is null or "blacksmith_input" && order.TargetItemKind == "iron_ore" &&
             HouseholdFor(actor) is { } oreHousehold && BlacksmithForHousehold(oreHousehold) is { } oreSmith &&
             DeliveryDestinationMatches(order, oreSmith) &&
+            StorageRoomAfterInboundDeliveries(oreSmith.InstanceId) > 0 &&
             BlacksmithOreStocked(oreHousehold, oreSmith.InstanceId) < BlacksmithInputTarget(oreSmith.InstanceId, "iron_ore") &&
             PersonalSmithOre(actor) is null && !BlacksmithHasDeliverableInput(oreHousehold, oreSmith, actor, "iron_ore") &&
             MaterialSource("iron_ore", actor) is { } oreSource &&

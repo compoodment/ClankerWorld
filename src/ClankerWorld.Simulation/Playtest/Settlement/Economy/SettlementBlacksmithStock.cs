@@ -228,7 +228,7 @@ public sealed partial class PrivateWorldRuntime
         string actor, string? itemKind = null)
     {
         var blacksmith = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == blacksmithId);
-        if (blacksmith is null) return null;
+        if (blacksmith is null || StorageRoomAfterInboundDeliveries(blacksmithId) <= 0) return null;
         var inventory = society.Checkpoint.Inventory;
         foreach (var (kind, target) in BlacksmithInputTargets(blacksmithId))
         {
@@ -283,12 +283,13 @@ public sealed partial class PrivateWorldRuntime
     private (string ItemKind, MapResource Source)? BlacksmithHarvestToPrepare(string householdId,
         string blacksmithId, string actor)
     {
+        var blacksmith = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == blacksmithId);
+        if (blacksmith is null || StorageRoomAfterInboundDeliveries(blacksmithId) <= 0) return null;
         if (BlacksmithInputToGather(householdId, blacksmithId, actor) is { } missing)
             return missing;
         if (PersonalSmithOre(actor) is not null ||
             BlacksmithOreStocked(householdId, blacksmithId) >= BlacksmithInputTarget(blacksmithId, "iron_ore") ||
-            worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == blacksmithId) is { } blacksmith &&
-                BlacksmithHasDeliverableInput(householdId, blacksmith, actor, "iron_ore"))
+            BlacksmithHasDeliverableInput(householdId, blacksmith, actor, "iron_ore"))
             return null;
         return MaterialSource("iron_ore", actor) is { } source ? ("iron_ore", source) : null;
     }
