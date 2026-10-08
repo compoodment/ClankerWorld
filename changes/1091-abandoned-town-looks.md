@@ -1,1 +1,1 @@
-- Buildings in an abandoned Town now look neglected on the map, with faded mossy roofs, weeds and boarded doors, and fall apart once the Town has stood empty for a full season. A Town that is resettled looks lived in again.
+- Buildings in an abandoned Town now look neglected on the map, with faded mossy roofs, weeds and boarded doors, and fall apart once the Town has stood empty for a full season. Its street lanterns and bridges weather with them, and its bridges lose planks. A Town that is resettled looks lived in again.
