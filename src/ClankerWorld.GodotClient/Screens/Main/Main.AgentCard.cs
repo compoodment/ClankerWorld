@@ -853,6 +853,8 @@ public partial class Main
             "seek_food" => "Going to a food site",
             "move_to" => "Going to a tile",
             "accept_guardianship" => "Becoming a guardian",
+            "load_handcart" => "Loading " + OrderItemName(order.TargetItemKind),
+            "unload_handcart" or "unload_handcart_ground" => "Unloading " + OrderItemName(order.TargetItemKind),
             "attach_handcart" => "Attaching a handcart",
             "park_handcart" => "Parking a handcart",
             "animal_care" => "Caring for an animal",

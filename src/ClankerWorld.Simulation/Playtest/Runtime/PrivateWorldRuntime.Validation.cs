@@ -639,7 +639,7 @@ public sealed partial class PrivateWorldRuntime
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
             order.Action != "produce_item" && (order.TargetRecipeId is not null || order.TargetOutputKind is not null ||
                 order.ProductionBuildingId is not null || order.ProductionJobId is not null || order.ProductionProjectStartedTick is not null) ||
-            order.Action is not ("collect_goods" or "store_goods" or "return_borrowed" or "deliver_stock") && order.TargetItemKind is not null ||
+            order.Action is not ("collect_goods" or "store_goods" or "return_borrowed" or "deliver_stock" or "load_handcart" or "unload_handcart" or "unload_handcart_ground") && order.TargetItemKind is not null ||
             order.Action != "deliver_stock" && (order.DeliveryPurpose is not null ||
                 order.DeliveryRoute is not null || order.DeliveryLotId is not null || order.DeliveryQuantity is not null) ||
             order.Action is not ("deliver_stock" or "construct_building" or "expand_building" or "seek_shelter" or "tend_fire") && order.TargetBuildingKind is not null ||
@@ -676,6 +676,7 @@ public sealed partial class PrivateWorldRuntime
                     order.LastEffectId is { } receipt && receipt.StartsWith("writing:artifact:", StringComparison.Ordinal) &&
                     receipt.Length <= "writing:artifact:".Length + 128 && IsValidProductionBindingId(receipt["writing:artifact:".Length..]));
 
+        if (IsCartCargoOrder(order.Action)) return IsValidCartCargoOrder(instruction);
         if (IsCartOrder(order.Action))
             return (order.TargetCartLotId is null || IsValidInstructionIdentifier(order.TargetCartLotId) && order.TargetCartLotId == order.TargetCartLotId.Trim()) &&
                 order.RequestedUnits == 1 && order.CompletedUnits is >= 0 and <= 1 && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
@@ -943,6 +944,9 @@ public sealed partial class PrivateWorldRuntime
 
     private static bool IsValidCustodyBindingShape(OwnerInstructionOrder order)
     {
+        if (IsCartCargoOrder(order.Action))
+            return order.TargetStorageBuildingId is null && order.TargetStorageOwnerId is null && order.TargetStoragePosition is null &&
+                (order.TargetLotId is null || IsValidProductionBindingId(order.TargetLotId));
         var stores = order.Action is "store_material" or "store_equipment" or "store_goods" or "return_borrowed" or "deliver_stock";
         if (!stores && (order.TargetStorageBuildingId is not null || order.TargetStorageOwnerId is not null ||
             order.TargetStoragePosition is not null) || order.Action != "return_borrowed" && order.TargetLotId is not null)

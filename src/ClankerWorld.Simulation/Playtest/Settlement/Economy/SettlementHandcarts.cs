@@ -246,7 +246,7 @@ public sealed partial class PrivateWorldRuntime
                     $"Give your parked handcart and its cargo to {society.Checkpoint.GetInhabitant(recipient.InhabitantId).Name} here.", UnassignedCartPriority));
     }
 
-    private bool ApplyHandcartCandidate(string actor, PlaytestInhabitantState person, string candidateId)
+    private bool ApplyHandcartCandidate(string actor, PlaytestInhabitantState person, string candidateId, string? targetCartId = null, int maximumQuantity = int.MaxValue)
     {
         if (candidateId.StartsWith(CollectCartMaterialPrefix, StringComparison.Ordinal))
         {
@@ -300,7 +300,9 @@ public sealed partial class PrivateWorldRuntime
         var isRepair = candidateId.StartsWith(RepairCartPrefix, StringComparison.Ordinal);
         var isTransfer = candidateId.StartsWith(TransferCartPrefix, StringComparison.Ordinal);
         if (!isLoad && !isUnload && !isRepair && !isTransfer) return false;
-        var cartHere = isRepair ? society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
+        var cartHere = targetCartId is not null
+            ? NearbyOwnedHandcarts(actor, person.Position).FirstOrDefault(cart => cart.Id == targetCartId)
+            : isRepair ? society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
             lot.Id == candidateId[RepairCartPrefix.Length..] && lot.OwnerId == actor &&
             lot.ItemKind == InventoryContainerRules.Handcart) : isUnload
             ? HandcartForCargoAt(actor, person.Position, candidateId[(ontoGround ? UnloadCartGroundPrefix : UnloadCartPrefix).Length..])
@@ -322,7 +324,7 @@ public sealed partial class PrivateWorldRuntime
             var available = AvailableLotQuantity(lot);
             if (lot.OwnerId != actor && IsEdibleFood(lot.ItemKind))
                 available = Math.Min(available, SharedFoodCollectionAllowance(actor));
-            var quantity = Math.Min(room, available);
+            var quantity = Math.Min(maximumQuantity, Math.Min(room, available));
             if (quantity <= 0) return true;
             ApplyInventoryTransition(inventory =>
             {
@@ -344,7 +346,7 @@ public sealed partial class PrivateWorldRuntime
             var prefix = ontoGround ? UnloadCartGroundPrefix : UnloadCartPrefix;
             var cargo = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.Id == candidateId[prefix.Length..] && lot.ContainerLotId == cartHere.Id);
             if (cargo is null) return true;
-            var quantity = ontoGround ? cargo.Quantity : Math.Min(cargo.Quantity, FreeCarryCapacity(actor));
+            var quantity = Math.Min(maximumQuantity, ontoGround ? cargo.Quantity : Math.Min(cargo.Quantity, FreeCarryCapacity(actor)));
             if (quantity <= 0) return true;
             ApplyInventoryTransition(inventory => InventoryFixture.UnloadHandcart(inventory, $"unload:{WorldTick}:{actor}",
                 actor, cartHere.Id, cargo.Id, quantity, ontoGround));
