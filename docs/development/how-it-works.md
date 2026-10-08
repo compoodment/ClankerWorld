@@ -368,6 +368,10 @@ definition, owner, site and paid-material evidence after the project is
 replaced or the building is removed; an unrelated existing building is never
 completion proof.
 
+An animal-yard construction order checks for the household's completed House
+before choosing a site or starting a project. A missing House blocks the order
+without reserving or consuming yard materials, matching ordinary planning.
+
 The construction adapter can replace an unpaid ordinary project rather than
 waiting on the project the operative order itself paused. It creates a fresh
 order-bound project, with no inherited work or placement credit. A Store-stocking
