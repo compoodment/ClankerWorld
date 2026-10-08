@@ -37,9 +37,14 @@ public static class TownPropertyRules
                     SocietyRelationshipState.Dissolved or SocietyRelationshipState.EndedByDeath)
             .Select(edge => edge.TargetId)
             .Concat(society.Births.Where(birth => birth.HouseholdId == household && birth.CommittedTick <= tick).Select(birth => birth.ChildId))
-            .Concat(society.Inhabitants.Where(person => person.HouseholdId == household && person.BirthTick <= tick).Select(person => person.Id))
             .Distinct(StringComparer.Ordinal).Where(id => society.Inhabitants.Any(person => person.Id == id &&
                 (person.DeathTick is null || person.DeathTick > tick))).Order(StringComparer.Ordinal).ToArray();
+
+    public static bool HadMembers(SocietyCheckpoint society, string household, long tick) => society.Relationships.Any(edge =>
+        edge.Type == SocietyRelationshipType.HouseholdMembership && edge.HouseholdId == household && edge.ProposedTick <= tick &&
+        (edge.State == SocietyRelationshipState.Accepted && edge.EffectiveTick <= tick ||
+            edge.State is SocietyRelationshipState.Revoked or SocietyRelationshipState.Dissolved or SocietyRelationshipState.EndedByDeath && edge.EffectiveTick > tick) &&
+        society.Inhabitants.Any(person => person.Id == edge.TargetId && (person.DeathTick is null || person.DeathTick > tick)));
 
     public static IReadOnlyList<string> RequiredConsent(TownPropertySnapshot snapshot) =>
         snapshot.LivingFormerMemberIds.Concat(snapshot.RecipientAdultIds).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();

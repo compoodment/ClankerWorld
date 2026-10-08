@@ -116,7 +116,8 @@ public static class TownPropertyValidation
                     Check(definition is not null && WorldContentSimulationRules.Footprint(definition, snapshot.Building).OrderBy(tile => tile.Y).ThenBy(tile => tile.X)
                         .SequenceEqual(item.Revisions.Single(revision => revision.Number == snapshot.Revision).Tiles), "A property notice must cover its whole existing building footprint.");
                     if (property.Request.SourceHouseholdId is { } source)
-                        Check(snapshot.LivingFormerMemberIds.SequenceEqual(TownPropertyRules.FormerMembers(society, source, snapshot.Tick)),
+                        Check(!TownPropertyRules.HadMembers(society, source, snapshot.Tick) &&
+                            snapshot.LivingFormerMemberIds.SequenceEqual(TownPropertyRules.FormerMembers(society, source, snapshot.Tick)),
                             "A property case cannot forget living former household members.");
                 }
                 if (property.Request.SourceHouseholdId is null)
@@ -127,7 +128,7 @@ public static class TownPropertyValidation
     }
 
     public static HashSet<string> RecoveredBuildings(IReadOnlyList<TownRuntimeState>? towns) =>
-        (towns ?? []).SelectMany(town => town.LandHearings?.Cases ?? []).Where(item => item.Property?.Transfer is not null)
+        (towns ?? []).SelectMany(town => town?.LandHearings?.Cases ?? []).Where(item => item?.Property is { Transfer: not null, Request: not null })
             .Select(item => item.Property!.Request.BuildingId).ToHashSet(StringComparer.Ordinal);
 
     private static bool Canonical(IReadOnlyList<string> values) => values.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).SequenceEqual(values);

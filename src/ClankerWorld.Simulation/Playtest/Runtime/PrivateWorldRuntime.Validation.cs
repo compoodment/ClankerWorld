@@ -30,7 +30,7 @@ public sealed partial class PrivateWorldRuntime
         }
         assetReservations.Validate();
         ValidateAssetReservationsAgainstActivePackages();
-        WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
+        WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick, TownPropertyValidation.RecoveredBuildings(towns));
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidateBoatTransport(CaptureState());
         ValidateAnimalState(CaptureState());
@@ -480,7 +480,7 @@ public sealed partial class PrivateWorldRuntime
         }
         state.WorldContent.Validate();
         WorldContentSimulationRules.Validate(state.WorldSimulation, state.WorldContent, state.Map,
-            state.Society.Society.WorldTick);
+            state.Society.Society.WorldTick, TownPropertyValidation.RecoveredBuildings(state.Towns));
         ValidateProductionOrderBindings(state.WorldSimulation, state.WorldContent, state.Inhabitants, state.Instructions ?? []);
         ValidateCustodyOrderBindings(society.Checkpoint, state.Instructions ?? []);
         ValidateDeliveryOrderBindings(state.WorldSimulation, society.Checkpoint, state.Towns, state.Instructions ?? []);

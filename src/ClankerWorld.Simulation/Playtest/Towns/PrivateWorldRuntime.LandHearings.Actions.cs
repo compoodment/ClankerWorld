@@ -310,7 +310,7 @@ public sealed partial class PrivateWorldRuntime
             "hearing_rule" => "ruling",
             "hearing_reopen" => "reopen_requested",
             "hearing_assess_reopen" => hearings.Cases.Single(c => c.Id == item.Id).Status == "pending" ? "reopened" : "rejected",
-            "hearing_answer" or "hearing_waive" => "response",
+            "hearing_answer" or "hearing_waive" or "hearing_property_accept" or "hearing_property_refuse" => "response",
             "hearing_judge_register" or "hearing_judge_withdraw" or "hearing_judge_resign" => "judge_consent",
             "hearing_judge_vote" => "judge_election",
             "hearing_inspect" => "inspected",

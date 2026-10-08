@@ -2,6 +2,8 @@ using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Society;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using ClankerWorld.Simulation.Kernel;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -17,10 +19,18 @@ public sealed partial class TownLandHearingRuntimeTests
         var election = new HearingProvider();
         using var elected = NewWorld(election);
         await UntilAsync(elected, () => elected.Towns[0].Government!.Offices.Any(), Day * 3, election);
-        Assert.True(elected.DisplaceAdult(Filer));
-        Assert.True(elected.DisplaceAdult(Waiver));
+        var state = elected.ExportState();
+        var household = state.Society.Society.GetInhabitant(Filer).HouseholdId!;
+        var stock = state.Society.Society.Inventory.Lots.First(lot => lot.OwnerId == household &&
+            lot.StorageBuildingId == PropertyHouse && lot.ContainerLotId is null && lot.Quantity > 1);
+        var inventory = InventoryFixture.Transfer(state.Society.Society.Inventory, "personal-held", household, Filer,
+            stock.Id, 1, "personal gift retained at the House", destinationStorageBuildingId: PropertyHouse);
+        using var stocked = PrivateWorldRuntime.Restore(state with
+        { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } }, _ => election);
+        Assert.True(stocked.DisplaceAdult(Filer));
+        Assert.True(stocked.DisplaceAdult(Waiver));
         var provider = new PropertyProvider { Request = true };
-        using var world = PrivateWorldRuntime.Restore(elected.ExportState(), _ => provider);
+        using var world = PrivateWorldRuntime.Restore(stocked.ExportState(), _ => provider);
         await PropertyUntil(world, () => world.Towns[0].LandHearings.Cases.Count > 0, 20);
         var item = Assert.Single(world.Towns[0].LandHearings.Cases);
         Assert.Equal("property", item.Kind);
@@ -94,6 +104,12 @@ public sealed partial class TownLandHearingRuntimeTests
         using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(final), _ => new PropertyProvider());
         Assert.Equal(final, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
         AssertDamagedPropertyFilesRefused(world.ExportState());
+        var personal = Assert.Single(before.Society.Society.Inventory.Lots, lot => lot.OwnerId == Filer && lot.StorageBuildingId == PropertyHouse);
+        Assert.Equal(Filer, world.ExportState().Society.Society.Inventory.GetLot(personal.Id).OwnerId);
+        using var collector = PrivateWorldRuntime.Restore(world.ExportState(), _ => new PropertyProvider { Collect = personal.Id });
+        await PropertyUntil(collector, () => collector.ExportState().Society.Society.Inventory.GetLot(personal.Id).CarrierId == Filer, 16);
+        Assert.Equal(Filer, collector.ExportState().Society.Society.Inventory.GetLot(personal.Id).OwnerId);
+        collector.Validate();
     }
 
     [Fact]
@@ -121,7 +137,9 @@ public sealed partial class TownLandHearingRuntimeTests
     public async Task ALivingFormerMemberCanRefuseAndTheJudgeRejectsWithoutTakingProperty()
     {
         var provider = new PropertyProvider { Agree = true, Refuser = Waiver, Reject = true };
-        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(await PendingPropertyCase.Value), _ => provider);
+        var state = PrivateWorldRuntimeCodec.Decode(await PendingPropertyCase.Value);
+        var moved = SocietyFixture.CreateHousehold(state.Society.Society, "household:former-member", "Another household", [Waiver]);
+        using var world = PrivateWorldRuntime.Restore(state with { Society = state.Society with { Society = moved.Checkpoint } }, _ => provider);
         await PropertyUntil(world, () => world.Towns[0].LandHearings.Cases[0].Status == "settled", 20);
         var item = Assert.Single(world.Towns[0].LandHearings.Cases);
         Assert.Contains(item.Property!.Consents, consent => consent.AgentId == Waiver && !consent.Agreed);
@@ -133,6 +151,33 @@ public sealed partial class TownLandHearingRuntimeTests
         using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new PropertyProvider());
         reloaded.Validate();
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+    }
+
+    [Fact]
+    public async Task ChangedSharedStockPublishesAFreshNoticeAndRequiresFreshPropertyConsent()
+    {
+        using var agreed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(await PendingPropertyCase.Value),
+            _ => new PropertyProvider { Agree = true });
+        await PropertyUntil(agreed, () => agreed.Towns[0].LandHearings.Cases[0].Property!.Consents.Count == 2, 15);
+        var state = agreed.ExportState();
+        var item = state.Towns![0].LandHearings.Cases[0];
+        var lot = item.Property!.Snapshots[0].SharedLots.First(stock => stock.ContainerLotId is null && stock.Quantity > 1);
+        var inventory = InventoryFixture.Transfer(state.Society.Society.Inventory, "changed-stock", lot.OwnerId, Filer,
+            lot.Id, 1, "personal transfer before adjudication", destinationStorageBuildingId: lot.StorageBuildingId,
+            destinationGroundPosition: lot.GroundPosition);
+        using var world = PrivateWorldRuntime.Restore(state with
+        { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } }, _ => new PropertyProvider());
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var current = world.Towns[0].LandHearings.Cases[0];
+        Assert.Equal(2, current.Revisions.Count);
+        Assert.Equal(current.Revisions[1].PublishedTick + Day, current.Revisions[1].DeadlineTick);
+        Assert.Equal(2, current.Property!.Snapshots.Count);
+        Assert.All(current.Property.Consents, consent => Assert.Equal(1, consent.Revision));
+        Assert.Null(current.Property.Transfer);
+        world.Validate();
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new PropertyProvider());
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
     [Fact]
@@ -180,7 +225,10 @@ public sealed partial class TownLandHearingRuntimeTests
             {
                 using var invalid = PrivateWorldRuntime.Restore(damaged, _ => new PropertyProvider());
             });
-            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(JsonSerializer.SerializeToUtf8Bytes(damaged)));
+            var document = JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!;
+            document["state"]!["towns"]![0]!["landHearings"]!["cases"]![0]!["property"] =
+                damage is null ? null : JsonSerializer.SerializeToNode(damage, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(System.Text.Encoding.UTF8.GetBytes(document.ToJsonString())));
         }
     }
 
@@ -210,6 +258,7 @@ public sealed partial class TownLandHearingRuntimeTests
         public bool Rule { get; init; }
         public bool Reject { get; init; }
         public bool Waive { get; init; }
+        public string? Collect { get; init; }
 
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
@@ -217,6 +266,8 @@ public sealed partial class TownLandHearingRuntimeTests
             var choices = observation.Candidates;
             CognitionCandidate? Find(string action) => choices.FirstOrDefault(candidate => candidate.Id.Contains("|" + action + "|", StringComparison.Ordinal));
             var selected = Find("read") ?? Find("hearing_inspect") ?? Find("yes");
+            if (Collect is { } lot && observation.InhabitantId == Filer)
+                selected ??= choices.FirstOrDefault(candidate => candidate.Id == "household_collect:" + lot);
             if (Request && observation.InhabitantId == PropertyFiler)
                 selected ??= choices.FirstOrDefault(candidate => candidate.Id.Contains("|hearing_property_request|" + PropertyHouse + "|", StringComparison.Ordinal) &&
                     candidate.Id.EndsWith("|" + (Target ?? "town"), StringComparison.Ordinal));

@@ -350,7 +350,8 @@ public static class WorldEventText
             "land_case_notice" => $"{townName} published a formal notice for {subject}. See its response deadline in Towns.",
             "land_case_evidence" => $"Public evidence was added to {subject} in {townName}; its source is recorded in the case.",
             "land_case_response" => $"{actor ?? "An affected adult"} " +
-                (action == "waive" ? "explicitly waived their own response" : "recorded an answer") + $" in {subject}.",
+                (action switch { "waive" => "explicitly waived their own response", "property_accept" => "personally agreed to the property transfer",
+                    "property_refuse" => "refused the property transfer", _ => "recorded an answer" }) + $" in {subject}.",
             "land_case_judge_consent" => $"{actor ?? "An adult resident"} " + (action switch
             {
                 "judge_withdraw" => "withdrew their candidacy",

@@ -45,7 +45,7 @@ public sealed partial class PrivateWorldRuntime
         var roots = inventory.Lots.Where(lot => lot.OwnerId == owner && lot.Quantity > 0 && lot.CarrierId is null && lot.ContainerLotId is null &&
                 (lot.StorageBuildingId == building.InstanceId || lot.GroundPosition is { } ground && plot.Contains(new(ground.X, ground.Y))))
             .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
-        var lots = inventory.Lots.Where(lot => roots.Contains(lot.Id) || lot.ContainerLotId is { } container && roots.Contains(container))
+        var lots = inventory.Lots.Where(lot => lot.Quantity > 0 && (roots.Contains(lot.Id) || lot.ContainerLotId is { } container && roots.Contains(container)))
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
         if (lots.Any(lot => lot.OwnerId != owner || lot.CarrierId is not null))
             throw new InvalidOperationException("Shared containers must retain one recorded owner and physical custody.");
