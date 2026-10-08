@@ -412,6 +412,11 @@ public partial class Main
             ("Built", SplitClock(DisplayWorldClock(building.PlacedTick)).Date),
             ("Footprint", $"{building.Width} × {building.Height} tiles"),
         };
+        var footprint = Footprint(building);
+        var animals = snapshot.Animals.Where(animal => footprint.HasPoint(new Vector2I(animal.Position.X, animal.Position.Y)))
+            .OrderBy(animal => animal.Name, StringComparer.CurrentCulture).ThenBy(animal => animal.Id, StringComparer.Ordinal).ToArray();
+        if (animals.Length > 0)
+            facts.Add(("Animals here", string.Join('\n', animals.Select(GameUiText.AnimalDescription))));
         if ((townHall || market is not null || lantern || port) && snapshot.Towns.SelectMany(item => item.Projects)
                 .FirstOrDefault(project => project.CompletedBuildingId == building.InstanceId) is { } project)
         {
