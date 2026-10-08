@@ -1188,6 +1188,14 @@ size, and shows the per-tile mountain and hill art for a chunk until its relief
 is ready. It also warms hills' overview color and shows "Landform: Hills" in
 tile inspection. Hill travel cost and passability are not decided.
 
+The client retains decoded ground, its palette, the overview atlas and warm
+relief when only resources change. Its terrain cache compares the world ID,
+dimensions, wrapping and actual packed terrain/layer contents, or a retained
+copy of legacy tile facts. A resource-manifest change alone does not rebuild
+the ground; tree stages, resource quantities and other live overlays still
+refresh. Changed ground or layers rebuild even if digest metadata stays the
+same, and a new world context or newly available layers rebuild the map.
+
 All of these numbers are **provisional**. They were chosen from fixed-seed
 measurements, not owner-reviewed maps, and live in `TerrainPlacementRules`.
 Current fixed-world tests require 25–45% forest-grass tree coverage, and every

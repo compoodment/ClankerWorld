@@ -60,6 +60,9 @@ public partial class Main
         renderedMapSnapshot = null;
         terrainMap = null;
         terrainWorldId = null;
+        terrainPackedTerrain = null;
+        terrainPackedLayers = null;
+        terrainTiles = [];
         cameraWorldId = null;
         usagePauseWorldId = null;
         lastLifePaceWorldId = null;
@@ -143,6 +146,13 @@ public partial class Main
         return x >= 0 && y >= 0 && x < width && y < height;
     }
 
+    private bool TerrainInputsMatch(WorldTerrainMap map, OwnerWorldSnapshot snapshot) =>
+        string.Equals(terrainWorldId, snapshot.WorldId, StringComparison.Ordinal) &&
+        map.WrapsEastWest == snapshot.WrapsEastWest &&
+        (map.Width, map.Height) == MapDimensions(snapshot) &&
+        terrainPackedTerrain == snapshot.PackedTerrain && terrainPackedLayers == snapshot.PackedMapLayers &&
+        (snapshot.PackedTerrain is not null || terrainTiles.SequenceEqual(snapshot.Tiles));
+
     private void RenderMap(OwnerWorldSnapshot snapshot)
     {
         if (renderedMapSnapshot is not { } previous ||
@@ -190,19 +200,16 @@ public partial class Main
             return;
         }
 
-        var manifest = snapshot.Authoring?.CurrentMapManifestDigest ?? snapshot.MapManifestDigest;
-        if (terrainMap is null || !string.Equals(terrainWorldId, snapshot.WorldId, StringComparison.Ordinal) ||
-            !string.Equals(terrainManifestDigest, manifest, StringComparison.Ordinal) ||
-            !string.Equals(terrainLayersDigest, snapshot.MapLayersDigest, StringComparison.Ordinal) ||
-            (!terrainMap.HasMapLayers && snapshot.PackedMapLayers is not null))
+        if (terrainMap is null || !TerrainInputsMatch(terrainMap, snapshot))
         {
             var (width, height) = MapDimensions(snapshot);
             terrainMap = snapshot.PackedTerrain is { } packed
                 ? WorldTerrainMap.FromPacked(packed, snapshot.PackedMapLayers, snapshot.WrapsEastWest)
                 : WorldTerrainMap.FromTiles(snapshot.Tiles, width, height, snapshot.PackedMapLayers, snapshot.WrapsEastWest);
             terrainWorldId = snapshot.WorldId;
-            terrainManifestDigest = manifest;
-            terrainLayersDigest = snapshot.MapLayersDigest;
+            terrainPackedTerrain = snapshot.PackedTerrain;
+            terrainPackedLayers = snapshot.PackedMapLayers;
+            terrainTiles = snapshot.PackedTerrain is null ? snapshot.Tiles.ToArray() : [];
             terrainLayer.SetWorld(terrainMap);
             worldOverview.SetWorld(terrainMap);
         }
