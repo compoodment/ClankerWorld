@@ -19,6 +19,7 @@ namespace ClankerWorld.Viewer.Control;
 public sealed class ProviderUsageWorldEffects(
     PrivateWorldRuntime runtime,
     PrivateWorldStateFile stateFile,
+    ProviderUsageStore usage,
     object worldMutationGate,
     ILogger logger)
 {
@@ -36,8 +37,14 @@ public sealed class ProviderUsageWorldEffects(
         if (!work(wait)) _ = Task.Run(() => work(Timeout.InfiniteTimeSpan));
     }
 
-    private bool TryPauseAtLimit(TimeSpan wait) => TryChangeWorld(wait, () => runtime.TryPause(wait), "paused",
-        outcome => ProviderUsageTelemetry.LimitReached(logger, outcome, runtime.WorldTick));
+    private bool TryPauseAtLimit(TimeSpan wait)
+    {
+        var pauseNeeded = false;
+        return TryChangeWorld(wait,
+            () => runtime.TryPause(wait, () => pauseNeeded = usage.Capture().LimitReached), "paused",
+            outcome => ProviderUsageTelemetry.LimitReached(logger, outcome, runtime.WorldTick),
+            didChange: () => pauseNeeded);
+    }
 
     private bool TryRecordWarning(ProviderUsageWarning warning, TimeSpan wait) => TryChangeWorld(wait,
         () => runtime.TryRecordModelCallWarning(warning.Attempts, warning.AttemptLimit, wait), "event_log",
@@ -45,7 +52,8 @@ public sealed class ProviderUsageWorldEffects(
             runtime.WorldTick));
 
     /// <summary>False means a gate was busy and nothing changed.</summary>
-    private bool TryChangeWorld(TimeSpan wait, Func<bool> change, string changed, Action<string> report)
+    private bool TryChangeWorld(TimeSpan wait, Func<bool> change, string changed, Action<string> report,
+        Func<bool>? didChange = null)
     {
         var outcome = "failed";
         var entered = false;
@@ -53,10 +61,14 @@ public sealed class ProviderUsageWorldEffects(
         {
             Monitor.TryEnter(worldMutationGate, wait, ref entered);
             if (!entered || !change()) return false;
-            // A failed save leaves the change for the world's next save.
-            outcome = changed + "_unsaved";
-            stateFile.Save(runtime);
-            outcome = changed;
+            if (didChange is not null && !didChange()) outcome = "superseded";
+            else
+            {
+                // A failed save leaves the change for the world's next save.
+                outcome = changed + "_unsaved";
+                stateFile.Save(runtime);
+                outcome = changed;
+            }
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {

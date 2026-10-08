@@ -231,7 +231,9 @@ public sealed partial class PrivateWorldRuntime
             return null;
         // A Warehouse takes no food, and no handcart, which stays on the ground:
         // the household path keeps such a cart and its cargo where they are.
-        var refused = new HashSet<string>(WarehouseFoodKinds.Append(InventoryContainerRules.Handcart), StringComparer.Ordinal);
+        var refused = new HashSet<string>(society.Checkpoint.Inventory.Lots
+            .Where(lot => InventoryContainerRules.IsFood(lot.ItemKind))
+            .Select(lot => lot.ItemKind).Append(InventoryContainerRules.Handcart), StringComparer.Ordinal);
         return towns.Select(town => TownInheritanceWarehouse(town.Id) is { } warehouse
                 ? new SocietyTownStore(town.Id, warehouse.InstanceId, StorageRoom(warehouse.InstanceId), refused)
                 : null)

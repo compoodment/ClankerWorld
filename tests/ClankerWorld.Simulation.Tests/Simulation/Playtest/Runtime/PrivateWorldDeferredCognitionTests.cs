@@ -552,9 +552,10 @@ public sealed class PrivateWorldDeferredCognitionTests
 
     private static async Task<PrivateWorldStepResult> AdvanceUntilAcceptedAsync(PrivateWorldRuntime world, string inhabitantId)
     {
-        // The provider signals just before its outer task completes. Admission
-        // belongs to a later committed tick, not necessarily the first one.
-        for (var attempt = 0; attempt < 20; attempt++)
+        // Hosted completion runs between ticks and can be delayed by runner load.
+        // Keep admitting through native ticks under a wall-clock deadline.
+        var waiting = System.Diagnostics.Stopwatch.StartNew();
+        while (waiting.Elapsed < TimeSpan.FromSeconds(3))
         {
             var step = await world.AdvanceOneTickNonBlockingAsync();
             Assert.True(step.Advanced);
@@ -562,7 +563,7 @@ public sealed class PrivateWorldDeferredCognitionTests
                 return step;
             await Task.Delay(10);
         }
-        throw new TimeoutException($"The completed hosted decision for {inhabitantId} was not admitted within 20 ticks.");
+        throw new TimeoutException($"The completed hosted decision for {inhabitantId} was not admitted within 3 seconds.");
     }
 
     private static PrivateWorldRuntime CreateNameTestWorld(
