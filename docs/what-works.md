@@ -449,6 +449,9 @@ the recipe name. Every batch makes two servings, so "cook four house bread"
 requires two paid batches; odd serving counts are not understood. Plain
 "cook porridge" is ambiguous and does not replace the current order.
 
+Cooking ignores ingredients inside broken vessels and uses healthy on-site
+alternatives. The broken pot or jug and its contents stay unchanged.
+
 House and Restaurant ingredient supplies use their native demand, cooking
 reserves, carrying and whole-jug rules. Named prepared foods can be collected
 as personal property, returned when borrowed, delivered as spare carried food
@@ -683,8 +686,10 @@ Map inspection shows species, age, care, products, household and permissions.
 Animals use the approved art in all eight directions at both close and mid
 zoom: chicks, lambs, calves and foals have their own drawings, a horse shows
 its saddle or a bare back, and a household sheep looks shorn for the first half
-of each wool cycle. The animal yard is a split-rail pen on trampled earth with
-an open gate, a water trough and hay.
+of each wool cycle. An animal that moves shows walking steps, hooves (or a
+hen's feet) stepping out from under it, and stands still again when it stops.
+The animal yard is a split-rail pen on trampled earth with an open gate, a
+water trough and hay.
 See [animal controls](playing.md#animals) and the [approved decision](https://github.com/compoodment/ClankerWorld/pull/1027).
 All balance values are provisional. Hunting, slaughter, meat, predators,
 neglect deaths, horse-drawn carts and animal boat transport remain excluded.
@@ -934,6 +939,9 @@ Non-land cases have a separate protected mandate. Reports retain the conduct,
 applicable law version and actual evidence sources. Response windows,
 independent judges and reasoned findings lead to explanations, warnings or
 censure, with voluntary offers for named goods, repair or public service.
+Inspecting a law preserves complete emoji at the evidence excerpt's limit,
+so saving and reloading keeps its exact historical source. Already damaged
+alpha checkpoints remain refused and preserved.
 Every contributor gives their own informed acceptance; physical completion
 receipts distinguish accepted work from completed work. Visitors retain local
 response rights and children receive caregiver support. Counteroffers during
