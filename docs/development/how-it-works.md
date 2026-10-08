@@ -3067,6 +3067,12 @@ model choices. Built-in fallback and forced orders cannot give personal consent.
 Receiving space and the exact payment lot are checked again on acceptance;
 transfer clears old permissions and preserves position for physical leading.
 
+Care for a different animal first ends the actor's existing ride through the
+normal dismount operation, then approaches the care target on foot. That
+preparation earns no care-order progress and spends no feed or water. The
+horse and reserved saddle keep their position and ownership; excess cargo
+uses the existing dismount rules before care rechecks its actual inputs.
+
 A cared adult horse has one real reserved saddle and one adult rider. Movement
 uses the normal legal route and occupancy rules, halves walking cost and admits
 at most two legal steps per tick. A mount adds eight cargo units. Care or

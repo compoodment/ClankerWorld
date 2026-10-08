@@ -645,6 +645,10 @@ provides 32 carried cargo units. Cared adult pairs breed automatically with
 space and delivered supplies; missed care pauses work and riding. Old age is
 the only animal death rule, leaving one owned hide from sheep, cows or horses.
 
+A rider caring for a different animal dismounts before approaching it. The
+horse and saddle stay in place; care spends its feed and water only after
+the adult reaches the animal.
+
 A saddled, cared adult horse carries one adult at twice walking speed with eight
 extra cargo units. Named outsider riding and care permissions are separate.
 Riders dismount before collecting another animal's product or saddling another
