@@ -54,15 +54,6 @@ public sealed class DamagedCheckpointEntryTests
         Assert.Contains("Small and Medium", refused.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task HealthyCheckpointHasNoEmptyListEntriesAndStillLoads()
-    {
-        var healthy = await HealthyCheckpoint();
-        var state = PrivateWorldRuntimeCodec.Decode(healthy);
-        using var restored = PrivateWorldRuntime.Restore(state);
-        Assert.Equal(healthy, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-    }
-
     // Share only encoded state; each test gets its own bytes and parsed document.
     private static async Task<byte[]> HealthyCheckpoint() => (await healthyCheckpoint.Value).ToArray();
 

@@ -327,8 +327,11 @@ public static class Colors
 }
 
 /// <summary>8-bit RGBA raster with Godot's Image surface; other formats are stored as RGBA too.</summary>
-public class Image
+public class Image : IDisposable
 {
+    // Native Godot images own unmanaged data; this stand-in owns only managed bytes.
+    public void Dispose() { }
+
     public enum Format { L8, La8, R8, Rg8, Rgb8, Rgba8, Rgba4444, Rgb565, Rf, Rgf, Rgbf, Rgbaf, Rh, Rgh, Rgbh, Rgbah, Rgbe9995 }
     public enum Interpolation { Nearest, Bilinear, Cubic, Trilinear, Lanczos }
 

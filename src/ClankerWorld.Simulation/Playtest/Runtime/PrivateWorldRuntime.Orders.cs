@@ -414,7 +414,7 @@ public sealed partial class PrivateWorldRuntime
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
         if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))
-            return "Waiting for the named animal, permission, a legal route, carry space and physical feed or jug water.";
+            return AnimalOrderBlockedReason(instruction);
         if (instruction.Order is { } protective && IsShelterOrder(protective.Action))
             return ShelterOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "construct_building")

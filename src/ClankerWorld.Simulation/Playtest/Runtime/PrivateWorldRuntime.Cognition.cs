@@ -587,7 +587,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
-        if (PassengerBoat(decision.InhabitantId) is not null && candidateId is not ("consume_food" or "safe_idle"))
+        if (PassengerBoat(decision.InhabitantId) is not null && candidateId is not ("consume_food" or "drink_milk" or "safe_idle"))
         {
             AppendEvent("boat_action_blocked", $"{decision.InhabitantId}:stay_aboard");
             return;
@@ -1172,6 +1172,8 @@ public sealed partial class PrivateWorldRuntime
             var aboard = new List<CognitionCandidate> { new("safe_idle", "Stay aboard while the boat travels or waits for a safe Port.", 100) };
             if (PreferredFood(inhabitantId, inhabitantId).Any() && state.HungerBasisPoints < ComfortableFullness)
                 aboard.Add(new("consume_food", "Eat one carried food item aboard the boat.", 0));
+            if (CarriedMilk(inhabitantId) is not null && state.HungerBasisPoints < ComfortableFullness)
+                aboard.Add(new("drink_milk", "Drink one portion of carried jug milk, leaving the reusable jug intact.", 0));
             return aboard;
         }
         var currentConversation = ConversationFor(inhabitantId);
@@ -1279,8 +1281,10 @@ public sealed partial class PrivateWorldRuntime
         {
             var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
             var reachableToolCache = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
-            AddBuildCandidates(candidates, inhabitant, state, reachableToolCache);
-            AddBuildingExpansionCandidates(candidates, inhabitantId, reachableToolCache);
+            var accessibleWarehouses = new Lazy<PlacedBuilding[]>(() => WarehousesAccessibleTo(inhabitantId).ToArray(),
+                LazyThreadSafetyMode.None);
+            AddBuildCandidates(candidates, inhabitant, state, reachableToolCache, accessibleWarehouses);
+            AddBuildingExpansionCandidates(candidates, inhabitantId, reachableToolCache, accessibleWarehouses);
             AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
             AddWarehouseStockCandidate(candidates, inhabitantId, state);
@@ -1351,7 +1355,8 @@ public sealed partial class PrivateWorldRuntime
         List<CognitionCandidate> candidates,
         SocietyInhabitant inhabitant,
         PlaytestInhabitantState state,
-        Dictionary<(ToolFamily Family, int Tier), ToolDefinition?> reachableToolCache)
+        Dictionary<(ToolFamily Family, int Tier), ToolDefinition?> reachableToolCache,
+        Lazy<PlacedBuilding[]> accessibleWarehouses)
     {
         if (inhabitant.HouseholdId is { } planningHousehold)
             AddHouseholdBuildingPlans(candidates, inhabitant, state, planningHousehold);
@@ -1376,7 +1381,7 @@ public sealed partial class PrivateWorldRuntime
                 society.Checkpoint.Inventory.Lots.Any(lot => lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == inhabitant.Id)))
                 continue;
             if (!NeedsRecipeOutput(recipe, recipeOwner, inhabitant.Id) || AnotherAgentWaitsForWorkSite(inhabitant.Id, recipe) ||
-                !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id, reachableToolCache) ||
+                !CanAcquireProjectInputs(recipe.Inputs, recipeOwner, inhabitant.Id, reachableToolCache, accessibleWarehouses) ||
                 !TryFindRecipeSite(recipe, out var siteId, out var position, inhabitant.Id) ||
                 householdWorkstation && !personalCart &&
                 (recipeOwner is null || !HasIngredientsAtBuilding(recipe.Inputs, recipeOwner, siteId)))

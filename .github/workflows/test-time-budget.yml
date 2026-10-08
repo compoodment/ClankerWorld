@@ -1,0 +1,50 @@
+name: Test time budget
+
+# Every Monday, compare how long main's tests take in total, each test at its median over
+# main's last five green Verify runs, with the budget in .github/scripts/test-time-budget.js.
+# Over the budget, it opens one issue listing the slowest tests, or refreshes the one already
+# open; well under it, it closes that issue. test-times in ci.yml catches one pull request that
+# makes tests much slower; this catches many small ones adding up. See
+# docs/development/build-and-test.md, "How CI runs".
+# It reads CI timings only and runs main's copy of the script.
+on:
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only say what would change
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  # To read the test timings main's runs uploaded.
+  actions: read
+  issues: write
+
+concurrency:
+  group: test-time-budget
+  cancel-in-progress: false
+
+jobs:
+  budget:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Download test timings from main's latest green runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/main-timings.sh "$RUNNER_TEMP/main" 5
+
+      - name: Open, refresh or close the budget issue
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const checkTestTimeBudget = require('./.github/scripts/test-time-budget.js');
+            await checkTestTimeBudget({ github, context, core, dir: `${process.env.RUNNER_TEMP}/main`, dryRun: ${{ inputs.dry_run == true }} });

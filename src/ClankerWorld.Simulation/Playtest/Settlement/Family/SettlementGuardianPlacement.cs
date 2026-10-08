@@ -142,11 +142,21 @@ public sealed partial class PrivateWorldRuntime
         inhabitants.TryGetValue(actor, out var person) && person.GuardianPlacement is not null ||
         inhabitants.Values.Any(person => person.GuardianPlacement?.CaregiverId == actor);
 
-    private string? GuardianPlacementChildFor(string caregiver) => inhabitants.Values
-        .Where(person => person.GuardianPlacement is { } placement && placement.CaregiverId == caregiver &&
-            IsCurrentGuardianPlacement(person.InhabitantId, placement) && GuardianPlacementHomeBlocker(person.InhabitantId, placement) is null)
-        .OrderBy(person => person.GuardianPlacement!.StartedTick).ThenBy(person => person.InhabitantId, StringComparer.Ordinal)
-        .Select(person => person.InhabitantId).FirstOrDefault();
+    private string? GuardianPlacementChildFor(string caregiver)
+    {
+        var placements = inhabitants.Values
+            .Where(person => person.GuardianPlacement is { } placement && placement.CaregiverId == caregiver &&
+                IsCurrentGuardianPlacement(person.InhabitantId, placement) && GuardianPlacementHomeBlocker(person.InhabitantId, placement) is null)
+            .OrderBy(person => person.GuardianPlacement!.StartedTick).ThenBy(person => person.InhabitantId, StringComparer.Ordinal).ToArray();
+        var origin = inhabitants[caregiver].Position;
+        // A blocked collection must not starve another accepted child of a move.
+        // Keep an escort together, and retry the oldest blocked collection when
+        // no reachable collection remains so its normal blocker stays visible.
+        return (placements.FirstOrDefault(person => person.GuardianPlacement!.Stage == "escorting") ??
+            placements.FirstOrDefault(person => IsWithinInteractionRange(origin, person.Position, ResourceInteractionRange) ||
+            FindUnoccupiedRoute(caregiver, origin, person.Position, ResourceInteractionRange).Count > 0) ??
+            placements.FirstOrDefault())?.InhabitantId;
+    }
 
     private CognitionCandidate? GuardianPlacementCandidate(string actor)
     {
