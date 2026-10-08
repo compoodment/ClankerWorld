@@ -674,6 +674,7 @@ public sealed partial class PrivateWorldRuntime
             ProcessBoatQueue();
             ReconcileAnimalCustody();
 
+            ArchiveOldAgentMemories(activeHostedIds);
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();
             return new PrivateWorldStepResult(true, "advanced", targetTick, decisions, newEvents)
