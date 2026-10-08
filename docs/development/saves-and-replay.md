@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # Saves and replay
@@ -1299,6 +1299,19 @@ The active recovery checkpoint is encoded and fsync-written after every advanced
 one-second tick. Older history is compacted into digest-addressed segments.
 Hot event lists are bounded, but long-term segment retention and larger-world
 write cost are not yet measured.
+
+Before replacing the active checkpoint, its writer loads the exact encoded
+bytes through the current codec. A serialization or validation mismatch refuses
+the write and keeps the previous checkpoint. This adds one codec read to each
+checkpoint write. Historical-law evidence uses the same Unicode-safe excerpt
+rule for inspection and exact-source validation; an emoji crossing the limit
+is omitted whole. Source identity, version, conduct time and actual inspection
+receipts remain required.
+
+An alpha checkpoint already damaged by a split law excerpt is refused and
+preserved. No wording repair or migration is attempted. Return to an earlier
+usable manual or recovery save, keeping the damaged file as evidence. Healthy
+current-format checkpoints retain their schema and roundtrip behavior.
 
 Named manual checkpoints use a private `.manual` directory and reference the
 same history archive. Overwriting a selected checkpoint retains a recovery copy;
