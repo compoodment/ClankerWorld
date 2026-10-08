@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Society;
 
@@ -135,7 +137,7 @@ internal static class PrivateWorldMemoryRetrieval
             .Select(belief => new SourceRecord(
                 belief.Id,
                 ownerId,
-                IsValidId(belief.AboutInhabitantId) ? belief.AboutInhabitantId! : ownerId,
+                CognitionSubjectId(belief.AboutInhabitantId ?? ownerId),
                 Bounded(belief.Statement, MaximumSummaryLength),
                 belief.FormedTick,
                 "belief",
@@ -169,6 +171,10 @@ internal static class PrivateWorldMemoryRetrieval
 
     private static bool IsValidId(string? value) => value is { Length: > 0 and <= 128 } &&
         value == value.Trim() && !value.Any(char.IsControl);
+
+    private static string CognitionSubjectId(string subjectId) => subjectId.Length <= 128
+        ? subjectId
+        : "agent-sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(subjectId)));
 
     private static string? BoundedOptional(string? value, int limit) => value is null
         ? null

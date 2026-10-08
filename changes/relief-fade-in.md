@@ -1,0 +1,1 @@
+- Mountains no longer flash their old tile-by-tile drawing as often. Mountain relief near the middle of the screen and just off its edges is drawn ahead of time, and relief that is still being drawn when it comes into view fades in instead of popping.

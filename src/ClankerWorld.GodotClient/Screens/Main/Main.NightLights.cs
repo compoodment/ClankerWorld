@@ -9,7 +9,9 @@ public partial class Main
     /// Which buildings may be lit tonight, from what the world already
     /// reports: someone is inside (a living agent stands within its
     /// footprint) or a job is running there. <see cref="NightLightShapes"/>
-    /// decides what each design shows for that.
+    /// decides what each design shows for that. In an abandoned Town a
+    /// building's lantern fittings fade with it, and a Port keeps its pier
+    /// lantern dark.
     /// </summary>
     private static List<BuildingLight> BuildingLights(OwnerWorldSnapshot snapshot)
     {
@@ -19,6 +21,8 @@ public partial class Main
         var working = snapshot.ProductionJobs
             .Where(job => string.Equals(job.State, "running", StringComparison.OrdinalIgnoreCase))
             .Select(job => job.BuildingInstanceId).ToHashSet(StringComparer.Ordinal);
+        var neglectByTown = snapshot.Towns.Where(town => town.IsAbandoned).ToDictionary(town => town.Id,
+            town => town.FallingApart ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected, StringComparer.Ordinal);
         var lights = new List<BuildingLight>();
         foreach (var building in snapshot.PlacedBuildings)
         {
@@ -39,15 +43,19 @@ public partial class Main
             } : null;
             lights.Add(new BuildingLight(footprint, new LightPlan(design, roof, yard, door.Side, middle, lantern, wing),
                 people.Any(footprint.HasPoint), working.Contains(building.InstanceId))
-            { Kind = kind, Door = door });
+            {
+                Kind = kind,
+                Door = door,
+                Neglect = building.TownId is { } town ? neglectByTown.GetValueOrDefault(town) : BuildingNeglect.None,
+            });
         }
         return lights;
     }
 
     /// <summary>
     /// Completed lamps use their saved Road neighbour, without depending on
-    /// occupants or jobs. In an abandoned Town they look neglected, then
-    /// falling apart after a full season, but still light at night.
+    /// occupants or jobs. In an abandoned Town they stay dark and look
+    /// neglected, then falling apart after a full season.
     /// </summary>
     private static List<StreetLanternLight> StreetLanterns(OwnerWorldSnapshot snapshot)
     {
@@ -62,6 +70,17 @@ public partial class Main
                     Neglect = building.TownId is { } town ? neglectByTown.GetValueOrDefault(town) : BuildingNeglect.None,
                 });
         return lanterns;
+    }
+
+    /// <summary>Street lanterns still being built, on the Road edge their projects were planned against.</summary>
+    private static List<StreetLanternSite> StreetLanternSites(OwnerWorldSnapshot snapshot)
+    {
+        var (width, _) = MapDimensions(snapshot);
+        var sites = new List<StreetLanternSite>();
+        foreach (var site in snapshot.ConstructionSites.OrderBy(site => site.Id, StringComparer.Ordinal))
+            if (StreetLanternLight.FromSite(site, width, snapshot.WrapsEastWest) is { } lantern)
+                sites.Add(new StreetLanternSite(lantern, site.DrawnStage));
+        return sites;
     }
 
     /// <summary>The night-light design for a building family, or null for those with no lights.</summary>

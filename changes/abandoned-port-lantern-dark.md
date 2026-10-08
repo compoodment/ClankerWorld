@@ -1,0 +1,1 @@
+- A Port's pier lantern in an abandoned Town now stays dark at night, and lights again once someone resettles the Town.
