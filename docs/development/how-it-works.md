@@ -2763,8 +2763,10 @@ Warehouse stock only while the whole set is carried or in that stock, and the
 Blacksmith, Store and workstation supply hauls leave the carried set with them
 rather than returning it to stock. Exact inputs are reserved through the
 production job; the personal cart appears on the work site's ground after
-completion. Repair
-consumes three carried material reservations atomically. Unloading can retain
+completion. Running or paused jobs reserve only their net stored output growth,
+excluding ground handcart outputs. Ordinary stored outputs still reserve room
+after accounting for consumed inputs already in that building. Repair consumes
+three carried material reservations atomically. Unloading can retain
 damaged goods on the ground and works after the cart breaks. Property transfer
 and inheritance keep the entire cart/cargo family at its existing position.
 A death, break or ownership change removes the attachment without dropping or
