@@ -16,11 +16,14 @@ switch (command)
     case "scene":
         SceneRunner.Run(Path.Combine(outRoot, "scene"));
         break;
+    case "seasons":
+        SeasonalScenes.Run(Path.Combine(outRoot, "seasons"));
+        break;
     case "check":
         ArtContractChecks.Run();
         break;
     default:
-        Console.Error.WriteLine("usage: baseline|proposed|scene <out dir> [proposal family] | check");
+        Console.Error.WriteLine("usage: baseline|proposed|scene|seasons <out dir> [proposal family] | check");
         return 2;
 }
 return 0;

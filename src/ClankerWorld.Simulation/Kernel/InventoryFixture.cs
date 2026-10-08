@@ -940,17 +940,14 @@ public static partial class InventoryFixture
         string expectedOwnerId,
         int requestedQuantity)
     {
-        if (lot.OwnerId != expectedOwnerId || requestedQuantity <= 0 || lot.Quantity < requestedQuantity)
+        if (!InventoryRules.HasOwnedPhysicalQuantity(lot, expectedOwnerId, requestedQuantity))
             throw new InvalidOperationException("The exact owned physical lot quantity is unavailable.");
         EnsureUnreservedQuantity(checkpoint, lot, requestedQuantity);
     }
 
     private static void EnsureUnreservedQuantity(InventoryCheckpoint checkpoint, InventoryLot lot, int requestedQuantity)
     {
-        var reserved = checkpoint.Reservations.Where(reservation => reservation.LotId == lot.Id &&
-                reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed)
-            .Sum(reservation => reservation.Quantity);
-        if (reserved > lot.Quantity - requestedQuantity)
+        if (!InventoryRules.HasUnreservedQuantity(InventoryIndex.For(checkpoint), lot, requestedQuantity))
         {
             throw new InvalidOperationException("An active reservation already consumes the requested lot quantity.");
         }
@@ -961,8 +958,7 @@ public static partial class InventoryFixture
         string expectedOwnerId,
         int requestedQuantity)
     {
-        if (lot.OwnerId != expectedOwnerId || requestedQuantity <= 0 || lot.Quantity < requestedQuantity ||
-            lot.FreshnessBasisPoints == 0 || lot.ConditionBasisPoints == 0)
+        if (!InventoryRules.HasOwnedUsableQuantity(lot, expectedOwnerId, requestedQuantity))
         {
             throw new InvalidOperationException("The exact owned usable lot quantity is unavailable.");
         }
@@ -976,7 +972,7 @@ public static partial class InventoryFixture
 
     private static void EnsureUsableContainer(InventoryLot container)
     {
-        if (!InventoryContainerRules.IsContainer(container.ItemKind) || container.ConditionBasisPoints <= 0)
+        if (!InventoryRules.IsUsableContainer(container))
             throw new InvalidOperationException("A broken or invalid vessel cannot hold, serve, or supply contents.");
     }
 
@@ -1056,21 +1052,13 @@ public static partial class InventoryFixture
 
     private static void EnsureContainerOwnerAndLocation(InventoryLot container, InventoryLot content, string ownerId)
     {
-        if (!InventoryContainerRules.IsContainer(container.ItemKind) || container.Quantity != 1 ||
-            container.ContainerLotId is not null || container.OwnerId != ownerId || content.OwnerId != ownerId ||
-            container.StorageBuildingId != content.StorageBuildingId ||
-            container.DeliveryBuildingId != content.DeliveryBuildingId || container.CarrierId != content.CarrierId ||
-            (content.ContainerLotId == container.Id
-                ? content.GroundPosition is not null
-                : container.GroundPosition != content.GroundPosition))
+        if (!InventoryRules.SharesContainerOwnerAndLocation(container, content, ownerId))
             throw new InvalidOperationException("The vessel and contents must share an owner and physical location.");
     }
 
     private static void EnsureNoActiveReservations(InventoryCheckpoint checkpoint, IEnumerable<string> lotIds)
     {
-        var ids = lotIds.ToHashSet(StringComparer.Ordinal);
-        if (checkpoint.Reservations.Any(reservation => ids.Contains(reservation.LotId) &&
-                reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed))
+        if (!InventoryRules.AreUnreserved(InventoryIndex.For(checkpoint), lotIds))
             throw new InvalidOperationException("A vessel or its contents are reserved and cannot be moved.");
     }
 
