@@ -105,7 +105,11 @@ public sealed partial class PrivateWorldRuntime
         if ((NeedsUrgentFood(person) || NeedsUrgentWarmth(person)) && IsSurvivalCandidate(actor, candidate))
         {
             SetOrderStatus(instruction, "interrupted", "Food or warmth needs come first.");
-            ApplyCandidate(actor, person, candidate, reportIdle: true);
+            if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel &&
+                IsMarketFoodCandidate(actor, candidate))
+                ApplyMarketCandidate(actor, person, candidate);
+            else
+                ApplyCandidate(actor, person, candidate, reportIdle: true);
             return;
         }
         var conversation = instruction.Order!.TalkConversationId is { } id
