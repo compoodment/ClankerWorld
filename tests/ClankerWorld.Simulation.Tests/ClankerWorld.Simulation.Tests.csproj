@@ -16,6 +16,12 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- The pinned SDK supplies the C# parser used by architecture source guards. -->
+  <ItemGroup>
+    <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildToolsPath)/Roslyn/bincore/Microsoft.CodeAnalysis.dll" />
+    <Reference Include="Microsoft.CodeAnalysis.CSharp" HintPath="$(MSBuildToolsPath)/Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\ClankerWorld.Simulation\ClankerWorld.Simulation.csproj" />
     <ProjectReference Include="..\..\src\ClankerWorld.Viewer\ClankerWorld.Viewer.csproj" />
