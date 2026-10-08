@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-07
+updated: 2026-10-08
 ---
 
 # How the game works
@@ -3045,8 +3045,11 @@ ordinary revalidated choices. Native orders bind an exact animal name or ID.
 Care spends actual unreserved grain/greens and jug water at the animal or yard;
 food, planting and workstation reserves stay protected. For care away from the
 actor's tile, input selection accepts only physically carried supplies. This
-keeps the existing supply path collecting both feed and a water jug before
-approaching the animal, including after a partial pickup. At the animal's tile,
+keeps the existing supply path collecting feed and enough usable jug water before
+approaching the animal, including after a partial pickup. Water may be split
+across jugs or content lots; fetching counts the usable water already carried
+and rechecks each whole jug against reservations and free carrying space.
+At the animal's tile,
 permitted local yard stock remains usable directly. Physical supply trips
 retain the owning household. Cancelling or replacing an animal order releases
 only a supply trip matching its actor, animal and action, without relocating,
