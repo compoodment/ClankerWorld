@@ -780,6 +780,15 @@ state intact. The repair applies once and may expose an already broken Road
 connection; it does not reroute Roads or create bridges. Back up older saves
 before an upgrade.
 
+World-systems resource manifests are separate from the terrain-byte chunks.
+Loaded or changed manifests require full structural validation and an exact
+canonical digest. Unchanged immutable manifests may reuse that result in a
+process-local weak cache; current-world bounds and duplicate coordinates still
+require validation. No cache state is saved, and the checkpoint schema, JSON
+field order and canonical bytes remain unchanged. See [How it works](how-it-works.md)
+for ownership and [Chunk validation measurements](chunk-validation-measurements.md)
+for exact checkpoint/replay comparisons.
+
 Bridges are saved in the same checkpoint as the Road tiles they join, so a
 Road never ends at a river without its bridge. Loading checks every bridge
 against the map (a legal one- or two-tile river span between buildable banks,
