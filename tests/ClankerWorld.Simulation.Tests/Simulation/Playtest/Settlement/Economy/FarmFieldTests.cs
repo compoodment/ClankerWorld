@@ -597,19 +597,23 @@ public sealed class FarmFieldTests
         await Advance(tilling, 3);
         Assert.Equal(FarmFieldStage.Preparing, Assert.Single(tilling.Fields).Stage);
         using var prepared = Reload(tilling);
-        await Advance(prepared, 5);
+        await Advance(prepared, 1);
         Assert.Equal(FarmFieldStage.Prepared, Assert.Single(prepared.Fields).Stage);
+        Assert.Contains(prepared.Inhabitants.Single(person => person.InhabitantId == actor).Skills!,
+            skill => skill.Kind == SettlementSkillKind.Farming);
         Assert.True(prepared.StartFieldWork(actor, point, FarmWorkKind.Plant, crop, "carried-planting").Accepted);
+        Assert.Equal(3, Assert.Single(prepared.Fields).Work!.RemainingTicks);
         await Advance(prepared, 2);
         using var planted = Reload(prepared);
-        await Advance(planted, 2);
+        await Advance(planted, 1);
         Assert.Equal(FarmFieldStage.Planted, Assert.Single(planted.Fields).Stage);
         Assert.Equal(1, planted.Society.Inventory.GetLot("carried-planting").Quantity);
         using var growing = Reload(planted);
         await Advance(growing, 1);
         Assert.Equal(FarmFieldStage.Growing, Assert.Single(growing.Fields).Stage);
         Assert.True(growing.StartFieldWork(actor, point, FarmWorkKind.Tend).Accepted);
-        await Advance(growing, 4);
+        await Advance(growing, 2);
+        Assert.True(Assert.Single(growing.Fields).Tended);
         var ticksToReady = Assert.Single(growing.Fields).ReadyTick - growing.WorldTick;
         await Advance(growing, checked((int)Math.Max(1, ticksToReady)));
         Assert.Equal(FarmFieldStage.Ready, Assert.Single(growing.Fields).Stage);
@@ -617,7 +621,7 @@ public sealed class FarmFieldTests
         Assert.True(harvesting.StartFieldWork(actor, point, FarmWorkKind.Harvest).Accepted);
         await Advance(harvesting, 2);
         using var harvested = Reload(harvesting);
-        await Advance(harvested, 2);
+        await Advance(harvested, 1);
         var field = Assert.Single(harvested.Fields);
         Assert.Equal(FarmFieldStage.Harvested, field.Stage);
         Assert.Equal(1, field.Cycle);
