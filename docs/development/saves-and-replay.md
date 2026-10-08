@@ -207,6 +207,16 @@ covers partial planting, queues, released seeds, real tool wear and household
 harvest ownership. This version follows the integrated guardian-placement schema 71. Older alpha saves
 are refused and preserved unchanged without migration.
 
+Tree-planting orders reuse the current order fields for a bounded count,
+optional exact tile and `plant_tree`, `plant_broadleaf`, `plant_conifer` or
+`plant_orchard` action. Only a newly created sapling earns one tree and its
+canonical `tree:plant:planted-tree-{x}-{y}` receipt. Seed collection and travel
+retain zero progress. Strict restoration rejects unsupported fields, invalid
+counts and malformed receipts. Native replay covers physically harvested
+seeds, personal storage and shared stock, planting travel, exact occupied
+tiles, completed quantities, queues and cancellation. No schema field or
+migration is added.
+
 Private-world schema 73 adds `repair_tool` orders using the existing
 `TargetEquipmentKind` field. Validation restricts the action to supported tool
 kinds and repair counts. Only a completed inventory repair earns a bounded

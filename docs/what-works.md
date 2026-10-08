@@ -1319,8 +1319,10 @@ a tree seed. An adult carrying a tree seed may replant a stump, or plant a new
 broadleaf or conifer on grass or forest ground outside the Town, and the Event
 Log says so. Trees are never planted on sand, water, rock, snow, buildings or
 Roads or bridge entrances; a refused planting keeps the seed. A sapling takes 3 days to grow. Trees
-do not spread on their own. This is a basic version: agents have seeds only
-after felling a tree, and you cannot yet tell an agent where to plant.
+do not spread on their own. Tree-planting tasks support quantities, a chosen
+species and an exact tile outside Town borders. Adults fetch a real permitted
+seed if needed, walk to the site and count only completed saplings. See the
+[task examples](playing.md#look-around).
 
 Orchard fruit trees bear fruit only in autumn. They are growing (leaves only)
 the rest of the year and drop any fruit left when autumn ends. A picked tree
