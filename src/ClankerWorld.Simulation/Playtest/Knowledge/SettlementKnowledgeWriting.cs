@@ -159,7 +159,8 @@ public sealed partial class PrivateWorldRuntime
         knowledge = knowledge with
         {
             WritingProjects = knowledge.WritingProjects.Append(new AgentKnowledgeWritingProject(
-                id, actor, kind, candidate, source?.Id, facts, WorldTick, WorldTick, 0, materials) { Recipes = recipes }).ToArray(),
+                id, actor, kind, candidate, source?.Id, facts, WorldTick, WorldTick, 0, materials)
+            { Recipes = recipes }).ToArray(),
         };
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("agent_knowledge_writing_started", $"{actor}|{kind}|{id}");
@@ -222,7 +223,7 @@ public sealed partial class PrivateWorldRuntime
         var artifactId = $"knowledge-artifact-{sequence:D6}";
         var lotId = $"knowledge-lot-{sequence:D6}";
         var title = (project.Kind == "book" ? "Book" : project.Kind == "field_map" ? "Field map" : "Field record") +
-            $" · {project.Facts.Count} site{(project.Facts.Count == 1 ? "" : "s")}" +
+            (project.Facts.Count == 0 ? "" : $" · {project.Facts.Count} site{(project.Facts.Count == 1 ? "" : "s")}") +
             (project.Recipes.Count == 0 ? "" : $" · {project.Recipes.Count} recipe{(project.Recipes.Count == 1 ? "" : "s")}");
         var inventory = society.Checkpoint.Inventory;
         foreach (var input in project.Materials) inventory = InventoryFixture.ConsumeReservation(inventory, input.ReservationId);

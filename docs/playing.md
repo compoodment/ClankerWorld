@@ -235,11 +235,14 @@ finishes. **Write two maps** requests two items; **Keep drawing maps** continues
 until cancelled. Once the current account has been written, further writing
 waits for newly learned information. Missing supplies or carrying space also
 leave the order waiting with a reason. **Cancel task** releases that order's
-unused reserved supplies.
+unused reserved supplies. Field records and books can also contain recipes the
+writer learned by making goods or reading another written work. Reading or
+sharing teaches only the contents to that person; it grants no skill. The
+agent's Profile shows their learned recipes and the recipes in held written goods.
 
 Adults can also follow **Copy a field record**, **Copy a map**, or **Copy a book**.
-They must own and carry a source of that kind and already know every site it
-contains. Copying uses fresh paper and, for a book, cloth, and preserves the
+They must own and carry a source of that kind and already know every site and
+recipe it contains. Copying uses fresh paper and, for a book, cloth, and preserves the
 source's account. **Copy two maps** or **Keep copying maps** waits for another
 eligible account after the first copy; identical contents are not copied again.
 If the source is lost during work, unused reservations are released and the

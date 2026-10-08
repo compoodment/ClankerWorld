@@ -214,7 +214,11 @@ internal static partial class AgentKnowledgeRules
             foreach (var source in artifact.Facts.Select(fact => fact.SourceArtifactId)
                          .Concat(artifact.Recipes.Select(recipe => recipe.SourceArtifactId)).Append(artifact.SourceArtifactId)
                          .Where(id => id is not null).Distinct(StringComparer.Ordinal))
-                CheckAncestry(artifacts[source!], path);
+            {
+                if (!artifacts.TryGetValue(source!, out var original))
+                    throw new InvalidDataException("Knowledge artifacts refer to a missing written source.");
+                CheckAncestry(original, path);
+            }
             path.Remove(artifact.Id);
             validatedAncestry.Add(artifact.Id);
         }

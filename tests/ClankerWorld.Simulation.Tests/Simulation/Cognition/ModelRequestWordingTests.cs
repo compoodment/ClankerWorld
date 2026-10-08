@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -51,6 +52,41 @@ public sealed class ModelRequestWordingTests
                 Assert.False(context.TryGetProperty("personality", out _));
             }
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RenderedRecipeAccountsBelongOnlyToTheRequestingPerson(bool personal)
+    {
+        var (state, author, recipeId) = await RecipeKnowledgePipelineTests.ProducedRecipe();
+        var name = state.WorldContent!.Recipes.Single(item => item.CanonicalId == recipeId).DisplayName;
+        var handler = new SyntheticModelHandler(personal);
+        using var client = new HttpClient(handler);
+        IDecisionProvider provider = personal
+            ? new OpenAiCompatibleDecisionProvider(client, () => "synthetic-key", new Uri("https://model.test/v1/chat/completions"), "synthetic-model")
+            : new JevDecisionProvider(client, () => "synthetic-key", new Uri("https://model.test/v1/systemone"));
+        using var world = PrivateWorldRuntime.Restore(state, _ => provider);
+        foreach (var person in state.Inhabitants)
+            world.SubmitInstruction(new OwnerInstructionRequest("recipe-context:" + person.InhabitantId, "owner:test",
+                person.InhabitantId, OwnerInstructionKind.Suggestive, "Tell me what you have learned."));
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        for (var attempt = 0; attempt < 50 && handler.Bodies.Count < PrivateWorldRuntime.RequiredFounders; attempt++)
+            await Task.Delay(10);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var body in handler.Bodies)
+        {
+            using var payload = JsonDocument.Parse(body);
+            using var user = personal ? JsonDocument.Parse(payload.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!) : null;
+            var context = personal ? user!.RootElement : payload.RootElement.GetProperty("state");
+            var actor = context.GetProperty("agent_id").GetString()!;
+            var self = personal ? context.GetProperty("self") : context;
+            var recipes = self.GetProperty("known_recipes").EnumerateArray().Select(item => item.GetString()).ToArray();
+            Assert.Equal(actor == author ? [name] : Array.Empty<string>(), recipes);
+            seen.Add(actor);
+        }
+        Assert.Contains(author, seen);
+        Assert.Equal(state.Inhabitants.Count, seen.Count);
     }
 
     private sealed class SyntheticModelHandler(bool personal) : HttpMessageHandler

@@ -182,6 +182,7 @@ public static class WorldEventText
                 "agent_knowledge_artifact_collected" or "agent_knowledge_artifact_stored" =>
                 DescribeWrittenKnowledge(worldEvent, snapshot),
             "skill_learned" => DescribeSkill(worldEvent.Detail, snapshot),
+            "agent_recipe_learned" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} learned a recipe through practice.",
             "inhabitant_building_proposed" => $"{LeadingName(snapshot, worldEvent.Detail)} suggested a new building design.",
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
                 "Try a supported task, or use Suggest for broader guidance.",
@@ -465,7 +466,7 @@ public static class WorldEventText
         var recipient = Name(snapshot, fields.ElementAtOrDefault(1) ?? string.Empty);
         return worldEvent.Kind switch
         {
-            "agent_knowledge_artifact_read" => $"{recipient} learned about places from a written work.",
+            "agent_knowledge_artifact_read" => $"{recipient} learned from a written work.",
             "agent_knowledge_shared" => $"{author} shared written knowledge with {recipient}.",
             "agent_knowledge_artifact_collected" => $"{author} picked up a written work.",
             "agent_knowledge_artifact_stored" => $"{author} stored a written work.",

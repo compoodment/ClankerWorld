@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using ClankerWorld.Simulation.Content;
+using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -14,11 +15,16 @@ public sealed partial class PrivateWorldRuntime
 
     private void LearnProducedRecipe(WorldProductionJob job, RecipeDefinition recipe, long tick)
     {
-        if (KnowsRecipe(job.WorkerId, recipe.CanonicalId) ||
+        if (!inhabitants.ContainsKey(job.WorkerId) ||
+            society.Checkpoint.GetInhabitant(job.WorkerId).Status != SocietyInhabitantStatus.Active ||
+            KnowsRecipe(job.WorkerId, recipe.CanonicalId) ||
             knowledge.Recipes.Count(item => item.OwnerId == job.WorkerId) >= AgentKnowledgeRules.MaximumRecipesPerAgent) return;
-        knowledge = knowledge with { Recipes = knowledge.Recipes.Append(new AgentRecipeKnowledge(
+        knowledge = knowledge with
+        {
+            Recipes = knowledge.Recipes.Append(new AgentRecipeKnowledge(
             RecipeKnowledgeId(job.WorkerId, recipe.CanonicalId), job.WorkerId, recipe.CanonicalId, job.WorkerId,
-            tick, "practice", job.JobId)).ToArray() };
+            tick, "practice", job.JobId)).ToArray()
+        };
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("agent_recipe_learned", $"{job.WorkerId}|{recipe.CanonicalId}|practice");
     }
@@ -33,8 +39,12 @@ public sealed partial class PrivateWorldRuntime
                 recipes.Count(item => item.OwnerId == actor) >= AgentKnowledgeRules.MaximumRecipesPerAgent) continue;
             recipes.Add(source with
             {
-                Id = RecipeKnowledgeId(actor, source.RecipeId), OwnerId = actor, LearnedTick = WorldTick,
-                Acquisition = acquisition, SourceAgentId = sourceActor, SourceArtifactId = artifact.Id,
+                Id = RecipeKnowledgeId(actor, source.RecipeId),
+                OwnerId = actor,
+                LearnedTick = WorldTick,
+                Acquisition = acquisition,
+                SourceAgentId = sourceActor,
+                SourceArtifactId = artifact.Id,
             });
             count++;
         }
@@ -56,8 +66,12 @@ public sealed partial class PrivateWorldRuntime
         if (source.Recipes.Any(item => !learned.Any(known => known.RecipeId == item.RecipeId))) return [];
         return source.Recipes.Select(item => item with
         {
-            Id = learned.Single(known => known.RecipeId == item.RecipeId).Id, OwnerId = actor, LearnedTick = WorldTick,
-            Acquisition = "read", SourceAgentId = source.CreatorId, SourceArtifactId = source.Id,
+            Id = learned.Single(known => known.RecipeId == item.RecipeId).Id,
+            OwnerId = actor,
+            LearnedTick = WorldTick,
+            Acquisition = "read",
+            SourceAgentId = source.CreatorId,
+            SourceArtifactId = source.Id,
         }).ToArray();
     }
 
