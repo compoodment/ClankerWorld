@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Playing the current game
@@ -502,6 +502,10 @@ the Blacksmith's forge while it is busy, and a Warehouse's door lantern while
 goods are fetched. Nights are colder outdoors, so an agent with no clothing,
 shelter or fire loses warmth, and their warmth bar shows it. New worlds start
 in the morning; loading a saved world keeps its recorded time.
+
+At close and mid zoom, occupied Houses and working Blacksmith forges give off
+soft grey smoke that rises and drifts east. Empty Houses and idle forges give
+off none. Smoke freezes while the world is paused.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
