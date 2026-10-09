@@ -258,6 +258,45 @@ changing that art, rebuild the icon with
 `godot --headless --path src/ClankerWorld.GodotClient -- --write-app-icon`.
 The UI smoke test fails if the committed icon no longer matches the art.
 
+## Compare tick equivalence
+
+For a behavior-preserving runtime change, run the same portable native probe
+against the base and candidate checkouts:
+
+```bash
+bash scripts/compare-tick-equivalence.sh /path/to/base /path/to/candidate /tmp/tick-proof
+```
+
+The script needs the pinned .NET SDK, Python 3 and an output directory without
+previous `base` or `candidate` results. Like `measure-town-ticks.sh`, it compiles
+one unchanged C# probe against each checkout. It uses the built-in deterministic
+provider, with a wrapper that records observations and returns its response
+unchanged. It makes no model-service calls.
+
+Defaults are two seeds, sixteen ticks per seed, and both generated Small worlds
+and the legacy fixture. Generated worlds use native first-Town layout,
+founder placement and Start World. Override seeds, tick count and modes with
+the fourth through sixth arguments, for example:
+
+```bash
+bash scripts/compare-tick-equivalence.sh /path/to/base /path/to/candidate /tmp/tick-proof-64 town-project-real-donation 64 generated
+```
+
+The comparison includes the initial frame and every committed tick. It compares
+decompressed checkpoint bytes exactly, ordered world events and every observed
+cognition digest. At the first differing frame it prints the seed, mode and tick,
+the first checkpoint byte offset, and the first differing event or digest value.
+Exit status is zero for equality, one for a difference, and two for a failed
+build, probe or comparison. A failed setup cannot count as equality.
+
+Each output contains the actual checkpoint bytes compressed with gzip, JSON
+events and digests, the unchanged probe source, build/probe logs, and the
+checkout commit and working-tree status. Keep this evidence with the PR. These bounded scenarios
+prove equivalence for their exercised paths; run additional seeds and longer
+tick counts when the moved area needs them. They are correctness checks, not
+tick-performance measurements. The [runtime system rules](how-it-works.md#runtime-systems)
+describe the state and ordering contracts that every refactor step keeps.
+
 ## Focused documentation checks
 
 ```bash

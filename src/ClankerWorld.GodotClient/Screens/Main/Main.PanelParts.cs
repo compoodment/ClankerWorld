@@ -27,12 +27,12 @@ public partial class Main
     /// The tile as it looks on the map: its own ground texture with any tree
     /// or plant drawn on top, cropped to a square and framed.
     /// </summary>
-    private static ImageTexture TileSwatch(WorldTerrainMap map, int x, int y, int size, OwnerWorldResource? resource = null)
+    private ImageTexture TileSwatch(WorldTerrainMap map, int x, int y, int size, OwnerWorldResource? resource = null)
     {
         var style = map.StyleAt(x, y);
         var ground = TerrainTextures.IsWater(style)
             ? WaterTextures.Block(style, 16).GetRegion(new Rect2I(0, 0, 16, 16))
-            : TerrainTextures.Tile(style, TerrainTextures.VariantAt(x, y), 16);
+            : TerrainTextures.Tile(style, TerrainTextures.VariantAt(x, y), 16, terrainLayer.Season);
         ground.Convert(Image.Format.Rgba8);
         if (resource is not null && ResourceSpriteImage(resource) is { } sprite)
             ground.BlendRect(sprite, new Rect2I(0, 0, 16, 16), Vector2I.Zero);
@@ -44,10 +44,10 @@ public partial class Main
     }
 
     /// <summary>The map sprite for a tree or natural site, if it has one.</summary>
-    private static ImageTexture? ResourceSprite(OwnerWorldResource resource) =>
+    private ImageTexture? ResourceSprite(OwnerWorldResource resource) =>
         ResourceSpriteImage(resource) is { } image ? ImageTexture.CreateFromImage(image) : null;
 
-    private static Image? ResourceSpriteImage(OwnerWorldResource resource)
+    private Image? ResourceSpriteImage(OwnerWorldResource resource)
     {
         NatureSprite? sprite;
         if (resource.TreeKind is { } species)
@@ -56,7 +56,7 @@ public partial class Main
             sprite = NatureSprites.ForNaturalObject(kind, resource.Quantity == 0 || resource.State != "available", resource.IsRenewable);
         else
             sprite = NatureSprites.ForCampResource(resource.Kind, resource.Quantity == 0 || resource.State != "available", resource.IsRenewable);
-        return sprite is { } found ? NatureSprites.Sprite(found, 16) : null;
+        return sprite is { } found ? NatureSprites.Sprite(found, 16, terrainLayer.Season) : null;
     }
 
     private static readonly string[] MouseActions = ["Click", "Wheel", "Middle-drag"];

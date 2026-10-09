@@ -18,9 +18,14 @@ public sealed class FarmFieldTests
     public async Task OrdinaryChooserExpandsAndReplantsGeneratedFieldsThroughARealFoodShortageAndReload()
     {
         var (state, _, household, _) = PreparedFarmer("field-normal-cycle");
-        // The household has eaten its starter rations. Keep all real planting
+        // The Town has eaten its starter rations. Keep all real planting
         // stock and let ordinary choices arrange every field operation.
-        state = FeedHouseholdFromAvailableStock(state, household);
+        state = FeedFarmTownFromAvailableStock(state, household);
+        // Feeding four Town residents requires more field work than feeding
+        // this household alone. Supply a physical spare for normal pickup;
+        // the original hoes keep their normal wear and can break.
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "replanting-spare-hoe", "wooden_hoe", household, 1, storageBuildingId: "first-town-farmhouse"));
         var initialSeeds = SeedCrops.ToDictionary(item => item.SeedKind,
             item => state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind == item.SeedKind).Sum(lot => lot.Quantity));
         using var first = PrivateWorldRuntime.Restore(state, _ => new DeterministicDecisionProvider());
@@ -31,7 +36,7 @@ public sealed class FarmFieldTests
         Assert.Contains(first.ExportState().Events, item => item.Kind == "field_tended");
         // Eating the available produce creates a real inventory shortage. The
         // separately reserved planting stock must remain available for recovery.
-        state = FeedHouseholdFromAvailableStock(first.ExportState(), household);
+        state = FeedFarmTownFromAvailableStock(first.ExportState(), household);
         var second = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             _ => new DeterministicDecisionProvider());
         try
@@ -45,7 +50,7 @@ public sealed class FarmFieldTests
                 // Other fields may finish while this one is being replanted.
                 // Keep the demand scenario going by accounting for that produce
                 // too; leave every reserved planting unit intact.
-                state = FeedHouseholdFromAvailableStock(second.ExportState(), household);
+                state = FeedFarmTownFromAvailableStock(second.ExportState(), household);
                 second.Dispose();
                 second = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
                     _ => new DeterministicDecisionProvider());
@@ -124,6 +129,22 @@ public sealed class FarmFieldTests
         Assert.Equal(healthyBytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
+    internal static PrivateWorldRuntimeState FeedFarmTownFromAvailableStock(PrivateWorldRuntimeState state, string household)
+    {
+        var farmhouse = state.WorldSimulation!.Buildings.First(building => building.HouseholdId == household &&
+            state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId)
+                .Tags.Contains("farmhouse", StringComparer.Ordinal));
+        var town = state.Towns!.Single(item => item.Id == farmhouse.TownId);
+        var residents = state.Society.Society.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
+            town.ResidentIds.Contains(person.Id, StringComparer.Ordinal)).ToArray();
+        // Consume the Town's ready food through the existing reservation boundary;
+        // raw crops, planting reserves and another Town's stock stay in place.
+        foreach (var owner in residents.Select(person => person.Id)
+                     .Concat(residents.Select(person => person.HouseholdId).OfType<string>()).Distinct(StringComparer.Ordinal))
+            state = FeedHouseholdFromAvailableStock(state, owner);
+        return state;
+    }
+
     internal static PrivateWorldRuntimeState FeedHouseholdFromAvailableStock(PrivateWorldRuntimeState state, string household)
     {
         var inventory = state.Society.Society.Inventory;
@@ -147,7 +168,7 @@ public sealed class FarmFieldTests
     public async Task RawCropReservesDoNotSuppressFreshFoodPlantingAcrossReload()
     {
         var (state, actor, household, point) = PreparedFarmer("field-raw-stock-shortage");
-        state = FeedHouseholdFromAvailableStock(state, household);
+        state = FeedFarmTownFromAvailableStock(state, household);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "raw-reserve-grain", "grain", household, 40,
             storageBuildingId: "first-town-farmhouse");
         inventory = InventoryFixture.AddLot(inventory, "raw-reserve-potatoes", "potatoes", household, 40);
@@ -173,7 +194,7 @@ public sealed class FarmFieldTests
     public async Task TemporarilyOccupiedFieldKeepsItsPlantingChoiceAndSiblingDoesNotReplaceIt(bool pausedBuild)
     {
         var (state, actor, household, point) = PreparedFarmer("field-claim-through-occupancy");
-        state = FeedHouseholdFromAvailableStock(state, household);
+        state = FeedFarmTownFromAvailableStock(state, household);
         var sibling = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household &&
             person.AgeBand == SocietyAgeBand.Adult && person.Id != actor).Id;
         var siblingOrigin = state.Inhabitants.Single(person => person.InhabitantId == sibling).Position;
@@ -262,7 +283,7 @@ public sealed class FarmFieldTests
     public async Task FreshChoicePausedBuildCanYieldToFieldWorkWithoutLosingItsSavedPlan()
     {
         var (state, actor, household, point) = PreparedFarmer("field-fresh-choice-paused-project");
-        state = FeedHouseholdFromAvailableStock(state, household);
+        state = FeedFarmTownFromAvailableStock(state, household);
         var recipe = state.WorldContent!.Recipes.Single(item => item.LocalId == "wooden-axe");
         var project = new SettlementProject("build:recipe:" + recipe.CanonicalId, recipe.DisplayName,
             state.Society.Society.WorldTick, "paused", 4,
@@ -822,7 +843,7 @@ public sealed class FarmFieldTests
     public async Task PotatoesInAStoragePotAreNotOfferedAsPlantingStock()
     {
         var (state, actor, household, point) = PreparedFarmer("potted-potato-stock");
-        state = FeedHouseholdFromAvailableStock(state, household);
+        state = FeedFarmTownFromAvailableStock(state, household);
         var potatoKind = FarmFieldRules.PlantingItem(FarmFieldRules.Potatoes);
         var inventory = state.Society.Society.Inventory with
         {
