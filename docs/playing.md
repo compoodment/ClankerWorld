@@ -979,7 +979,11 @@ the key above the timeline shows which is which. **You are here** marks the
 world as it is now, at the end of its branch, or on a dotted **New branch** row
 when your next save will start one. Click a save to see it described
 underneath; the arrow keys also move between saves. **List** shows the saves as
-cards instead, grouped by branch, with tags such as **Branch 2** and **Latest**.
+cards instead, grouped by branch, with tags such as **From Before the flood**
+and **Latest**. A branch keeps the name of the save it started from, even if
+that save's name changes later. Long labels are shortened to fit; hover the
+timeline's branch name or a branch tag to read the full label. Branches without
+a recorded source name keep their numbered label.
 Saves from before branches existed are shown as **Earlier saves**.
 
 **Quit to Menu** and Main Menu **Quit Game** ask for confirmation. Closing the
