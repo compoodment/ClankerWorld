@@ -733,6 +733,14 @@ provide a UI drawing.
     rails or planks instead. A revived Town looks lived in again.
 
   The pictures and notes are in `tools/ArtPreview/Proposed/Round4.md`.
+- **Agreed on October 7: animals step as they walk.** computment chose
+  option **B**: each time an animal moves to a new tile, a front hoof shows
+  just ahead of its chest on one side and the hind hoof just behind its rump
+  on the other, then the pair swaps on the next step, and the tail swings.
+  Hens and chicks show one foot behind them at a time and bob their heads. An
+  animal that stops stands in its approved standing drawing; legs show only
+  while it walks. The rejected option A was a legless head nod and sway. The
+  pictures and notes are in `tools/ArtPreview/Proposed/AnimalWalk.md`.
 - Art is drawn in code, not stored as image files. computment prefers this.
   Approved art waits in `tools/ArtPreview/Proposed/` until the feature that
   uses it lands.

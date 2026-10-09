@@ -1,12 +1,15 @@
 # Working on ClankerWorld
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) in full before you start. It holds the
-shared rules for issues, labels, priorities, claims, pull requests, review,
-playtesting and writing, or links to the page that does. This file does not
-repeat them; it adds only what is specific to coding agents. When the two seem
-to disagree, CONTRIBUTING wins, except that an explicit owner instruction for
-your task wins over both ([Ask the owner in chat](#ask-the-owner-in-chat)). Put
-any change to a shared rule in CONTRIBUTING only.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) in full before you start, then the
+skill for your job ([Know your job](#know-your-job)). CONTRIBUTING holds the
+rules every job shares: issues, labels, priorities, claims, pull requests and
+writing. Each job's skill holds that job's own rules, and they bind like
+CONTRIBUTING. This file does not repeat either; it adds only what is specific
+to coding agents. When they seem to disagree, CONTRIBUTING wins over this file
+and this file wins over any skill, except that an explicit owner instruction
+for your task wins over all of them
+([Ask the owner in chat](#ask-the-owner-in-chat)). Put a change to a shared
+rule in CONTRIBUTING, and a change to one job's rules in its skill.
 
 ## Start with what you were asked
 
@@ -23,7 +26,7 @@ any change to a shared rule in CONTRIBUTING only.
   from your checkout. At the start, run `git fetch origin` and
   `git diff HEAD origin/main -- AGENTS.md CONTRIBUTING.md CLAUDE.md skills/`;
   if it shows changes, read main's versions
-  (`git show origin/main:CONTRIBUTING.md`).
+  (`git show origin/main:CONTRIBUTING.md`), including your job's skill.
   Note `git rev-parse --short origin/main`, and before each new issue or review
   claim fetch again and diff from that commit. If anything changed, follow the
   new rules from then on and note the new commit.
@@ -36,7 +39,8 @@ descriptions. Put whatever you need from them in your reply: a decision, an
 owner task, a go-ahead for something outside your job, or a problem you cannot
 solve. Give the options and your recommendation, highest priority first. Then
 record the answer yourself: a design choice in its game-design chapter, a
-workflow choice in CONTRIBUTING or its linked developer page, and a short
+workflow choice in CONTRIBUTING, the job's skill or its linked developer page,
+and a short
 comment on the issue saying it was the owner's answer. In the same step,
 remove `status:needs-decision` from the issue and from any pull request that
 waited on it. If nobody holds the issue (no `status:in-progress`) and it is not
@@ -46,7 +50,7 @@ An instruction the owner gives you in chat applies to your session at once,
 even where it differs from these files; say in your comments that it was the
 owner's request. It never skips required review, green CI or safety checks. If
 it sounds like a rule for every agent, ask the owner whether to write it into
-CONTRIBUTING or AGENTS. Other running sessions follow it only after it merges
+CONTRIBUTING, AGENTS or a job's skill. Other running sessions follow it only after it merges
 and they next check for rule changes.
 
 When the owner asks what you need from them, answer from these searches,
@@ -84,8 +88,9 @@ line.
 - Subagents and parallel workers belong to the session that started them. They
   sign with its ID and a role, such as `1a2b3c4d/fix-2`, work under its claims,
   and never count as a different session for the pull request's review. The
-  one exception is the fresh-subagent check of a reviewer's own fix that
-  CONTRIBUTING's Review and merge asks for.
+  one exception is the fresh-subagent check of a reviewer's own fix that the
+  [review-merge skill](skills/review-merge/SKILL.md#fix-what-you-find) asks
+  for.
 - A comment with your ID is yours, even after a pause or a context reset. Your
   claim is still yours only while its label is on and no newer claim or
   "Claim released" comment follows yours. Check both when you resume, before
@@ -123,49 +128,32 @@ anything, and never force-push a branch another session has pushed to.
 
 ## Know your job
 
-Several agents usually work at once, each given one job. Each job follows the
-parts of CONTRIBUTING named in its row and ends at a different point.
+Several agents usually work at once, each given one job. Read the skill for
+yours before you start: it holds that job's rules and says where the job ends.
 
-| Job | Follow | Ends when |
+| Job | Read | Ends when |
 | --- | --- | --- |
-| Find bugs | [Issues](CONTRIBUTING.md#issues-and-design-questions) and the bug and security rules in [Priorities](CONTRIBUTING.md#priorities) | Each problem has its own Bug issue, or, for a security problem, the owner has it in chat and its placeholder issue is open |
-| Fix issues | [Find work](CONTRIBUTING.md#find-work) through [Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness) | Its pull request is ready for review and linked to its issues |
-| Review and merge | [Review and merge](CONTRIBUTING.md#review-and-merge), with the [review-merge skill](skills/review-merge/SKILL.md) | The change is on main, main's CI passes on it, its issues are closed or updated, and what waited on it is unblocked |
-| Owner requests | [Issues](CONTRIBUTING.md#issues-and-design-questions), [Prepare a pull request](CONTRIBUTING.md#prepare-a-pull-request) through [Drafts and readiness](CONTRIBUTING.md#drafts-and-readiness), and the Decisions rule in [Close issues when the work merges](CONTRIBUTING.md#close-issues-when-the-work-merges) | The requested pull request is ready, or a draft if the owner asked for one, or decisions are recorded |
+| Find bugs | [find-bugs](skills/find-bugs/SKILL.md) | Each problem has its own Bug issue, or, for a security problem, the owner has it in chat and its placeholder issue is open |
+| Fix issues | [fix-issue](skills/fix-issue/SKILL.md) | Its pull request is ready for review and linked to its issues |
+| Review and merge | [review-merge](skills/review-merge/SKILL.md) | The change is on main, main's CI passes on it, its issues are closed or updated, and what waited on it is unblocked |
+| Owner requests | [design-decisions](skills/design-decisions/SKILL.md) for design questions and answers, and the pull request steps in [fix-issue](skills/fix-issue/SKILL.md#prepare-a-pull-request) for any pull request | The requested pull request is ready, or a draft if the owner asked for one, or decisions are recorded |
 
-What each job adds:
-
+- **Owner requests:** the owner asks you directly for something, such as a
+  change to how the repository works or a set of decisions. It needs no issue
+  or claim; say so in the pull request, which follows fix-issue's
+  [pull request steps](skills/fix-issue/SKILL.md#prepare-a-pull-request) like
+  any other. Turn agreed work into Implementation issues: reuse an older issue
+  if one covers it, and give new ones every form section and their
+  [labels](CONTRIBUTING.md#labels), including `status:needs-pr`
+  ([how](skills/design-decisions/SKILL.md#4-open-the-implementation-issues)).
+  When the owner requests a release, the
+  preparing session also performs the post-merge verification, tagging and
+  publication steps in [Releasing](docs/development/releasing.md#release-gate).
 - **Watching pull requests:** a fixing session may watch its own draft, and
   stops watching when it marks it ready. A reviewer starts watching when it
   claims a pull request, and stops when it merges, hands it back or its claim
   lapses. An event on a pull request you no longer own is not a reason to push
   or comment; if it needs the owner, say so in chat.
-- **Find bugs:** reproduce the problem on current main first, and say whether
-  you saw it in the game or in code or tests. Fix it only if asked.
-- **Fix issues:** before you claim, check whether an owner decision outranks
-  your next issue: search `is:open label:"status:needs-decision"` and
-  `is:issue is:open label:"type:decision"` for the same or a higher priority,
-  skipping Decision issues whose comments already record the owner's answer.
-  If you find one, ask the owner about it in your reply, then carry on with the
-  ready work. Push as you go: only pushes keep your claim.
-- **Review and merge:** claim one pull request at a time, when you start
-  reviewing it (a second only while the first waits on CI or its merging
-  turn). Fix what you find yourself, push each fix as it builds, take
-  your turn for the final run with `status:merging`, and check main's CI after
-  each merge. The [review-merge skill](skills/review-merge/SKILL.md) shows
-  how to review your next pull request while the first waits, so the merging
-  turn is never idle.
-- **Owner requests:** the owner asks you directly for something, such as a
-  change to how the repository works or a set of decisions. It needs no issue
-  or claim; say so in the pull request. Turn agreed work into Implementation
-  issues: reuse an older issue if one covers it, and give new ones their
-  [labels](CONTRIBUTING.md#labels), including `status:needs-pr`.
-  Implementation may start after the owner's explicit design approval, but
-  its pull request waits for the design pull request to merge, as described in
-  [Decisions](CONTRIBUTING.md#close-issues-when-the-work-merges).
-  When the owner requests a release, the preparing session also performs
-  the post-merge verification, tagging and publication steps in
-  [Releasing](docs/development/releasing.md#release-gate).
 
 ## Find the right source
 
@@ -182,18 +170,18 @@ Use the [documentation guide](docs/README.md) to choose the right page.
 | Find docs your change made false | `node scripts/find-stale-docs.js <names>` ([how](CONTRIBUTING.md#keep-documentation-and-the-changelog-useful)) |
 | Prepare an explicitly requested release | [Releasing](docs/development/releasing.md) |
 | Review, prune or add tests | [Test audit skill](skills/test-audit/SKILL.md) |
-| Review and merge pull requests | [Review-merge skill](skills/review-merge/SKILL.md) |
+| Understand a label that moved on its own | [Labels](docs/development/labels.md) |
 
-The [skills folder](skills/README.md) holds step-by-step guides for jobs that
-come up again and again. Claude Code and Codex list them on their own; when
-your task matches one, follow its `SKILL.md`.
+The [skills folder](skills/README.md) holds each job's rules and guides for
+tasks that come up again and again. Claude Code and Codex list them on their
+own; when your task matches one, follow its `SKILL.md`.
 
 ## Report your result
 
 - **Fixing:** give the pull request link, the checks you ran, any you could not
   run, and what is still pending, such as review or a playtest. Do not merge
-  it yourself; [Review and merge](CONTRIBUTING.md#review-and-merge) lists the
-  exceptions.
+  it yourself; [Who reviews and merges](CONTRIBUTING.md#who-reviews-and-merges)
+  lists the exceptions.
 - **Merging:** fetch `origin/main`, confirm the squash commit is there, its
   issues closed and main's CI passed on it (or what you did about a failure),
   and give the commit hash.

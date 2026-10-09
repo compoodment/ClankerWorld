@@ -290,10 +290,8 @@ public static class MarketTradeRules
         ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture), tradeOfferId ?? "");
 
     public static int AvailableQuantity(InventoryCheckpoint inventory, InventoryLot lot) =>
-        lot.ConditionBasisPoints <= 0 || lot.FreshnessBasisPoints <= 0 ? 0 : Math.Max(0, lot.Quantity -
-            inventory.Reservations.Where(claim => claim.LotId == lot.Id && claim.State is
-                InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
-                InventoryReservationState.Committed).Sum(claim => claim.Quantity));
+        lot.ConditionBasisPoints <= 0 || lot.FreshnessBasisPoints <= 0 ? 0 :
+            InventoryRules.UsableQuantity(InventoryIndex.For(inventory), lot);
 
     public static bool IsAt(InventoryLot lot, GridPoint position) => lot.ContainerLotId is null &&
         lot.CarrierId is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&

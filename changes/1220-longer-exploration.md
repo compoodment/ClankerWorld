@@ -1,0 +1,1 @@
+- Agents can continue scouting beyond eight steps and choose to return to the trip's starting point. They learn only from real observation, and returns keep the usual movement and survival rules. Older alpha saves stop loading and are kept unchanged.
