@@ -258,6 +258,27 @@ public sealed partial class OwnerWorldObservationStore
 
     private readonly OwnerWorldRuntime? ownerRuntime;
     private readonly PrivateWorldRuntime? privateRuntime;
+    private readonly object mapProjectionGate = new();
+    private MapProjectionBasis? mapProjectionBasis;
+
+    private sealed record MapProjectionBasis(SeededMap Map, string WorldSeed, bool Generated,
+        LandFertility Fertility, string? LayersDigest);
+
+    private MapProjectionBasis MapProjectionFor(PrivateWorldRuntimeState state)
+    {
+        lock (mapProjectionGate)
+        {
+            // Committed terrain is immutable. Resource/bridge changes and reloads
+            // replace the map; switching worlds can also change the fertility seed.
+            var generated = state.Geography is not null;
+            if (mapProjectionBasis is { } existing && ReferenceEquals(existing.Map, state.Map) &&
+                existing.Generated == generated && string.Equals(existing.WorldSeed, state.WorldSeed, StringComparison.Ordinal))
+                return existing;
+            return mapProjectionBasis = new(state.Map, state.WorldSeed, generated,
+                new LandFertility(state.Map, state.WorldSeed),
+                generated ? MapLayerManifestCodec.Digest(state.Map) : null);
+        }
+    }
 
     public OwnerWorldObservationStore(OwnerWorldRuntime runtime)
     {
@@ -435,12 +456,13 @@ public sealed partial class OwnerWorldObservationStore
             state.Society.Society.Inventory.Events.Count == 0;
     }
 
-    private static ViewerWorldSnapshot ToSnapshot(PrivateWorldRuntimeState state, PrivateWorldDiagnostics diagnostics,
+    private ViewerWorldSnapshot ToSnapshot(PrivateWorldRuntimeState state, PrivateWorldDiagnostics diagnostics,
         string? knownTerrainWorldId = null, string? knownTerrainDigest = null,
         string? knownMapLayersDigest = null)
     {
         var map = state.Map;
-        var fertility = new LandFertility(map, state.WorldSeed);
+        var mapProjection = MapProjectionFor(state);
+        var fertility = mapProjection.Fertility;
         var ecology = state.WorldSystems?.Ecology.Resources.ToDictionary(resource => resource.Id, StringComparer.Ordinal);
         var buildingDefinitions = state.WorldContent?.Buildings.ToDictionary(building => building.CanonicalId, StringComparer.Ordinal);
         var storageChanges = RecentBuildingStorageChanges(state.Society.Society.Inventory);
@@ -563,7 +585,7 @@ public sealed partial class OwnerWorldObservationStore
         var terrainUnchanged = state.Geography is not null &&
             string.Equals(knownTerrainWorldId, state.Society.Society.WorldId, StringComparison.Ordinal) &&
             string.Equals(knownTerrainDigest, map.ManifestDigest, StringComparison.Ordinal);
-        var mapLayersDigest = state.Geography is null ? null : MapLayerManifestCodec.Digest(map);
+        var mapLayersDigest = mapProjection.LayersDigest;
         var mapLayersUnchanged = terrainUnchanged && mapLayersDigest is not null &&
             string.Equals(knownMapLayersDigest, mapLayersDigest, StringComparison.Ordinal);
         var packedTerrain = state.Geography is null || terrainUnchanged ? null : PackTerrain(map);
@@ -614,7 +636,7 @@ public sealed partial class OwnerWorldObservationStore
         {
             PackedTerrain = packedTerrain,
             ContinuityRuleActive = state.Continuity?.Active,
-            PackedMapLayers = state.Geography is null || mapLayersUnchanged ? null : PackMapLayers(map, state.WorldSeed),
+            PackedMapLayers = state.Geography is null || mapLayersUnchanged ? null : PackMapLayers(map, state.WorldSeed, fertility),
             MapLayersDigest = mapLayersDigest,
             Fields = (state.Fields ?? []).Select(field => new ViewerFarmField(ToPosition(field.Position), field.HouseholdId,
                 field.Stage.ToString().ToLowerInvariant(), field.Crop, fertility.At(field.Position),
@@ -632,6 +654,10 @@ public sealed partial class OwnerWorldObservationStore
                 .Select(group => new ViewerGroundStock(new(group.Key.Position.X, group.Key.Position.Y), group.Key.OwnerId,
                     group.Key.ItemKind, group.Sum(lot => lot.Quantity))).ToArray(),
             WrapsEastWest = state.Geography?.WrapEastWest == true,
+            Generation = state.Geography is { } geography
+                ? new ViewerWorldGeneration(geography.Seed, geography.Size.ToString(), geography.ClimateMode.ToString(),
+                    geography.SelectedClimate.ToString(), geography.LatitudeCooling, geography.WrapEastWest)
+                : null,
             LastTickMilliseconds = diagnostics.LastTickMilliseconds,
             Inhabitants = activeInhabitants
                 .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]) with
@@ -821,7 +847,11 @@ public sealed partial class OwnerWorldObservationStore
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
                         order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind, order.TargetEquipmentKind, order.TargetCropKind,
                         order.TargetOutputKind, order.TargetItemKind, order.TargetBuildingKind, order.TargetAnimalId,
-                        order.TargetKnowledgeKind) : null))
+                        order.TargetKnowledgeKind, order.TargetCartLotId,
+                        order.TalkConversationId,
+                        (state.Conversations ?? []).FirstOrDefault(item => item.Id == order.TalkConversationId) is { } talk
+                            ? ConversationStatus(talk.Status) : order.TalkOutcome is not null ? "closed" : null,
+                        order.TalkOutcome, order.TargetKnowledgeArtifactId) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -1015,12 +1045,15 @@ public sealed partial class OwnerWorldObservationStore
             Convert.ToBase64String(bytes));
     }
 
-    internal static ViewerPackedMapLayers? PackMapLayers(SeededMap map, string? worldSeed = null)
+    internal static ViewerPackedMapLayers? PackMapLayers(SeededMap map, string? worldSeed = null) =>
+        PackMapLayers(map, worldSeed, cachedFertility: null);
+
+    private static ViewerPackedMapLayers? PackMapLayers(SeededMap map, string? worldSeed, LandFertility? cachedFertility)
     {
         if (map.ClimateZones is not { } climate || map.ElevationLevels is not { } elevation ||
             map.HydrologyKinds is not { } hydrology || map.SurfaceKinds is not { } surface ||
             map.VegetationKinds is not { } vegetation) return null;
-        var fertility = worldSeed is null ? null : new LandFertility(map, worldSeed);
+        var fertility = cachedFertility ?? (worldSeed is null ? null : new LandFertility(map, worldSeed));
         return new ViewerPackedMapLayers(map.Width, map.Height, "map-layers-v2",
             Convert.ToBase64String(climate), Convert.ToBase64String(elevation),
             Convert.ToBase64String(hydrology), Convert.ToBase64String(surface),
@@ -1650,6 +1683,7 @@ public sealed partial class OwnerWorldObservationStore
     {
         "seek_food" => "looking for food",
         "move_to" => "walking to the ordered tile",
+        "boat_order" => "traveling to the ordered Port by boat",
         "harvest_food" => "gathering food",
         "gather_material" => "gathering the ordered material",
         "work_field" => "working on a household field",
@@ -1735,7 +1769,8 @@ public sealed partial class OwnerWorldObservationStore
 
     private static ViewerBoatTripRequest[] ProjectBoatRequests(PrivateWorldRuntimeState state) =>
         state.BoatTransport.Requests.Where(request => request.Status is "waiting" or "underway")
-            .Concat(state.BoatTransport.Requests.Where(request => request.Status is not ("waiting" or "underway")).TakeLast(40))
+            .Concat(state.BoatTransport.Requests.Where(request => request.Status is not ("waiting" or "underway"))
+                .TakeLast(PrivateWorldHistory.RecentBoatRequestLimit))
             .OrderBy(request => request.Sequence).Select(request => new ViewerBoatTripRequest(request.Id, request.Sequence,
             request.PassengerId, BoatPassengerName(state, request.PassengerId), request.BoatTownId,
             request.OriginPortId, request.DestinationPortId, request.Status, request.BoatId)).ToArray();

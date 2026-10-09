@@ -41,24 +41,19 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private static int ContainerContentsQuantity(InventoryCheckpoint inventory, string containerId) =>
-        inventory.Lots.Where(lot => lot.ContainerLotId == containerId).Sum(lot => lot.Quantity);
+        InventoryIndex.For(inventory).ContentsQuantity(containerId);
 
     private static int ContainerFamilyQuantity(InventoryCheckpoint inventory, string containerId) =>
-        inventory.Lots.Where(lot => lot.Id == containerId || lot.ContainerLotId == containerId)
-            .Sum(lot => lot.Quantity);
+        InventoryIndex.For(inventory).FamilyQuantity(containerId);
 
     private static int InboundDeliveryQuantity(InventoryCheckpoint inventory, string buildingId) =>
-        inventory.Lots.Where(lot => lot.DeliveryBuildingId == buildingId).Sum(lot => lot.Quantity);
+        InventoryIndex.For(inventory).InboundQuantity(buildingId);
 
     private int StorageRoomAfterInboundDeliveries(string buildingId) =>
         Math.Max(0, StorageRoom(buildingId) - InboundDeliveryQuantity(society.Checkpoint.Inventory, buildingId));
 
     private static bool HasActiveContainerReservation(InventoryCheckpoint inventory, string containerId) =>
-        inventory.Reservations.Any(reservation =>
-            (reservation.LotId == containerId || inventory.Lots.Any(lot =>
-                lot.Id == reservation.LotId && lot.ContainerLotId == containerId)) &&
-            reservation.State is InventoryReservationState.Reserved or
-                InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed);
+        InventoryIndex.For(inventory).HasReservedFamily(containerId);
 
     private void AddContainerCandidates(List<CognitionCandidate> candidates, string actor,
         PlaytestInhabitantState person)

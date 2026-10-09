@@ -1,0 +1,1 @@
+- Food trapped in broken pots no longer stops households from planting replacement crops.

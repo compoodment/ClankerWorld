@@ -13,6 +13,8 @@ public partial class WorldTerrainLayer : Control
 
     private WorldTerrainMap? world;
     private Texture2D? paletteTexture;
+    private readonly Dictionary<LandscapeSeason, Texture2D> seasonalPalettes = [];
+    public LandscapeSeason Season { get; private set; } = LandscapeSeason.Summer;
     private ImageTexture? townSiteGuidanceTexture;
     private TownSiteGuidance? currentTownSiteGuidance;
     private Rect2 visibleTiles;
@@ -128,6 +130,15 @@ public partial class WorldTerrainLayer : Control
             for (var x = 0; x < map.Width; x++)
                 image.SetPixel(x, y, map.DisplayColorAt(x, y));
         paletteTexture = ImageTexture.CreateFromImage(image);
+        PrepareSeasonalPalettes(map, image);
+        // Prepare the small shared atlases at load, so a season change only
+        // selects existing resources. Terrain relief remains unchanged.
+        foreach (var season in Enum.GetValues<LandscapeSeason>())
+            foreach (var size in new[] { 16, 32 })
+            {
+                _ = TerrainTextures.Atlas(size, season);
+                _ = NatureSprites.Atlas(size, season);
+            }
         trees = new byte[checked(map.Width * map.Height)];
         naturalObjects = new byte[checked(map.Width * map.Height)];
         campResources.Clear();
@@ -146,6 +157,47 @@ public partial class WorldTerrainLayer : Control
         bridgeDecks.Clear();
         householdPropertyTiles.Clear();
         QueueRedraw();
+    }
+
+    public void SetSeason(string? observed)
+    {
+        var next = LandscapePalette.Season(observed);
+        if (next == Season) return;
+        Season = next;
+        QueueRedraw();
+    }
+
+    private void PrepareSeasonalPalettes(WorldTerrainMap map, Image baseline)
+    {
+        seasonalPalettes.Clear();
+        seasonalPalettes[LandscapeSeason.Summer] = paletteTexture!;
+        var styles = Enum.GetValues<TerrainStyle>();
+        foreach (var season in new[] { LandscapeSeason.Spring, LandscapeSeason.Autumn, LandscapeSeason.Winter })
+        {
+            // Flat and hill colours come from a small lookup; the map-sized
+            // loop copies bytes rather than making native image calls.
+            var colours = new Color[styles.Length * 2];
+            foreach (var style in styles)
+            {
+                var colour = TerrainTextures.BaseColor(style);
+                colours[(int)style * 2] = LandscapePalette.Ground(colour, style, season);
+                colours[(int)style * 2 + 1] = LandscapePalette.Ground(TerrainTextures.HillColor(colour), style, season);
+            }
+            var pixels = baseline.GetData();
+            for (var y = 0; y < map.Height; y++)
+                for (var x = 0; x < map.Width; x++)
+                {
+                    var style = map.StyleAt(x, y);
+                    if (!LandscapePalette.HasGrass(style)) continue;
+                    var colour = colours[(int)style * 2 + (map.IsHillAt(x, y) ? 1 : 0)];
+                    var offset = (y * map.Width + x) * 4;
+                    pixels[offset] = (byte)(colour.R * 255);
+                    pixels[offset + 1] = (byte)(colour.G * 255);
+                    pixels[offset + 2] = (byte)(colour.B * 255);
+                }
+            using var image = Image.CreateFromData(map.Width, map.Height, false, Image.Format.Rgba8, pixels);
+            seasonalPalettes[season] = ImageTexture.CreateFromImage(image);
+        }
     }
 
     /// <summary>Shows provisional Town-site advice over open land; this never gates a map click.</summary>
@@ -755,7 +807,7 @@ public partial class WorldTerrainLayer : Control
             {
                 var sourceX = wrapsEastWest ? Mod(x, world.Width) : x;
                 var width = Math.Min(end - x, world.Width - sourceX);
-                DrawTextureRectRegion(paletteTexture,
+                DrawTextureRectRegion(seasonalPalettes.GetValueOrDefault(Season, paletteTexture),
                     new Rect2(x * stride, bounds.Top * stride, width * stride, bounds.Height * stride),
                     new Rect2(sourceX, bounds.Top, width, bounds.Height));
                 x += width;
@@ -767,7 +819,7 @@ public partial class WorldTerrainLayer : Control
             // pixel-art ground, then soft edges where a neighboring land
             // surface reaches into it, or a rounded shore on water tiles.
             var atlasSize = TerrainTextures.AtlasTileSize(tileSize);
-            var atlas = TerrainTextures.Atlas(atlasSize);
+            var atlas = TerrainTextures.Atlas(atlasSize, Season);
             var edges = TerrainTransitions.Atlas(atlasSize);
             var coasts = CoastEdges.Atlas(atlasSize);
             var water = WaterTextures.Atlas(atlasSize);
@@ -796,7 +848,8 @@ public partial class WorldTerrainLayer : Control
                     DrawTextureRectRegion(atlas, tile, TerrainTextures.Region(style, TerrainTextures.VariantAt(mapX, y), atlasSize));
                     TerrainTransitions.Collect(world, mapX, y, wrapsEastWest, transitionPieces);
                     foreach (var (over, piece) in transitionPieces)
-                        DrawTextureRectRegion(edges, tile, TerrainTransitions.Region(over, piece, atlasSize));
+                        DrawTextureRectRegion(edges, tile, TerrainTransitions.Region(over, piece, atlasSize),
+                            LandscapePalette.GroundTint(over, Season));
                     // Hills are relief over the tile's own ground, not a
                     // separate surface, so grass or snow still shows through.
                     // The relief layer shades them once its chunk is ready;
@@ -921,7 +974,7 @@ public partial class WorldTerrainLayer : Control
                 DrawTextureRectRegion(coasts, tile, CoastEdges.Region(CoastEdges.FoamRow, piece, atlasSize), CoastEdges.Foam);
         foreach (var (land, piece) in transitionPieces)
             DrawTextureRectRegion(coasts, tile, CoastEdges.Region(CoastEdges.LandRow, piece, atlasSize),
-                TerrainTextures.BaseColor(land));
+                LandscapePalette.Ground(TerrainTextures.BaseColor(land), land, Season));
     }
 
     private void DrawNaturalObject(Vector2 position, byte kind, byte stage)
@@ -1428,9 +1481,16 @@ public partial class WorldTerrainLayer : Control
     private void DrawNatureSprite(Vector2 position, NatureSprite sprite)
     {
         var size = NatureSprites.AtlasTileSize(tileSize);
-        DrawTextureRectRegion(NatureSprites.Atlas(size), new Rect2(position, new Vector2(tileSize, tileSize)),
+        DrawTextureRectRegion(NatureSprites.Atlas(size, Season), new Rect2(position, new Vector2(tileSize, tileSize)),
             NatureSprites.Region(sprite, size));
     }
+
+    /// <summary>
+    /// Whether the far-zoom shape for a tree code is the small young orchard:
+    /// every stage drawn with the growing orchard sprite, including a planted
+    /// sapling.
+    /// </summary>
+    internal static bool DrawsAsYoungOrchard(byte tree) => NatureSprites.ForTree(tree) == NatureSprite.OrchardGrowing;
 
     private void DrawTree(Vector2 position, byte tree)
     {
@@ -1440,11 +1500,11 @@ public partial class WorldTerrainLayer : Control
             return;
         }
         var center = position + new Vector2(tileSize * 0.5f, tileSize * 0.5f);
-        if (tree == 9)
+        if (DrawsAsYoungOrchard(tree))
         {
             DrawCircle(center, Math.Max(2f, tileSize * 0.12f), new Color("795539"));
             DrawCircle(center - new Vector2(0, tileSize * 0.08f), Math.Max(2f, tileSize * 0.19f),
-                new Color("6F9749"));
+                LandscapePalette.Apply(new Color("6F9749"), Season));
             return;
         }
         if (tree is 3 or 4)
@@ -1457,16 +1517,16 @@ public partial class WorldTerrainLayer : Control
         {
             DrawCircle(center, Math.Max(2f, tileSize * 0.11f), new Color("735036"));
             DrawCircle(center - new Vector2(0, tileSize * 0.09f), Math.Max(2f, tileSize * 0.17f),
-                tree == 6 ? new Color("7BA88B") : new Color("94B465"));
+                LandscapePalette.Apply(tree == 6 ? new Color("7BA88B") : new Color("94B465"), Season));
             return;
         }
-        DrawCircle(center, Math.Max(2f, tileSize * 0.32f), new Color("273F2E"));
+        DrawCircle(center, Math.Max(2f, tileSize * 0.32f), LandscapePalette.Apply(new Color("273F2E"), Season));
         var canopy = tree == 2 ? new Color("3E705D") : new Color("5F8744");
         DrawCircle(center - new Vector2(tileSize * 0.04f, tileSize * 0.05f),
-            Math.Max(2f, tileSize * 0.27f), canopy);
+            Math.Max(2f, tileSize * 0.27f), LandscapePalette.Apply(canopy, Season));
         if (tileSize >= 20)
             DrawCircle(center - new Vector2(tileSize * 0.1f, tileSize * 0.12f),
-                tileSize * 0.09f, tree == 2 ? new Color("7BA88B") : new Color("94B465"));
+                tileSize * 0.09f, LandscapePalette.Apply(tree == 2 ? new Color("7BA88B") : new Color("94B465"), Season));
         if (tree == 7 && tileSize >= 14)
         {
             var fruitColor = new Color("DE8B4E");

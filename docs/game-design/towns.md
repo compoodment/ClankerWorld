@@ -1040,7 +1040,7 @@ needed. The inter-Town timing, layout and rendering are agreed below.
 Diagonal movement must not pass through blocked corners. Playable foot movement
 uses the strict two-clear-shoulder rule and a 141% diagonal route cost. Town
 streets also take diagonal steps where the land allows, and their Road pieces
-join diagonally on the map. Roads between Towns remain unfinished.
+join diagonally on the map.
 
 **Agreed on October 8 ([#1239](https://github.com/compoodment/ClankerWorld/issues/1239)):**
 a Road to another Town appears as soon as a new Town's first building is
