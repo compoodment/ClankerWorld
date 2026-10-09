@@ -2024,8 +2024,9 @@ When a Town gains its first completed building, `GenerateRoadBetweenTowns`
 selects the nearest other Town by wrapped foot distance between recorded
 origins, breaking equal distances by Town ID. A completed household building
 incorporated during founding triggers the same link. `RoadRoutePlanner` searches
-from the building's legal entrances to Roads in the selected Town, or to its
-building entrances or unoccupied origin when it has no Roads. The route uses
+from the building's legal entrances to Roads in the selected Town, or to
+building entrances inside its border or its unoccupied origin when it has no
+Roads. The route uses
 the existing Road movement discount, without the local side-street adjacency
 penalty. It may reuse existing Roads and bridges, including Roads subsequently
 overlapped by household land, but new tiles and bridge banks still avoid held

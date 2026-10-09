@@ -7,14 +7,45 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class TownMembershipTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task NativeFirstBuildingLinksOnlyNearestTownAndProtectedLandRefusesWholeRoute(bool protectedLand)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task NativeFirstBuildingLinksOnlyNearestTownAndProtectedLandRefusesWholeRoute(bool protectedLand, bool remoteBlockedTarget)
     {
         var actor = Founders[2];
         var state = WithTowns(Generated("nearest-town-road"), Founders[..2], Founders[2..]);
         var second = Town(state, Second);
         var first = Town(state, First);
+        if (remoteBlockedTarget)
+        {
+            var targetHousehold = state.Society.Society.GetInhabitant(actor).HouseholdId!;
+            state = state with
+            {
+                TownLandTitles = state.TownLandTitles!.Concat(TownLandRightsRules.InitialTitles(state.Map, second, 0))
+                    .OrderBy(title => title.Id, StringComparer.Ordinal).ToArray(),
+                HouseholdLandUseRights = state.HouseholdLandUseRights!.Concat(TownLandRightsRules.InitialUseRights(state.Map,
+                    Second, [(targetHousehold, second.BorderTiles)], 0)).OrderBy(right => right.Id, StringComparer.Ordinal).ToArray(),
+            };
+            var warehouse = Assert.Single(state.WorldSimulation!.Buildings, building =>
+                state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("warehouse", StringComparer.Ordinal));
+            // Reassignment requires an empty Warehouse. Prepare that stock
+            // condition explicitly, then use the actual public transfer.
+            var stored = state.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == warehouse.InstanceId)
+                .Select(lot => lot.Id).ToHashSet(StringComparer.Ordinal);
+            state = WithInventory(state, state.Society.Society.Inventory with
+            {
+                Lots = state.Society.Society.Inventory.Lots.Where(lot => !stored.Contains(lot.Id)).ToArray(),
+                Reservations = state.Society.Society.Inventory.Reservations.Where(item => !stored.Contains(item.LotId)).ToArray(),
+            });
+            using var transfer = Reopen(state, new ScriptedModel());
+            var reassigned = transfer.ReassignBuilding(warehouse.InstanceId, warehouse.TownId, warehouse.HouseholdId,
+                targetTownId: Second, targetHouseholdId: null);
+            Assert.True(reassigned.Applied, reassigned.Failure);
+            Assert.DoesNotContain(transfer.RoadTiles, second.BorderTiles.Contains);
+            Assert.Equal(Second, transfer.WorldSimulation.Buildings.Single(building => building.InstanceId == warehouse.InstanceId).TownId);
+            Assert.DoesNotContain(warehouse.Position, second.BorderTiles);
+            state = transfer.ExportState();
+        }
         var taken = Taken(state).Concat(state.Towns!.SelectMany(town => town.BorderTiles)).ToHashSet();
         var site = state.Map.Tiles.Select(tile => tile.Position)
             .Where(point => state.Map.FootDistance(point, second.OriginSite!.Value) + 3 < state.Map.FootDistance(point, first.OriginSite!.Value) &&
@@ -50,11 +81,12 @@ public sealed partial class TownMembershipTests
             Assert.True(placed.Applied, placed.Failure);
             Assert.Equal(state.Society.Society.WorldTick, runtime.Towns.Single(item => item.Id == town.Id).FirstBuildingCompletedTick);
             var events = runtime.ExportState().Events;
-            if (protectedLand)
+            if (protectedLand || remoteBlockedTarget)
             {
                 Assert.DoesNotContain(events, item => item.Kind == "town_road_linked");
                 Assert.Single(events, item => item.Kind == "town_road_link_unconnected" && item.Detail.StartsWith(town.Id + "|" + Second + "|", StringComparison.Ordinal));
-                Assert.Equal(state.RoadTiles, runtime.RoadTiles);
+                if (protectedLand) Assert.Equal(state.RoadTiles, runtime.RoadTiles);
+                else Assert.All(runtime.RoadTiles.Except(state.RoadTiles!), tile => Assert.Contains(tile, town.BorderTiles));
                 Assert.Empty(runtime.Bridges);
             }
             else
@@ -79,7 +111,7 @@ public sealed partial class TownMembershipTests
         foreach (var runtime in new[] { world, replay })
             Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
-        Assert.Equal(protectedLand ? 0 : 1, world.ExportState().Events.Count(item => item.Kind == "town_road_linked"));
+        Assert.Equal(protectedLand || remoteBlockedTarget ? 0 : 1, world.ExportState().Events.Count(item => item.Kind == "town_road_linked"));
         Assert.True(world.RemoveBuilding("nearest-town-first-house", town.Id, household).Applied);
         Assert.Empty(world.Towns.Single(item => item.Id == town.Id).AssignedBuildingIds);
         var replacement = world.ExportState();
@@ -93,7 +125,8 @@ public sealed partial class TownMembershipTests
         Assert.Equal(state.Society.Society.WorldTick, completion);
         Assert.True(rebuilt.PlaceBuilding("nearest-town-replacement-house", house.CanonicalId, site, household).Applied);
         Assert.Equal(completion, rebuilt.Towns.Single(item => item.Id == town.Id).FirstBuildingCompletedTick);
-        Assert.Single(rebuilt.ExportState().Events, item => item.Kind is "town_road_linked" or "town_road_link_unconnected");
+        Assert.Single(rebuilt.ExportState().Events, item => item.Kind is "town_road_linked" or "town_road_link_unconnected" &&
+            item.Detail.StartsWith(town.Id + "|", StringComparison.Ordinal));
         AssertRoundTrip(rebuilt);
     }
 

@@ -31,7 +31,7 @@ public sealed partial class PrivateWorldRuntime
         var network = roadTiles.Where(nearestBorder.Contains).ToHashSet();
         if (network.Count == 0)
         {
-            network.UnionWith(worldSimulation.Buildings.Where(building => building.TownId == nearest.Id)
+            network.UnionWith(worldSimulation.Buildings.Where(building => building.TownId == nearest.Id && nearestBorder.Contains(building.Position))
                 .SelectMany(building => BuildingRoadEntrances(building, occupied)));
             if (network.Count == 0 && map.IsBuildable(nearest.OriginSite!.Value) && !occupied.Contains(nearest.OriginSite.Value))
                 network.Add(nearest.OriginSite.Value);
