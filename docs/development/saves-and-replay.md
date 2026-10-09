@@ -274,6 +274,10 @@ only unresolved portions as competing claims. Loading validates the case's notic
 source, read, authority and adjustment links rather than inventing missing evidence.
 Notice party snapshots remain historical; current response standing is derived
 from the captured world, while each ruling retains its actual closure parties.
+Readers, evidence agents and judges retain their complete known person identities,
+including native-born adults. Unknown or malformed person references are refused;
+caller-owned keys and prose retain their existing limits. This identity validation
+fix changes no schema or saved field.
 
 The same ledger saves voluntary transfer requests with immutable exact plots,
 right versions, published party rosters and terms. Actual notice receipts remain

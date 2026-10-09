@@ -985,6 +985,8 @@ close their opportunity early. The file distinguishes allegations, observations
 and inspected records, with sources and the deciding mayor's reasons. A conflicted
 land mayor stands aside for a willing independent adult elected for that case
 only. Without valid authority, the case and existing rights remain pending.
+Adults born in the world can inspect hearing files, contribute evidence, give
+their own property consent and serve as elected judges, just as founders can.
 
 Parties named at notice publication remain separate from current adult responders
 and the authorized Town representative. Death, household departure or loss of authority
