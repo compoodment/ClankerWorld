@@ -34,11 +34,16 @@ public sealed partial class PrivateWorldRuntime
             (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) || lot.OwnerId == household &&
                 (lot.CarrierId is null || PersonalEquipmentRules.IsCarried(lot, actor)) && (HouseholdFor(actor) == household ||
                     lot.StorageBuildingId == yard.InstanceId || PersonalEquipmentRules.IsCarried(lot, actor))) &&
-            !HasActiveContainerReservation(inventory, lot.Id) && (lot.StorageBuildingId is null || CanRemoveWorkstationStock(inventory, lot, 1)))
+            !OnBorrowedMarketStall(lot) && !HasActiveContainerReservation(inventory, lot.Id) &&
+            (lot.StorageBuildingId is null || CanRemoveWorkstationStock(inventory, lot, 1)))
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
         foreach (var animal in animals.OrderBy(animal => animal.Id, StringComparer.Ordinal))
         {
             var definition = AnimalRules.Definition(animal.Species);
+            var carriedWater = AnimalSuppliesAtHand(actor, animal).Where(lot =>
+                lot.ItemKind == InventoryContainerRules.FreshWater && lot.ContainerLotId is { } container &&
+                inventory.GetLot(container).ConditionBasisPoints > 0 &&
+                PersonalEquipmentRules.IsPhysicallyCarried(inventory, lot, actor)).Sum(AvailableLotQuantity);
             var actions = new List<string>();
             if (!AnimalRules.HasCare(animal, WorldTick)) actions.Add("care");
             if (animal.ReadyProductLotId is not null && animal.Species == "cow") actions.Add("collect");
@@ -55,9 +60,8 @@ public sealed partial class PrivateWorldRuntime
                         _ => AnimalRules.IsFeed(root.ItemKind) ? Math.Max(0, definition.DailyFeed - AnimalSuppliesAtHand(actor, animal)
                             .Where(lot => AnimalRules.IsFeed(lot.ItemKind) && PersonalEquipmentRules.IsPhysicallyCarried(inventory, lot, actor)).Sum(AvailableLotQuantity)) :
                             root.ItemKind == InventoryContainerRules.WaterJug && inventory.Lots.Any(content => content.ContainerLotId == root.Id &&
-                                content.ItemKind == InventoryContainerRules.FreshWater && AvailableLotQuantity(content) >= definition.DailyWater) &&
-                            !AnimalSuppliesAtHand(actor, animal).Any(lot => PersonalEquipmentRules.IsPhysicallyCarried(inventory, lot, actor) && lot.ItemKind == InventoryContainerRules.FreshWater &&
-                                AvailableLotQuantity(lot) >= definition.DailyWater) ? 1 : 0,
+                                content.ItemKind == InventoryContainerRules.FreshWater && AvailableLotQuantity(content) > 0) &&
+                            carriedWater < definition.DailyWater ? 1 : 0,
                     };
                     var quantity = Math.Min(wanted, Math.Min(AvailableLotQuantity(root), FreeCarryCapacity(actor)));
                     if (quantity <= 0 || !VesselFits(root, FreeCarryCapacity(actor)) ||

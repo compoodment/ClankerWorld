@@ -114,6 +114,37 @@ public sealed partial class DocumentationTests
             $"Changelog entries must start with a \"- \" bullet (see changes/README.md): {string.Join(", ", notBullets)}");
     }
 
+    [Fact]
+    public void GameDesignPagesDescribeTheDesignNotWhatIsBuilt()
+    {
+        // What the build does belongs in docs/what-works.md and the developer pages; a status line in
+        // a design chapter goes stale the moment the feature lands (CONTRIBUTING.md, "Keep
+        // documentation and the changelog useful").
+        var root = FindRepositoryRoot();
+        var statusLines = new List<string>();
+        foreach (var path in Directory
+                     .EnumerateFiles(Path.Combine(root, "docs", "game-design"), "*.md")
+                     .Order(StringComparer.Ordinal))
+        {
+            var lines = File.ReadAllLines(path);
+            // Join each line with the next, so wording wrapped across two lines is found too.
+            for (var index = 0; index < lines.Length; index++)
+            {
+                var text = index + 1 < lines.Length ? $"{lines[index]} {lines[index + 1].TrimStart()}" : lines[index];
+                var match = BuildStatusWording().Match(text);
+                if (match.Success && match.Index < lines[index].Length)
+                {
+                    statusLines.Add($"{Relative(root, path)}:{index + 1}: \"{match.Value}\"");
+                }
+            }
+        }
+
+        Assert.True(
+            statusLines.Count == 0,
+            "Game-design pages describe the intended game; say what the build does in docs/what-works.md " +
+            $"instead:{Environment.NewLine}{string.Join(Environment.NewLine, statusLines)}");
+    }
+
     private static string FindRepositoryRoot()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
@@ -184,4 +215,10 @@ public sealed partial class DocumentationTests
 
     [GeneratedRegex(@"^#{1,6}\s+(?<heading>.+?)\s*#*$")]
     private static partial Regex MarkdownHeading();
+
+    [GeneratedRegex(
+        @"\bnot\s+(?:yet\s+)?built\s+yet\b|\bnot\s+yet\s+(?:built|implemented)\b|\bnot\s+implemented\s+yet\b|" +
+        @"\b(?:remains?|still|is|are)\s+unfinished\b|\bimplementation\s+(?:has\s+)?resumed\b",
+        RegexOptions.IgnoreCase)]
+    private static partial Regex BuildStatusWording();
 }

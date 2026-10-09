@@ -60,6 +60,9 @@ public partial class Main
         renderedMapSnapshot = null;
         terrainMap = null;
         terrainWorldId = null;
+        terrainPackedTerrain = null;
+        terrainPackedLayers = null;
+        terrainTiles = [];
         cameraWorldId = null;
         usagePauseWorldId = null;
         lastLifePaceWorldId = null;
@@ -69,6 +72,9 @@ public partial class Main
         inhabitantCanonicalXs.Clear();
         foreach (var visual in mapObjectVisuals.Values) visual.QueueFree();
         mapObjectVisuals.Clear();
+        foreach (var badge in occupancyBadges.Values) badge.QueueFree();
+        occupancyBadges.Clear();
+        occupancyCanonicalXs.Clear();
         mapObjectCanonicalXs.Clear();
         handcartFacings.Clear();
         animalFacings.Clear();
@@ -90,6 +96,7 @@ public partial class Main
         wasObservedPaused = isPaused;
         observedCalendarPace = snapshot.CalendarPace;
         RenderRoutineHelperSettings(snapshot);
+        RenderGenerationSettings(snapshot);
         if (cameraWorldId is not null && cameraWorldId != snapshot.WorldId)
         {
             knownEvents.Clear();
@@ -143,6 +150,13 @@ public partial class Main
         return x >= 0 && y >= 0 && x < width && y < height;
     }
 
+    private bool TerrainInputsMatch(WorldTerrainMap map, OwnerWorldSnapshot snapshot) =>
+        string.Equals(terrainWorldId, snapshot.WorldId, StringComparison.Ordinal) &&
+        map.WrapsEastWest == snapshot.WrapsEastWest &&
+        (map.Width, map.Height) == MapDimensions(snapshot) &&
+        terrainPackedTerrain == snapshot.PackedTerrain && terrainPackedLayers == snapshot.PackedMapLayers &&
+        (snapshot.PackedTerrain is not null || terrainTiles.SequenceEqual(snapshot.Tiles));
+
     private void RenderMap(OwnerWorldSnapshot snapshot)
     {
         if (renderedMapSnapshot is not { } previous ||
@@ -190,22 +204,20 @@ public partial class Main
             return;
         }
 
-        var manifest = snapshot.Authoring?.CurrentMapManifestDigest ?? snapshot.MapManifestDigest;
-        if (terrainMap is null || !string.Equals(terrainWorldId, snapshot.WorldId, StringComparison.Ordinal) ||
-            !string.Equals(terrainManifestDigest, manifest, StringComparison.Ordinal) ||
-            !string.Equals(terrainLayersDigest, snapshot.MapLayersDigest, StringComparison.Ordinal) ||
-            (!terrainMap.HasMapLayers && snapshot.PackedMapLayers is not null))
+        if (terrainMap is null || !TerrainInputsMatch(terrainMap, snapshot))
         {
             var (width, height) = MapDimensions(snapshot);
             terrainMap = snapshot.PackedTerrain is { } packed
                 ? WorldTerrainMap.FromPacked(packed, snapshot.PackedMapLayers, snapshot.WrapsEastWest)
                 : WorldTerrainMap.FromTiles(snapshot.Tiles, width, height, snapshot.PackedMapLayers, snapshot.WrapsEastWest);
             terrainWorldId = snapshot.WorldId;
-            terrainManifestDigest = manifest;
-            terrainLayersDigest = snapshot.MapLayersDigest;
+            terrainPackedTerrain = snapshot.PackedTerrain;
+            terrainPackedLayers = snapshot.PackedMapLayers;
+            terrainTiles = snapshot.PackedTerrain is null ? snapshot.Tiles.ToArray() : [];
             terrainLayer.SetWorld(terrainMap);
             worldOverview.SetWorld(terrainMap);
         }
+        terrainLayer.SetSeason(snapshot.Authoring?.Season ?? snapshot.WorldSystems?.Season);
         terrainLayer.SetTrees(snapshot.Resources);
         terrainLayer.SetNaturalObjects(snapshot.Resources);
         terrainLayer.SetWeatherRegions(snapshot.WeatherRegionSize, snapshot.WeatherRegions);
@@ -286,18 +298,15 @@ public partial class Main
             var id = "animal:" + animal.Id;
             AddMapObjectVisual(id, animal.Position, string.Empty, string.Empty, GameUiText.AnimalDescription(animal));
             var marker = mapObjectVisuals[id];
-            var sprite = marker.GetNodeOrNull<TextureRect>("AnimalSprite");
+            var sprite = marker.GetNodeOrNull<AnimalMapSprite>("AnimalSprite");
             if (sprite is null)
             {
-                sprite = new TextureRect
-                {
-                    Name = "AnimalSprite",
-                    MouseFilter = Control.MouseFilterEnum.Ignore,
-                    TextureFilter = CanvasItem.TextureFilterEnum.Nearest
-                };
+                sprite = new AnimalMapSprite { Name = "AnimalSprite" };
                 marker.AddChild(sprite);
             }
             var facing = AgentSprites.South;
+            var stepped = false;
+            var resetStep = animal.LifeStage == "deceased";
             if (animalFacings.TryGetValue(animal.Id, out var previousAnimal))
             {
                 facing = previousAnimal.Facing;
@@ -305,11 +314,17 @@ public partial class Main
                 if (snapshot.WrapsEastWest && mapWidth > 0) dx -= (int)Math.Round(dx / (double)mapWidth) * mapWidth;
                 var dy = animal.Position.Y - previousAnimal.Position.Y;
                 if (dx != 0 || dy != 0) facing = AgentSprites.FacingToward(dx, dy);
+                // A short move is a step; a longer jump, such as a reload, is not.
+                var moved = dx != 0 || dy != 0;
+                var shortMove = Math.Max(Math.Abs(dx), Math.Abs(dy)) <= AgentMarker.MaxStepTiles;
+                resetStep |= moved && !shortMove;
+                stepped = moved && shortMove && !resetStep;
             }
+            else resetStep = true;
             animalFacings[animal.Id] = (animal.Position, facing);
             var size = currentTileSize >= 40 ? 32 : 16;
-            sprite.Texture = AnimalSprites.Texture(animal.Species, facing, animal.LifeStage == "young", animal.RiderId is not null,
-                animal.Saddled, animal.LooksShorn, size);
+            sprite.Show(animal.Species, facing, animal.LifeStage == "young", animal.RiderId is not null,
+                animal.Saddled, animal.LooksShorn, size, stepped, resetStep);
             sprite.Size = new(size, size);
             sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
             sprite.Modulate = animal.LifeStage == "deceased" ? new Color("A89279") : Colors.White;
@@ -381,6 +396,9 @@ public partial class Main
                 building.Width, building.Height);
         }
 
+        // People inside a building are hidden; the building shows how many instead.
+        var peopleInside = PeopleInside(snapshot);
+        var hiddenInside = peopleInside.Values.SelectMany(people => people).Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var group in snapshot.Inhabitants
             .Where(inhabitant => !inhabitant.IsDraft && string.Equals(inhabitant.Lifecycle, "active", StringComparison.OrdinalIgnoreCase))
             .GroupBy(inhabitant => PositionKey(inhabitant.Position)))
@@ -426,7 +444,7 @@ public partial class Main
                 }
                 actorMarker.Caption = GameUiText.ActorMapLabel(inhabitant.DisplayName);
                 actorMarker.Variant = AgentSprites.VariantFor(inhabitant.Id);
-                actorMarker.Visible = !snapshot.Animals.Any(animal => animal.RiderId == inhabitant.Id);
+                actorMarker.Visible = !snapshot.Animals.Any(animal => animal.RiderId == inhabitant.Id) && !hiddenInside.Contains(inhabitant.Id);
                 actorMarker.Stage = AgentSprites.StageIndex(
                     inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail);
                 // Facing and frame only present what the observation says:
@@ -464,6 +482,7 @@ public partial class Main
             inhabitantCanonicalXs.Remove(removedId);
         }
 
+        RenderOccupancyBadges(snapshot, peopleInside);
         RenderTileInspection(snapshot);
         RenderAgentConversationReader(snapshot);
         PositionSelectedInhabitantCard(snapshot);

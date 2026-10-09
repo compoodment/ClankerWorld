@@ -1,0 +1,2 @@
+- [ ] On Windows, focus the Agents list, use Up and Down to browse several rows and press each arrow at its end of the list. The list stays open and keeps its selection; Enter opens the chosen agent's Profile.
+- [ ] Browse a lower part of the Agents list while the world runs. Updates keep the selected agent and browsing position. Clicking a row still finds that agent, and double-clicking opens their Profile.

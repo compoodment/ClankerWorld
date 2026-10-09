@@ -14,9 +14,9 @@ namespace ClankerWorld.Simulation.Tests;
 internal static class NormalPathWorld
 {
     public static PrivateWorldRuntime CreateGenerated(string seed, Func<string, IDecisionProvider> providerFactory,
-        GridPoint? roughTownSite = null)
+        GridPoint? roughTownSite = null, WorldSizePreset size = WorldSizePreset.Small)
     {
-        var options = new GeographyOptions(seed, WorldSizePreset.Small);
+        var options = new GeographyOptions(seed, size);
         var world = new PrivateWorldRuntime(options.Seed, providerFactory,
             startPace: WorldStartPace.FounderSetup, geographyOptions: options);
         var map = world.ExportState().Map;
