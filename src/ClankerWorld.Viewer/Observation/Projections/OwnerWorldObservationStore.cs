@@ -851,7 +851,7 @@ public sealed partial class OwnerWorldObservationStore
                         order.TalkConversationId,
                         (state.Conversations ?? []).FirstOrDefault(item => item.Id == order.TalkConversationId) is { } talk
                             ? ConversationStatus(talk.Status) : order.TalkOutcome is not null ? "closed" : null,
-                        order.TalkOutcome) : null))
+                        order.TalkOutcome, order.TargetKnowledgeArtifactId) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
