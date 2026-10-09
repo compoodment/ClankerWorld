@@ -20,15 +20,15 @@ public sealed class SwimmingExplorationReturnTests
         var state = SettlementWeatherTestFixture.WithWeather(generated.ExportState(), WeatherKind.Clear);
         var house = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == FoodCapacityTestFixture.House);
         var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == house.HouseholdId).Id;
-        var source = state.Map.Resources.Where(item => item.Kind == "construction" && state.Map.IsPassable(item.Position) &&
+        var source = state.Map.Resources.OrderBy(item => state.Map.FootDistance(item.Position, house.Position))
+            .FirstOrDefault(item => item.Kind == "construction" && state.Map.IsPassable(item.Position) &&
                 state.Resources.Single(resource => resource.ResourceId == item.Id).State == ResourceState.Available &&
                 state.WorldSystems!.Ecology.Resources.Single(resource => resource.Id == item.Id).Quantity > 0 &&
                 state.Map.IsReachableOnFoot(item.Position, house.Position) == footReturn &&
                 SwimmingRules.IsReachable(state.Map, item.Position, house.Position) &&
                 state.Map.FootNeighbors(item.Position).Any(point => state.Map.IsPassable(point) &&
                     state.Inhabitants.All(person => person.Position != point)) &&
-                state.Inhabitants.All(person => person.Position != item.Position))
-            .OrderBy(item => state.Map.FootDistance(item.Position, house.Position)).FirstOrDefault();
+                state.Inhabitants.All(person => person.Position != item.Position));
         Assert.NotNull(source);
         Assert.Contains(state.Map.FootNeighbors(source.Position), point => state.Map.IsPassable(point) &&
             state.Inhabitants.All(person => person.Position != point));
@@ -43,6 +43,9 @@ public sealed class SwimmingExplorationReturnTests
                 (lot.OwnerId != house.HouseholdId || lot.ItemKind != "wood")).ToArray(),
         };
         inventory = InventoryFixture.AddLot(inventory, "swim-search-axe", HouseToolsContent.CrudeWoodenAxe, actor, 1);
+        foreach (var input in definition.BuildCosts.Where(input => input.ResourceId != "wood"))
+            inventory = InventoryFixture.AddLot(inventory, "swim-search-paid-" + input.ResourceId,
+                input.ResourceId, house.HouseholdId!, input.Amount);
         var quantity = state.WorldSystems!.Ecology.Resources.Single(resource => resource.Id == source.Id).Quantity;
         var harvest = Assert.IsType<ToolGatheringPlan>(ToolProgressionRules.PlanGather("wood", source, inventory, actor, quantity));
         Assert.True(1 + harvest.Quantity + harvest.TreeSeedQuantity > SwimmingRules.MaximumCarriedUnits);
