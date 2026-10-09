@@ -128,7 +128,9 @@ providers charge you for usage. While paused, open **Settings → World → Rout
 helper** to choose **Off**, **Jev** or **OpenAI Decisions**, pick its model and
 press **Apply helper**. Decisions uses your default OpenAI key or a named saved
 OpenAI key you choose; Jev uses the saved TypeSafe key. Switching helpers keeps
-memories and their scores. Decisions currently offers `gpt-6-luna`; **Type a
+memories and their scores. The helper serves every adult and elder, including
+people born in the world; children keep their own model. Conversations, identity
+and wills still use each person's own model. Decisions currently offers `gpt-6-luna`; **Type a
 model name...** also remains available.
 
 To save keys before placing any agents, open **Settings → Game → API keys**.
