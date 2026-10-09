@@ -8,7 +8,7 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private static bool IsCartOrder(string action) => action is "attach_handcart" or "park_handcart";
+    private static bool IsCartOrder(string action) => action is "attach_handcart" or "park_handcart" || IsCartCargoOrder(action);
 
     private OwnerInstructionOrder? ParseCartOrder(string text, string actor)
     {
@@ -50,6 +50,7 @@ public sealed partial class PrivateWorldRuntime
         var order = instruction.Order!;
         if (order.TargetCartLotId is { } target)
             return society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.Id == target && lot.ItemKind == InventoryContainerRules.Handcart);
+        if (IsCartCargoOrder(order.Action)) return CartForCargoOrder(instruction, person);
         if (order.Action == "park_handcart") return AttachedHandcart(actor);
         return society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == InventoryContainerRules.Handcart &&
                 lot.OwnerId == actor && IsValidInstructionIdentifier(lot.Id) && CanPullHandcart(lot) && !handcartHitches.Any(hitch => hitch.CartLotId == lot.Id))
@@ -61,6 +62,7 @@ public sealed partial class PrivateWorldRuntime
 
     private CognitionCandidate? CartOrderCandidateFor(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (IsCartCargoOrder(instruction.Order!.Action)) return CartCargoOrderCandidateFor(instruction, person);
         if (CartOrderBlocker(instruction, person) is not null) return null;
         var cart = CartForOrder(instruction, person)!;
         return new(instruction.Order!.Action == "park_handcart" ? "park_handcart" : AttachCartPrefix + cart.Id,
@@ -70,6 +72,7 @@ public sealed partial class PrivateWorldRuntime
 
     private string? CartOrderBlocker(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (IsCartCargoOrder(instruction.Order!.Action)) return CartCargoOrderBlocker(instruction, person);
         var actor = instruction.TargetInhabitantId;
         if (!AdultResident(actor)) return "Only an adult can pull or park a handcart.";
         var cart = CartForOrder(instruction, person);
@@ -89,6 +92,8 @@ public sealed partial class PrivateWorldRuntime
 
     private void ExecuteCartOrderStep(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (IsCartCargoOrder(instruction.Order!.Action))
+        { ExecuteCartCargoOrderStep(instruction, person); return; }
         if (CartOrderBlocker(instruction, person) is { } blocker)
         {
             SetOrderStatus(instruction, "blocked", blocker);
