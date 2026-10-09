@@ -1019,6 +1019,8 @@ as map-knowledge discoverers already do; saved social-memory and belief
 ownership and subjects keep their complete identities.
 Memory salience indexes retain the same complete native owner identities while
 validating each indexed source against that owner's existing records.
+Helper score replies retain these owner IDs too; admission requires the exact
+requesting agent and one of its offered source records.
 Private thoughts, provider payloads
 and unaccepted replies never enter that history. Prose has no world effect; the
 only ordinary-dialogue effect is mutual trust, offered during wrap-up and
