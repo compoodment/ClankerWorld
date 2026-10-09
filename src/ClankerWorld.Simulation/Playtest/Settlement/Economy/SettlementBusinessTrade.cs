@@ -64,7 +64,8 @@ public sealed partial class PrivateWorldRuntime
                  ContainerFamilyQuantity(inventory, containerId) <= WorkstationDeliveryRoom(inventory, building.InstanceId))))
             .Sum(lot => UsableWorkstationQuantity(inventory, lot));
         var householdStock = inventory.Lots.Where(lot => lot.OwnerId == householdId && lot.ItemKind == itemKind &&
-                lot.CarrierId is null && lot.DeliveryBuildingId is null && UsableWorkstationQuantity(inventory, lot) > 0 &&
+                lot.CarrierId is null && !OnBorrowedMarketStall(lot) &&
+                lot.DeliveryBuildingId is null && UsableWorkstationQuantity(inventory, lot) > 0 &&
                 (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                     building.InstanceId == lot.StorageBuildingId && worldContent.Buildings.Any(definition =>
                         definition.CanonicalId == building.DefinitionId &&
