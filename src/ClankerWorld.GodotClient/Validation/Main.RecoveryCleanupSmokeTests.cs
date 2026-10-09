@@ -12,6 +12,8 @@ public partial class Main
         var previousKey = deviceKey;
         var previousUrl = worldUrlInput.Text;
         var previousObservation = observationSession.Current;
+        var previousKeyboard = keyboardNavigation;
+        var previousKeyboardKey = keyboardNavigationKey;
         var previousCi = System.Environment.GetEnvironmentVariable("CI");
         System.Environment.SetEnvironmentVariable("CI", "true");
         using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
@@ -82,6 +84,10 @@ public partial class Main
         }
         finally
         {
+            keyboardNavigation = previousKeyboard;
+            keyboardNavigationKey = previousKeyboardKey;
+            recoveryCleanupConfirmation.GuiReleaseFocus();
+            GetViewport().GuiReleaseFocus();
             manualSaveOverlay.Hide();
             recoveryCleanupConfirmation.Hide();
             pendingRecoveryCleanup = null;

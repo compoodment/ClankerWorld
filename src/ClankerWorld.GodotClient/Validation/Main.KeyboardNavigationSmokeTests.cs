@@ -43,11 +43,11 @@ public partial class Main
         var before = scroll.ScrollVertical;
         await KeyboardKeyAsync(Key.Down);
         if (scroll.ScrollVertical <= before)
-            throw new InvalidOperationException("Down must scroll the plain reader even when its continuous pointer step is zero.");
+            throw new InvalidOperationException($"Down must scroll the plain reader even when its continuous pointer step is zero: before={before}, after={scroll.ScrollVertical}, focus={FocusOwner()?.GetPath()}, max={bar.MaxValue}, page={bar.Page}, window={window?.Name}.");
         var afterDown = scroll.ScrollVertical;
         await KeyboardKeyAsync(Key.Up);
         if (scroll.ScrollVertical >= afterDown)
-            throw new InvalidOperationException("Up must scroll the plain reader back.");
+            throw new InvalidOperationException($"Up must scroll the plain reader back: down={afterDown}, up={scroll.ScrollVertical}, focus={FocusOwner()?.GetPath()}, max={bar.MaxValue}, page={bar.Page}, window={window?.Name}.");
     }
 
     private async Task WithKeyboardOwnerAsync(Func<Task> check)
