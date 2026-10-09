@@ -4,7 +4,7 @@ using ClankerWorld.Simulation.Harness;
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// Parses supported food, inventory, repair, field, production, custody, movement, guardian, building and shelter orders.
+/// Parses supported food, inventory, repair, field, production, writing, custody, movement, guardian, building and shelter orders.
 /// Every token must belong to one of these forms; unconsumed text is not guessed.
 /// </summary>
 internal static class PrivateWorldInstructionOrderParser
@@ -41,14 +41,15 @@ internal static class PrivateWorldInstructionOrderParser
         Func<MapResource, string> foodKnowledgeKind,
         IReadOnlyList<ProductionOrderRecipe>? productionRecipes = null,
         IReadOnlyList<DeliveryOrderInput>? deliveryInputs = null,
-        IReadOnlyList<BuildingOrderDefinition>? buildings = null)
+        IReadOnlyList<BuildingOrderDefinition>? buildings = null,
+        IReadOnlyList<PlacedBuilding>? ports = null)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(resources);
         ArgumentNullException.ThrowIfNull(foodKnowledgeKind);
 
         return TryTokenize(text, out var tokens)
-            ? new OrderParser(tokens, resources, foodKnowledgeKind, productionRecipes ?? [], deliveryInputs ?? [], buildings ?? []).Parse()
+            ? new OrderParser(tokens, resources, foodKnowledgeKind, productionRecipes ?? [], deliveryInputs ?? [], buildings ?? [], ports ?? []).Parse()
             : null;
     }
 
@@ -127,7 +128,8 @@ internal static class PrivateWorldInstructionOrderParser
         Func<MapResource, string> foodKnowledgeKind,
         IReadOnlyList<ProductionOrderRecipe> productionRecipes,
         IReadOnlyList<DeliveryOrderInput> deliveryInputs,
-        IReadOnlyList<BuildingOrderDefinition> buildings)
+        IReadOnlyList<BuildingOrderDefinition> buildings,
+        IReadOnlyList<PlacedBuilding> ports)
     {
         private int position;
 
@@ -146,6 +148,10 @@ internal static class PrivateWorldInstructionOrderParser
             var repeatPrefix = keepPrefix || ReadWord("repeat") || ReadWord("repeatedly");
 
             var actionStart = position;
+            if (TryReadBoatOrder(end, repeatPrefix) is { } boatOrder) return boatOrder;
+            position = actionStart;
+            if (TryReadKnowledgeOrder(end, repeatPrefix, keepPrefix) is { } knowledgeOrder) return knowledgeOrder;
+            position = actionStart;
             if (TryReadShelterOrder(end, repeatPrefix) is { } shelterOrder) return shelterOrder;
             position = actionStart;
             if (TryReadBuildingOrder(end, repeatPrefix) is { } buildingOrder) return buildingOrder;
@@ -478,6 +484,42 @@ internal static class PrivateWorldInstructionOrderParser
             if (!TryReadCoordinate(out var destination)) return false;
             targetPosition = destination;
             return true;
+        }
+
+        private OwnerInstructionOrder? TryReadKnowledgeOrder(int end, bool repeat, bool keep)
+        {
+            if (position >= end) return null;
+            var word = tokens[position].Value;
+            var verb = word switch
+            {
+                "write" or "writing" => "write",
+                "draw" or "drawing" => "draw",
+                "bind" or "binding" => "bind",
+                "copy" or "copying" => "copy",
+                _ => null,
+            };
+            if (verb is null || keep && !word.EndsWith("ing", StringComparison.Ordinal)) return null;
+            position++;
+            var explicitQuantity = TryReadQuantity(out var quantity);
+            if (!explicitQuantity)
+            {
+                _ = ReadWord("a") || ReadWord("the");
+                quantity = 1;
+            }
+            var field = ReadWord("field");
+            var kind = TryReadAnyWord("record", "records") ? "field_record"
+                : TryReadAnyWord("map", "maps") ? "field_map"
+                : !field && TryReadAnyWord("book", "books") ? "book" : null;
+            if (kind is null || verb == "draw" && kind != "field_map" || verb == "bind" && kind != "book") return null;
+            if (ReadWord("until"))
+            {
+                if (!TryReadAnyWord("cancelled", "canceled")) return null;
+                repeat = true;
+            }
+            if (!ReadWord("now")) _ = ReadWord("please");
+            return position == end ? new OwnerInstructionOrder(verb == "copy" ? "copy_knowledge" : "write_knowledge", "queued", quantity, 0,
+                verb == "copy" ? "copies" : "artifacts", repeat, explicitQuantity)
+            { TargetKnowledgeKind = kind } : null;
         }
 
         private OwnerInstructionOrder? TryReadProductionOrder(int end, bool repeat, bool keep)
@@ -998,6 +1040,20 @@ internal static class PrivateWorldInstructionOrderParser
             targetResourceId = resource.Resource!.Id;
             position += resource.TokensConsumed;
             return true;
+        }
+
+        private OwnerInstructionOrder? TryReadBoatOrder(int end, bool repeat)
+        {
+            if (repeat || !ReadWord("travel") || !ReadWord("by") || !ReadWord("boat") || !ReadWord("to")) return null;
+            _ = ReadWord("the");
+            if (!ReadWord("port") || !ReadWord("at") || !TryReadCoordinate(out var destination)) return null;
+            _ = ReadWord("please");
+            if (position != end) return null;
+            var matches = ports.Where(port => port.Position == destination).ToArray();
+            return matches.Length == 1
+                ? new OwnerInstructionOrder("travel_by_boat", "queued", 1, 0, "arrivals", false, TargetPosition: destination)
+                { BoatTravel = new(matches[0].InstanceId) }
+                : null;
         }
 
         private bool TryReadCoordinate(out GridPoint coordinate)

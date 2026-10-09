@@ -27,8 +27,13 @@ public sealed partial class PrivateWorldRuntime
             return null;
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
+        if (order.Action == "read_knowledge") return KnowledgeReadOrderCandidate(instruction);
+        if (order.Action == "talk_to") return TalkOrderCandidateFor(instruction, person);
+        if (IsCartOrder(order.Action)) return CartOrderCandidateFor(instruction, person);
         if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
+        if (order.Action == "travel_by_boat") return BoatOrderCandidate(instruction);
         if (IsTreePlantingOrder(order.Action)) return TreePlantingOrderCandidate(instruction, person);
+        if (IsKnowledgeOrder(order.Action)) return KnowledgeOrderCandidateFor(instruction);
 
         if (IsShelterOrder(order.Action))
             return ShelterOrderCandidateFor(instruction, person);
@@ -222,9 +227,19 @@ public sealed partial class PrivateWorldRuntime
             ExecuteGuardianOrder(instruction, candidate);
             return;
         }
+        if (IsCartOrder(order.Action))
+        {
+            ExecuteCartOrderStep(instruction, person);
+            return;
+        }
         if (IsAnimalOrder(order.Action))
         {
             ExecuteAnimalOrder(instruction);
+            return;
+        }
+        if (order.Action == "travel_by_boat")
+        {
+            ExecuteBoatOrder(instruction);
             return;
         }
         if (IsTreePlantingOrder(order.Action))
@@ -234,6 +249,16 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "read_knowledge":
+                ExecuteKnowledgeReadOrder(instruction);
+                return;
+            case "talk_to":
+                ExecuteTalkOrderStep(instruction, person);
+                return;
+            case "write_knowledge":
+            case "copy_knowledge":
+                ExecuteKnowledgeOrderStep(instruction, person);
+                return;
             case "seek_shelter":
             case "tend_fire":
             case "inspect_shelter_site":
@@ -419,8 +444,15 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "travel_by_boat") return BoatOrderBlockedReason(instruction);
+        if (instruction.Order?.Action == "read_knowledge")
+            return KnowledgeReadOrderBlocker(instruction) ?? "Waiting to read the written item.";
+        if (instruction.Order?.Action == "talk_to") return TalkOrderBlocker(instruction, person) ?? "Waiting for the conversation outcome.";
         if (instruction.Order is { } treeOrder && IsTreePlantingOrder(treeOrder.Action))
             return TreePlantingOrderBlockedReason(instruction, person);
+        if (instruction.Order is { } knowledgeOrder && IsKnowledgeOrder(knowledgeOrder.Action)) return KnowledgeOrderBlockedReason(instruction);
+        if (instruction.Order is { } cartOrder && IsCartOrder(cartOrder.Action))
+            return CartOrderBlocker(instruction, person) ?? "Waiting for the selected cart action.";
         if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))
             return AnimalOrderBlockedReason(instruction);
         if (instruction.Order is { } protective && IsShelterOrder(protective.Action))

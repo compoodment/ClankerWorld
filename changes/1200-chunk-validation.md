@@ -1,0 +1,1 @@
+- World ticks reuse verified unchanged chunk metadata, reducing repeated allocation while preserving weather, resource checks and save bytes.
