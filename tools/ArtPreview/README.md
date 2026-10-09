@@ -11,7 +11,7 @@ Run from this folder with the .NET 8 SDK or newer:
 
 ```bash
 dotnet run -- baseline out   # every current texture, 1× PNGs and captioned 4× sheets
-dotnet run -- proposed out   # every proposal under Proposed/; add a family name, such as nightlights, for just that one
+dotnet run -- proposed out   # every proposal and archived review drawing; add a family name, such as nightlights, for just that one
 dotnet run -- scene out      # the reference Town and mountain-range scenes: current art, each proposal, and all proposals together
 dotnet run -- animate out weather  # proposals that move, such as weather, as numbered frames of each loop
 dotnet run -- check          # current scene contract checks in memory; writes no pictures
@@ -33,6 +33,9 @@ out.
 - `Proposed/<Family>.cs`: one proposal per art family. Each class
   yields its pictures and can stand in for the current generator in the
   reference scene. `Proposed/<Family>.md` is the note for the owner.
+- `Approved/StoredStock.cs`: independent original stock review drawings. Baseline
+  stock and the `stock-client` family use the live client painter; `check` compares
+  empty, some and full scenes at both atlas sizes.
 - `Scene.cs`: the hand-laid reference Town and the composer that draws it
   the way the map layer does.
 

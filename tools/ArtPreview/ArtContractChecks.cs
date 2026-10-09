@@ -9,6 +9,7 @@ internal static class ArtContractChecks
     public static void Run()
     {
         var current = new ArtSet();
+        CheckApprovedStock();
         CheckApprovedBuildings(current);
         CheckApprovedNature(current);
         CheckApprovedItems();
@@ -49,6 +50,15 @@ internal static class ArtContractChecks
         if (SceneComposer.RoadLinksAt(crossing, 1, 2, true) != RoadLinks.None)
             throw new InvalidOperationException("A deck must not create a Road piece on an empty bank.");
         Console.WriteLine("Current-art contract checks passed.");
+    }
+
+    private static void CheckApprovedStock()
+    {
+        foreach (var size in new[] { 16, 32 })
+            foreach (var level in new[] { 0, 1, 2 })
+                Equal(Approved.StockProposal.Frame("a-at-door", level, size), StoredStockClientPreview.Frame(level, size),
+                    $"Stock A must match at {size} px, level {level}.");
+        Console.WriteLine("Approved stock: 6 exact RGBA scene comparisons, covering all pile families and levels at both atlases.");
     }
 
     private static void CheckApprovedBuildings(ArtSet current)

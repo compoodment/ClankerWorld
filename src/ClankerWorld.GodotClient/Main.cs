@@ -95,6 +95,7 @@ public partial class Main : Control
     private readonly WeatherLayer weatherLayer = new();
     private readonly NightLayer nightLayer = new();
     private readonly NightLightsLayer nightLightsLayer = new();
+    private readonly StoredStockLayer storedStockLayer = new();
     private WorldTerrainMap? terrainMap;
     private string? terrainWorldId;
     private string? terrainManifestDigest;

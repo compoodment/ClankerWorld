@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # How the game works
@@ -729,6 +729,24 @@ its texture. At overview zoom a lit building is a warm speck. The same shapes
 draw the art preview's night proposal (`tools/ArtPreview/Proposed/NightLights.md`),
 including designs not in the game yet and the street lanterns of
 [#892](https://github.com/compoodment/ClankerWorld/issues/892).
+
+`StoredStockLayer` draws approved stock A below the night wash and below map
+labels, agents and weather. `StoredStockPiles` reads accepted per-building
+`StoredItems`, `StoredQuantity` and `StorageCapacity`; it never infers stored
+contents from household totals or ground stock. Wood uses logs, listed bulk
+food/crop/seed/fiber/herb kinds use sacks, and other kinds use crates. Positive
+contents use the some drawing, or the full drawing at 80% of a known capacity.
+Unknown capacity stays at some. These are visual fullness bands, not physical
+container counts or new capacity rules.
+
+Each group takes a distinct known Town tile within two cardinal steps of the
+recorded entrance, on the front or nearest side wall. Roads, every building's
+entrance and footprint, bridges, resources, fields, ground stock and construction
+sites are excluded, along with water, mountains and unknown ground. No suitable
+tile means no pile for that group. Native world-pixel primitives preserve the
+approved casts, colours and paint order at both atlas sizes. Drawing is bounded
+to visible tiles and wrapped copies; unchanged piles reuse their commands.
+No host fields, inventory transitions, saved state or collision rules change.
 
 ## Model inputs, usage and memories
 
