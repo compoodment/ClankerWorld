@@ -926,7 +926,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 113. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 114. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -1073,6 +1073,7 @@ current alpha cutoff.
 | Schema 98 | Existing inventory events retain exact physical storage additions/removals by building and item kind, with signed quantities. Event identities, trade receipts, rollback and bounded archival remain intact. Malformed changes and earlier alpha schemas are refused; no migration or history reconstruction is added. |
 | Schema 99 | Towns retain the latest abandonment tick independently of bounded events. Revival clears it; missing markers, future or pre-founding ticks, and markers on lived-in Towns are refused. Earlier alpha saves are refused and preserved without migration. |
 | Schema 100 | Actual observations refresh current personal map facts. The required bounded `EarlierFacts` ledger backs unchanged artifacts and writing snapshots; duplicate, orphaned, future and mismatched versions are refused. Native writing, copying, planting, cancellation and current-format continuation retain exact contents and paid materials. Earlier alpha saves are refused and preserved without migration. |
+| Schema 114 | Required person-owned recipe accounts and recipe lists on written goods and writing projects retain completed-production evidence, actual read/shared sources and copied provenance. Reading grants no skill. Owner read completions retain sorted actual learned site and recipe identities, bound to their source and effect. Earlier alpha saves are refused and preserved without migration. |
 | Schema 108 | Owner Port-travel orders bind the exact destination Port and latest native boat request. Requests retain their originating instruction; sequential retry and actual destination-arrival receipts are validated. Cancellation preserves underway recovery, and return to departure supplies no completion. Earlier alpha saves are refused and preserved without migration. |
 | Schema 105 | Attach/pull and park orders retain optional stable cart identities and native completion receipts. Strict validation checks cart references, task shape and receipt identity; owner/Godot projections retain the target. Queue, cancellation/replacement, urgent food, ownership changes, refused-tick rollback and paired replay/reload preserve actual cart and cargo state. Earlier alpha saves are refused and preserved without migration. |
 | Schema 104 | Scouting can continue beyond eight steps and explicitly return. Loop-free outward paths are bounded by map tile count; visited tiles and recent discoveries retain their 256-entry limits. Current-format saves retain longer outward and returning paths, original origins, actual knowledge and historical bridge validation. Replay includes chosen return, occupied-corner detours, interruption and refused-tick rollback. Earlier alpha saves are refused and preserved without migration. |
@@ -1451,6 +1452,14 @@ A quantity-one physical map, field record or book retains its lot ID when inheri
 Ownership and location change; its creator, discovery facts and artifact link
 remain. Ordinary divisible stock follows the usual split rules. Inheritance
 does not broadcast the artifact's knowledge to everyone.
+
+Schema 114 requires personal recipe accounts and recipe lists on writing
+projects and artifacts. Accounts retain their person, original production
+worker, recipe, completed job and learned tick; read and shared accounts also
+retain the actual written source. Reload checks this evidence, copied contents,
+bounds and ownership. Records hold at most one recipe, books nine and maps
+none. Earlier alpha saves are refused and preserved without migration. The
+number remains provisional until this change merges.
 
 Writing projects save their exact learned contents and input reservations;
 reloading does not invent supplies or finish the work. Copies preserve the

@@ -126,6 +126,7 @@ public sealed partial class PrivateWorldRuntime
         ValidatePlantedTrees();
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, bridges, checkpointSchemaVersion, towns);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
+        AgentKnowledgeRules.ValidateRecipes(knowledge, society.Checkpoint, worldContent, worldSimulation, WorldTick);
         ValidateKnowledgeReadOrderBindings(instructionsByIdempotency.Values, knowledge);
         ValidateKnowledgeOrderBindings(knowledge, instructionsByIdempotency.Values);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
@@ -428,6 +429,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateMedicalCare(state);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick);
+        AgentKnowledgeRules.ValidateRecipes(state.Knowledge, society.Checkpoint, state.WorldContent, state.WorldSimulation!, society.Checkpoint.WorldTick);
         ValidateKnowledgeReadOrderBindings(state.Instructions ?? [], state.Knowledge);
         ValidateKnowledgeOrderBindings(state.Knowledge, state.Instructions ?? []);
         ValidateSurvival(state);
