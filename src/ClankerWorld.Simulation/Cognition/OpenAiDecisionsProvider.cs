@@ -78,7 +78,8 @@ public sealed class OpenAiDecisionsProvider : IDecisionProvider
         if (request.Observation.MemorySummaryOptions is { Count: > 0 } summaryOptions)
             questions.Add(new
             {
-                type = "choice", name = "memory_summary",
+                type = "choice",
+                name = "memory_summary",
                 instructions = "Choose a shorter extract of this agent's own old experiences, preserving source attribution and uncertainty, or keep_records.",
                 choices = summaryOptions.Select(option => new { value = option.Choice, description = option.Text })
                     .Append(new { value = "keep_records", description = "Keep the original records without a new summary." }).ToArray(),

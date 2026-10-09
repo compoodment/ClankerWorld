@@ -44,6 +44,8 @@ public sealed class PrivateMemorySummaryTests
         replay.Pause(); paired.Pause();
         replay.SetJevEnabled(false); paired.SetJevEnabled(false);
         replay.Resume(); paired.Resume();
+        replay.SubmitInstruction(new("summary-recall", "owner:test", owner, OwnerInstructionKind.Suggestive, "Remember the familiar path."));
+        paired.SubmitInstruction(new("summary-recall", "owner:test", owner, OwnerInstructionKind.Suggestive, "Remember the familiar path."));
         for (var tick = 0; tick < 8 && !recall.Any(item => item.InhabitantId == owner); tick++)
         {
             Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
@@ -61,6 +63,13 @@ public sealed class PrivateMemorySummaryTests
         var correctedBytes = PrivateWorldRuntimeCodec.Encode(replay.ExportState());
         using var corrected = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(correctedBytes));
         Assert.Equal(correctedBytes, PrivateWorldRuntimeCodec.Encode(corrected.ExportState()));
+        recall.Clear();
+        replay.SubmitInstruction(new("summary-correction-recall", "owner:test", owner, OwnerInstructionKind.Suggestive, "Remember the path and its correction."));
+        for (var tick = 0; tick < 8 && !recall.Any(item => item.InhabitantId == owner); tick++)
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+        var correctedMemory = Assert.Single(recall.First(item => item.InhabitantId == owner).RetrievedMemories!, item => item.Kind == "summary");
+        Assert.True(Assert.Single(correctedMemory.SummarySources!, source => source.Id == rumor.Id).IsCorrected);
+        Assert.Equal(summary.Text, correctedMemory.Summary);
     }
 
     [Fact]
@@ -147,7 +156,9 @@ public sealed class PrivateMemorySummaryTests
         var config = state.Society.Society.Config with { TicksPerWorldDay = 2, BaseNaturalMortalityBasisPoints = 0 };
         var society = state.Society.Society with
         {
-            Config = config, WorldTick = 5, Inventory = state.Society.Society.Inventory with { WorldTick = 5 },
+            Config = config,
+            WorldTick = 5,
+            Inventory = state.Society.Society.Inventory with { WorldTick = 5 },
             Inhabitants = state.Society.Society.Inhabitants.Select(item => item with
             {
                 BirthTick = item.BirthTick * 2 / state.Society.Society.Config.TicksPerWorldDay,
@@ -166,8 +177,10 @@ public sealed class PrivateMemorySummaryTests
         for (var tick = 0; tick < 5; tick++) systems = WorldSystemsRules.AdvanceOneTick(systems);
         using var world = PrivateWorldRuntime.Restore(state with
         {
-            JevEnabled = false, RoutineHelper = RoutineHelperSettings.Off,
-            Society = state.Society with { Society = society }, WorldSystems = systems,
+            JevEnabled = false,
+            RoutineHelper = RoutineHelperSettings.Off,
+            Society = state.Society with { Society = society },
+            WorldSystems = systems,
             Inhabitants = state.Inhabitants.Select(item => item with { LastDecisionContext = null, HungerBasisPoints = 10_000 }).ToArray(),
         }, _ => new SummaryProvider(DecisionProviderKind.Deterministic));
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);

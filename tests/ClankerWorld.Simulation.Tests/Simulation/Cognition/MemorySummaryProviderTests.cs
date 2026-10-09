@@ -19,17 +19,23 @@ public sealed class MemorySummaryProviderTests
     {
         var summaryAnswer = choice == "refusal" ? new { type = "refusal", choice = "" } : new { type = "choice", choice };
         var reply = decisions
-            ? JsonSerializer.Serialize(new { answers = new object[]
+            ? JsonSerializer.Serialize(new
+            {
+                answers = new object[]
             {
                 new { name = "selected_candidate", type = "choice", choice = "safe_idle", confidence = 1,
                     probabilities = new[] { new { value = "safe_idle", probability = 1 } } },
                 new { name = "memory_summary", summaryAnswer.type, summaryAnswer.choice },
-            } })
-            : JsonSerializer.Serialize(new { answers = new
+            }
+            })
+            : JsonSerializer.Serialize(new
             {
-                selected_candidate = new { type = "choice", choice = "safe_idle", confidence = 1 },
-                memory_summary = summaryAnswer,
-            } });
+                answers = new
+                {
+                    selected_candidate = new { type = "choice", choice = "safe_idle", confidence = 1 },
+                    memory_summary = summaryAnswer,
+                }
+            });
         var handler = new Handler(reply);
         using var client = new HttpClient(handler);
         IDecisionProvider provider = decisions ? new OpenAiDecisionsProvider(client, () => "test-key") : new JevDecisionProvider(client, () => "test-key");

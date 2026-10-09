@@ -91,8 +91,11 @@ public static partial class SocietyFixture
             throw new InvalidOperationException("A helper may summarize only its requested current private source batch.");
         var summary = new SocietyAgentMemorySummary(SocietyMemorySummaryRules.Id(owner, option.Sources), owner,
             option.Choice, option.Text, checkpoint.WorldTick, option.Sources.ToArray());
-        var result = checkpoint with { MemorySummaries = checkpoint.MemorySummaries.Append(summary)
-            .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray() };
+        var result = checkpoint with
+        {
+            MemorySummaries = checkpoint.MemorySummaries.Append(summary)
+            .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray()
+        };
         Validate(result);
         return result;
     }
