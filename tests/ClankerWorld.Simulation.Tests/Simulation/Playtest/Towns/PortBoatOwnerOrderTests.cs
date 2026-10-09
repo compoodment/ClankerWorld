@@ -317,10 +317,18 @@ public sealed partial class PortBoatRuntimeTests
             Sequence = bound.Sequence + offset,
             RequestedTick = native.Society.Society.WorldTick,
             SettledTick = native.Society.Society.WorldTick,
-            Status = "cancelled", BoatId = null, OrderInstructionId = null,
+            Status = "cancelled",
+            BoatId = null,
+            OrderInstructionId = null,
         }).ToArray();
-        var state = native with { BoatTransport = native.BoatTransport with
-        { Sequence = later[^1].Sequence, Requests = native.BoatTransport.Requests.Concat(later).ToArray() } };
+        var state = native with
+        {
+            BoatTransport = native.BoatTransport with
+            {
+                Sequence = later[^1].Sequence,
+                Requests = native.BoatTransport.Requests.Concat(later).ToArray()
+            }
+        };
         var bytes = PrivateWorldRuntimeCodec.Encode(state);
         var policy = new BoatPolicy();
         policy.IdleActors.UnionWith(Blockers);
