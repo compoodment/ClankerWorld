@@ -1015,8 +1015,8 @@ retain complete native inhabitant IDs, including longer identities created by
 birth; they do not share the length bounds for caller-provided belief IDs and
 prose. Canonical identity and known-owner checks still apply.
 Personal-model memory subjects use stable hash aliases for longer native IDs,
-as map-knowledge discoverers already do; saved belief ownership and subjects
-keep their complete identities.
+as map-knowledge discoverers already do; saved social-memory and belief
+ownership and subjects keep their complete identities.
 Memory salience indexes retain the same complete native owner identities while
 validating each indexed source against that owner's existing records.
 Private thoughts, provider payloads
