@@ -61,7 +61,7 @@ public partial class Main
         {
             CloseGameMenu();
             draggingMap = false;
-            CenterCameraAt(originalCenter);
+            SetCameraAtImmediately(originalCenter);
         }
     }
 
@@ -3029,6 +3029,7 @@ public partial class Main
             await VerifyAgentPosesAsync(sample, founder);
             await VerifyMountainReliefAsync();
             await VerifyDesertAndSnowArtAsync();
+            await VerifyCameraMotionAsync(sample);
             var crowded = sample with
             {
                 WorldId = "ui-marker-bounds",
@@ -3047,7 +3048,7 @@ public partial class Main
             {
                 cameraZoom = zoom;
                 RenderMap(crowded);
-                CenterCameraAt(new Vector2(2.5f, 2.5f));
+                SetCameraAtImmediately(new Vector2(2.5f, 2.5f));
                 var tileRect = new Rect2(new Vector2(2 * currentTileSize, 2 * currentTileSize),
                     new Vector2(currentTileSize, currentTileSize));
                 var markers = crowded.Inhabitants.Select(person => inhabitantVisuals[person.Id]).ToArray();
@@ -3063,6 +3064,7 @@ public partial class Main
             RenderMap(sample with { Resources = [], PlacedBuildings = [] });
             var smallMapTileSize = currentTileSize;
             HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.WheelUp, Pressed = true, Position = mapCanvas.Size / 2 });
+            AdvanceCameraMotion(CameraEasing.ZoomSeconds);
             if (currentTileSize <= smallMapTileSize)
                 throw new InvalidOperationException("Mouse-wheel zoom must work even when the small starter map reaches its fitted tile-size cap.");
             RenderMap(sample with
@@ -3084,6 +3086,7 @@ public partial class Main
             var fittedViewHeight = worldOverview.VisibleTiles.Size.Y;
             for (var index = 0; index < 2; index++)
                 HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.WheelUp, Pressed = true, Position = mapCanvas.Size / 2 });
+            AdvanceCameraMotion(CameraEasing.ZoomSeconds);
             if (currentTileSize <= fittedTileSize || worldOverview.VisibleTiles.Size.Y >= fittedViewHeight)
                 throw new InvalidOperationException($"Mouse-wheel zoom did not narrow the visible world area: tile={fittedTileSize}->{currentTileSize}, view={fittedViewHeight}->{worldOverview.VisibleTiles.Size.Y}.");
             var beforeOverviewClick = mapStage.Position;
@@ -3123,6 +3126,7 @@ public partial class Main
                 throw new InvalidOperationException("An unchanged Event Log must not be rebuilt, which would reset its scroll position.");
             var beforeEventJump = cameraCenterTiles;
             eventLog.EmitSignal(RichTextLabel.SignalName.MetaClicked, "100");
+            AdvanceCameraMotion(CameraEasing.MoveSeconds);
             if (cameraCenterTiles.DistanceTo(beforeEventJump) < 0.5f)
                 throw new InvalidOperationException("Clicking a located event did not move the world camera.");
             knownEvents[101] = new OwnerWorldEvent(101, 2, "food_consumed", "founder-scout", null);
@@ -3383,7 +3387,7 @@ public partial class Main
             if (hoverReadout.Visible)
                 throw new InvalidOperationException("Leaving the map must hide the hover readout.");
             var beforeLargePan = worldOverview.VisibleTiles.Position;
-            CenterCameraAt(new Vector2(20, 20));
+            SetCameraAtImmediately(new Vector2(20, 20));
             if (worldOverview.VisibleTiles.Position.DistanceTo(beforeLargePan) < 1 ||
                 terrainLayer.VisibleTileCount >= largeTerrain.Length / 2)
                 throw new InvalidOperationException("Panning a large map must update the camera-bounded terrain view.");
@@ -3400,7 +3404,7 @@ public partial class Main
                     true, "available", 5, 10, 0, 0, "spring")],
             };
             RenderMap(wrappedMap);
-            CenterCameraAt(new Vector2(0.5f, 64));
+            SetCameraAtImmediately(new Vector2(0.5f, 64));
             if (worldOverview.VisibleTiles.Position.X >= 0 ||
                 terrainLayer.VisibleTileCount >= largeTerrain.Length / 2 ||
                 !worldOverview.WrapsEastWest ||
@@ -3435,7 +3439,7 @@ public partial class Main
             var overviewAtlasPosition = (worldOverview.Size - overviewAtlasSize) / 2;
             var overviewAtlasY = overviewAtlasPosition.Y + overviewAtlasSize.Y / 2;
             var overviewRightEdge = overviewAtlasPosition.X + overviewAtlasSize.X;
-            CenterCameraAt(new Vector2(254, 64));
+            SetCameraAtImmediately(new Vector2(254, 64));
             var eastDragStart = cameraCenterTiles.X;
             worldOverview._GuiInput(new InputEventMouseButton
             {
@@ -3459,7 +3463,7 @@ public partial class Main
                 throw new InvalidOperationException("Dragging past the wrapped overview's eastern edge must continue panning east.");
 
             var overviewLeftEdge = overviewAtlasPosition.X;
-            CenterCameraAt(new Vector2(2, 64));
+            SetCameraAtImmediately(new Vector2(2, 64));
             var westDragStart = cameraCenterTiles.X;
             worldOverview._GuiInput(new InputEventMouseButton
             {
@@ -3482,7 +3486,7 @@ public partial class Main
                 PositiveMod(westAfterFirstDrag - westAfterSecondDrag, 256) <= 2)
                 throw new InvalidOperationException("Dragging past the wrapped overview's western edge must continue panning west.");
 
-            CenterCameraAt(new Vector2(0.5f, 64));
+            SetCameraAtImmediately(new Vector2(0.5f, 64));
             var wrappedStride = currentTileSize + TileGap;
             var seamMarkerCellSample = mapStage.Position + new Vector2(
                 seamMarker.Position.X + Math.Min(seamMarker.Size.X / 2, wrappedStride / 2f),
@@ -3577,7 +3581,7 @@ public partial class Main
             if (mapObjectVisuals["resource:seam-wood"].Text.Contains('\n', StringComparison.Ordinal))
                 throw new InvalidOperationException("A map marker too small for its name must show its glyph instead of a clipped fragment.");
             RenderMap(largeMap);
-            CenterCameraAt(new Vector2(-5, 64));
+            SetCameraAtImmediately(new Vector2(-5, 64));
             if (worldOverview.VisibleTiles.Position.X < 0 || worldOverview.WrapsEastWest)
                 throw new InvalidOperationException("Non-wrapped worlds must retain bounded horizontal camera edges.");
 
@@ -3588,7 +3592,7 @@ public partial class Main
             var baselinePan = System.Diagnostics.Stopwatch.StartNew();
             for (var step = 0; step < 8; step++)
             {
-                CenterCameraAt(new Vector2(80 + step, 64));
+                SetCameraAtImmediately(new Vector2(80 + step, 64));
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             }
             baselinePan.Stop();
@@ -3619,7 +3623,7 @@ public partial class Main
             var widePan = System.Diagnostics.Stopwatch.StartNew();
             for (var step = 0; step < 8; step++)
             {
-                CenterCameraAt(new Vector2(80 + step, 64));
+                SetCameraAtImmediately(new Vector2(80 + step, 64));
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             }
             widePan.Stop();
@@ -3639,10 +3643,11 @@ public partial class Main
             }, waterCenter);
             if (emptyWorldFocus.DistanceTo(new Vector2(6.5f, 6.5f)) > 0.01f)
                 throw new InvalidOperationException($"A new world without a Town or agents must open over dry land: camera={emptyWorldFocus}.");
-            CenterCameraAt(new Vector2(80, 64));
+            SetCameraAtImmediately(new Vector2(80, 64));
             var zoomPointer = mapCanvas.Size * new Vector2(0.25f, 0.3f);
             var tileUnderPointer = (zoomPointer - mapStage.Position) / (currentTileSize + TileGap);
             HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.WheelUp, Pressed = true, Position = zoomPointer });
+            AdvanceCameraMotion(CameraEasing.ZoomSeconds);
             var tileUnderPointerAfterZoom = (zoomPointer - mapStage.Position) / (currentTileSize + TileGap);
             if (tileUnderPointerAfterZoom.DistanceTo(tileUnderPointer) > 0.1f)
                 throw new InvalidOperationException($"Mouse-wheel zoom must keep the pointed-at tile under the cursor: {tileUnderPointer} -> {tileUnderPointerAfterZoom}.");
@@ -3720,8 +3725,9 @@ public partial class Main
             if (!agentsWarning.Visible || inhabitantsButton.Text != "2" ||
                 !inhabitantsButton.TooltipText.Contains("hungry: Rowan", StringComparison.Ordinal))
                 throw new InvalidOperationException("The Agents button must count the living and flag anyone hungry.");
-            CenterCameraAt(new Vector2(40, 30));
+            SetCameraAtImmediately(new Vector2(40, 30));
             SelectInhabitantFromList(1);
+            AdvanceCameraMotion(CameraEasing.MoveSeconds);
             if (selectedInhabitantId != "roster-rowan" || cameraCenterTiles.DistanceTo(new Vector2(180.5f, 90.5f)) > 1.5f)
                 throw new InvalidOperationException($"Choosing a living agent in the roster must bring them into view: camera={cameraCenterTiles}.");
             selectedInhabitantId = null;
@@ -3830,6 +3836,7 @@ public partial class Main
                 throw new InvalidOperationException("The Event Log and the agent's Profile must remain available together.");
             var beforeDeathJump = cameraCenterTiles;
             eventLog.EmitSignal(RichTextLabel.SignalName.MetaClicked, "101");
+            AdvanceCameraMotion(CameraEasing.MoveSeconds);
             if (eventsPanel.Visible || cameraCenterTiles.DistanceTo(beforeDeathJump) < 0.5f)
                 throw new InvalidOperationException("A death in the Event Log must jump to its location.");
             var parentPosition = new OwnerWorldPosition(1, 1);
@@ -3983,15 +3990,19 @@ public partial class Main
             await VerifyDeveloperToolsAsync(occupied, founder);
             await VerifyAuthoringCoordinatesAsync(occupied);
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Minus, Pressed = true });
+            AdvanceCameraMotion(CameraEasing.ZoomSeconds);
             var zoomedOutTile = currentTileSize;
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Equal, Pressed = true });
+            AdvanceCameraMotion(CameraEasing.ZoomSeconds);
             if (currentTileSize <= zoomedOutTile)
                 throw new InvalidOperationException("The + key must zoom in after - zoomed out.");
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.N, Pressed = true });
+            AdvanceCameraMotion(CameraEasing.MoveSeconds);
             if (selectedInhabitantId != founder.Id ||
                 !mapCanvas.GetGlobalRect().Encloses(inhabitantVisuals[founder.Id].GetGlobalRect()))
                 throw new InvalidOperationException($"N must select the next living agent and bring them into view: selected={selectedInhabitantId} marker={inhabitantVisuals[founder.Id].GetGlobalRect()}.");
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.N, Pressed = true });
+            AdvanceCameraMotion(CameraEasing.MoveSeconds);
             if (selectedInhabitantId != founder.Id)
                 throw new InvalidOperationException("N with a single living agent must keep them selected.");
             ClearTileSelection();

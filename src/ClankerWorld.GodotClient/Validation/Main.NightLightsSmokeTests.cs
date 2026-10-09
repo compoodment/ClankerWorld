@@ -392,7 +392,7 @@ public partial class Main
         if (BuildingAt(street, new(12, 9), mapStage.Position + zoomedPoint)?.InstanceId != "night-stone-north")
             throw new InvalidOperationException("Visible fitting hit targets must follow the map's current zoom and camera position.");
         var visibleBefore = terrainLayer.VisibleTiles;
-        CenterCameraAt(new Vector2(180, 64));
+        SetCameraAtImmediately(new Vector2(180, 64));
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (terrainLayer.VisibleTiles == visibleBefore || nightLightsLayer.DrawnCells.Count != 0)
             throw new InvalidOperationException("Daytime street fittings must leave the drawing when a lantern-only map pans away.");

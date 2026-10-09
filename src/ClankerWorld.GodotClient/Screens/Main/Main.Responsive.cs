@@ -150,6 +150,7 @@ public partial class Main
     /// </summary>
     private void PlaceQuickCard(PanelContainer card, Rect2 target)
     {
+        if (CameraMoving && !cameraPinnedCards.Add(card)) return;
         var ui = UiSize;
         var cardSize = card.GetCombinedMinimumSize();
         var cardWidth = cardSize.X;

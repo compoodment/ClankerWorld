@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # What works today
@@ -1297,6 +1297,12 @@ and Warehouses. The [Windows checklist](../playtest/829-building-sizes.md)
 covers the new sizes and their ordinary work.
 
 ## Maps, weather and appearance
+
+Find, agent selections and building jumps ease the camera to their destination
+in about 0.7 seconds. Zoom steps ease over about a third of a second and keep
+the pointed-at tile under the cursor. A new request starts from the shown view;
+wrapped travel takes the short route. Open quick cards stay still during the
+glide. Middle dragging, keyboard panning and the World Map remain immediate.
 
 Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports

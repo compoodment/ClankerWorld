@@ -1061,46 +1061,6 @@ public sealed class StockProposal : IArtProposal
 }
 
 /// <summary>
-/// Idea 11, a smoother camera: Find moves the view from the Farmhouse to the
-/// east Houses, then the view zooms in one step.
-/// </summary>
-public sealed class CameraProposal : IAnimatedArtProposal
-{
-    private const double Seconds = 4;
-    public string Family => "camera";
-
-    public IEnumerable<(string Id, IReadOnlyList<Image> Frames)> Animate()
-    {
-        foreach (var look in new[] { "a-today", "b-ease", "c-ease-settle" })
-            yield return ($"{look}-32", Polish.Loop(Seconds, t => Frame(look, t)));
-    }
-
-    private static float Ease(string look, float k) => look switch
-    {
-        "a-today" => k > 0 ? 1 : 0,
-        "b-ease" => 1 - MathF.Pow(1 - Math.Clamp(k, 0, 1), 3),
-        // A slower start and a soft settle that overshoots by about 4%.
-        _ => Math.Clamp(k, 0, 1) is var x ? 1 + 2.2f * MathF.Pow(x - 1, 3) + 1.2f * MathF.Pow(x - 1, 2) : 0,
-    };
-
-    private static Image Frame(string look, double t)
-    {
-        const int size = 32, viewW = 320, viewH = 192;
-        var scene = new Canvas(Polish.Scene(size, agents: true));
-        var from = new Vector2(4.5f, 6.5f) * size;
-        var to = new Vector2(14.5f, 7.0f) * size;
-        var move = Ease(look, (float)(t - 0.6) / 0.7f);
-        var centre = from.Lerp(to, move);
-        var zoom = 1f + 0.5f * Ease(look, (float)(t - 2.2) / 0.35f);
-        if (t < 0.6) centre = from;
-        var w = viewW / zoom; var h = viewH / zoom;
-        var x = (int)Math.Clamp(MathF.Round(centre.X - w / 2), 0, scene.Width - w);
-        var y = (int)Math.Clamp(MathF.Round(centre.Y - h / 2), 0, scene.Height - h);
-        return scene.Crop(new Rect2I(x, y, (int)w, (int)h), viewW, viewH).ToImage();
-    }
-}
-
-/// <summary>
 /// Idea 12, moments: a building finishing and a grave where someone died.
 /// </summary>
 public sealed class MomentsProposal : IArtProposal, IAnimatedArtProposal

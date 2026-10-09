@@ -236,6 +236,7 @@ public partial class Main
         nightLayer.Darkness = NightLayer.FromBasisPoints(snapshot.DarknessBasisPoints);
         if (!string.Equals(cameraWorldId, snapshot.WorldId, StringComparison.Ordinal))
         {
+            CancelCameraMotion();
             cameraWorldId = snapshot.WorldId;
             cameraZoom = 1;
             cameraCenterTiles = InitialCameraCenter(snapshot, terrainMap);

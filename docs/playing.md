@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Playing the current game
@@ -141,7 +141,11 @@ details.
 
 ## Look around
 
-Use the mouse wheel to zoom, hold the middle mouse button to drag the camera,
+Use the mouse wheel to zoom in an eased step lasting about a third of a second.
+**Find** and agent or building jumps glide there in about 0.7 seconds, slowing
+as they arrive. Another Find starts from the view already shown; wrapped
+maps take the short way round. Open quick cards stay in place during the
+glide. Hold the middle mouse button to drag the camera,
 or use movement keys to pan. Opening the pause menu or switching to another
 application ends a drag; press the middle button again to start another. **Map** opens the World
 Map, which marks each Town and agent; click it or drag its view rectangle to

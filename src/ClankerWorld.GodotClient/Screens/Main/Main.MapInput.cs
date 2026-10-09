@@ -114,10 +114,12 @@ public partial class Main
             return;
         }
 
-        cameraCenterTiles = tileCenter;
-        UpdateMapGeometry(snapshot);
-        PositionSelectedInhabitantCard(snapshot);
-        PositionBuildingQuickCard(snapshot);
+        BeginCameraMotion();
+        cameraZooming = false;
+        cameraGlideFrom = cameraCenterTiles;
+        cameraGlideTo = CameraEasing.Destination(cameraCenterTiles, tileCenter, MapDimensions(snapshot).Width, snapshot.WrapsEastWest);
+        cameraGlideElapsed = 0;
+        cameraGliding = cameraGlideFrom.DistanceTo(cameraGlideTo) > 0.0001f;
     }
 
     private void PanCamera(Vector2 deltaTiles)
@@ -127,7 +129,7 @@ public partial class Main
             return;
         }
 
-        CenterCameraAt(cameraCenterTiles + deltaTiles);
+        SetCameraAtImmediately(cameraCenterTiles + deltaTiles);
     }
 
     private void HandleMapInput(InputEvent @event)

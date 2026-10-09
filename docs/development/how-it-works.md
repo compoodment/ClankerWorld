@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # How the game works
@@ -1233,6 +1233,15 @@ helping another agent's project and Blacksmith ore use the actor's current
 reachable area (see [Material gathering](#material-gathering)). Boat transport uses physical Town assets and typed Council permission, as
 described in [Ports and communal boats](#ports-and-communal-boats). Trees and planting are described in
 [Trees and planting](#trees-and-planting).
+
+The client camera uses the approved B cubic ease-out for Find/selection jumps
+(0.7 seconds) and zoom steps (0.35 seconds). `CameraEasing` is shared with the
+completed camera review. Main advances only local camera state on process
+frames, keeps zoom anchored to the cursor and uses the shortest wrapped travel.
+New requests start at the shown position/scale; drag and keyboard input cancel
+motion and apply immediately. Quick cards hold their screen position through
+travel. Zoom refreshes map sprites only when integer tile size changes; opening
+another world discards old motion. No observation, host request or save is added.
 
 Godot draws camera-visible tiles from a compact terrain index and samples it
 for the overview. It does not create a Control per tile. Generated terrain uses
