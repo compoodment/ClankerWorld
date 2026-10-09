@@ -652,7 +652,7 @@ food, cancellation/replacement, exact targeting, full/partial knowledge limits,
 malformed progress and rejected read ticks. This number is provisional until
 merge. Older alpha checkpoints are refused and preserved without migration.
 
-Private-world schema 107 adds `propose_marriage` orders using the existing
+Private-world schema 117 adds `propose_marriage` orders using the existing
 `TargetAgentId`, `TalkConversationId` and `TalkOutcome` fields. A selected partner
 stays bound; an order without a partner must have neither a conversation nor
 progress. Linked orders identify one actual ordinary invitation between their
@@ -972,7 +972,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 116. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 117. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus

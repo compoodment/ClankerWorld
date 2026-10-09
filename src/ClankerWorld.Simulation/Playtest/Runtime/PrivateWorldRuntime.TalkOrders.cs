@@ -134,8 +134,7 @@ public sealed partial class PrivateWorldRuntime
             ConversationCandidates(actor).Any(item => item.Id == candidate))
             ApplyConversationCandidate(actor, candidate);
         CompleteClosedTalkOrders();
-        if (UnacceptedMarriageOrderBlocker(instruction) is { } eligibilityBlocker)
-            SetOrderStatus(instruction, "blocked", eligibilityBlocker);
+        RefreshMarriageOrderEligibilityStatus(instruction);
     }
 
     private bool ActiveTalkOrderUses(string conversationId) => instructionsByIdempotency.Values.Any(instruction =>
@@ -145,14 +144,10 @@ public sealed partial class PrivateWorldRuntime
     {
         foreach (var instruction in instructionsByIdempotency.Values.Where(item => IsLinkedTalkOrder(item) && IsActiveOrder(item.Order!.Status)).ToArray())
         {
+            // Speech and surname turns can continue without a new planning choice; keep eligibility status current.
+            RefreshMarriageOrderEligibilityStatus(instruction);
             var conversation = conversations.FirstOrDefault(item => item.Id == instruction.Order!.TalkConversationId);
-            if (conversation?.Status != AgentConversationStatus.Closed)
-            {
-                // Speech can continue without a new planning choice; still report changed eligibility each tick.
-                if (UnacceptedMarriageOrderBlocker(instruction) is { } blocker)
-                    SetOrderStatus(instruction, "blocked", blocker);
-                continue;
-            }
+            if (conversation?.Status != AgentConversationStatus.Closed) continue;
             var outcome = instruction.Order!.Action == "propose_marriage" ? MarriageOrderOutcome(conversation, marriages) : conversation.Outcome;
             if (outcome is null) continue; // Accepted marriage still has its own unfinished surname session.
             var current = instruction with { Order = instruction.Order! with { TalkOutcome = outcome } };

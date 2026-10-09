@@ -122,6 +122,18 @@ public sealed class PrivateWorldMarriageOrderTests
         Assert.Equal(conversationId, blocked.TalkConversationId);
         Assert.Empty(world.Marriages);
         Assert.True(world.RenameAgent(actor, "Aster Ash"));
+        await Tick(world);
+        var recovered = Assert.Single(world.ExportState().Instructions!).Order!;
+        Assert.Equal("doing", recovered.Status);
+        Assert.Null(recovered.BlockedReason);
+        Assert.Equal(0, recovered.CompletedUnits);
+        Assert.Equal(conversationId, recovered.TalkConversationId);
+        await Until(world, () => world.Marriages.Count == 1);
+        Assert.Null(Assert.Single(world.Marriages).CompletedTick);
+        var surnamePending = Assert.Single(world.ExportState().Instructions!).Order!;
+        Assert.Equal("doing", surnamePending.Status);
+        Assert.Null(surnamePending.BlockedReason);
+        Assert.Equal(0, surnamePending.CompletedUnits);
         await Until(world, () => world.ExportState().CompletedInstructionIds!.Contains(receipt.InstructionId));
         Assert.Equal("married", Assert.Single(world.ExportState().Instructions!).Order!.TalkOutcome);
         Assert.Single(world.ExportState().Events, item => item.Kind == "conversation_proposed");

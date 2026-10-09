@@ -7,6 +7,10 @@ namespace ClankerWorld.Simulation.Playtest;
 public sealed partial class PrivateWorldRuntime
 {
     private const string MarriageOrderTask = "attempt marriage with your current partner; both people keep their consent and surname choices";
+    private const string MarriageAdultBlocker = "Only an adult can propose marriage.";
+    private const string MarriagePartnerBlocker = "Waiting for an eligible current partner before attempting marriage.";
+    private const string MarriageChangedPartnerBlocker = "The selected person is no longer your current partner; this order will not choose someone else.";
+    private const string MarriageEligibilityBlocker = "This partnership is not currently eligible for marriage; both adults need chosen full names and must be free to marry.";
 
     private OwnerInstructionOrder? ParseMarriageOrder(string text, string actor)
     {
@@ -28,18 +32,38 @@ public sealed partial class PrivateWorldRuntime
     private string? MarriageOrderBlocker(OwnerQueuedInstruction instruction)
     {
         var actor = instruction.TargetInhabitantId;
-        if (!AdultResident(actor)) return "Only an adult can propose marriage.";
+        if (!AdultResident(actor)) return MarriageAdultBlocker;
         var target = instruction.Order!.TargetAgentId ?? CurrentMarriageOrderPartner(actor);
-        if (target is null) return "Waiting for an eligible current partner before attempting marriage.";
+        if (target is null) return MarriagePartnerBlocker;
         if (AgentMarriageRules.Partnership(society.Checkpoint, actor, target) is null)
-            return "The selected person is no longer your current partner; this order will not choose someone else.";
+            return MarriageChangedPartnerBlocker;
         return AgentMarriageRules.CanPropose(society.Checkpoint, marriages, actor, target) ? null :
-            "This partnership is not currently eligible for marriage; both adults need chosen full names and must be free to marry.";
+            MarriageEligibilityBlocker;
     }
 
     private string? UnacceptedMarriageOrderBlocker(OwnerQueuedInstruction instruction) =>
         instruction.Order is { Action: "propose_marriage" } order && !marriages.Any(item => item.Consent.Id == order.TalkConversationId)
             ? MarriageOrderBlocker(instruction) : null;
+
+    private void RefreshMarriageOrderEligibilityStatus(OwnerQueuedInstruction instruction)
+    {
+        var current = instructionsByIdempotency[instruction.IdempotencyKey];
+        if (current.Order is not { Action: "propose_marriage", TalkConversationId: not null } order || !IsActiveOrder(order.Status)) return;
+        if (UnacceptedMarriageOrderBlocker(current) is { } blocker)
+        {
+            SetOrderStatus(current, "blocked", blocker);
+            return;
+        }
+        // Clear only a recovered eligibility blocker, preserving independently owned interruptions and failures.
+        if (order.Status != "blocked" || order.BlockedReason is not
+            (MarriageAdultBlocker or MarriagePartnerBlocker or MarriageChangedPartnerBlocker or MarriageEligibilityBlocker)) return;
+        if (ConversationForOrder(current)?.Status == AgentConversationStatus.Suspended)
+            SetOrderStatus(current, "blocked", "Conversation stopped; both people must choose to resume, or you may end it.");
+        else if (ConversationForOrder(current)?.Outcome == "participant_unavailable")
+            SetOrderStatus(current, "blocked", "Marriage was accepted, but the shared surname remains unfinished because a participant is unavailable.");
+        else
+            SetOrderStatus(current, "doing", null);
+    }
 
     private AgentConversation? ConversationForOrder(OwnerQueuedInstruction instruction)
     {
