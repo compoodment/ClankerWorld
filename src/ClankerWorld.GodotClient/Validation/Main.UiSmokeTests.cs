@@ -3146,7 +3146,7 @@ public partial class Main
             if (mapStage.Position.DistanceTo(beforeKeyboardPan) < 1)
                 throw new InvalidOperationException("Keyboard panning did not move the world camera.");
             var eventDestination = cameraCenterTiles.X < 8 ? new OwnerWorldPosition(15, 11) : new OwnerWorldPosition(0, 0);
-            knownEvents[100] = new OwnerWorldEvent(100, 1, "food_consumed", "founder-scout", eventDestination);
+            knownEvents[100] = new OwnerWorldEvent(100, 1, "tree_planted", "founder-scout:planted-tree-1-1:broadleaf", eventDestination);
             RenderEventLog();
             eventLog.AddText("\nscroll-sentinel");
             RenderEventLog();
@@ -3156,7 +3156,7 @@ public partial class Main
             eventLog.EmitSignal(RichTextLabel.SignalName.MetaClicked, "100");
             if (cameraCenterTiles.DistanceTo(beforeEventJump) < 0.5f)
                 throw new InvalidOperationException("Clicking a located event did not move the world camera.");
-            knownEvents[101] = new OwnerWorldEvent(101, 2, "food_consumed", "founder-scout", null);
+            knownEvents[101] = new OwnerWorldEvent(101, 2, "tree_planted", "founder-scout:planted-tree-1-1:broadleaf", null);
             RenderEventLog();
             var loggedDay = SplitClock(DisplayWorldClock(1)).Date;
             if (eventLog.GetParsedText().Split(loggedDay).Length != 2)
@@ -3168,7 +3168,7 @@ public partial class Main
             eventsPanel.Hide();
             UpdateUnreadEvents(eventsWorldId);
             var readBefore = unreadEvents;
-            knownEvents[102] = new OwnerWorldEvent(102, 3, "food_consumed", "founder-scout", null);
+            knownEvents[102] = new OwnerWorldEvent(102, 3, "tree_planted", "founder-scout:planted-tree-1-1:broadleaf", null);
             RenderEventLog();
             if (unreadEvents != readBefore + 1 || !eventsBadge.Visible ||
                 eventsBadge.Text != (readBefore + 1).ToString(CultureInfo.InvariantCulture))
@@ -3851,9 +3851,9 @@ public partial class Main
                     .Any(label => label.Text.Contains("event pop-ups", StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException("Deaths must remain in the Event Log without an event pop-up setting.");
             if (!eventLog.GetParsedText().Contains("finished writing a book.", StringComparison.Ordinal) ||
-                !eventLog.GetParsedText().Contains("learned about places from a written work.", StringComparison.Ordinal) ||
+                !eventLog.GetParsedText().Contains("read a written work and learned about new places.", StringComparison.Ordinal) ||
                 DescribeWorldEvent(knownEvents[102], historicalSnapshot) != "Mira finished writing a book." ||
-                DescribeWorldEvent(knownEvents[103], historicalSnapshot) != "Mira learned about places from a written work." ||
+                DescribeWorldEvent(knownEvents[103], historicalSnapshot) != "Mira read a written work and learned about new places." ||
                 eventLog.GetParsedText().Contains("knowledge-artifact-", StringComparison.Ordinal))
                 throw new InvalidOperationException("Written-knowledge events must name the writer or actual reader without displaying artifact identifiers.");
             ToggleEvents();
@@ -4110,8 +4110,8 @@ public partial class Main
         };
         OwnerWorldEvent[] events =
         [
-            new(1, 1, "food_harvested", founderId + ":4"),
-            new(2, 1, "food_consumed", "founder-scout"),
+            new(1, 1, "tree_planted", founderId + ":planted-tree-3-4:broadleaf"),
+            new(2, 1, "field_prepared", "founder-scout:field-2-2:"),
             new(3, 1, "child_born", childId),
             new(4, 1, "inhabitant_removed", agentId),
             new(5, 1, "town_resident_joined", "town:first:" + founderId + ":founder_joined:residents:4"),
@@ -4127,7 +4127,7 @@ public partial class Main
                 throw new InvalidOperationException("Event Log name fixture was rejected: " + failure);
             foreach (var worldEvent in events) knownEvents[worldEvent.EventId] = worldEvent;
             RenderEventLog();
-            string[] expected = ["Rowan gathered food.", "Scout ate.", "Mira was born.", "Aster died.",
+            string[] expected = ["Rowan planted a tree.", "Scout tilled a field.", "Mira was born.", "Aster died.",
                 "Rowan joined First Town.", "Aster left First Town."];
             if (expected.Any(text => !eventLog.GetParsedText().Contains(text, StringComparison.Ordinal)))
                 throw new InvalidOperationException("The Event Log must show full living, deceased and descendant names for normal IDs.");
@@ -4140,7 +4140,7 @@ public partial class Main
             if (!observationSession.TryAccept(new(handshake, baseline), 0, out failure))
                 throw new InvalidOperationException("Renamed Event Log fixture was rejected: " + failure);
             RenderEventLog();
-            if (!eventLog.GetParsedText().Contains("Renamed Rowan gathered food.", StringComparison.Ordinal))
+            if (!eventLog.GetParsedText().Contains("Renamed Rowan planted a tree.", StringComparison.Ordinal))
                 throw new InvalidOperationException("An existing Event Log entry must resolve the current agent name after rename.");
         }
         finally

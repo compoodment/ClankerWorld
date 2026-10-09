@@ -95,16 +95,20 @@ public partial class Main
         {
             "weather_changed" => PixelIcons.Weather(worldEvent.Detail.Split(':').LastOrDefault() ?? "clear", 1),
             "food_harvested" or "food_consumed" => PixelIcons.Texture(PixelGlyph.Basket, ink, food, 1),
+            "exploration_started" or "exploration_return_started" or "exploration_completed" or "exploration_aborted"
+                => PixelIcons.Texture(PixelGlyph.Map, ink, green, 1),
+            "skill_learned" => PixelIcons.Texture(PixelGlyph.Book, ink, wood, 1),
+            "animal_tamed" or "animal_born" or "animal_transferred" or "animals_arrived" => PixelIcons.Texture(PixelGlyph.Flower, ink, green, 1),
             "build_started" or "build_completed" or "building_placed" or "recipe_started" or "recipe_completed" or "house_tool_made" or "bridge_built" or
                 "town_project_worked" or "town_project_completed" or "market_built" or "market_stall_built"
                 => PixelIcons.Texture(PixelGlyph.Hammer, ink, wood, 1),
             "tree_planted" or "tree_replanted" or "crop_moisture_effect" => PixelIcons.Texture(PixelGlyph.Leaf, ink, green, 1),
             "child_born" or "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
                 "guardian_needed" or "guardian_assigned" or "guardian_placement_pending" or
-                "guardian_placement_completed" or "guardian_placement_cancelled"
+                "guardian_placement_completed" or "guardian_placement_cancelled" or "marriage_accepted" or "marriage_surname_agreed"
                 => PixelIcons.Texture(PixelGlyph.Heart, pink, pink, 1),
-            "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" => PixelIcons.Texture(PixelGlyph.Grave, ink, stone, 1),
-            "town_founded" or "settlement_founded" or "town_founding_started" or "town_border_expanded" or
+            "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or "animal_died" => PixelIcons.Texture(PixelGlyph.Grave, ink, stone, 1),
+            "town_founded" or "town_founding_started" or "town_border_expanded" or
                 "town_project_approved" or "town_project_resumed"
                 => PixelIcons.Texture(PixelGlyph.Flag, ink, green, 1),
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or "town_building_assigned" or

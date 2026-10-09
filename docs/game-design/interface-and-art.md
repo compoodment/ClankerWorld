@@ -96,7 +96,14 @@ everything that is available in the current build. See [what works today](../wha
   log has an icon for each kind of event and a heading for each day, shows the
   newest first and has no filters. Only an event with a place has a **Find**
   button. The game keeps the newest 1,024 events in each of its event records
-  and archives older ones; that number is provisional.
+  and archives older ones; that number is provisional. **Agreed on October 9
+  (owner request in chat):** each line says who was involved and what
+  happened, in plain words without legal or code terms. Births, deaths,
+  marriages, skills learned, animals and scouting trips appear. Routine steps
+  that a later line already reports do not: meals, forage trips, tending a
+  crop, loading and parking a cart, starting a recipe, picking up goods on the
+  way to a delivery, each Town project work shift, and reading or passing on a
+  case file.
 - World Info should let the player inspect discovered capabilities and other
   world information. Separate map filters show Town title, household land use,
   disputed land, household property and Town borders; these are the first set

@@ -51,8 +51,8 @@ public partial class Main
             var entries = Enumerable.Range(0, count).Select(index =>
             {
                 long id = 1_000 + index;
-                var worldEvent = new OwnerWorldEvent(id, index, wrapped ? "model_call_warning" : "food_consumed",
-                    wrapped ? "used:812:limit:1000" : "founder-scout", index == 0 ? new OwnerWorldPosition(0, 0) : null);
+                var worldEvent = new OwnerWorldEvent(id, index, wrapped ? "model_call_warning" : "tree_planted",
+                    wrapped ? "used:812:limit:1000" : "founder-scout:planted-tree-1-1:broadleaf", index == 0 ? new OwnerWorldPosition(0, 0) : null);
                 knownEvents[id] = worldEvent;
                 return (EventId: id, Located: worldEvent.Position is not null,
                     Clock: (index == 0 ? "2 Spring, Year 1" : "1 Spring, Year 1") + " · 12:00",
