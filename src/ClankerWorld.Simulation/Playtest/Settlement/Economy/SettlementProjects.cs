@@ -332,7 +332,7 @@ public sealed partial class PrivateWorldRuntime
             foreach (var (dx, dy) in ClayBankOffsets)
             {
                 var bank = map.WrapColumn(new GridPoint(point.X + dx, point.Y + dy));
-                if (map.Contains(bank) && map.HydrologyAt(bank) == WaterKind.Land && map.IsPassable(bank) &&
+                if (map.Contains(bank) && map.HydrologyAt(bank) == WaterKind.Land && map.IsBuildable(bank) &&
                     !occupied.Contains(bank) && map.IsReachableFromCampOnFoot(bank))
                     banks.Add(bank);
             }

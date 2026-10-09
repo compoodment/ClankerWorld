@@ -43,13 +43,14 @@ public sealed class SameKindKnowledgeTradeTests
             }).ToArray(),
         };
         var phase = "explore";
+        var returning = new HashSet<string>(StringComparer.Ordinal);
         var policy = new MarketRulesPolicy
         {
             Choose = (id, candidates) =>
             {
                 var prefix = phase switch
                 {
-                    "explore" => "explore",
+                    "explore" => returning.Contains(id) ? "explore_return" : "explore",
                     "write" => "knowledge_write:" + (id == first ? "field_record" : secondKind),
                     "share" => "knowledge_share:",
                     _ => id == first ? "trade_propose:" + second : "trade_accept:",
@@ -64,7 +65,14 @@ public sealed class SameKindKnowledgeTradeTests
         {
             for (var tick = 0; tick < 64 && !adults.All(id => exploring.ExportState().Events.Any(item =>
                      item.Kind == "exploration_completed" && item.Detail.StartsWith(id + ":", StringComparison.Ordinal))); tick++)
+            {
                 Assert.True((await exploring.AdvanceOneTickAsync()).Advanced);
+                foreach (var id in adults)
+                    if (exploring.Inhabitants.Single(person => person.InhabitantId == id).Exploration is
+                        { Returning: false, OutingPath.Count: > 8 } && returning.Add(id))
+                        exploring.SubmitInstruction(new OwnerInstructionRequest("trade-record-return-" + id,
+                            "owner:test", id, OwnerInstructionKind.Suggestive, "Please return from scouting."));
+            }
             state = exploring.ExportState();
             foreach (var id in adults)
             {

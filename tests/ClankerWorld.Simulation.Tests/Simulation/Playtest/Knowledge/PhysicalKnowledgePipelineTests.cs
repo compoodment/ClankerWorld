@@ -9,7 +9,7 @@ using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class PhysicalKnowledgePipelineTests
+public sealed partial class PhysicalKnowledgePipelineTests
 {
     [Fact]
     public async Task BuiltInChoicesGatherAndDeliverPaperInputsForRequestedWriting()

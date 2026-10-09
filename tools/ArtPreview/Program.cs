@@ -19,11 +19,14 @@ switch (command)
     case "animate":
         Animations.Run(Path.Combine(outRoot, "animated"), args.Length > 2 ? args[2] : null);
         break;
+    case "seasons":
+        SeasonalScenes.Run(Path.Combine(outRoot, "seasons"));
+        break;
     case "check":
         ArtContractChecks.Run();
         break;
     default:
-        Console.Error.WriteLine("usage: baseline|proposed|scene|animate <out dir> [proposal family] | check");
+        Console.Error.WriteLine("usage: baseline|proposed|scene|seasons|animate <out dir> [proposal family] | check");
         return 2;
 }
 return 0;
