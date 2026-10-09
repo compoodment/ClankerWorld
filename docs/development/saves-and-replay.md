@@ -902,6 +902,14 @@ does not change. An older build refuses, and keeps, a save that places an
 agent, a map memory, an exploration path or traffic evidence in a two-tile
 river.
 
+Swimming uses existing physical position, warmth and travel-cooldown fields;
+there is no new save field or schema version. Live and archived positions may
+lie in a wide river or lake. A sea position still requires the saved boat
+passenger evidence. Loading does not apply the starting warmth, illness or load
+gate to someone already in swimming water: they must be able to reach shore.
+Refused ticks commit no movement or warmth loss. Older builds refuse and keep
+a checkpoint that places an agent in swimming water.
+
 Scouting waypoints record already walked steps, rather than permission to
 repeat those steps now. Loading checks each ordered edge against the current
 bridge map or against the same terrain with only bridges built strictly before

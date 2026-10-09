@@ -1418,9 +1418,13 @@ Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
 diagonal steps and slower mountain travel. Agents wade straight across rivers
 one or two tiles wide, from bank to bank: a one-tile river at half walking
-speed, and a two-tile river at a provisional third of walking speed. Wider
-rivers, lakes and the sea cannot be crossed on foot. Communal boats travel
-between completed Ports over connected water. Wading two-tile rivers has not been checked in hands-on Windows play.
+speed, and a two-tile river at a provisional third of walking speed. Eligible
+agents can swim wider rivers and lakes much more slowly, losing warmth and
+carrying at most four units. Cold, ill or heavily loaded agents do not start
+swimming. Carts and animals stay on their existing land routes; the sea still
+requires a boat. Swimming has its own motion and label on the map. Communal boats
+travel between completed Ports over connected water. Swimming and two-tile
+wading still need hands-on Windows playtesting.
 Peaks are impassable; mountains and peaks cannot hold construction. Town
 streets take diagonals where the land allows.
 

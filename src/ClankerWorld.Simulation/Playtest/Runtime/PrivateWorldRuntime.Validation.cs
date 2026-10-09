@@ -149,7 +149,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 ValidateProject(project, WorldTick);
             }
-            if (!map.IsPassable(inhabitant.Position) && !IsSavedBoatPassenger(boatTransport, inhabitant.InhabitantId, inhabitant.Position) ||
+            if (!map.IsPassable(inhabitant.Position) && !SwimmingRules.IsSwimmingWater(map, inhabitant.Position) && !IsSavedBoatPassenger(boatTransport, inhabitant.InhabitantId, inhabitant.Position) ||
                 inhabitant.HungerBasisPoints is < 0 or > 10_000 ||
                 inhabitant.MoveWaitTicks < 0 || inhabitant.TravelCooldownTicks < 0)
             {
@@ -1110,7 +1110,7 @@ public sealed partial class PrivateWorldRuntime
             if (!deceasedById.TryGetValue(person.InhabitantId, out var deceased) ||
                 deceased.DeathTick != person.DeathTick || person.DeathTick < 0 || person.DeathTick > society.WorldTick ||
                 person.AgeAtDeath < 0 || person.LastPhysical.InhabitantId != person.InhabitantId ||
-                !deathMap.IsPassable(person.LastPhysical.Position) &&
+                !deathMap.IsPassable(person.LastPhysical.Position) && !SwimmingRules.IsSwimmingWater(deathMap, person.LastPhysical.Position) &&
                     !(person.BoatIdAtDeath is not null && PortNavigationRules.NavigableWater(deathMap, person.LastPhysical.Position)) ||
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000 ||
                 person.LastPhysical.Equipment?.OrnamentLotId is not null ||
