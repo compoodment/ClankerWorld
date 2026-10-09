@@ -1934,8 +1934,11 @@ Long ancestry-based agent IDs use stable SHA-256 aliases in civic model action
 tokens. The runtime resolves these against current inhabitants before checking a
 ballot; saved candidates and choices retain the actual IDs.
 
-Land-hearing readers, evidence sources and submitters, and judges keep their
-complete known saved agent identities, including adults born in the world.
+Land-hearing readers, evidence sources and submitters, judges, affected parties,
+personal stakes and live or historical election rosters keep their complete known
+saved agent identities, including later-generation adults born in the world.
+Person rosters retain canonical order and uniqueness without applying the
+256-character ledger-key limit to ancestry-based identities.
 The shared civic identity check rejects blank, padded and control-character
 identities; caller-owned evidence, record and authority keys and prose keep
 their existing bounds. Current-world identity, notice and authority checks

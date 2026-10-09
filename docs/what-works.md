@@ -993,6 +993,8 @@ land mayor stands aside for a willing independent adult elected for that case
 only. Without valid authority, the case and existing rights remain pending.
 Adults born in the world can inspect hearing files, contribute evidence, give
 their own property consent and serve as elected judges, just as founders can.
+This also works for later generations: hearing parties and case-election records
+keep their full identities when the world is saved and reloaded.
 
 Parties named at notice publication remain separate from current adult responders
 and the authorized Town representative. Death, household departure or loss of authority
