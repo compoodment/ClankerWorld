@@ -367,14 +367,15 @@ public sealed partial class PrivateWorldRuntime
     public void LoadPausedCheckpoint(PrivateWorldRuntimeState checkpoint)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
-        if (!string.Equals(checkpoint.WorldSeed, worldSeed, StringComparison.Ordinal))
-            throw new InvalidDataException("A checkpoint belongs to a different world.");
         tickGate.Wait();
         try
         {
             gate.Wait();
             try
             {
+                if (!string.Equals(checkpoint.WorldSeed, worldSeed, StringComparison.Ordinal) ||
+                    !string.Equals(checkpoint.Society.Society.WorldId, society.Checkpoint.WorldId, StringComparison.Ordinal))
+                    throw new InvalidDataException("A checkpoint belongs to a different world.");
                 if (!society.Checkpoint.IsPaused)
                     throw new InvalidOperationException("Pause the world before loading a checkpoint.");
                 using var restored = Restore(checkpoint, providerFactory,

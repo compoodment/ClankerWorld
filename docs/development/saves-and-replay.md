@@ -24,6 +24,9 @@ generation choices does not permit a duplicate. Loading keeps the saved
 identity, including existing generated worlds whose identity was their seed.
 Duplicate checks use those older worlds' saved generation choices even after
 planting changes their current resource manifest.
+Loading a named save requires both its seed and saved world identity to match
+the selected world. A save from a different same-seed map is refused before
+creating a backup or changing its timeline, runtime or settings.
 Installation state includes device authority, provider credentials and usage
 accounting. Saves store slot IDs and model choices, never API-key bytes.
 

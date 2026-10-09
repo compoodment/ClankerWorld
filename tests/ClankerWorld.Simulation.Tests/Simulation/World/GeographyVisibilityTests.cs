@@ -9,6 +9,29 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class GeographyVisibilityTests
 {
     [Fact]
+    public void PausedCheckpointLoadRefusesAnotherGeneratedWorldWithTheSameSeed()
+    {
+        var options = new GeographyOptions("same-seed-checkpoint-load", WorldSizePreset.Small,
+            HydrologyVersion: GeographyGenerator.CurrentHydrologyVersion);
+        using var first = new PrivateWorldRuntime(options.Seed, startPace: WorldStartPace.FounderSetup,
+            geographyOptions: options);
+        using var second = new PrivateWorldRuntime(options.Seed, startPace: WorldStartPace.FounderSetup,
+            geographyOptions: options with { WaterPercent = 65 });
+        first.Pause();
+        second.Pause();
+        var firstState = first.ExportState();
+        var secondBytes = PrivateWorldRuntimeCodec.Encode(second.ExportState());
+        Assert.Equal(firstState.WorldSeed, second.ExportState().WorldSeed);
+        Assert.NotEqual(first.Society.WorldId, second.Society.WorldId);
+
+        Assert.Throws<InvalidDataException>(() => second.LoadPausedCheckpoint(firstState));
+        Assert.Equal(secondBytes, PrivateWorldRuntimeCodec.Encode(second.ExportState()));
+        second.LoadPausedCheckpoint(PrivateWorldRuntimeCodec.Decode(secondBytes));
+        second.Validate();
+        Assert.Equal(secondBytes, PrivateWorldRuntimeCodec.Encode(second.ExportState()));
+    }
+
+    [Fact]
     public void RestoringGeneratedCheckpointKeepsItsExistingSeedBasedIdentity()
     {
         var options = new GeographyOptions("existing-generated-world-identity", WorldSizePreset.Small,

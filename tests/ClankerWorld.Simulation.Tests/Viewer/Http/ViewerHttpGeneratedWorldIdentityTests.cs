@@ -69,6 +69,10 @@ public sealed partial class ViewerHttpTests
             const string autosavePath = "/api/v1/owner/saves/autosave/configure";
             var held = await CreateSignedRequestAsync(host, client, key, device.DeviceId,
                 autosavePath, heldAction, OwnerHttpBinding.AutosaveConfigurationPayload(heldAction));
+            const string loadPath = "/api/v1/owner/saves/load";
+            var loadAction = new OwnerManualSaveAction("load", smallManual.Id);
+            var heldLoad = await CreateSignedRequestAsync(host, client, key, device.DeviceId,
+                loadPath, loadAction, OwnerHttpBinding.ManualSavePayload(loadAction));
             var medium = await Preview(nextSize, seed, nextWater);
             Assert.Equal((256, nextWidth), (small.Preview.Terrain.Width, medium.Preview.Terrain.Width));
             Assert.NotEqual(small.Preview.ManifestDigest, medium.Preview.ManifestDigest);
@@ -107,6 +111,29 @@ public sealed partial class ViewerHttpTests
             Assert.Equal((mediumEntry.WorldId, 10, 5),
                 (autosave.Capture().WorldId, autosave.Capture().IntervalMinutes, autosave.Capture().RotationCount));
 
+            // Refusal must precede backup creation, timeline continuation and any
+            // runtime, catalog, provider or autosave mutation.
+            var statePath = host.Services.GetRequiredService<PrivateWorldStateFile>().Path;
+            var providers = host.Services.GetRequiredService<ProviderConfigurationStore>();
+            Dictionary<string, byte[]> SaveFiles() => Directory.GetFiles(directory.FullName, "*", SearchOption.AllDirectories)
+                .Where(path => path == statePath || path == statePath + ".autosave.json" || path == providers.Path ||
+                    path.StartsWith(statePath + ".manual" + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
+                    path.StartsWith(statePath + ".worlds" + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                .ToDictionary(path => path, File.ReadAllBytes, StringComparer.Ordinal);
+            var beforeLoadFiles = SaveFiles();
+            var catalogBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(catalog.Capture());
+            var providerBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(providers.CaptureRuntimeConfiguration());
+            var autosaveBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(autosave.Capture());
+            using (var staleLoad = await client.PostAsJsonAsync(loadPath, heldLoad))
+                Assert.Equal(HttpStatusCode.Conflict, staleLoad.StatusCode);
+            Assert.Equal(mediumBytes, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+            Assert.Equal(catalogBytes, System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(catalog.Capture()));
+            Assert.Equal(providerBytes, System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(providers.CaptureRuntimeConfiguration()));
+            Assert.Equal(autosaveBytes, System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(autosave.Capture()));
+            var afterLoadFiles = SaveFiles();
+            Assert.Equal(beforeLoadFiles.Keys.Order(), afterLoadFiles.Keys.Order());
+            foreach (var (path, bytes) in beforeLoadFiles) Assert.Equal(bytes, afterLoadFiles[path]);
+
             var count = catalog.Capture().Worlds.Count;
             using (var renamedDuplicate = await Create(medium.Action with { Name = "A different name" }))
                 Assert.Equal(HttpStatusCode.Conflict, renamedDuplicate.StatusCode);
@@ -143,6 +170,11 @@ public sealed partial class ViewerHttpTests
                 using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
                 reloaded.Validate();
                 Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+                var ownLoad = new OwnerManualSaveAction("load", manual.Id);
+                using var loaded = await SendSignedAsync(host, client, key, device.DeviceId,
+                    loadPath, ownLoad, OwnerHttpBinding.ManualSavePayload(ownLoad));
+                Assert.Equal(HttpStatusCode.OK, loaded.StatusCode);
+                Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
             }
 
             using var restarted = new ViewerWebApplicationFactory(directory.FullName, null,
