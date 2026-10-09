@@ -123,8 +123,16 @@ and are excluded from ordinary timing comparisons.
 
 ## Repeat the comparison
 
-Use clean worktrees at the baseline and this PR. The exact fresh setup source
-is [archived here](footprint-query-probe/setup.cs.txt); its invariant numeric
+For this historical comparison, use two clean worktrees at
+`14715cc3e04ef69cf8e486e09b4df2820b78ab06` (schema 101). Apply only the
+`TownLayoutService.cs` change measured here to the optimized worktree; the
+source hashes in [the manifest](footprint-query-probe/samples.json) identify
+both versions. Do not replay these checkpoints against the full PR or current
+main: their newer minimum schemas reject schema 101. A current-main experiment
+needs freshly generated checkpoints shared by two variants of that same
+current version, and separately recorded results.
+
+The exact fresh setup source is [archived here](footprint-query-probe/setup.cs.txt); its invariant numeric
 parsing allows normal repository analyzers. Create a temporary net10.0 console
 project referencing the selected checkout's Simulation project, copy the
 source to `Program.cs`, and run with these arguments:
@@ -137,7 +145,7 @@ dotnet run --project /tmp/setup/Probe.csproj -c Release -- \
 ```
 
 The [ordinary replay runner](construction-query-measurements.md#repeat-the-comparison)
-then runs against each checkout using that same checkpoint directory. Run
+then runs against those two schema-101 worktrees using that same checkpoint directory. Run
 each measurement alone, with fresh output prefixes. The unchanged committed
 extension sources are the exact sources used here:
 
