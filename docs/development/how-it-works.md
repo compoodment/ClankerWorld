@@ -2007,6 +2007,12 @@ Purpose scoring filters related buildings once per context and keeps its
 distance, building-ID and tag tie rules. Border-growth scoring counts the same
 rounded footprint margin that actual placement adds, without sorting those
 tiles for every candidate.
+Site evaluation checks an origin that belongs to the footprint before allocating
+the complete tile array. An already blocked origin refuses the site; custom
+shapes that omit it still check only their covered tiles. Market Road permissions,
+protected tiles and all later footprint, title, route and ranking checks retain
+their existing rules. See [footprint query measurements](footprint-query-measurements.md)
+for the allocation comparison and mixed native timings.
 Continuing an idle intention skips a second full candidate query after the
 ordinary enqueue phase has reconsidered current choices. Orders, conversations,
 care and ongoing work keep their earlier continuation guards, and the ordinary
@@ -2730,12 +2736,19 @@ order selection and execution. An occupied earlier lot cannot hide another
 usable seed. Autonomous crop claims keep their terrain eligibility while
 temporary occupants pass and the existing physical route retries.
 
-Planning compares population and available ready-to-eat food with a trial reserve of two
-days at two meals per resident per day. Loose food and food in usable vessels
-count after the existing condition, freshness and reservation checks; food
-inside a broken pot does not cover the reserve or suppress replacement planting.
-Planning then estimates fields from expected
-yield. It picks free reachable soil by fertility and distance, favouring
+Planning uses the Farmhouse's assigned Town and its living resident roster.
+It subtracts usable, unreserved ready-to-eat food owned by those residents or
+their households from a trial reserve of two days at two meals per resident
+per day. The remaining shortage is split equally among that Town's farming
+households with living residents, then rounded up to whole fields using the
+existing expected grain yield at each Farmhouse. Enough Town stock stops new
+tilling and autonomous planting; existing growing or ready crops can still be
+tended or harvested. A Farmhouse without an assigned Town retains a household
+budget. Loose food and food in usable vessels count after the existing
+condition, freshness and reservation checks; food inside a broken pot does not
+cover the reserve or suppress replacement planting. This planning changes no
+ownership or private-stock access.
+It picks free reachable soil by fertility and distance, favouring
 tiles beside the household's existing fields. It can expand during shortages;
 the existing household-building planner can establish another Farmhouse for a
 household that lacks one and has the materials. Raw grain and potatoes cannot
