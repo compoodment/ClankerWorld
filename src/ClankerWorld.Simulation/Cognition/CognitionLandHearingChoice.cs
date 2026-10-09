@@ -24,7 +24,7 @@ public sealed record CognitionLandHearingChoice(
         if (Statement is not null && CognitionDecisionResponse.NormalizeIdentityText(Statement) != Statement ||
             Grounds is not null && CognitionDecisionResponse.NormalizeIdentityText(Grounds) != Grounds ||
             HouseholdId is not null && !ValidReference(HouseholdId) || AgreedEndTick is < 0 ||
-            RequestedOutcome is not null and not ("confirm" or "renew" or "amend" or "end" or "reject") ||
+            RequestedOutcome is not null and not ("confirm" or "renew" or "amend" or "end" or "reject" or "reclaim" or "grant") ||
             !ValidReferences(EvidenceIds) || !ValidReferences(LawIds) ||
             (PaymentItemKind is null) != (PaymentQuantity is null) ||
             PaymentItemKind is not null && !ValidReference(PaymentItemKind) || PaymentQuantity is <= 0)

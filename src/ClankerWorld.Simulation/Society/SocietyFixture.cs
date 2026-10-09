@@ -534,7 +534,7 @@ public static partial class SocietyFixture
         ArgumentNullException.ThrowIfNull(memory);
         EnsureActive(checkpoint, memory.OwnerId);
         if (!checkpoint.Inhabitants.Any(item => item.Id == memory.SubjectId) ||
-            checkpoint.Memories.Any(item => item.Id == memory.Id))
+            checkpoint.AllMemories().Any(item => item.Id == memory.Id))
         {
             throw new InvalidOperationException("A social memory requires a known subject and unique ID.");
         }
@@ -561,7 +561,7 @@ public static partial class SocietyFixture
         var normalized = NormalizeBelief(belief);
         EnsureActive(checkpoint, normalized.OwnerId);
         ValidateBeliefInput(checkpoint, normalized, allowSupersedes: false);
-        if ((checkpoint.Beliefs ?? []).Any(item => item.Id == normalized.Id))
+        if (checkpoint.AllBeliefs().Any(item => item.Id == normalized.Id))
             throw new InvalidOperationException("The agent belief ID is already used.");
 
         return checkpoint with
@@ -586,7 +586,7 @@ public static partial class SocietyFixture
         var targetId = NormalizeRequiredText(beliefId, nameof(beliefId));
         EnsureActive(checkpoint, owner);
         ArgumentNullException.ThrowIfNull(correction);
-        var beliefs = checkpoint.Beliefs ?? [];
+        var beliefs = checkpoint.AllBeliefs().ToArray();
         var previous = beliefs.SingleOrDefault(item => item.Id == targetId)
             ?? throw new InvalidOperationException("The belief to correct does not exist.");
         if (previous.OwnerId != owner || correction.OwnerId != owner)
@@ -609,7 +609,13 @@ public static partial class SocietyFixture
                 : item)
             .Append(replacement)
             .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
-        return checkpoint with { Beliefs = revised };
+        var archived = checkpoint.ArchivedBeliefs.Select(item => item.Belief.Id).ToHashSet(StringComparer.Ordinal);
+        var byId = revised.ToDictionary(item => item.Id, StringComparer.Ordinal);
+        return checkpoint with
+        {
+            Beliefs = revised.Where(item => !archived.Contains(item.Id)).ToArray(),
+            ArchivedBeliefs = checkpoint.ArchivedBeliefs.Select(item => item with { Belief = byId[item.Belief.Id] }).ToArray(),
+        };
     }
 
     /// <summary>
@@ -644,9 +650,9 @@ public static partial class SocietyFixture
 
             var sourceTick = score.Kind switch
             {
-                SocietyMemorySourceKind.Experience => checkpoint.Memories
+                SocietyMemorySourceKind.Experience => checkpoint.AllMemories()
                     .SingleOrDefault(item => item.Id == score.SourceId && item.OwnerId == owner)?.SourceTick,
-                SocietyMemorySourceKind.Belief => (checkpoint.Beliefs ?? [])
+                SocietyMemorySourceKind.Belief => checkpoint.AllBeliefs()
                     .SingleOrDefault(item => item.Id == score.SourceId && item.OwnerId == owner)?.FormedTick,
                 _ => null,
             };
@@ -1218,6 +1224,7 @@ public static partial class SocietyFixture
         EnsureCanonicalIds(checkpoint.Relationships.Select(item => item.Id), "relationships");
         EnsureCanonicalIds(checkpoint.Organizations.Select(item => item.Id), "organizations");
         EnsureCanonicalIds(checkpoint.Memories.Select(item => item.Id), "memories");
+        ValidateMemoryArchive(checkpoint);
         ValidateAgentBeliefs(checkpoint);
         ValidateAgentMemoryCompactions(checkpoint);
         EnsureCanonicalIds(checkpoint.Estates.Select(item => item.Id), "estates");
@@ -1296,7 +1303,8 @@ public static partial class SocietyFixture
 
     private static void ValidateAgentBeliefs(SocietyCheckpoint checkpoint)
     {
-        var beliefs = checkpoint.Beliefs ?? [];
+        EnsureCanonicalIds((checkpoint.Beliefs ?? []).Select(item => item.Id), "agent beliefs");
+        var beliefs = checkpoint.AllBeliefs().OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
         EnsureCanonicalIds(beliefs.Select(item => item.Id), "agent beliefs");
         var byId = beliefs.ToDictionary(item => item.Id, StringComparer.Ordinal);
         foreach (var belief in beliefs)
@@ -1323,8 +1331,8 @@ public static partial class SocietyFixture
     {
         var compactions = checkpoint.MemoryCompactions ?? [];
         EnsureCanonicalIds(compactions.Select(item => item.OwnerId), "agent memory compactions");
-        var memoryById = checkpoint.Memories.ToDictionary(item => item.Id, StringComparer.Ordinal);
-        var beliefById = (checkpoint.Beliefs ?? []).ToDictionary(item => item.Id, StringComparer.Ordinal);
+        var memoryById = checkpoint.AllMemories().ToDictionary(item => item.Id, StringComparer.Ordinal);
+        var beliefById = checkpoint.AllBeliefs().ToDictionary(item => item.Id, StringComparer.Ordinal);
         foreach (var compaction in compactions)
         {
             if (string.IsNullOrWhiteSpace(compaction.OwnerId) || compaction.OwnerId != compaction.OwnerId.Trim() ||
@@ -1371,7 +1379,7 @@ public static partial class SocietyFixture
         if (!IsSafeBeliefId(belief.Id) || string.IsNullOrWhiteSpace(belief.OwnerId) ||
             belief.OwnerId != belief.OwnerId.Trim() || belief.OwnerId.Any(char.IsControl) ||
             !IsCanonicalBoundedText(belief.Statement, 512) ||
-            belief.Statement.Any(char.IsControl) || !Enum.IsDefined(belief.Provenance) ||
+            belief.Statement.Any(char.IsControl) || !Enum.IsDefined(belief.Provenance) || !Enum.IsDefined(belief.Kind) ||
             belief.ConfidenceBasisPoints is < 0 or > 10_000 || belief.FormedTick < 0 ||
             belief.FormedTick > checkpoint.WorldTick || belief.SourceEventId is <= 0 ||
             belief.SourceTurnId is { } sourceTurnId && !IsCanonicalBoundedText(sourceTurnId, 600) ||
@@ -1393,7 +1401,7 @@ public static partial class SocietyFixture
 
         if (belief.SourceTurnId is not null &&
             (belief.Provenance != SocietyBeliefProvenance.Hearsay || belief.SourceAgentId is null ||
-             (checkpoint.Beliefs ?? []).Any(item => item.OwnerId == belief.OwnerId &&
+             checkpoint.AllBeliefs().Any(item => item.OwnerId == belief.OwnerId &&
                  item.SourceTurnId == belief.SourceTurnId &&
                  !SharesCorrectionLineage(checkpoint, belief, item))))
             throw new InvalidDataException("An agent belief source turn is invalid or already recorded for this owner.");
@@ -1422,7 +1430,7 @@ public static partial class SocietyFixture
         while (current.SupersedesBeliefId is { } previousId && seen.Add(previousId))
         {
             if (previousId == ancestorId) return true;
-            var previous = (checkpoint.Beliefs ?? []).FirstOrDefault(item => item.Id == previousId);
+            var previous = checkpoint.AllBeliefs().FirstOrDefault(item => item.Id == previousId);
             if (previous is null) return false;
             current = previous;
         }
@@ -1768,7 +1776,8 @@ public static partial class SocietyFixture
             {
                 current = RecordSocialMemory(current, new SocietySocialMemory(
                     $"final-words:{estate.Id}:{listener}", listener, estate.DeceasedId,
-                    $"{speaker}'s final words were: '{words}'", "private", targetTick)).Checkpoint;
+                    $"{speaker}'s final words were: '{words}'", "private", targetTick)
+                { Kind = SocietyMemoryKind.LifeEvent }).Checkpoint;
             }
         }
 

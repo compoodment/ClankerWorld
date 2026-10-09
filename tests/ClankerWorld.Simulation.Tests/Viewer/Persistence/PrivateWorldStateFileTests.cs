@@ -7,6 +7,20 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class PrivateWorldStateFileTests(ITestOutputHelper output)
 {
     [Fact]
+    public void DiskProbeReadsTheExistingSaveVolumeForAnUncreatedDirectory()
+    {
+        var directory = Directory.CreateTempSubdirectory("save-space-volume-");
+        try
+        {
+            var available = new SaveDiskSpaceProbe().AvailableBytes(Path.Combine(directory.FullName, "not-created", "snapshots"));
+            Assert.NotNull(available);
+            Assert.True(available >= 0);
+            Assert.False(Directory.Exists(Path.Combine(directory.FullName, "not-created")));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
     public async Task EquivalentTicksKeepEveryHotHistoryBoundedAcrossRepeatedCompaction()
     {
         using var evidence = new CheckpointIoTestEvidence("clankerworld-history-soak-", output.WriteLine);
