@@ -233,7 +233,10 @@ or coordinate targets still apply; distant sites require that agent's own
 knowledge. Observation does not bypass availability, reachability or the
 whole-load carrying checks.
 
-Urgent food interruptions also admit the buyer's legal ready-food shop quote,
+Urgent food interruptions admit drinking usable milk from a carried jug,
+leaving the jug intact and retaining the pending order. Milk's ordinary
+freshness, reservation, ownership and jug-condition checks still apply.
+They also admit the buyer's legal ready-food shop quote,
 Restaurant meal visit and continuation of an open food purchase. The same
 check is used for selecting the interruption and filtering model choices.
 Raw ingredients, equipment and a seller's response cannot use this food
