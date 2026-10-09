@@ -3382,7 +3382,6 @@ cannot count as a repair, and foreign or reserved carts remain blocked.
 Collected supplies stay physically carried when a task is cancelled or replaced;
 repair reserves and consumes all three inputs atomically, with no unfinished
 cart-repair reservation to release. Cargo and hitches retain their normal state.
-Loading and unloading orders remain separate work.
 
 
 `InventoryContainerRules.Handcart` is a single ground-position inventory lot.
@@ -3421,6 +3420,19 @@ and inheritance keep the entire cart/cargo family at its existing position.
 A death, break or ownership change removes the attachment without dropping or
 teleporting the goods. Owner observation derives cart inspection from those
 same saved inventory lots, rather than maintaining a second cargo ledger.
+
+Owner load/unload orders reuse the attach/park cart binding and the native
+inventory actions. They require a specific supported loose good and quantity;
+unload defaults to personal carrying space and can explicitly use the cart's
+ground tile. Orders retain the selected cart and current source lot, walk to
+that cart through legal movement, and limit each transfer to the remaining
+requested quantity. Progress comes from the actual change in that cart's
+physical cargo quantity, with a receipt bound to instruction, actor, cart,
+good, action and cumulative progress. A fully moved source can release its lot
+binding for another eligible stack of the same good; partial or blocked sources
+stay bound. Urgent needs can interrupt, and cancellation/replacement leave
+inventory and reservations untouched. Broken-cart and damaged-cargo unloading
+uses the same native recovery operation.
 
 Generic attach, load, pull, park, unload and give controls remain available to
 models, but rank below safe idle for the built-in chooser. They do not yet bind

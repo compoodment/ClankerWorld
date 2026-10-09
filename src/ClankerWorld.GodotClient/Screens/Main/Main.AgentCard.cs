@@ -862,6 +862,8 @@ public partial class Main
             "move_to" => "Going to a tile",
             "travel_by_boat" => "Traveling to a Port by boat",
             "accept_guardianship" => "Becoming a guardian",
+            "load_handcart" => "Loading " + OrderItemName(order.TargetItemKind),
+            "unload_handcart" or "unload_handcart_ground" => "Unloading " + OrderItemName(order.TargetItemKind),
             "talk_to" => "Talking with the named person",
             "attach_handcart" => "Attaching a handcart",
             "park_handcart" => "Parking a handcart",

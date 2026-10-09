@@ -484,7 +484,21 @@ Missing supplies, carrying space, reservations, another owner's cart and blocked
 routes explain why the order waits. A healthy cart needs no repair and does not
 finish the task. Queue, cancellation, replacement, urgent interruptions and
 saves keep the target and real progress; cancelling leaves collected supplies
-in the agent's hands. Loading and unloading orders are not supported yet.
+in the agent's hands.
+
+Use **Load 3 wood into my cart** to put a specific quantity of loose goods into
+an owned cart, or **Unload 2 wood from my cart** to take cargo into personal
+carrying space. Add **onto the ground** to unload onto the cart's tile instead,
+including from a broken cart or for damaged cargo. Each form accepts an exact
+cart identity or **cart at (12, 4)** like attach orders. The agent reaches the
+selected cart; loading uses only authorized goods already accessible there.
+Personally stored goods must be collected first. Filled pots and jugs, goods
+carried by another agent, reserved cargo and
+protected household food cannot bypass their normal rules. Missing goods or
+space show a blocker. Partial progress counts actual items moved, keeps its
+cart and current cargo stack across interruptions and saves, and can continue
+with another eligible stack of the same good once that stack is fully moved.
+Cancelling or replacing an order leaves all transferred cargo where it is.
 
 To mend worn personal equipment, use **Repair my basket**, **Repair two padded
 coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
