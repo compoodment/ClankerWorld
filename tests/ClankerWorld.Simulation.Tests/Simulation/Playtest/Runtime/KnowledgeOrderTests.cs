@@ -345,6 +345,43 @@ public sealed class KnowledgeOrderTests
         AssertReload(world.ExportState());
     }
 
+    [Fact]
+    public async Task APendingPersonalReplyContinuesItsReservedWritingUnderTheOriginalChoice()
+    {
+        var state = await Prepared();
+        var actor = state.Inhabitants[0].InhabitantId;
+        using var setup = PrivateWorldRuntime.Restore(Supplies(state, actor, 1, 0),
+            id => id == actor ? new Choose("knowledge_write:field_map") : new Idle());
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        state = setup.ExportState();
+        var original = Assert.Single(state.Knowledge!.WritingProjects);
+        Assert.Null(original.OrderInstructionId);
+        Assert.Equal(original.CandidateId,
+            state.Society.Cognition.Runtimes.Single(item => item.InhabitantId == actor).CurrentIntention!.CandidateId);
+        var provider = new HeldPhysicalTaskDecisionProvider();
+        using var world = PrivateWorldRuntime.Restore(state, id => id == actor ? provider : new Idle());
+        world.SubmitInstruction(new("waiting-writing-guidance", "owner:test", actor,
+            OwnerInstructionKind.Suggestive, "Think about your next task."));
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Contains(Assert.Single(provider.Requests).Candidates, candidate => candidate.Id == original.CandidateId);
+        var before = Assert.Single(world.ExportState().Knowledge!.WritingProjects);
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.False((await world.AdvanceOneTickNonBlockingAsync(() => false)).Advanced);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        var current = Assert.Single(world.ExportState().Knowledge!.WritingProjects);
+        Assert.Equal(original.Id, current.Id);
+        Assert.Equal(before.WorkDone + 3, current.WorkDone);
+        Assert.Equal(original.Materials, current.Materials);
+        Assert.All(current.Materials, input => Assert.Equal(InventoryReservationState.Reserved,
+            world.Society.Inventory.GetReservation(input.ReservationId).State));
+        Assert.Empty(world.ExportState().Knowledge!.Artifacts);
+        Assert.Single(provider.Requests);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "hosted_decision_completed");
+        AssertReload(world.ExportState());
+    }
+
     private static async Task<PrivateWorldRuntimeState> Prepared(bool learn = true) => learn
         ? PrivateWorldRuntimeCodec.Decode(await LearnedBaseline.Value) : await PrepareCore(learn: false);
 

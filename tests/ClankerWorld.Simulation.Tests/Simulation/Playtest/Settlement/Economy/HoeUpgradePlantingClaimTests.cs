@@ -18,7 +18,7 @@ public sealed class HoeUpgradePlantingClaimTests
     public async Task ChosenCropClaimRequiresAUsableCarriedHoe(string hoeChange)
     {
         var (state, actor, household, point) = FarmFieldTests.PreparedFarmer("field-claim-through-occupancy");
-        state = FarmFieldTests.FeedHouseholdFromAvailableStock(state, household);
+        state = FarmFieldTests.FeedFarmTownFromAvailableStock(state, household);
         var sibling = state.Society.Society.Inhabitants.First(person => person.HouseholdId == household &&
             person.AgeBand == SocietyAgeBand.Adult && person.Id != actor).Id;
         var origin = state.Inhabitants.Single(person => person.InhabitantId == sibling).Position;

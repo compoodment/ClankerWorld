@@ -832,6 +832,8 @@ public partial class Main
         var task = order.Action switch
         {
             "consume_food" => "Eating food",
+            "read_knowledge" => "Reading " + (order.TargetItemKind is { } writtenKind
+                ? GameUiText.ItemName(writtenKind).ToLowerInvariant() : "a written item"),
             "harvest_food" => "Gathering food",
             "gather_material" => "Gathering " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "till_field" => "Tilling household fields",
@@ -858,10 +860,14 @@ public partial class Main
             "copy_knowledge" => "Copying " + OrderItemName(order.TargetKnowledgeKind),
             "seek_food" => "Going to a food site",
             "move_to" => "Going to a tile",
+            "travel_by_boat" => "Traveling to a Port by boat",
             "accept_guardianship" => "Becoming a guardian",
+            "load_handcart" => "Loading " + OrderItemName(order.TargetItemKind),
+            "unload_handcart" or "unload_handcart_ground" => "Unloading " + OrderItemName(order.TargetItemKind),
             "talk_to" => "Talking with the named person",
             "attach_handcart" => "Attaching a handcart",
             "park_handcart" => "Parking a handcart",
+            "repair_handcart" => "Repairing a handcart",
             "animal_care" => "Caring for an animal",
             "animal_collect" => "Collecting animal products",
             "animal_tame" => "Taming an animal",
@@ -928,6 +934,7 @@ public partial class Main
     private static string ProgressUnitLabel(string unit) => unit switch
     {
         "food_items" => "food items",
+        "knowledge_reads" => "items read",
         "conversations" => "talk attempts completed",
         "material_items" => "items",
         "equipment_items" => "equipment items",
