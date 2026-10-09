@@ -241,7 +241,8 @@ public sealed partial class PrivateWorldRuntimeService(
             if (compacted && logger is not null)
             {
                 var checkpoint = runtime.ExportState();
-                LogHistoryCompacted(logger, result.WorldTick, checkpoint.EventHistoryFloor, checkpoint.Events.Count);
+                LogHistoryCompacted(logger, result.WorldTick, checkpoint.EventHistoryFloor, checkpoint.Events.Count,
+                    checkpoint.BoatTransport.Requests.Count, checkpoint.BoatTransport.RetiredRequestRanges.Count);
             }
             try
             {
@@ -814,8 +815,9 @@ public sealed partial class PrivateWorldRuntimeService(
     private static partial void LogSettlementTrade(ILogger logger, long worldTick, string eventKind);
 
     [LoggerMessage(EventId = 2203, Level = LogLevel.Information,
-        Message = "world_history_compacted tick={WorldTick} event_floor={EventFloor} recent_events={RecentEvents}")]
-    private static partial void LogHistoryCompacted(ILogger logger, long worldTick, long eventFloor, int recentEvents);
+        Message = "world_history_compacted tick={WorldTick} event_floor={EventFloor} recent_events={RecentEvents} boat_requests={BoatRequests} retired_boat_ranges={RetiredBoatRanges}")]
+    private static partial void LogHistoryCompacted(ILogger logger, long worldTick, long eventFloor, int recentEvents,
+        int boatRequests, int retiredBoatRanges);
 
     [LoggerMessage(EventId = 2204, Level = LogLevel.Information,
         Message = "settlement_activity tick={WorldTick} event={EventKind} inhabitant={InhabitantId} stage={Stage} work={WorkDone} blocked={Blocked}")]

@@ -48,10 +48,12 @@ public sealed class ExplorationHandcartTests
             await Until(initial, () => initial.ExportState().HandcartHitches!.Count == 1, 20);
         chooser.Preferred = "explore";
         var bytes = PrivateWorldRuntimeCodec.Encode(initial.ExportState());
+        var scout = new ScoutChooser("explore");
+        var replayScout = new ScoutChooser("explore");
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
-            id => new ScoutChooser(id == actor ? "explore" : "safe_idle"));
+            id => id == actor ? scout : new ScoutChooser("safe_idle"));
         using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
-            id => new ScoutChooser(id == actor ? "explore" : "safe_idle"));
+            id => id == actor ? replayScout : new ScoutChooser("safe_idle"));
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
@@ -82,6 +84,14 @@ public sealed class ExplorationHandcartTests
                 Assert.Equal(new InventoryGroundPosition(after.Position.X, after.Position.Y), world.Society.Inventory.GetLot(cart.Id).GroundPosition);
             else
                 Assert.Equal(new InventoryGroundPosition(Start.X, Start.Y), world.Society.Inventory.GetLot(cart.Id).GroundPosition);
+            if (moves >= 8 && scout.Preferred == "explore")
+            {
+                scout.Preferred = replayScout.Preferred = "explore_return";
+                var suggestion = new OwnerInstructionRequest("return-with-cart", "owner:test", actor,
+                    OwnerInstructionKind.Suggestive, "Please return to where you started scouting.");
+                world.SubmitInstruction(suggestion);
+                replay.SubmitInstruction(suggestion);
+            }
             world.Validate();
         }
         var result = world.Inhabitants.Single(person => person.InhabitantId == actor);

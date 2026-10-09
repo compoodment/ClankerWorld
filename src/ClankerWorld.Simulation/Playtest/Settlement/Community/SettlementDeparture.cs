@@ -152,10 +152,8 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
-    private int PhysicalUnreservedQuantity(InventoryLot lot) => Math.Max(0, lot.Quantity -
-        society.Checkpoint.Inventory.Reservations.Where(item => item.LotId == lot.Id && item.State is
-            InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed)
-            .Sum(item => item.Quantity));
+    private int PhysicalUnreservedQuantity(InventoryLot lot) =>
+        Math.Max(0, InventoryRules.UnreservedQuantity(InventoryIndex.For(society.Checkpoint.Inventory), lot));
 
     private IEnumerable<InventoryLot> PersonalGoodsAwaitingCollection(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
         // A parked handcart stays on the ground with its cargo; its owner pulls it rather than carrying it.
