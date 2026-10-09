@@ -786,10 +786,17 @@ questions together. Reply bodies are bounded; timeout, cancellation and sanitize
 call telemetry use the existing provider boundary. Changing the helper or model
 while paused advances its routing revision and cancels pending work. Late replies
 cannot alter actions or memory scores. An explicitly selected helper handles
-eligible adult routine choices; personal assignments stay available for planning,
-guidance and identity. Children still require their own explicit personal model.
-Before the first explicit helper selection, existing installation routing and
-its configured Jev model remain effective. Applying the displayed default Jev
+adult and elder routine choices, including those of world-born residents, and
+scores only that actor's own memories. Infant, child and adolescent observations
+never route to a helper. Personal assignments still handle planning, guidance,
+naming, identity, conversations and wills. Birth provenance continues to forbid
+paid world-default inheritance for personal requests throughout life; helper-off
+routine requests use the saved personal assignment or local rules. The runtime
+uses the current society age band for memory eligibility, and observations
+already include the life stage in their admission digest. No save fields change.
+Before the first explicit helper selection, existing founder installation
+routing and its configured Jev model remain effective; known world-born adults
+can also use the enabled helper. Applying the displayed default Jev
 choice also activates explicit helper routing; repeating it afterward is a no-op.
 
 The Decisions picker starts with `gpt-6-luna` and permits typed model names.
@@ -1019,6 +1026,12 @@ The checkpoint keeps the complete admitted history (up to six public turns and
 one accepted wrap-up), and each later provider request receives the committed
 public history so far. The wrap-up request receives the six public turns; a
 pending answer is never included or saved.
+
+Owner snapshots include every unfinished saved conversation and the 16 most
+recent closed conversations, ordered by last update and then ID. New snapshots
+and reconnects use the same projection, including each session's admitted public
+turns. This display bound does not change the 64-session save limit or mutate
+conversation records.
 
 Saving by itself keeps an unaccepted invitation pending, with its original
 deadline and the inviter's saved daily allowance. It has no current speaker;
