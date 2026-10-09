@@ -1298,10 +1298,12 @@ public static partial class SocietyFixture
     {
         var beliefs = checkpoint.Beliefs ?? [];
         EnsureCanonicalIds(beliefs.Select(item => item.Id), "agent beliefs");
+        if (beliefs.Count == 0) return;
         var byId = beliefs.ToDictionary(item => item.Id, StringComparer.Ordinal);
+        var index = new SocietyBeliefValidationIndex(checkpoint, byId);
         foreach (var belief in beliefs)
         {
-            ValidateBeliefInput(checkpoint, belief, allowSupersedes: true);
+            ValidateBeliefInput(checkpoint, belief, allowSupersedes: true, index);
             if (belief.SupersedesBeliefId is { } priorId)
             {
                 if (!byId.TryGetValue(priorId, out var prior) || prior.OwnerId != belief.OwnerId ||
@@ -1366,7 +1368,8 @@ public static partial class SocietyFixture
     private static void ValidateBeliefInput(
         SocietyCheckpoint checkpoint,
         SocietyAgentBelief belief,
-        bool allowSupersedes)
+        bool allowSupersedes,
+        SocietyBeliefValidationIndex? index = null)
     {
         if (!IsSafeBeliefId(belief.Id) || string.IsNullOrWhiteSpace(belief.OwnerId) ||
             belief.OwnerId != belief.OwnerId.Trim() || belief.OwnerId.Any(char.IsControl) ||
@@ -1380,9 +1383,10 @@ public static partial class SocietyFixture
             belief.SupersedesBeliefId is { } superseded && !IsSafeBeliefId(superseded))
             throw new InvalidDataException("An agent belief has invalid bounded fields.");
 
-        if (!checkpoint.Inhabitants.Any(item => item.Id == belief.OwnerId) ||
-            belief.SourceAgentId is { } sourceAgent && !checkpoint.Inhabitants.Any(item => item.Id == sourceAgent) ||
-            belief.AboutInhabitantId is { } subject && !checkpoint.Inhabitants.Any(item => item.Id == subject))
+        index ??= new SocietyBeliefValidationIndex(checkpoint);
+        if (!index.KnowsInhabitant(belief.OwnerId) ||
+            belief.SourceAgentId is { } sourceAgent && !index.KnowsInhabitant(sourceAgent) ||
+            belief.AboutInhabitantId is { } subject && !index.KnowsInhabitant(subject))
             throw new InvalidDataException("An agent belief references an unknown inhabitant.");
 
         if ((belief.Provenance == SocietyBeliefProvenance.Hearsay &&
@@ -1393,40 +1397,13 @@ public static partial class SocietyFixture
 
         if (belief.SourceTurnId is not null &&
             (belief.Provenance != SocietyBeliefProvenance.Hearsay || belief.SourceAgentId is null ||
-             (checkpoint.Beliefs ?? []).Any(item => item.OwnerId == belief.OwnerId &&
-                 item.SourceTurnId == belief.SourceTurnId &&
-                 !SharesCorrectionLineage(checkpoint, belief, item))))
+             !index.AllowsSourceTurn(belief)))
             throw new InvalidDataException("An agent belief source turn is invalid or already recorded for this owner.");
 
         if ((!allowSupersedes && (belief.SupersedesBeliefId is not null ||
                                   belief.SupersededByBeliefId is not null || belief.SupersededTick is not null)) ||
             belief.SupersededByBeliefId is null && belief.SupersededTick is not null)
             throw new InvalidDataException("Only a correction may link a belief to its predecessor.");
-    }
-
-    private static bool SharesCorrectionLineage(
-        SocietyCheckpoint checkpoint,
-        SocietyAgentBelief first,
-        SocietyAgentBelief second) =>
-        BeliefDescendsFrom(checkpoint, first, second.Id) ||
-        BeliefDescendsFrom(checkpoint, second, first.Id);
-
-    private static bool BeliefDescendsFrom(
-        SocietyCheckpoint checkpoint,
-        SocietyAgentBelief descendant,
-        string ancestorId)
-    {
-        if (descendant.Id == ancestorId) return true;
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var current = descendant;
-        while (current.SupersedesBeliefId is { } previousId && seen.Add(previousId))
-        {
-            if (previousId == ancestorId) return true;
-            var previous = (checkpoint.Beliefs ?? []).FirstOrDefault(item => item.Id == previousId);
-            if (previous is null) return false;
-            current = previous;
-        }
-        return false;
     }
 
     private static SocietyAgentBelief NormalizeBelief(SocietyAgentBelief belief) => belief with
