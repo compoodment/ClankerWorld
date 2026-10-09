@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
@@ -18,6 +19,92 @@ public sealed class HouseholdJoinRequestTests
 {
     private const string Alpha = "household:camp-alpha";
     private const string Beta = "household:camp-beta";
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task APendingHousingReplyKeepsAnAcceptedLessonWithoutAdmittingTheApplicant(bool memberIsTeacher)
+    {
+        var provider = new ScriptedProvider();
+        using var initial = NormalPathWorld.CreateGenerated("waiting-housing-lesson", _ => provider);
+        var member = initial.Society.GetHousehold(Alpha).MemberIds[0];
+        var other = initial.Society.GetHousehold(Beta).MemberIds[0];
+        var teacher = memberIsTeacher ? member : other;
+        var learner = memberIsTeacher ? other : member;
+        var state = initial.ExportState();
+        var camp = initial.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-warehouse").Position;
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == teacher || person.InhabitantId == learner
+                ? person with
+                {
+                    Position = camp,
+                    HungerBasisPoints = 9_000,
+                    Project = null,
+                    LastDecisionContext = null,
+                    Skills = person.InhabitantId == teacher ? [new(SettlementSkillKind.Building, initial.WorldTick)] : null,
+                } : person).ToArray(),
+        };
+        provider.Choices[learner] = "learn:building:" + teacher;
+        provider.Choices[teacher] = "lesson_accept:" + learner;
+        using var setup = PrivateWorldRuntime.Restore(state, _ => provider);
+        await AdvanceUntil(setup, () => setup.Inhabitants.Single(person => person.InhabitantId == learner).Lesson?.Progress is >= 3);
+        Assert.InRange(setup.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Progress, 3, 10);
+        const string applicant = "agent:dddddddddddddddddddddddddddddddd";
+        Assert.Null(setup.AddAgent(applicant, TownTileBeside(setup, "first-town-house-a")));
+        provider.Choices[applicant] = "household_ask:" + Alpha;
+        await AdvanceUntil(setup, () => Housing(setup, applicant)?.Request is not null);
+        provider.Choices[applicant] = "safe_idle";
+        provider.Choices[teacher] = provider.Choices[learner] = "safe_idle";
+        state = setup.ExportState();
+        GridPoint? travellingLearner = null;
+        if (memberIsTeacher)
+        {
+            travellingLearner = FreeTiles(setup).First(point => state.Map.FootDistance(point, camp) == 2);
+            state = state with
+            {
+                Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == learner
+                    ? person with { Position = travellingLearner.Value, TravelCooldownTicks = 0, LastDecisionContext = null }
+                    : person).ToArray(),
+            };
+            provider.Choices[learner] = "lesson_attend";
+        }
+        var request = Housing(state, applicant)!.Request!;
+        Assert.Contains(member, request.Members);
+        Assert.DoesNotContain(member, request.Approvals);
+        var held = new HeldPhysicalTaskDecisionProvider();
+        using var world = PrivateWorldRuntime.Restore(state, actor => actor == member ? held : provider);
+        world.SubmitInstruction(new("waiting-housing-lesson-guidance", "owner:test", member,
+            OwnerInstructionKind.Suggestive, "Think about your next task."));
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Contains(Assert.Single(held.Requests).Candidates, candidate => candidate.Id == "household_admit:" + applicant);
+        if (travellingLearner is { } start)
+        {
+            for (var tick = 0; tick < 8 && state.Map.FootDistance(
+                world.Inhabitants.Single(person => person.InhabitantId == learner).Position, camp) > 1; tick++)
+                Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+            var arrival = world.Inhabitants.Single(person => person.InhabitantId == learner).Position;
+            Assert.NotEqual(start, arrival);
+            Assert.InRange(state.Map.FootDistance(arrival, camp), 0, 1);
+        }
+        var before = world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!;
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.False((await world.AdvanceOneTickNonBlockingAsync(() => false)).Advanced);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        Assert.Equal(before.Progress + 3, world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Progress);
+        Assert.Equal(JsonSerializer.Serialize(request), JsonSerializer.Serialize(Housing(world, applicant)!.Request));
+        Assert.Null(world.Society.GetInhabitant(applicant).HouseholdId);
+        Assert.Empty(world.Inhabitants.Single(person => person.InhabitantId == learner).Skills ?? []);
+        Assert.Single(held.Requests);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "hosted_decision_completed");
+        world.Validate();
+        world.Pause();
+        bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
 
     [Theory]
     [InlineData(true)]

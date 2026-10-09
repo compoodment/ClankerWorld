@@ -1287,6 +1287,7 @@ public sealed partial class OwnerWorldObservationStore
             RecentMemories = MemoriesFor(state, inhabitant.Id),
             RecentBeliefs = BeliefsFor(state, inhabitant.Id),
             RecentKnowledgeFacts = KnowledgeFactsFor(state, inhabitant.Id),
+            KnownRecipes = RecipesFor(state, inhabitant.Id),
             KnowledgeArtifacts = KnowledgeArtifactsFor(state, inhabitant.Id),
             Project = physical.Project is { } project
                 ? new ViewerProject(project.Label, project.Stage, project.WorkDone, 10, project.Blocker, project.StartedTick)
@@ -1539,6 +1540,7 @@ public sealed partial class OwnerWorldObservationStore
             RecentMemories = MemoriesFor(state, inhabitant.Id),
             RecentBeliefs = BeliefsFor(state, inhabitant.Id),
             RecentKnowledgeFacts = KnowledgeFactsFor(state, inhabitant.Id),
+            KnownRecipes = RecipesFor(state, inhabitant.Id),
             KnowledgeArtifacts = KnowledgeArtifactsFor(state, inhabitant.Id),
             Proficiency = lastPhysical.Proficiency is { } practice
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
@@ -1624,6 +1626,13 @@ public sealed partial class OwnerWorldObservationStore
             .ToArray();
     }
 
+    private static ViewerAgentRecipe[] RecipesFor(PrivateWorldRuntimeState state, string ownerId) =>
+        (state.Knowledge?.Recipes ?? []).Where(item => item.OwnerId == ownerId)
+            .OrderByDescending(item => item.LearnedTick).ThenBy(item => item.RecipeId, StringComparer.Ordinal).Take(16)
+            .Select(item => new ViewerAgentRecipe(item.LearnedTick,
+                state.WorldContent!.Recipes.Single(recipe => recipe.CanonicalId == item.RecipeId).DisplayName, item.Acquisition,
+                item.SourceAgentId is { } source ? state.Society.Society.GetInhabitant(source).Name : null)).ToArray();
+
     private static ViewerAgentKnowledgeArtifact[] KnowledgeArtifactsFor(PrivateWorldRuntimeState state, string ownerId)
     {
         var names = state.Society.Society.Inhabitants.ToDictionary(item => item.Id, item => item.Name, StringComparer.Ordinal);
@@ -1644,7 +1653,10 @@ public sealed partial class OwnerWorldObservationStore
                     fact.Position.Y,
                     fact.Terrain,
                     fact.ResourceKinds,
-                    names.GetValueOrDefault(fact.DiscovererId, fact.DiscovererId))).ToArray()))
+                    names.GetValueOrDefault(fact.DiscovererId, fact.DiscovererId))).ToArray())
+            {
+                RecipeNames = artifact.Recipes.Select(item => state.WorldContent!.Recipes.Single(recipe => recipe.CanonicalId == item.RecipeId).DisplayName).ToArray(),
+            })
             .ToArray();
     }
 

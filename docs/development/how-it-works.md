@@ -592,15 +592,17 @@ constrain records, maps or books; `TargetKnowledgeArtifactId` binds an exact
 artifact resolved from a complete ID, lot ID or unique title. An unspecified
 source is chosen from eligible personally held items when the step executes.
 An explicit source cannot be replaced by another available item while blocked.
-The native read returns its actual number of new facts. A positive effect
-stores `KnowledgeReadCompletion` with the tick and sorted newly learned sites,
-then credits one task through a deterministic receipt. A missing, foreign,
-reserved or uncarried source, exhausted knowledge capacity, existing writing
-work or an account with no new sites blocks the task. It uses existing
-provenance and partial-capacity rules; writing, sharing and another person's
-reading cannot credit it. Later firsthand updates preserve the historical
-completion. Only the bound artifact identity reaches the order projection;
-completion evidence stays with authoritative saves.
+The native read returns its actual number of newly learned sites and recipes.
+A positive effect stores `KnowledgeReadCompletion` with the reader, bound
+source, tick, sorted newly learned site coordinates and sorted recipe identities,
+then credits one task through a deterministic receipt covering both collections.
+A missing, foreign, reserved or uncarried source, no remaining capacity for any unknown contents
+in the item, existing writing work or an account with no new contents
+blocks the task. It uses existing provenance and partial-capacity rules for
+each ledger; writing, sharing and another person's reading cannot credit it.
+Later firsthand site updates preserve the historical completion. Only the
+bound artifact identity reaches the order projection; completion evidence
+stays with authoritative saves.
 `talk_to` resolves a complete person ID, full name or unique first name with
 Unicode normalization, excluding the addressed actor. It keeps `TargetAgentId`
 even if that person is renamed or becomes unavailable. The native invitation
@@ -672,6 +674,22 @@ resuming the task, and repeated eating respects the normal fullness threshold.
 Gathering and collecting household food check free carrying capacity before
 starting a step. A provider fallback leaves the order blocked for a bounded
 normal retry; it cannot strand the task permanently on `safe_idle`.
+
+Pending personal-model work also preserves already chosen non-order physical
+tasks. `ApplyContinuingIntentions` continues existing repairs, accepted lessons,
+field work, projects and bounded travel. Outstanding social or civic choices do
+not by themselves stop an existing project or lesson while its model is waiting;
+the normal physical access, illness, consent and fresh-choice guards still apply.
+Important civic acts, family and ownership changes, new projects and lessons
+cannot be repeated through the pending-task path. Existing civic, Market,
+ornament and donation intentions continue only their ordinary physical walk.
+Built-in urgent food/warmth takes priority; otherwise a waiting adult may feed
+or tend a needy dependent already within interaction range, using actual goods
+and the normal care transition without accepting a new caregiver relationship.
+A waiting routine and an ordinary continuation take at most one action per
+agent in a tick, and an admitted reply excludes that agent from waiting routines.
+These transitions use the prepared tick and the existing save/replay format;
+no provider reply, paid retry or failure event is fabricated for an ordinary delay.
 
 The owner snapshot sends every open message, plus the six most recently
 submitted closed orders and, separately, the six most recently submitted closed
@@ -1137,7 +1155,7 @@ writing started. Earlier observations are retained only while those snapshots
 need them, bounded to 81 versions per agent (eight nine-site artifacts and one
 nine-site writing project). Copies preserve the held source's account even if
 the reader observes a change before or during copying. The reader must already
-know every source site; copying does not replace their current observations.
+know every source site and recipe; copying does not replace their current observations.
 Cancelled writing prunes versions with no
 remaining snapshot. Earlier versions validate provenance but are not offered
 as the agent's current map knowledge.
@@ -1146,8 +1164,11 @@ Households make paper at an authorized House from physically delivered fiber
 and fresh water in a reusable jug. The provisional batch uses two fiber and
 one water to make two paper in sixteen work ticks, leaving the jug intact.
 
-An adult can write a one-site field record, draw a map or bind a book from
-facts they have actually learned. The provisional writing costs are one paper
+An adult can write a field record, draw a map or bind a book from
+contents they have actually learned. A record holds at most one site and one
+recipe, a map at most nine sites, and a book at most nine sites and nine
+recipes. Recipes may be the only contents of a record or book.
+The provisional writing costs are one paper
 and four work ticks for a record, one paper and six work ticks for a map, or
 two paper, one cloth and twelve work ticks for a book. Each artifact holds at
 most nine sites. Writing reserves real personal materials and creates one
@@ -1157,6 +1178,16 @@ writer or copying source becomes unavailable, or the artifact limit is
 reached, the unfinished work releases its unused supplies. The agent's Profile
 shows the writing or copying progress.
 
+Completed production adds a recipe account only to the actual worker, bounded
+to 128 recipes per person. It retains the recipe definition, completed job,
+original worker and learned tick. Reading or sharing a held written work adds
+only its recipes, retaining that original production evidence and the actual
+written source. Copying requires all source contents already learned and fresh
+paid writing materials; it preserves the source's account. It grants no skill
+and changes no worksite, tool or recipe permission. Model self context and
+Profile cards show at most the person's 16 newest recipe accounts. A household
+or Town holds no shared recipe ledger.
+
 The bounded owner catalogue recognizes `write_knowledge` for records, maps
 and books, with an explicit count up to 1,000 or repeat-until-cancelled.
 Orders use the native fact selection, duplicate-account, access, carrying and
@@ -1165,25 +1196,25 @@ kind or a copy remains intact and blocks the order. Each owned live project
 binds the exact current instruction and the instruction binds that project.
 Only its completed physical artifact credits one unit. Cancellation and
 replacement release only the bound project's unspent inputs. Counted or
-repeating work waits for new learned facts after the current account has been
+repeating work waits for new learned contents after the current account has been
 written. Queuing and urgent interruptions use the existing order lifecycle.
 
 The catalogue also recognizes `copy_knowledge` with bounded counts and repetition,
 using the native held-artifact copying path. The adult must own and
-carry the exact source and know all of its sites; order handling does not read
+carry the exact source and know all of its sites and recipes; order handling does not read
 it or teach missing knowledge. The source stays pinned during supply collection
 and writing. Source loss releases unused native reservations and clears the
 project binding, while keeping the source pointer for a later retry. A completed
 paid copy carries the instruction ID, credits one unit and clears both live
 pointers. The native duplicate-account and artifact limits still apply.
 
-Reading or sharing a held artifact teaches only its recorded sites to the
+Reading or sharing a held artifact teaches only its recorded sites and recipes to the
 actual recipient, retaining the original discoverer and the source artifact.
-Copying needs the source, learned facts and new writing materials; sharing
+Copying needs the source, learned contents and new writing materials; sharing
 does not create another physical copy. Barter transfers the existing lot and
 teaches its recipient, without granting access to unrelated knowledge or
 anyone else's private stock. Two artifacts of the same kind can be exchanged
-when each records sites its recipient has not learned; the existing consent,
+when each records sites or recipes its recipient has not learned; the existing consent,
 ownership, reservation and delivery checks still apply.
 
 Scouting has no fixed eight-step turn-back. `explore` continues an outward
@@ -2225,9 +2256,11 @@ adult members in the request, which expires after 120 ticks like other
 proposals. Adults who join the household or reach adulthood while it is pending
 must also answer; existing answers are retained and adults who die or leave no
 longer need to answer. Each current adult is offered `household_admit:{applicant}` and
-`household_refuse:{applicant}` and cannot continue a project or lesson until
-they answer. An ongoing lesson waits while either participant owes a housing
-answer, retaining its progress and already learned skills.
+`household_refuse:{applicant}`. During ordinary planning, an unanswered housing
+choice pauses project and lesson work. While that participant's personal-model
+reply is pending, an already chosen project or agreed lesson can continue under
+its normal physical and urgent-need checks. This records no housing answer and
+grants no membership; an ongoing lesson retains its progress and learned skills.
 One refusal by a living member ends the request; when every living
 member has agreed, `SocietyFixture.JoinHouseholdCareGroup` records the membership and
 `household_joined` is appended. A refusal or an unanswered request is remembered

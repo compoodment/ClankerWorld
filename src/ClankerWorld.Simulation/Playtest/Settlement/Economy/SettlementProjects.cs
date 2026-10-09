@@ -360,21 +360,21 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private bool CanContinueProject(PlaytestInhabitantState state) =>
+    private bool CanContinueProject(PlaytestInhabitantState state, bool waitingForModel = false) =>
         AdultResident(state.InhabitantId) &&
         state.Project is { Stage: not ("completed" or "cancelled") } project &&
         project.OrderInstructionId is null &&
         !project.RequiresFreshChoice &&
         (project.Stage != "blocked" || WorldTick - project.LastTransitionTick < BlockedProjectRetryDelayTicks) &&
         !NeedsUrgentFood(state) &&
-        !HasTradeResponse(state.InhabitantId) &&
+        (waitingForModel || !HasTradeResponse(state.InhabitantId) &&
         !HasCouncilDecision(state.InhabitantId) &&
         !HasHousingDecision(state.InhabitantId) &&
         !HasFamilyDecision(state.InhabitantId) &&
         !HasParenthoodDecision(state.InhabitantId) &&
         !HasDependentCareDecision(state.InhabitantId) &&
         !HasLearningDecision(state.InhabitantId) &&
-        !inhabitants.Keys.Any(other => TradeOpportunity(state.InhabitantId, other) is not null) &&
+        !inhabitants.Keys.Any(other => TradeOpportunity(state.InhabitantId, other) is not null)) &&
         (!NeedsUrgentWarmth(state) || IsProtectiveProject(state.Project)) &&
         PendingInstructionFor(state.InhabitantId) is null;
 
