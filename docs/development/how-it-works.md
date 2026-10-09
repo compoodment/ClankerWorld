@@ -1021,11 +1021,10 @@ one wrap-up. Responses must match the saved conversation revision, run epoch,
 request and speaker; stale or malformed replies are not admitted. Public turns
 carry a bounded list of agents who were actually close enough to hear. A
 separate memory extraction gives those listeners hearsay claims tied to the
-turn ID, with duplicate and owner checks. Participant, speaker, listener and belief-owner references
+turn ID, with duplicate and owner checks. Listener and belief-owner references
 retain complete native inhabitant IDs, including longer identities created by
-birth; they do not share the length bounds for caller-provided record IDs and
-prose. Personal conversation routing and requests use these same complete
-participant IDs. Canonical identity and known-owner checks still apply.
+birth; they do not share the length bounds for caller-provided belief IDs and
+prose. Canonical identity and known-owner checks still apply.
 Personal-model memory subjects use stable hash aliases for longer native IDs,
 as map-knowledge discoverers already do; saved social-memory and belief
 ownership and subjects keep their complete identities.
@@ -1043,6 +1042,11 @@ The checkpoint keeps the complete admitted history (up to six public turns and
 one accepted wrap-up), and each later provider request receives the committed
 public history so far. The wrap-up request receives the six public turns; a
 pending answer is never included or saved.
+
+Conversation participants and speakers retain their complete native inhabitant
+IDs too, through proposal, personal model routing, requests and saved history.
+These references use canonical identity and known-world participant checks
+instead of prose length limits, including for longer identities created by birth.
 
 Owner snapshots include every unfinished saved conversation and the 16 most
 recent closed conversations, ordered by last update and then ID. New snapshots
