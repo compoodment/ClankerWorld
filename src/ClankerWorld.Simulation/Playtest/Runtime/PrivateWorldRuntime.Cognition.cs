@@ -142,7 +142,8 @@ public sealed partial class PrivateWorldRuntime
                 MarriageNote: marriages.Where(item => AgentMarriageRules.HasParticipant(item, inhabitant.Id))
                     .OrderBy(item => item.EndReceipt is not null).ThenByDescending(item => item.AcceptedTick)
                     .ThenBy(item => item.Id, StringComparer.Ordinal).FirstOrDefault() is { } marriage
-                    ? AgentMarriageRules.Note(marriage, inhabitant.Id, checkpoint) : null);
+                    ? AgentMarriageRules.Note(marriage, inhabitant.Id, checkpoint) : null,
+                FamilyBackground: InitialChildFamilyBackground(inhabitant.Id, physical));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
