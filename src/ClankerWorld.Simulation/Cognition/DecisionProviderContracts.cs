@@ -1070,7 +1070,6 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 description = candidate.Description,
                 destination = candidate.DestinationName,
             }).ToArray(),
-            retrieved_memories = observation.RetrievedMemories,
             memory_summary_options = observation.MemorySummaryOptions,
             memory_compaction_candidates = (observation.MemoryCompactionCandidates ?? [])
                     .Select((candidate, index) => new
