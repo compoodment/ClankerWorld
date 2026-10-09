@@ -47,11 +47,12 @@ public sealed partial class PrivateWorldRuntime
         if (inhabitants[actor].Lesson is { Stage: "accepted" or "training" } lesson)
         {
             return ReadyForLesson(lesson.TeacherId) && AdultResident(lesson.TeacherId) &&
-                !IsConversationBusy(lesson.TeacherId) && !HasHousingDecision(lesson.TeacherId);
+                !IsConversationBusy(lesson.TeacherId) &&
+                (!HasHousingDecision(lesson.TeacherId) || society.PendingHostedInhabitantIds().Contains(lesson.TeacherId));
         }
         return ActiveStudent(actor) is { } student && AdultResident(student.InhabitantId) &&
             ReadyForLesson(student.InhabitantId) && !IsConversationBusy(student.InhabitantId) &&
-            !HasHousingDecision(student.InhabitantId);
+            (!HasHousingDecision(student.InhabitantId) || society.PendingHostedInhabitantIds().Contains(student.InhabitantId));
     }
 
     private void MaintainLessons()
