@@ -994,7 +994,11 @@ the key above the timeline shows which is which. **You are here** marks the
 world as it is now, at the end of its branch, or on a dotted **New branch** row
 when your next save will start one. Click a save to see it described
 underneath; the arrow keys also move between saves. **List** shows the saves as
-cards instead, grouped by branch, with tags such as **Branch 2** and **Latest**.
+cards instead, grouped by branch, with tags such as **From Before the flood**
+and **Latest**. A branch keeps the name of the save it started from, even if
+that save's name changes later. Long labels are shortened to fit; hover the
+timeline's branch name or a branch tag to read the full label. Branches without
+a recorded source name keep their numbered label.
 Saves from before branches existed are shown as **Earlier saves**.
 
 **Quit to Menu** and Main Menu **Quit Game** ask for confirmation. Closing the
@@ -1011,6 +1015,18 @@ and other saves alone. In Load World, **Delete World** removes that
 world and all its saves. Open or create another world first if the target is
 active. Canceling either confirmation changes nothing. These controls require
 a paused world.
+
+To clean older recovery copies, pause the world and open **Save World**. Set
+**Recovery copies per save** (1–10; initially a provisional 3), then choose
+**Preview cleanup**. The confirmation lists the exact copies to remove and keep.
+**Delete these copies** permanently removes only that preview's older verified
+recoveries. Canceling changes nothing. Cleanup stays off until you ask for it;
+it never runs automatically or deletes by age.
+
+The latest verified recovery for each save is kept, along with any recovery the
+running world continues from. Manual saves, migration originals, older copies
+without recovery records and checkpoints the host cannot verify are kept. If
+the saves change while the preview is open, preview again before confirming.
 
 ## Report what you notice
 

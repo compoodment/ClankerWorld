@@ -1567,12 +1567,18 @@ the running world continues with **You are here**, and keep the save list,
 grouped by branch, behind a **Timeline / List** switch
 ([#680](https://github.com/compoodment/ClankerWorld/issues/680)). A host from
 before the timeline can't say where the world continues, so the marker is left
-out. Neither has been checked by hand in the Windows game yet. Unusable list
+out. Branch rows and list tags use the recorded source save's name, such as
+**From Before the flood**, and keep it if the source save is renamed or
+replaced. Long labels fit within the controls and show their full text on
+hover. Numbered labels remain when the source name is missing. These screens
+have automated native checks but have not been checked by hand in the Windows
+game yet. Unusable list
 metadata is isolated so sound saves remain reachable. During the alpha, a save
 from an older build may stop loading after an update; the game refuses it with a
 reason and keeps the file. The agreed [mod compatibility](game-design/inventions-and-mods.md#inventions-mods-and-technology)
-and [recovery-history cleanup](game-design/saves.md#explicit-deletion) rules
-await implementation; cleanup copy counts and the available disk-space warning's threshold stay provisional. Technical rules
+rules await implementation. Recovery-history cleanup previews older verified
+copies and requires explicit confirmation; its copy count and the available
+disk-space warning's threshold stay provisional. Technical rules
 are in [saves and replay](development/saves-and-replay.md).
 
 The Mod Library lists the current world's recorded packages read-only, one card each with
@@ -1607,3 +1613,11 @@ separate deletion of an inactive world and all its saves. Other worlds, provider
 credentials and pairing remain unchanged. Interrupted deletion stays hidden
 from loading and is retried on host startup. Native Windows interaction still
 needs playtesting. See [save controls](playing.md#save-and-return).
+
+Save World also offers **Preview cleanup** for recovery history. It starts with
+a provisional three verified copies per save (adjustable from one to ten), keeps
+the latest verified copy and any recovery currently continued from, and names
+every proposed removal before confirmation. Manual saves, migration originals,
+unclassified older copies and unverifiable checkpoints are protected. Canceling
+does nothing; a changed preview is refused. Nothing runs automatically or deletes
+by age. The [Windows playtest](../playtest/1322-recovery-cleanup.md) is pending.
