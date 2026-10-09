@@ -334,7 +334,7 @@ public sealed partial class PrivateWorldRuntime
     {
         if (conversations.Count < AgentConversationRules.MaximumSavedConversations) return;
         var oldestClosed = conversations
-            .Where(item => item.Status == AgentConversationStatus.Closed)
+            .Where(item => item.Status == AgentConversationStatus.Closed && !ActiveTalkOrderUses(item.Id))
             .OrderBy(item => item.LastUpdatedTick)
             .ThenBy(item => item.Id, StringComparer.Ordinal)
             .FirstOrDefault();

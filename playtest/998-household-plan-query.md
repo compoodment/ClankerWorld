@@ -1,0 +1,4 @@
+# Household planning in a grown Town
+
+- [ ] On Windows, compare the same paused grown-Town save before and after this repair, with the same client settings and models. Record F12 tick time, residents, Roads, buildings, host/client commits and visible stutter while the paired client observes ordinary play. The Linux measurements predict less planning work, but do not verify frame presentation. [#998](https://github.com/compoodment/ClankerWorld/issues/998)
+- [ ] Let an adult whose household lacks a workshop plan it after the household owns its materials. Check that its offered sites, paid building and ownership behave normally; after removal, ordinary rebuilding should remain possible without overwriting an earlier order's building identity. [#998](https://github.com/compoodment/ClankerWorld/issues/998)

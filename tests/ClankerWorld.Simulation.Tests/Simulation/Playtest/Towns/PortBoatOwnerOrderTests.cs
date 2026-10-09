@@ -275,6 +275,91 @@ public sealed partial class PortBoatRuntimeTests
         replay.World.Validate();
     }
 
+    [Theory]
+    [InlineData("arrived")]
+    [InlineData("cancelled")]
+    [InlineData("returned")]
+    public async Task BoatOrderKeepsItsNativeOutcomeWhenOlderRequestsAreCompacted(string outcome)
+    {
+        using var scenario = new BoatScenario(PrivateWorldRuntimeCodec.Decode(await PaidBoat.Value), new());
+        var destination = BoatOrderDestination(scenario.World);
+        if (outcome == "cancelled") AddLandingBlockers(scenario, destination);
+        var receipt = SubmitBoatOrder(scenario.World, "compact-ordered-voyage", destination);
+        if (outcome == "cancelled")
+        {
+            await scenario.UntilAsync(() => scenario.World.BoatRequests.Any(request => request.Status == "waiting"), 120);
+            scenario.World.CancelOrder(new("cancel-before-compaction", "owner:test", scenario.World.Society.WorldId,
+                BoatPolicy.Author, receipt.InstructionId));
+        }
+        else
+        {
+            await scenario.UntilAsync(() => scenario.World.Boats[0].Journey is not null, 120);
+            if (outcome == "returned")
+            {
+                AddLandingBlockers(scenario, destination);
+                await scenario.UntilAsync(() => scenario.World.Boats[0].Journey?.WaitingSinceTick is not null, 100);
+            }
+            await scenario.UntilAsync(() => scenario.World.Boats[0].Journey is null, 160);
+        }
+        var native = scenario.World.ExportState();
+        var bound = Assert.Single(native.BoatTransport.Requests);
+        Assert.Equal(outcome, bound.Status);
+        Assert.Equal(receipt.InstructionId, bound.OrderInstructionId);
+        var originalOrder = BoatOrder(scenario.World, receipt);
+        Assert.Equal(outcome == "arrived" ? 1 : 0, originalOrder.CompletedUnits);
+        var cargo = scenario.World.Society.Inventory.GetLot("travel-jug");
+        // These later closed records isolate the archive window. The retained
+        // arrival/cancellation/return above was produced by the real journey.
+        var later = Enumerable.Range(1, PrivateWorldHistory.RecentBoatRequestLimit + 2).Select(offset => bound with
+        {
+            Id = "boat-request:" + (bound.Sequence + offset).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Sequence = bound.Sequence + offset,
+            RequestedTick = native.Society.Society.WorldTick,
+            SettledTick = native.Society.Society.WorldTick,
+            Status = "cancelled", BoatId = null, OrderInstructionId = null,
+        }).ToArray();
+        var state = native with { BoatTransport = native.BoatTransport with
+        { Sequence = later[^1].Sequence, Requests = native.BoatTransport.Requests.Concat(later).ToArray() } };
+        var bytes = PrivateWorldRuntimeCodec.Encode(state);
+        var policy = new BoatPolicy();
+        policy.IdleActors.UnionWith(Blockers);
+        using var compacting = new BoatScenario(PrivateWorldRuntimeCodec.Decode(bytes), policy);
+        var plan = PrivateWorldHistory.Prepare(compacting.World.ExportState());
+        Assert.Equal(bound, Assert.Single(plan.State.BoatTransport.Requests, request => request.Id == bound.Id));
+        Assert.Equal(later.Take(2), plan.Segment.ClosedBoatRequests!);
+        Assert.Equal(later.TakeLast(40), plan.State.BoatTransport.Requests.Where(request => request.Id != bound.Id));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(compacting.World.ExportState()));
+        var directory = Directory.CreateTempSubdirectory("clankerworld-ordered-boat-history-");
+        try
+        {
+            var file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"), policy.CreateProvider);
+            Assert.True(file.Save(compacting.World));
+            Assert.Equal(later.Take(2), ReadArchivedBoatRequests(file));
+            var saved = PrivateWorldRuntimeCodec.Encode(compacting.World.ExportState());
+            using var loaded = file.LoadOrCreate(state.WorldSeed);
+            Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
+            Assert.Equal(originalOrder, BoatOrder(loaded, receipt));
+            AssertBoatCargoUnchanged(loaded, cargo.Id, cargo.OwnerId, cargo.Quantity);
+            Assert.False((await compacting.World.AdvanceOneTickAsync(() => false)).Advanced);
+            Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(compacting.World.ExportState()));
+            var replayPolicy = new BoatPolicy();
+            replayPolicy.IdleActors.UnionWith(Blockers);
+            using var replay = new BoatScenario(PrivateWorldRuntimeCodec.Decode(saved), replayPolicy);
+            for (var tick = 0; tick < 2; tick++)
+            {
+                Assert.True((await compacting.World.AdvanceOneTickAsync()).Advanced);
+                Assert.True((await replay.World.AdvanceOneTickAsync()).Advanced);
+                Assert.Equal(PrivateWorldRuntimeCodec.Encode(compacting.World.ExportState()),
+                    PrivateWorldRuntimeCodec.Encode(replay.World.ExportState()));
+                Assert.Equal(originalOrder.CompletedUnits, BoatOrder(compacting.World, receipt).CompletedUnits);
+            }
+            AssertBoatCargoUnchanged(compacting.World, cargo.Id, cargo.OwnerId, cargo.Quantity);
+            compacting.World.Validate();
+            replay.World.Validate();
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     private static string BoatOrderDestination(PrivateWorldRuntime world) =>
         world.Towns[0].Projects.Single(project => project.CompletedBuildingId is not null &&
             project.CompletedBuildingId != world.Boats[0].DockedPortId).CompletedBuildingId!;

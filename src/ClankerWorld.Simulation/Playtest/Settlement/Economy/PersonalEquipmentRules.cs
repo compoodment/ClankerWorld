@@ -43,10 +43,8 @@ public static class PersonalEquipmentRules
     }
 
     public static int AvailableQuantity(InventoryCheckpoint inventory, InventoryLot lot) =>
-        lot.ConditionBasisPoints == 0 || lot.FreshnessBasisPoints == 0 ? 0 : Math.Max(0, lot.Quantity -
-            inventory.Reservations.Where(item => item.LotId == lot.Id && item.State is
-                InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
-                InventoryReservationState.Committed).Sum(item => item.Quantity));
+        lot.ConditionBasisPoints == 0 || lot.FreshnessBasisPoints == 0 ? 0 :
+            Math.Max(0, InventoryRules.UnreservedQuantity(InventoryIndex.For(inventory), lot));
 
     public static InventoryLot? EquippedUnit(InventoryCheckpoint inventory, string actor, string? id) =>
         id is null ? null : inventory.Lots.FirstOrDefault(lot => lot.Id == id && lot.Quantity == 1 &&

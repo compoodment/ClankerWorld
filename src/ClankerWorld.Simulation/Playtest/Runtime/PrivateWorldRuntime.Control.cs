@@ -128,6 +128,7 @@ public sealed partial class PrivateWorldRuntime
                 CancelExpansionForOrder(instruction);
                 CancelAnimalSupplyForOrder(instruction);
                 CancelBoatTravelForOrder(instruction);
+                CancelKnowledgeWritingForOrder(instruction);
                 status = "cancelled";
                 AppendEvent("instruction_order_cancelled", $"{instruction.TargetInhabitantId}:{instruction.InstructionId}:owner");
             }
@@ -345,6 +346,7 @@ public sealed partial class PrivateWorldRuntime
             CancelExpansionForOrder(instruction);
             CancelAnimalSupplyForOrder(instruction);
             CancelBoatTravelForOrder(instruction);
+            CancelKnowledgeWritingForOrder(instruction);
             AppendEvent("instruction_order_cancelled", $"{inhabitantId}:{instruction.InstructionId}:replaced");
         }
         checkpointSchemaVersion = StateSchemaVersion;
@@ -396,6 +398,9 @@ public sealed partial class PrivateWorldRuntime
 
     private static string? UnderstoodTaskFor(string? candidate) => candidate switch
     {
+        "talk_to" => TalkOrderTask,
+        "attach_handcart" => "reach and attach the selected owned handcart",
+        "park_handcart" => "park the selected attached handcart here with its cargo intact",
         "animal_care" => "care for the named animal with real feed and jug water",
         "animal_collect" => "collect the named animal's ready products locally",
         "animal_tame" => "tame the named wild animal for your household",
@@ -429,6 +434,8 @@ public sealed partial class PrivateWorldRuntime
         "return_borrowed" => "return borrowed goods to their owning household's House",
         "deliver_stock" => "deliver the requested goods to a permitted building",
         "produce_item" => "make the requested goods at a permitted workstation",
+        "write_knowledge" => "write the requested record, map or book from your learned sites using real materials",
+        "copy_knowledge" => "copy the requested held record, map or book using real materials and sites you know",
         "construct_building" => "construct the requested household building at a permitted site",
         "expand_building" => "complete the requested building's next permitted expansion",
         _ => null,
@@ -436,7 +443,7 @@ public sealed partial class PrivateWorldRuntime
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
-        return ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
+        return ParseTalkOrder(text, actor) ?? ParseCartOrder(text, actor) ?? ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
             PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent),
             PrivateWorldBuildingOrderCatalog.Available(worldContent),
             worldSimulation.Buildings.Where(port => Port(port.InstanceId) is not null).ToArray());

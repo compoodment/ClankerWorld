@@ -34,6 +34,8 @@ public sealed partial class PrivateWorldRuntime
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidateBoatTransport(CaptureState());
         ValidateAnimalState(CaptureState());
+        ValidateTalkOrderBindings(instructionsByIdempotency.Values, conversations);
+        ValidateCartOrderBindings(society.Checkpoint.Inventory, instructionsByIdempotency.Values);
         ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
             society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates);
@@ -123,6 +125,7 @@ public sealed partial class PrivateWorldRuntime
         ValidatePlantedTrees();
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, bridges, checkpointSchemaVersion, towns);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
+        ValidateKnowledgeOrderBindings(knowledge, instructionsByIdempotency.Values);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
         ValidateDependentCare(inhabitants.Values, society.Checkpoint, towns, checkpointSchemaVersion);
         ValidateGuardianPlacements(inhabitants.Values, society.Checkpoint, towns, map, checkpointSchemaVersion);
@@ -422,6 +425,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateMedicalCare(state);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick);
+        ValidateKnowledgeOrderBindings(state.Knowledge, state.Instructions ?? []);
         ValidateSurvival(state);
         ValidateCouncil(state);
         foreach (var town in state.Towns ?? [])
@@ -489,6 +493,8 @@ public sealed partial class PrivateWorldRuntime
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
         ValidateBoatTransport(state);
+        ValidateTalkOrderBindings(state.Instructions ?? [], state.Conversations ?? []);
+        ValidateCartOrderBindings(state.Society.Society.Inventory, state.Instructions ?? []);
         ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
             state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates);
@@ -624,8 +630,13 @@ public sealed partial class PrivateWorldRuntime
             "finished" or "cancelled" or "not_understood";
         var terminal = order.Status is "finished" or "cancelled" or "not_understood";
         var isCompleted = completedInstructionIds.Contains(instruction.InstructionId, StringComparer.Ordinal);
+        if (order.Action != "talk_to" && (order.TalkConversationId is not null || order.TalkOutcome is not null)) return false;
+        if (!IsCartOrder(order.Action) && order.TargetCartLotId is not null) return false;
         if ((order.TargetAnimalId is not null) != IsAnimalOrder(order.Action)) return false;
         if ((order.BoatTravel is not null) != (order.Action == "travel_by_boat")) return false;
+        if (!IsKnowledgeOrder(order.Action) && (order.TargetKnowledgeKind is not null || order.KnowledgeWritingProjectId is not null) ||
+            order.Action != "copy_knowledge" && order.KnowledgeCopySourceArtifactId is not null)
+            return false;
         if (!knownStatus || (order.Status == "queued" && !instruction.Queue) ||
             order.BlockedReason is { Length: > 256 } || order.BlockedReason?.Any(char.IsControl) == true ||
             order.LastEffectId is { Length: > 512 } || order.LastEffectId?.Any(char.IsControl) == true ||
@@ -653,6 +664,37 @@ public sealed partial class PrivateWorldRuntime
             terminal != isCompleted)
             return false;
 
+        if (order.Action == "talk_to")
+            return order.TargetAgentId is { } target && people.Contains(target) && target != instruction.TargetInhabitantId &&
+                order.RequestedUnits == 1 && order.CompletedUnits is >= 0 and <= 1 && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
+                order.ProgressUnit == "conversations" && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.Status != "not_understood" && (order.Status == "finished") == (order.CompletedUnits == 1) &&
+                (order.TalkConversationId is null || !string.IsNullOrWhiteSpace(order.TalkConversationId) && order.TalkConversationId.Length <= 512 &&
+                    order.TalkConversationId == order.TalkConversationId.Trim() && !order.TalkConversationId.Any(char.IsControl)) &&
+                (order.CompletedUnits == 0 ? order.TalkOutcome is null && order.LastEffectId is null :
+                    order.TalkConversationId is not null && IsTalkOutcome(order.TalkOutcome) && order.LastEffectId == TalkOrderEffectId(instruction));
+        if (IsKnowledgeOrder(order.Action))
+            return order.TargetKnowledgeKind is { } kind && AgentKnowledgeRules.IsArtifactKind(kind) &&
+                order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.RequestedUnits is >= 1 and <= 1000 && order.CompletedUnits is >= 0 and <= 1_000_000 &&
+                (order.QuantityIsExplicit || order.RequestedUnits == 1) && order.ProgressUnit == (order.Action == "copy_knowledge" ? "copies" : "artifacts") &&
+                (order.KnowledgeCopySourceArtifactId is null || order.KnowledgeCopySourceArtifactId.Length <= 128 &&
+                    IsValidProductionBindingId(order.KnowledgeCopySourceArtifactId)) &&
+                (order.RepeatUntilCancelled || order.CompletedUnits <= order.RequestedUnits) &&
+                order.Status != "not_understood" &&
+                (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
+                (order.KnowledgeWritingProjectId is null || !terminal && order.Status != "queued" &&
+                    IsValidProductionBindingId(order.KnowledgeWritingProjectId)) &&
+                (order.CompletedUnits == 0 ? order.LastEffectId is null :
+                    order.LastEffectId is { } receipt && receipt.StartsWith("writing:artifact:", StringComparison.Ordinal) &&
+                    receipt.Length <= "writing:artifact:".Length + 128 && IsValidProductionBindingId(receipt["writing:artifact:".Length..]));
+
+        if (IsCartOrder(order.Action))
+            return (order.TargetCartLotId is null || IsValidInstructionIdentifier(order.TargetCartLotId) && order.TargetCartLotId == order.TargetCartLotId.Trim()) &&
+                order.RequestedUnits == 1 && order.CompletedUnits is >= 0 and <= 1 && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
+                order.ProgressUnit == "cart_tasks" && order.TargetFoodKind is null && order.TargetAgentId is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.Status != "not_understood" && (order.Status == "finished") == (order.CompletedUnits == 1) &&
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.TargetCartLotId is not null && order.LastEffectId == CartOrderEffectId(instruction));
         if (IsAnimalOrder(order.Action))
             return !string.IsNullOrWhiteSpace(order.TargetAnimalId) && order.TargetAnimalId.Length <= 128 &&
                 !order.TargetAnimalId.Any(char.IsControl) && order.RequestedUnits == 1 && order.CompletedUnits >= 0 &&

@@ -14,6 +14,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var transport = state.BoatTransport;
         if (transport is null || transport.Sequence < 0 || transport.Boats is null || transport.Requests is null ||
+            transport.RetiredRequestRanges is null || transport.RetiredRequestRanges.Any(range => range is null) ||
             transport.Boats.Any(boat => boat is null) || transport.Requests.Any(request => request is null) ||
             transport.Boats.Select(boat => boat.Id).Distinct(StringComparer.Ordinal).Count() != transport.Boats.Count ||
             transport.Boats.Select(boat => boat.ProjectId).Distinct(StringComparer.Ordinal).Count() != transport.Boats.Count ||
@@ -23,6 +24,25 @@ public sealed partial class PrivateWorldRuntime
             !transport.Requests.Select(request => request.Sequence).SequenceEqual(transport.Requests.Select(request => request.Sequence).Order()) ||
             (transport.Requests.Count == 0 ? 0 : transport.Requests[^1].Sequence) != transport.Sequence)
             throw new InvalidDataException("Saved boat assets and trip queues are missing, duplicated or out of order.");
+        for (var index = 0; index < transport.RetiredRequestRanges.Count; index++)
+        {
+            var range = transport.RetiredRequestRanges[index];
+            if (range.FirstSequence < 1 || range.LastSequence < range.FirstSequence || range.LastSequence > transport.Sequence ||
+                index > 0 && transport.RetiredRequestRanges[index - 1].LastSequence >= range.FirstSequence - 1)
+                throw new InvalidDataException("Retired boat request ranges must be ordered, disjoint and merged.");
+        }
+        if (transport.RetiredRequestRanges.Count > 0 && state.HistoryArchiveHead is null)
+            throw new InvalidDataException("Retired boat requests require their durable history archive.");
+        long through = 0;
+        foreach (var range in transport.RetiredRequestRanges.Concat(transport.Requests.Select(request =>
+                     new RetiredBoatRequestRange(request.Sequence, request.Sequence))).OrderBy(range => range.FirstSequence))
+        {
+            if (through == long.MaxValue || range.FirstSequence != through + 1)
+                throw new InvalidDataException("Every boat request sequence must be live or explicitly archived exactly once.");
+            through = range.LastSequence;
+        }
+        if (through != transport.Sequence)
+            throw new InvalidDataException("The boat request sequence has missing live or archived authority.");
         var tick = state.Society.Society.WorldTick;
         var people = state.Society.Society.Inhabitants.ToDictionary(person => person.Id, StringComparer.Ordinal);
         var towns = new Dictionary<string, TownRuntimeState>(StringComparer.Ordinal);

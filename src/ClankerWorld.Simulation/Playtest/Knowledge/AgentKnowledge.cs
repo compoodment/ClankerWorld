@@ -30,6 +30,7 @@ public sealed record AgentKnowledgeWritingProject(
     IReadOnlyList<AgentKnowledgeFact> Facts, long StartedTick, long LastWorkedTick, int WorkDone,
     IReadOnlyList<AgentKnowledgeMaterial> Materials)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? OrderInstructionId { get; init; }
     [JsonIgnore] public IReadOnlyList<string> MaterialReservationIds => Materials.Select(item => item.ReservationId).ToArray();
     [JsonIgnore] public int WorkRequired => AgentKnowledgeRules.WritingWork(Kind);
 }
@@ -47,6 +48,7 @@ public sealed record AgentKnowledgeArtifact(
     public string? WritingProjectId { get; init; }
     public IReadOnlyList<AgentKnowledgeMaterial> Materials { get; init; } = [];
     public string? SourceArtifactId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? OrderInstructionId { get; init; }
     [JsonIgnore] public IReadOnlyList<string> MaterialReservationIds => Materials.Select(item => item.ReservationId).ToArray();
 }
 

@@ -20,8 +20,13 @@ public sealed record BoatState(string Id, string TownId, string ProjectId, GridP
     string? DockedPortId = null, BoatJourney? Journey = null,
     IReadOnlyList<string>? GroundCargoLotIds = null);
 
+public sealed record RetiredBoatRequestRange(long FirstSequence, long LastSequence);
+
 public sealed record BoatTransportState(long Sequence, IReadOnlyList<BoatState> Boats,
     IReadOnlyList<BoatTripRequest> Requests)
 {
+    [JsonRequired]
+    public IReadOnlyList<RetiredBoatRequestRange> RetiredRequestRanges { get; init; } = [];
+
     public static BoatTransportState Empty() => new(0, [], []);
 }
