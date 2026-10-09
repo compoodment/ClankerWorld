@@ -125,9 +125,8 @@ public partial class FamilyTreeView : Control
                     Position = new Vector2(left + column * ColumnWidth, Margin + rowIndex * RowHeight),
                     Size = new Vector2(NodeWidth, NodeHeight),
                     TooltipText = "Open " + person.DisplayName + "'s profile",
-                    // The person whose tree this is stands out; the deceased are faded.
+                    // The current person stands out; deceased people have an explicit "died" label.
                     ThemeTypeVariation = person.Id == centerId ? "PrimaryButton" : string.Empty,
-                    Modulate = deceased ? new Color(1, 1, 1, 0.68f) : Colors.White,
                 };
                 var personId = person.Id;
                 button.Pressed += () => PersonRequested?.Invoke(personId);

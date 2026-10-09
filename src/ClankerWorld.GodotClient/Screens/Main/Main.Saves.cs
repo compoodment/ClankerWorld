@@ -419,7 +419,7 @@ public partial class Main
                 ContentMarginTop = 2,
                 ContentMarginBottom = 2,
             });
-            branchTag.AddThemeColorOverride("font_color", UiTheme.Current.Paper);
+            branchTag.AddThemeColorOverride("font_color", UiTheme.ReadableInk(UiTheme.Current, UiTheme.Current.Paper, color));
             titleRow.AddChild(branchTag);
             if (latest) titleRow.AddChild(new Label { Text = "LATEST", ThemeTypeVariation = "TagNoteLabel", SizeFlagsVertical = SizeFlags.ShrinkCenter });
             if (chosen.IsAutosave) titleRow.AddChild(new Label { Text = "AUTOMATIC", ThemeTypeVariation = "TagNoteLabel", SizeFlagsVertical = SizeFlags.ShrinkCenter });

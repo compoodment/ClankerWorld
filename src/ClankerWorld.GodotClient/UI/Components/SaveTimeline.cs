@@ -168,9 +168,10 @@ public static class SaveTimelineLayout
     public static int BranchesFrom(IReadOnlyList<SaveTimelineLane> lanes, ManualWorldSave save) =>
         lanes.Count(lane => !lane.IsUnsaved && lane.ForkSave?.Id == save.Id);
 
-    public static Color BranchColor(int number)
+    public static Color BranchColor(int number) => BranchColor(UiTheme.Current, number);
+
+    public static Color BranchColor(UiPalette palette, int number)
     {
-        var palette = UiTheme.Current;
         if (number <= 0) return palette.InkFaint;
         Color[] light = [new("4A7033"), new("9C5F2E"), new("3F6F96"), new("85467A")];
         Color[] dark = [new("8DBA6A"), new("D69A5E"), new("7FA9CF"), new("C48AB8")];
@@ -397,7 +398,7 @@ public partial class SaveTimelineNames : Control
         {
             var y = SaveTimelineRows.LaneY(lane.Index) - ViewTop;
             if (y < SaveTimelineRows.Ruler) continue;
-            var color = SaveTimelineLayout.BranchColor(lane.ColorNumber);
+            var color = SaveTimelineLayout.BranchColor(p, lane.ColorNumber);
             var badge = new Rect2(6, y - 9, 18, 18);
             if (lane.IsUnsaved)
             {
@@ -420,7 +421,7 @@ public partial class SaveTimelineNames : Control
                 var digit = lane.ColorNumber.ToString(CultureInfo.InvariantCulture);
                 var w = font.GetStringSize(digit, HorizontalAlignment.Left, -1, size).X;
                 DrawString(font, new Vector2(badge.Position.X + MathF.Floor((18 - w) / 2), y + 4), digit,
-                    HorizontalAlignment.Left, -1, size, lane.IsUnsaved ? color : p.Paper);
+                    HorizontalAlignment.Left, -1, size, UiTheme.ReadableInk(p, lane.IsUnsaved ? color : p.Paper, lane.IsUnsaved ? p.Inset : color));
             }
             float Measure(string text) => font.GetStringSize(text, HorizontalAlignment.Left, -1, size).X;
             DrawString(font, new Vector2(32, y - 2), SaveTimelineLayout.Shorten(lane.Title, textWidth, Measure),
@@ -783,7 +784,7 @@ public partial class SaveTimelineRows : Control
     private void DrawNow(UiPalette p, Font font, int size)
     {
         if (NowLane is not { } lane || NowLineStart() is not { } fromX || NowPosition() is not { } now) return;
-        var color = SaveTimelineLayout.BranchColor(lane.ColorNumber);
+        var color = SaveTimelineLayout.BranchColor(p, lane.ColorNumber);
         var y = now.Y;
         var nowX = now.X;
         for (var x = fromX; x < nowX - 9; x += 7) DrawRect(new Rect2(x, y - 1, 4, 3), color);
@@ -806,7 +807,7 @@ public partial class SaveTimelineRows : Control
         (float X, float Y, int Half)? chosen = null;
         foreach (var lane in Lanes)
         {
-            var color = SaveTimelineLayout.BranchColor(lane.ColorNumber);
+            var color = SaveTimelineLayout.BranchColor(p, lane.ColorNumber);
             var y = LaneY(lane.Index);
             foreach (var save in lane.Points)
             {
