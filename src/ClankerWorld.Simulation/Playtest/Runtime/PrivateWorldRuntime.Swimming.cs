@@ -70,6 +70,18 @@ public sealed partial class PrivateWorldRuntime
         PickupCarryCapacity(actor, HouseholdStockPosition(stock), destination,
             destinationRange, HouseholdStockInteractionRange(stock));
 
+    private bool CanPrepareSharedPickup(string actor, ClankerWorld.Simulation.Kernel.InventoryLot stock,
+        GridPoint destination, int destinationRange)
+    {
+        if (PickupPosition(actor, HouseholdStockPosition(stock), HouseholdStockInteractionRange(stock)) is not { } origin)
+            return false;
+        // Foot preparation may store spare cargo before taking an ingredient.
+        // Its existing caller still makes and checks the actual carrying room.
+        return (destinationRange > 0 || map.IsReachableOnFoot(origin, destination)) &&
+            FindUnoccupiedRoute(actor, origin, destination, destinationRange, allowSwimming: false).Count > 0 ||
+            PickupCarryCapacity(actor, stock, destination, destinationRange) >= 1;
+    }
+
     private bool CanReturnWithHarvest(string actor, string itemKind, ClankerWorld.Simulation.Harness.MapResource source,
         GridPoint destination, int destinationRange = 0, bool useHarvestBonus = true)
     {

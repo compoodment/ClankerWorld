@@ -72,7 +72,7 @@ public sealed partial class PrivateWorldRuntime
                 !inventory.Lots.Any(lot => lot.ContainerLotId == carriedJug.Id && lot.ItemKind != InventoryContainerRules.FreshWater) &&
                 FreeCarryCapacity(actor) > 0 &&
                 !HasActiveContainerReservation(inventory, carriedJug.Id)
-                    ? FindFreshWaterShore(actor, person.Position, returnTo: house.Position)
+                    ? FindFreshWaterShore(actor, person.Position, returnTo: WaterJugRefillReturnDestination(actor, carriedJug))
                     : null;
             if (shore is { } fillAt)
             {
@@ -241,6 +241,17 @@ public sealed partial class PrivateWorldRuntime
                  FindUnoccupiedRoute(actor, person.Position, source.Position, 0).Count > 0));
     }
 
+    private GridPoint? WaterJugRefillReturnDestination(string actor, InventoryLot jug)
+    {
+        if (HouseholdFor(actor) is not { } household || HouseForHousehold(household) is not { } house)
+            return null;
+        // An already carried jug can be filled for local use while its House
+        // is full. A House return is available only if at least one more water
+        // unit can accompany the intact family into its storage.
+        return StorageRoomAfterInboundDeliveries(house.InstanceId) >
+            ContainerFamilyQuantity(society.Checkpoint.Inventory, jug.Id) ? house.Position : null;
+    }
+
     private void CollectWaterJug(string actor, PlaytestInhabitantState person)
     {
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
@@ -280,8 +291,8 @@ public sealed partial class PrivateWorldRuntime
         var remaining = Math.Min(
             InventoryContainerRules.WaterJugCapacity - ContainerContentsQuantity(inventory, jug.Id),
             FreeCarryCapacity(actor));
-        if (HouseholdFor(actor) is { } household && HouseForHousehold(household) is { } house)
-            remaining = Math.Min(remaining, PickupCarryCapacity(actor, shore, house.Position));
+        if (WaterJugRefillReturnDestination(actor, jug) is { } destination)
+            remaining = Math.Min(remaining, PickupCarryCapacity(actor, shore, destination));
         if (remaining <= 0 || HasActiveContainerReservation(inventory, jug.Id) ||
             inventory.Lots.Any(lot => lot.ContainerLotId == jug.Id && lot.ItemKind != InventoryContainerRules.FreshWater))
             return;

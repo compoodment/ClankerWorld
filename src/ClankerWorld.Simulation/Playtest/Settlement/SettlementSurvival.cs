@@ -142,9 +142,9 @@ public sealed partial class PrivateWorldRuntime
     private InventoryLot? SharedItem(string kind, string actor, GridPoint? returnTo = null, int returnRange = 0) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
         lot.OwnerId == HouseholdFor(actor) && lot.CarrierId is null && lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
         (lot.StorageBuildingId is null || society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
-        CanReachSharedItem(actor, lot) && (returnTo is null || PickupCarryCapacity(actor, lot, returnTo.Value, returnRange) >= 1)) ??
+        CanReachSharedItem(actor, lot) && (returnTo is null || CanPrepareSharedPickup(actor, lot, returnTo.Value, returnRange))) ??
         (kind == "food" ? null : AvailableWarehouseStock(actor, kind).FirstOrDefault(lot =>
-            returnTo is null || PickupCarryCapacity(actor, lot, returnTo.Value, returnRange) >= 1));
+            returnTo is null || CanPrepareSharedPickup(actor, lot, returnTo.Value, returnRange)));
 
     private bool CanReachSharedItem(string actor, InventoryLot lot) =>
         !OnBorrowedMarketStall(lot) && FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
