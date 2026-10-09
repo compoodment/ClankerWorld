@@ -399,7 +399,9 @@ suitable fields, stock and tools. Counts mean completed fields, so include
 **fields** when giving a number; **Harvest five potatoes** is not understood.
 A named crop is never replaced with another. Planting orders can use another
 usable seed when someone blocks the pickup route to an earlier seed lot.
-Harvests remain on the field until carried. Cancel or replace the order to stop the current work and release
+Harvests remain on the field until carried. A field nobody works for a full
+season goes back to grass, with any crop still on it, and the Event Log says
+so; the land stays just as fertile. Cancel or replace the order to stop the current work and release
 unused planting stock. Add **at (12, 4)** to keep the task on that field tile.
 Ordinary crop and seed hauling tries another permitted farm store when the
 preferred one cannot fit the load. For example, a filled pot goes to the
@@ -512,8 +514,10 @@ survival pauses the work before it resumes.
 Use **Seek shelter**, **Take cover** or **Shelter in my House** to reach
 permitted cover. Add **at (12, 4)** to require that location. A storm guest
 still needs a current invitation. Forests and trees give partial protection
-during a storm; a House gives more cover. The task finishes when the agent reaches usable cover; this does not
-mean they have recovered their warmth.
+during a storm; a House gives more cover. A resident without a House can
+use their own Town's completed Town Hall during a storm. This gives shelter
+without household stock or hearth access. The task finishes when the agent
+reaches usable cover; this does not mean they have recovered their warmth.
 
 An adult can follow **Light a fire**, **Tend the fire** or **Light the fire in
 my House**, also with an optional location. The agent brings eligible wood

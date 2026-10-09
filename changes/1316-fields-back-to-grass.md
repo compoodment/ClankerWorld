@@ -1,0 +1,1 @@
+- A field nobody works for a full season now goes back to grass. Any crop left on it is lost, the seed kept for replanting is freed, the land keeps its fertility, and the Event Log says so. Saves from earlier builds no longer load.
