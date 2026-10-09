@@ -308,6 +308,8 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
             yield return new(Family, $"ground-snow-b-{size}", SnowyTown(size, patchy: true), "Ground snow B: patchy cover that thins and melts unevenly");
             yield return new(Family, $"puddles-a-{size}", Puddles(size, wetGround: false), "Puddles A: small puddles on Roads and bare ground");
             yield return new(Family, $"puddles-b-{size}", Puddles(size, wetGround: true), "Puddles B: puddles plus darker, wet-looking ground");
+            yield return new(Family, $"roof-snow-a2-{size}", RoofSnowFollowingSlopes(size), "Roof snow A, second round: the shaded slope covered, the sunny slope keeping snow near the ridge, following each roof's shape");
+            yield return new(Family, $"puddles-a2-{size}", PuddlesInRuts(size), "Puddles A, second round: bigger, see-through puddles in many shapes, on Roads, fields and a few dips in the grass");
             yield return new(Family, $"leaves-a-{size}", Leaves(size, carpet: false), "Leaves A: a few fallen leaves under each tree");
             yield return new(Family, $"leaves-b-{size}", Leaves(size, carpet: true), "Leaves B: a carpet of leaves under trees and around them");
         }
@@ -373,6 +375,207 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
         var top = building.Footprint.Position.Y * size;
         var line = top + building.Footprint.Size.Y * size * 0.5f + (Polish.Hash01(x / Math.Max(1, size / 16), 0, 43) - 0.5f) * 4 * size / 32f;
         return y < line;
+    }
+
+    private enum RoofShape { GableEastWest, GableNorthSouth, Hipped, Cone }
+
+    /// <summary>The shape each building's roof art draws, read off the art.</summary>
+    private static RoofShape ShapeOf(BuildingKind kind) => kind switch
+    {
+        BuildingKind.Warehouse => RoofShape.GableEastWest,
+        BuildingKind.Blacksmith => RoofShape.GableNorthSouth,
+        BuildingKind.Silo => RoofShape.Cone,
+        _ => RoofShape.Hipped,
+    };
+
+    /// <summary>
+    /// Which building's roof each pixel belongs to, or -1. Like <see cref="Roofs"/>,
+    /// but leaves out the building's shadow on the grass (a pixel that is only a
+    /// darker copy of the ground), the Blacksmith's open forge yard and the
+    /// Farmhouse's grain sacks.
+    /// </summary>
+    private static int[] RoofOwners(int size)
+    {
+        var with = Polish.Scene(size);
+        var without = Polish.Scene(size, buildings: false);
+        var owners = new int[with.GetWidth() * with.GetHeight()];
+        Array.Fill(owners, -1);
+        for (var i = 0; i < Polish.Buildings.Count; i++)
+        {
+            var f = Polish.Buildings[i].Footprint;
+            var kind = Polish.Buildings[i].Kind;
+            var right = kind == BuildingKind.Blacksmith ? f.Position.X * size + f.Size.X * size * 0.66f : f.End.X * size;
+            var bottom = kind == BuildingKind.Farmhouse ? f.Position.Y * size + f.Size.Y * size * 0.68f : f.End.Y * size;
+            for (var y = f.Position.Y * size; y < bottom; y++)
+                for (var x = f.Position.X * size; x < right; x++)
+                {
+                    Color w = with.GetPixel(x, y), o = without.GetPixel(x, y);
+                    if (w == o) continue;
+                    float rr = w.R / MathF.Max(o.R, 0.01f), rg = w.G / MathF.Max(o.G, 0.01f), rb = w.B / MathF.Max(o.B, 0.01f);
+                    var shadow = MathF.Max(rr, MathF.Max(rg, rb)) - MathF.Min(rr, MathF.Min(rg, rb)) < 0.1f && rg is > 0.35f and < 0.98f;
+                    if (!shadow) owners[y * with.GetWidth() + x] = i;
+                }
+        }
+        return owners;
+    }
+
+    /// <summary>
+    /// Snow that follows each roof's own slopes. The shaded faces (north and
+    /// east, away from the north-west light the art uses) stay covered. Each
+    /// sunlit face (south and west) keeps snow from its ridge down to a ragged
+    /// melt line that runs along its eave, and below that a thin, broken
+    /// dusting, so no face is ever bare. A gable roof has two faces, a hipped
+    /// roof four (the nearest eave decides the face), and the Silo's cone
+    /// melts on its south-west side.
+    /// </summary>
+    private static Image RoofSnowFollowingSlopes(int size)
+    {
+        var canvas = Winter(size);
+        var owners = RoofOwners(size);
+        var bounds = new (int X0, int Y0, int X1, int Y1)[Polish.Buildings.Count];
+        Array.Fill(bounds, (int.MaxValue, int.MaxValue, -1, -1));
+        for (var y = 0; y < canvas.Height; y++)
+            for (var x = 0; x < canvas.Width; x++)
+            {
+                var i = owners[y * canvas.Width + x];
+                if (i < 0) continue;
+                var b = bounds[i];
+                bounds[i] = (Math.Min(b.X0, x), Math.Min(b.Y0, y), Math.Max(b.X1, x), Math.Max(b.Y1, y));
+            }
+        for (var y = 0; y < canvas.Height; y++)
+            for (var x = 0; x < canvas.Width; x++)
+            {
+                var i = owners[y * canvas.Width + x];
+                if (i < 0) continue;
+                var c = canvas.Get(x, y);
+                var luma = c.R * 0.3f + c.G * 0.59f + c.B * 0.11f;
+                if (luma < 0.2f) continue; // outlines, flues and eave shadow stay dark
+                var amount = SlopeCover(x, y, size, ShapeOf(Polish.Buildings[i].Kind), bounds[i], i);
+                if (amount <= 0) continue;
+                canvas.Set(x, y, c.Lerp(SnowShade.Lerp(Snow, Math.Clamp((luma - 0.2f) * 2.2f, 0, 1)), amount));
+            }
+        return canvas.ToImage();
+    }
+
+    private static float SlopeCover(int x, int y, int size, RoofShape shape, (int X0, int Y0, int X1, int Y1) roof, int seed)
+    {
+        const float shaded = 0.74f, sunlit = 0.64f, dusting = 0.24f;
+        float w = roof.X1 - roof.X0 + 1, h = roof.Y1 - roof.Y0 + 1;
+        float px = x + 0.5f - roof.X0, py = y + 0.5f - roof.Y0;
+        var grain = Math.Max(1, size / 16);
+        // On a sunlit face: snow down to a ragged line about 45% of the way from
+        // ridge to eave, then a thin dusting with a few brighter flecks.
+        float Sunlit(float fromEave, float depth, float along)
+        {
+            var line = depth * (0.55f + (Polish.Hash01((int)(along / (2 * grain)), seed, 47) - 0.5f) * 0.18f);
+            if (fromEave > line) return sunlit;
+            return Polish.Hash01(x / grain, y / grain, 53 + seed) < 0.2f ? sunlit * 0.75f : dusting;
+        }
+        switch (shape)
+        {
+            case RoofShape.GableEastWest:
+                return py < h / 2 ? shaded : Sunlit(h - py, h / 2, px);
+            case RoofShape.GableNorthSouth:
+                return px >= w / 2 ? shaded : Sunlit(px, w / 2, py);
+            case RoofShape.Cone:
+            {
+                float dx = px - w / 2, dy = py - h / 2, r = MathF.Sqrt(dx * dx + dy * dy), radius = w / 2;
+                if (dx - dy > 0) return shaded;
+                return Sunlit(radius - r, radius, MathF.Atan2(dy, dx) * radius);
+            }
+            default:
+            {
+                // A hipped roof at 45 degrees: the nearest eave names the face.
+                float north = py, south = h - py, west = px, east = w - px;
+                var depth = MathF.Min(w, h) / 2;
+                var nearest = MathF.Min(MathF.Min(north, south), MathF.Min(west, east));
+                if (nearest == north || nearest == east) return shaded;
+                return nearest == south ? Sunlit(south, depth, px) : Sunlit(west, depth, py);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Puddles after rain, shaped by noise so no two match: big, irregular
+    /// pools that fill the low parts of Roads and fields, and now and then
+    /// a shallow one in a dip of open grass. The water is see-through: the
+    /// dirt or grass shows under a slate-blue tint that deepens toward the
+    /// middle, with patches of reflected sky, a shaded north-west bank, a lit
+    /// south-east lip, darkened wet ground around it and a few glints.
+    /// Buildings, plants and agents stay on top, dry.
+    /// </summary>
+    private static readonly Vector2[] Dips = [new(10.6f, 9.4f), new(13.5f, 2.6f)];
+
+    private static Image PuddlesInRuts(int size)
+    {
+        var spec = SceneSpec.TownCorner();
+        var withAgents = Polish.Scene(size, agents: true);
+        var plain = Polish.Scene(size);
+        var bare = Polish.Scene(size, nature: false);
+        var canvas = new Canvas(withAgents);
+        int width = canvas.Width, height = canvas.Height;
+        var scale = 32f / size; // work in 32 px units so both zooms match
+        var water = new float[width * height]; // 0 dry, above 0 how deep
+        for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
+            {
+                var tile = new Vector2I(x / size, y / size);
+                if (!Ground(spec, tile.X, tile.Y) || spec.Bridges.ContainsKey(tile)) continue;
+                if (withAgents.GetPixel(x, y) != plain.GetPixel(x, y) || plain.GetPixel(x, y) != bare.GetPixel(x, y)) continue;
+                float wx = (x + 0.5f) * scale, wy = (y + 0.5f) * scale;
+                var c = plain.GetPixel(x, y);
+                var road = spec.Roads.Contains(tile) && c.R > c.G + 0.02f;
+                var field = spec.Surface[tile.Y * spec.Width + tile.X] == 7;
+                var n = 0.78f * Noise(wx / 15f, wy / 12f) + 0.22f * Noise(wx / 5f + 17, wy / 5f + 5);
+                // Open grass soaks rain up except in a couple of dips, placed by hand for the review.
+                var dip = Dips.Min(d => (new Vector2(wx, wy) / 32f - d).Length());
+                var threshold = road ? 0.6f : field ? 0.66f : 0.5f + 0.3f * dip;
+                if (n > threshold) water[y * width + x] = Math.Clamp((n - threshold) / 0.14f, 0.05f, 1f);
+            }
+        // Drop specks: a puddle smaller than about 48 pixels at close zoom reads as noise.
+        var seen = new bool[width * height];
+        var minimum = (int)(48 / (scale * scale));
+        for (var start = 0; start < water.Length; start++)
+        {
+            if (water[start] <= 0 || seen[start]) continue;
+            var blob = new List<int> { start }; seen[start] = true;
+            for (var k = 0; k < blob.Count; k++)
+            {
+                int bx = blob[k] % width, by = blob[k] / width;
+                foreach (var (nx, ny) in new[] { (bx + 1, by), (bx - 1, by), (bx, by + 1), (bx, by - 1) })
+                {
+                    if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                    var i = ny * width + nx;
+                    if (water[i] > 0 && !seen[i]) { seen[i] = true; blob.Add(i); }
+                }
+            }
+            if (blob.Count < minimum) foreach (var i in blob) water[i] = 0;
+        }
+        bool Wet(int x, int y) => x >= 0 && y >= 0 && x < width && y < height && water[y * width + x] > 0;
+        var tint = new Color("4E7489"); var sky = new Color("B4D0DC"); var bank = new Color("2F4250"); var lip = new Color("D2E3EA");
+        for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
+            {
+                var depth = water[y * width + x];
+                var c = canvas.Get(x, y);
+                if (depth <= 0)
+                {
+                    // Wet ground: within two pixels of water, a little darker.
+                    var near = false;
+                    for (var dy = -2; dy <= 2 && !near; dy++) for (var dx = -2; dx <= 2; dx++) if (Wet(x + dx, y + dy)) { near = true; break; }
+                    if (near && Ground(spec, x / size, y / size) && withAgents.GetPixel(x, y) == plain.GetPixel(x, y) && plain.GetPixel(x, y) == bare.GetPixel(x, y))
+                        canvas.Set(x, y, c.Lerp(new Color("3A2E22"), 0.2f));
+                    continue;
+                }
+                float wx = (x + 0.5f) * scale, wy = (y + 0.5f) * scale;
+                var colour = c.Lerp(tint, 0.38f + 0.3f * depth);
+                if (Noise(wx / 6f + 40, wy / 3f + 9) > 0.62f) colour = colour.Lerp(sky, 0.45f); // reflected sky
+                if (!Wet(x - 1, y) || !Wet(x, y - 1)) colour = colour.Lerp(bank, 0.55f);
+                else if (!Wet(x + 1, y) || !Wet(x, y + 1)) colour = colour.Lerp(lip, 0.35f);
+                if (depth > 0.6f && Polish.Hash01((int)wx, (int)wy, 61) < 0.012f) colour = new Color("F2F7F9");
+                canvas.Set(x, y, colour);
+            }
+        return canvas.ToImage();
     }
 
     private static bool Ground(SceneSpec spec, int x, int y) =>
@@ -737,6 +940,8 @@ public sealed class MomentsProposal : IArtProposal, IAnimatedArtProposal
             yield return new(Family, $"finish-a-dust-{size}", Finish("a-dust", size, 0.5), "Finished A: a ring of dust settling");
             yield return new(Family, $"finish-b-flag-{size}", Finish("b-flag", size, 1.2), "Finished B: dust, then a small flag on the roof for a moment");
             yield return new(Family, $"finish-c-sparkle-{size}", Finish("c-sparkle", size, 0.9), "Finished C: dust and a few twinkles");
+            yield return new(Family, $"grave-a2-cross-{size}", GraveOnMap(GraveSprites.Cross(), size), "Grave A, second round: a wooden cross with grain, planted in a mound");
+            yield return new(Family, $"grave-b2-stone-{size}", GraveOnMap(GraveSprites.Headstone(), size), "Grave B, second round: a carved headstone on a plinth, with a little moss");
             foreach (var (id, note) in new[] { ("grave-a-cross", "Grave A: a small wooden cross"), ("grave-b-stone", "Grave B: a rounded headstone"), ("grave-c-mound", "Grave C: an earth mound with flowers") })
                 yield return new(Family, $"{id}-{size}", Grave(id, size), note);
         }
@@ -790,6 +995,13 @@ public sealed class MomentsProposal : IArtProposal, IAnimatedArtProposal
                     canvas.Put((int)at.X, (int)at.Y + d, new Color("FFF6D8") with { A = a });
                 }
             }
+        return canvas.ToImage();
+    }
+
+    private static Image GraveOnMap(Image sprite, int size)
+    {
+        var canvas = new Canvas(Polish.Scene(size, agents: true));
+        canvas.Stamp(sprite, 7 * size, 10 * size, size);
         return canvas.ToImage();
     }
 
@@ -863,5 +1075,96 @@ public sealed class WeatherFadeProposal : IAnimatedArtProposal
             clear.Mix(rain, weather);
         }
         return clear.ToImage();
+    }
+}
+
+/// <summary>
+/// The second-round grave sprites, drawn on a 32 px grid like the game's
+/// approved art: a dark outline, light from the north-west, shade to the
+/// south-east and a soft shadow cast south-east on the ground.
+/// </summary>
+internal static class GraveSprites
+{
+    private static readonly Dictionary<char, Color> Palette = new()
+    {
+        [','] = new Color(0.05f, 0.08f, 0.05f, 0.28f),
+        ['O'] = new("1E1712"),
+        ['E'] = new("3F2A1A"), ['S'] = new("6E4E31"), ['B'] = new("8A6440"), ['L'] = new("A77C52"), ['H'] = new("D2AC77"),
+        ['e'] = new("2B2E33"), ['s'] = new("62666E"), ['b'] = new("80858E"), ['l'] = new("9A9FA7"), ['h'] = new("B9BEC4"), ['i'] = new("4A4E55"),
+        ['d'] = new("6E5538"), ['m'] = new("977852"), ['n'] = new("B99A6B"),
+        ['g'] = new("4A7033"), ['G'] = new("6E9A48"), ['M'] = new("5B7A3A"),
+    };
+
+    private sealed class Grid
+    {
+        public readonly char[,] Cells = new char[32, 32];
+        public Grid() { for (var y = 0; y < 32; y++) for (var x = 0; x < 32; x++) Cells[x, y] = '.'; }
+        public void Rect(int x0, int y0, int x1, int y1, char c) { for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) Set(x, y, c); }
+        public void Set(int x, int y, char c) { if (x is >= 0 and < 32 && y is >= 0 and < 32) Cells[x, y] = c; }
+        public void Shadow(int x0, int y0, int x1, int y1) { for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) if (x is >= 0 and < 32 && y is >= 0 and < 32 && Cells[x, y] == '.') Cells[x, y] = ','; }
+
+        /// <summary>A low earth mound: dark rim, mid fill, a lit north-west crown and grass tufts at its foot.</summary>
+        public void Mound(int cx, int cy, float rx, float ry)
+        {
+            for (var y = (int)(cy - ry - 1); y <= (int)(cy + ry + 1); y++)
+                for (var x = (int)(cx - rx - 1); x <= (int)(cx + rx + 1); x++)
+                {
+                    var d = MathF.Sqrt(MathF.Pow((x + 0.5f - cx) / rx, 2) + MathF.Pow((y + 0.5f - cy) / ry, 2));
+                    if (d > 1) continue;
+                    var lit = (x + 0.5f - cx) / rx + (y + 0.5f - cy) / ry < -0.55f;
+                    Set(x, y, d > 0.82f ? 'd' : lit ? 'n' : 'm');
+                }
+            foreach (var (x, y, c) in new[] { (cx - (int)rx - 1, cy + 1, 'g'), (cx - (int)rx, cy, 'G'), (cx + (int)rx, cy + 1, 'g'), (cx + (int)rx + 1, cy, 'G'), (cx + 2, cy + (int)ry + 1, 'g') })
+                Set(x, y, c);
+        }
+
+        public Image ToImage()
+        {
+            var bytes = new byte[32 * 32 * 4];
+            for (var y = 0; y < 32; y++)
+                for (var x = 0; x < 32; x++)
+                {
+                    var c = Palette.TryGetValue(Cells[x, y], out var colour) ? colour : new Color(0, 0, 0, 0);
+                    var i = (y * 32 + x) * 4;
+                    bytes[i] = (byte)Math.Round(c.R * 255); bytes[i + 1] = (byte)Math.Round(c.G * 255);
+                    bytes[i + 2] = (byte)Math.Round(c.B * 255); bytes[i + 3] = (byte)Math.Round(c.A * 255);
+                }
+            return Image.CreateFromData(32, 32, false, Image.Format.Rgba8, bytes);
+        }
+    }
+
+    public static Image Cross()
+    {
+        var g = new Grid();
+        g.Shadow(15, 8, 20, 27); g.Shadow(10, 12, 25, 16);
+        g.Rect(13, 5, 18, 26, 'O'); g.Rect(8, 10, 23, 14, 'O');
+        g.Rect(14, 6, 17, 25, 'B'); g.Rect(9, 11, 22, 13, 'B');
+        // Light on the north and west edges, shade on the south and east.
+        g.Rect(14, 6, 17, 6, 'H'); g.Rect(14, 7, 14, 25, 'L'); g.Rect(9, 11, 22, 11, 'L'); g.Rect(9, 11, 9, 13, 'H'); g.Set(14, 6, 'H');
+        g.Rect(17, 7, 17, 25, 'S'); g.Rect(10, 13, 22, 13, 'S'); g.Rect(18, 11, 22, 11, 'L');
+        // Grain and the joint where the arm crosses the post.
+        g.Set(15, 16, 'E'); g.Set(16, 19, 'E'); g.Set(15, 21, 'S'); g.Set(12, 12, 'S'); g.Set(20, 12, 'S'); g.Rect(14, 13, 17, 13, 'E');
+        g.Mound(16, 26, 8.5f, 3.2f);
+        g.Rect(14, 24, 17, 24, 'S'); // the post entering the mound
+        return g.ToImage();
+    }
+
+    public static Image Headstone()
+    {
+        var g = new Grid();
+        g.Shadow(12, 9, 24, 27);
+        // A plinth, then the stone with a rounded top.
+        g.Rect(8, 22, 23, 26, 'O'); g.Rect(9, 23, 22, 25, 's'); g.Rect(9, 23, 22, 23, 'b'); g.Rect(9, 23, 9, 25, 'l'); g.Rect(10, 25, 22, 25, 'e');
+        g.Rect(10, 8, 21, 22, 'O'); g.Rect(12, 6, 19, 7, 'O'); g.Set(11, 7, 'O'); g.Set(20, 7, 'O');
+        g.Rect(11, 9, 20, 21, 'b'); g.Rect(12, 8, 19, 8, 'b'); g.Rect(13, 7, 18, 7, 'h');
+        g.Rect(12, 8, 19, 8, 'h'); g.Rect(11, 9, 11, 21, 'l'); g.Set(11, 9, 'h');
+        g.Rect(20, 9, 20, 21, 's'); g.Rect(12, 21, 20, 21, 's');
+        // A carved cross and two lines of lettering.
+        g.Rect(15, 10, 16, 14, 'i'); g.Rect(13, 11, 18, 12, 'i'); g.Rect(15, 10, 15, 14, 'e');
+        g.Rect(13, 16, 18, 16, 'i'); g.Rect(14, 18, 17, 18, 'i');
+        // A little moss low on the west side.
+        g.Set(11, 19, 'M'); g.Set(11, 20, 'M'); g.Set(12, 20, 'M'); g.Set(9, 24, 'M');
+        g.Mound(16, 28, 7.5f, 2.6f);
+        return g.ToImage();
     }
 }

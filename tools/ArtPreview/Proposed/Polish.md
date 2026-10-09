@@ -6,6 +6,45 @@ each over the reference Town corner, as stills at 32 px (close) and 16 px
 (mid zoom) and as short loops. None changes a game rule; each only shows
 what the world already records, more clearly.
 
+## What computment chose
+
+computment answered the review on October 9:
+
+| Idea | Choice |
+| --- | --- |
+| 1 · Smooth movement | **C**, glide and bob |
+| 3 · Chimney smoke | **B**, column |
+| 7 · Ground snow | **A**, covered, with footprints |
+| 7 · Fallen leaves | **A**, a few |
+| 7 · Roof snow | A, redrawn: see below |
+| 7 · Puddles | A, redrawn: see below |
+| 8 · Golden hour | **C**, rose at dawn and gold at dusk |
+| 9 · Stock | **A**, at the door |
+| 11 · Camera | **B**, ease |
+| 12 · Building finished | **C**, dust and twinkles |
+| 12 · Grave | A and B, redrawn: see below; a grave fades after a year of game time |
+| 13 · Weather fades | **B**, fade |
+
+Three pieces went back for better drawing at computment's request, and
+are waiting for a second look:
+
+- **Roof snow** (`roof-snow-a2`): computment asked for some snow left on the
+  sunny side, and for roofs whose ridge runs north to south not to be split
+  north and south. The redraw follows each roof's real slopes: a gable roof
+  has two faces, a hipped roof four, and the Silo's cone melts on one side.
+  Shaded faces (north and east) stay covered; sunny faces (south and west)
+  keep snow near the ridge, then a thin dusting down to the eaves.
+- **Puddles** (`puddles-a2`): computment asked for better puddles, then for
+  bigger, see-through ones with more shapes and variety. The redraw shapes
+  them with noise, so they fill the low parts of Roads and fields and a few
+  dips in the grass, and tints the ground under them rather than covering
+  it.
+- **Graves** (`grave-a2-cross`, `grave-b2-stone`): computment wanted both the
+  wooden cross and the headstone, with better art. Both are redrawn as 32 px
+  sprites on a fresh earth mound.
+
+## Drawing the pictures
+
 `dotnet run -- proposed out <family>` draws the stills and
 `dotnet run -- animate out <family>` writes the loops, 12 frames a second.
 The families are `movement`, `smoke`, `weathermarks`, `goldenhour`, `stock`,

@@ -2,7 +2,7 @@
 title: Pixel-art style guide
 type: development-reference
 status: active
-updated: 2026-10-01
+updated: 2026-10-09
 ---
 
 # Pixel-art style guide
@@ -259,6 +259,13 @@ black overlay; the ramps already shift hue toward blue in the shade.
   hammer sign (Workshop), vent cap (Silo).
 - B7 At 16 px the material pattern drops to two tones and the feature stays
   only if it is at least two pixels.
+- B8 A building in use (lit by the night-lights rule, or a working forge)
+  sends up a column of soft grey smoke from its chimney that leans with the
+  wind and fades as it rises. Empty buildings have none.
+- B9 Stock shows as log, crate and sack piles on the ground beside the
+  door, growing with what the building stores; an empty store shows none.
+- B10 A building that is finished gets a ring of settling dust and a few
+  twinkles, once.
 
 ## 10. Agents
 
@@ -284,6 +291,10 @@ black overlay; the ramps already shift hue toward blue in the shade.
 - A8 Animals, handcarts and boats face the same eight directions as agents,
   drawn as real pixel art for each diagonal rather than a blurred rotation.
 - A7 At 16 px an adult keeps a 7 px head, 10 × 6 shoulders and the outline.
+- A9 Agents and animals glide to the tile each update reports instead of
+  jumping, changing walk frames every quarter second, with a one-pixel bob
+  on each step. A jump of more than three tiles, such as after a reload,
+  still snaps.
 
 ## 11. Items
 
@@ -326,6 +337,16 @@ black overlay; the ramps already shift hue toward blue in the shade.
   streaks lighter at the top, landing as a three-pixel burst; storm streaks
   stepping two pixels down for every one across, in gusts sweeping east; and
   small snowflake crosses blown sideways. No cloud shadows.
+- E4 Golden hour: around the night tint, dawn adds a rose multiply E9A3A0
+  and dusk a gold one F2B160, each up to 22%.
+- E5 Weather leaves marks that follow the world's record for each region
+  and fade after it passes: after snowfall open ground is covered, with
+  grass tips and trodden Roads showing, and anyone crossing it leaves
+  footprints that fade within about a game hour; in autumn a few leaves lie
+  under broadleaf and orchard trees. Roof snow and puddles are agreed, but
+  their drawing waits for a second look
+  ([Visual polish](../../tools/ArtPreview/Proposed/Polish.md)).
+- E6 Weather fades in and out over about a second instead of switching.
 
 ## 15. Critic's checklist
 
