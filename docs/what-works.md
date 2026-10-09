@@ -657,8 +657,13 @@ cancellations consume no surname turn. Consent, surname progress and the final
 result survive saves and ordinary conversation-history compaction. Profiles
 show the spouse and shared surname, and later player surname changes update
 both spouses together while keeping the original conversation unchanged. A
-taken first name leaves both names unchanged. Divorce, remarriage and widowhood
-rules are not implemented here.
+taken first name leaves both names unchanged. Either partner can end the
+partnership and marriage alone, and a partner's death ends the marriage. Both
+names stay unchanged. Former partners may form a new partnership and marry
+again through fresh consent and surname conversations. Profiles keep ended
+marriages as history; a later surname change affects only a current spouse.
+Unfinished surname sessions close when their marriage ends, and save/reload
+keeps the ending and original consent.
 
 ## Animals
 

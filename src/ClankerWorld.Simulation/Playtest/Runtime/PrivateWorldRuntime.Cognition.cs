@@ -139,7 +139,9 @@ public sealed partial class PrivateWorldRuntime
                 ToolMakingRequestNote: ToolMakingRequestNoteCore(inhabitant.Id),
                 AllowedChildSurnames: inhabitant.NeedsName && InhabitantNameRules.RequiresParentSurname(checkpoint, inhabitant.Id)
                     ? InhabitantNameRules.AllowedChildSurnames(checkpoint, inhabitant.Id) : null,
-                MarriageNote: marriages.SingleOrDefault(item => AgentMarriageRules.HasParticipant(item, inhabitant.Id)) is { } marriage
+                MarriageNote: marriages.Where(item => AgentMarriageRules.HasParticipant(item, inhabitant.Id))
+                    .OrderBy(item => item.EndReceipt is not null).ThenByDescending(item => item.AcceptedTick)
+                    .ThenBy(item => item.Id, StringComparer.Ordinal).FirstOrDefault() is { } marriage
                     ? AgentMarriageRules.Note(marriage, inhabitant.Id, checkpoint) : null,
                 FamilyBackground: InitialChildFamilyBackground(inhabitant.Id, physical));
             var observation = new InhabitantObservation(

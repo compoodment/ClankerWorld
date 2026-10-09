@@ -1580,6 +1580,28 @@ knowledge and needs no save-schema change.
 
 ## Towns, building sites and death
 
+### Marriage history
+
+Marriage keeps its original mutual-consent conversation, partnership snapshot
+and surname receipt after separation or death. A nullable `EndReceipt` records
+the actual committed partnership revocation or death, including its original
+effective time. Ordinary `partner_leave` and the paused developer edit both
+reconcile the ending immediately; committed deaths reconcile before new
+personal choices. An unfinished surname conversation closes without another
+model call or a rename. Rejected ticks retain the previous marriage state.
+
+Only a current marriage blocks another proposal or couples player surname
+changes. A later marriage requires fresh ordinary face-to-face consent and
+its own surname session. Personal context prefers a current marriage and
+otherwise the latest ending; public profiles retain every past marriage.
+Validation refuses overlapping marriage intervals, an ending without its
+committed partnership or death, and inconsistent surname receipts. Current
+spouses must share their recorded surname; former spouses may rename or marry
+again without rewriting the old result. Later deaths cannot replace an
+earlier separation receipt. See [saves and replay](saves-and-replay.md).
+
+### Town membership
+
 Paused founder setup creates one First Town when the owner accepts its five-building
 site. Founders become residents; Start World changes founding state to founded.
 Later placement inside the saved border establishes residence; walking does
@@ -2273,6 +2295,10 @@ and the source-to-shop route before selecting household or permitted Town
 Warehouse stock. An occupied earlier lot does not hide later reachable stock.
 The same selection is repeated when hauling or planning a supply order; exact
 lot/item targets, carrying limits and receiving-space checks still apply.
+Stock suppresses Blacksmith gathering only when the current delivery selector
+can use it with cargo room, receiving space and the required routes. This also
+applies to ore mining, harvest preparation and supply orders. Disconnected stock
+keeps its owner and position while the adult gathers reachable local inputs.
 
 If an unpaid household recipe remains blocked for 60 ticks and no household
 member has an actionable way to supply its missing ingredients, the runtime
