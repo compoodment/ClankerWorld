@@ -1,0 +1,1 @@
+Beliefs from residents born in the world can reach personal decisions and routine-helper memory scoring even when the reporter has a long native identity. Saved reporter identities and evidence remain intact.
