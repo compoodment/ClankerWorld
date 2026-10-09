@@ -8,6 +8,8 @@ public partial class Main
     private async Task VerifyWeatherFadeAsync(OwnerWorldSnapshot original)
     {
         var savedPause = weatherLayer.Paused;
+        var savedCenter = cameraCenterTiles;
+        var savedZoom = cameraZoom;
         var clouds = weatherLayer.CloudsEnabled;
         var lightning = weatherLayer.LightningEnabled;
         weatherLayer.SetProcess(false);
@@ -16,7 +18,13 @@ public partial class Main
             // Drive the real native layer's process clock deterministically; no alternate painter.
             var regions = Enumerable.Range(0, 8).SelectMany(x => Enumerable.Range(0, 4)
                 .Select(y => new OwnerWeatherRegion(x, y, "rain", 40))).ToArray();
-            var map = original with { WorldId = "weather-fade-check", MapManifestDigest = "weather-fade-check", WeatherRegions = regions };
+            var map = original with
+            {
+                WorldId = "weather-fade-check",
+                MapManifestDigest = "weather-fade-check",
+                WeatherRegions = regions,
+                Authoring = original.Authoring! with { IsPaused = false },
+            };
             RenderMap(map);
             weatherLayer.Paused = true;
             weatherLayer._Process(0);
@@ -74,6 +82,9 @@ public partial class Main
         }
         finally
         {
+            RenderMap(original);
+            cameraCenterTiles = savedCenter;
+            cameraZoom = savedZoom;
             RenderMap(original);
             weatherLayer.Paused = savedPause;
             weatherLayer.CloudsEnabled = clouds;
