@@ -34,6 +34,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidateBoatTransport(CaptureState());
         ValidateAnimalState(CaptureState());
+        ValidateTalkOrderBindings(instructionsByIdempotency.Values, conversations);
         ValidateCartOrderBindings(society.Checkpoint.Inventory, instructionsByIdempotency.Values);
         ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
@@ -492,6 +493,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
         ValidateBoatTransport(state);
+        ValidateTalkOrderBindings(state.Instructions ?? [], state.Conversations ?? []);
         ValidateCartOrderBindings(state.Society.Society.Inventory, state.Instructions ?? []);
         ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
@@ -628,6 +630,7 @@ public sealed partial class PrivateWorldRuntime
             "finished" or "cancelled" or "not_understood";
         var terminal = order.Status is "finished" or "cancelled" or "not_understood";
         var isCompleted = completedInstructionIds.Contains(instruction.InstructionId, StringComparer.Ordinal);
+        if (order.Action != "talk_to" && (order.TalkConversationId is not null || order.TalkOutcome is not null)) return false;
         if (!IsCartOrder(order.Action) && order.TargetCartLotId is not null) return false;
         if ((order.TargetAnimalId is not null) != IsAnimalOrder(order.Action)) return false;
         if (!IsKnowledgeOrder(order.Action) && (order.TargetKnowledgeKind is not null || order.KnowledgeWritingProjectId is not null) ||
@@ -660,6 +663,15 @@ public sealed partial class PrivateWorldRuntime
             terminal != isCompleted)
             return false;
 
+        if (order.Action == "talk_to")
+            return order.TargetAgentId is { } target && people.Contains(target) && target != instruction.TargetInhabitantId &&
+                order.RequestedUnits == 1 && order.CompletedUnits is >= 0 and <= 1 && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
+                order.ProgressUnit == "conversations" && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
+                order.Status != "not_understood" && (order.Status == "finished") == (order.CompletedUnits == 1) &&
+                (order.TalkConversationId is null || !string.IsNullOrWhiteSpace(order.TalkConversationId) && order.TalkConversationId.Length <= 512 &&
+                    order.TalkConversationId == order.TalkConversationId.Trim() && !order.TalkConversationId.Any(char.IsControl)) &&
+                (order.CompletedUnits == 0 ? order.TalkOutcome is null && order.LastEffectId is null :
+                    order.TalkConversationId is not null && IsTalkOutcome(order.TalkOutcome) && order.LastEffectId == TalkOrderEffectId(instruction));
         if (IsKnowledgeOrder(order.Action))
             return order.TargetKnowledgeKind is { } kind && AgentKnowledgeRules.IsArtifactKind(kind) &&
                 order.TargetAgentId is null && order.TargetFoodKind is null && order.TargetResourceId is null && order.TargetPosition is null &&
