@@ -183,8 +183,10 @@ public sealed partial class TownLandHearingRuntimeTests
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
-    [Fact]
-    public async Task TheTownCanGrantItsRecoveredHouseAndGoodsToAnAcceptingHousehold()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TheTownCanGrantItsRecoveredHouseAndGoodsToAnAcceptingHousehold(bool longHouseholdId)
     {
         var provider = new PropertyProvider { Agree = true, Rule = true };
         using var reclaimed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(await PendingPropertyCase.Value), _ => provider);
@@ -192,7 +194,8 @@ public sealed partial class TownLandHearingRuntimeTests
         var state = reclaimed.ExportState();
         // A legitimate receiving household is formed with the same Society operation used by
         // household_found. No House, stock, hearing, vote, permission or Town membership is added.
-        const string recipient = "household:property-recipient";
+        var recipient = "household:property-recipient" + (longHouseholdId ? ":" + new string('r', 128) : "");
+        Assert.Equal(longHouseholdId, recipient.Length > 128);
         var society = SocietyFixture.CreateHousehold(state.Society.Society, recipient, "Receiving household", [Filer]);
         var onward = new PropertyProvider { Request = true, Target = recipient, Agree = true, Rule = true };
         using var world = PrivateWorldRuntime.Restore(state with { Society = state.Society with { Society = society.Checkpoint } }, _ => onward);
@@ -317,7 +320,8 @@ public sealed partial class TownLandHearingRuntimeTests
                 selected ??= choices.FirstOrDefault(candidate => candidate.Id == "household_collect:" + lot);
             if (Request && observation.InhabitantId == PropertyFiler)
                 selected ??= choices.FirstOrDefault(candidate => candidate.Id.Contains("|hearing_property_request|" + PropertyHouse + "|", StringComparison.Ordinal) &&
-                    candidate.Id.EndsWith("|" + (Target ?? "town"), StringComparison.Ordinal));
+                    (Target is null ? candidate.Id.EndsWith("|town", StringComparison.Ordinal) :
+                        candidate.Description.Contains("grant household " + Target + " ", StringComparison.Ordinal)));
             if (Agree is { } agree)
                 selected ??= Find("hearing_property_" + (observation.InhabitantId == Refuser || !agree ? "refuse" : "accept"));
             if (Waive) selected ??= Find("hearing_waive");

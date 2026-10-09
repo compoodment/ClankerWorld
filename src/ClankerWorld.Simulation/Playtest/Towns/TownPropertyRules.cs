@@ -10,7 +10,7 @@ public static class TownPropertyRules
     public static bool IsValid(TownPropertyRequest request) => request is not null &&
         TownLandHearingRules.ValidText(request.BuildingId, 128) &&
         (request.SourceHouseholdId is not null ^ request.TargetHouseholdId is not null) &&
-        TownLandHearingRules.ValidText(request.SourceHouseholdId ?? request.TargetHouseholdId, 128);
+        TownLandHearingRules.ValidText(request.SourceHouseholdId ?? request.TargetHouseholdId, 256);
 
     public static TownLandRequestedOutcome Outcome(TownPropertyRequest request) =>
         request.SourceHouseholdId is { } source ? new("reclaim", source) : new("grant", request.TargetHouseholdId);

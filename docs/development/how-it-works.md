@@ -1807,6 +1807,9 @@ its last valid notice and asset snapshot. It cannot transfer stale assets or
 publish a new notice without a matching snapshot; current standing and judge
 conflicts still apply. Malformed saved notice numbering is refused before
 property evidence lookups.
+Property requests and reclaim/grant outcomes retain native household references
+up to the hearing file's 256-character identity limit. Offered civic choices
+use the existing bounded household token; property records keep the full ID.
 
 Hearing actions enter through admitted personal-model civic choices. Public
 statements remain allegations; actual nearby observations and inspected rights,
