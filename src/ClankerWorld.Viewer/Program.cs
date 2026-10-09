@@ -38,6 +38,8 @@ var configuredOpenAiModel = builder.Configuration["ClankerWorld:Runtime:OpenAiMo
     (configuredDecisionProvider.StartsWith("openai", StringComparison.OrdinalIgnoreCase) ? configuredModel : null);
 var configuredOllamaCloudModel = builder.Configuration["ClankerWorld:Runtime:OllamaCloudModel"] ??
     (configuredDecisionProvider.StartsWith("ollama", StringComparison.OrdinalIgnoreCase) ? configuredModel : null);
+var configuredAnthropicModel = builder.Configuration["ClankerWorld:Runtime:AnthropicModel"] ??
+    (configuredDecisionProvider is "anthropic" or "claude" ? configuredModel : null);
 var publicPort = builder.Configuration.GetValue("ClankerWorld:Http:Port", 5188);
 var localApprovalPort = builder.Configuration.GetValue<int?>("ClankerWorld:Pairing:LocalApprovalPort") ?? 0;
 if (publicPort is <= 0 or > 65535 || localApprovalPort is < 0 or > 65535 || localApprovalPort == publicPort)
@@ -97,7 +99,9 @@ builder.Services.AddSingleton(new ProviderConfigurationStore(
         configuredOpenAiModel,
         Environment.GetEnvironmentVariable("OPENAI_API_KEY"),
         configuredOllamaCloudModel,
-        Environment.GetEnvironmentVariable("OLLAMA_API_KEY"))));
+        Environment.GetEnvironmentVariable("OLLAMA_API_KEY"),
+        configuredAnthropicModel,
+        Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY"))));
 builder.Services.AddSingleton(services => new ProviderModelCatalog(
     services.GetRequiredService<ProviderConfigurationStore>(),
     services.GetRequiredService<IHttpClientFactory>()));

@@ -248,7 +248,9 @@ public sealed class OwnerWorldApi
         pairing.SendSignedActionAsync<OwnerFounderPlacementAction, OwnerFounderPlacementReceipt>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerFounderPlace,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.FounderPlacement(action),
-            action, deviceKey, cancellationToken);
+            action, deviceKey, cancellationToken,
+            OwnerWorldActionPayload.NeedsModelThinkingHost(action.Cognition.Provider, action.Cognition.Thinking)
+                ? OwnerWorldActionPayload.ModelThinkingPayloadDomain : null);
 
     public Task<OwnerFirstTownLayoutReceipt> AcceptFirstTownLayoutAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
@@ -284,7 +286,10 @@ public sealed class OwnerWorldApi
         pairing.SendSignedActionAsync<OwnerAgentPlacementAction, OwnerAgentPlacementReceipt>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerAgentPlace,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.AgentPlacement(action),
-            action, deviceKey, cancellationToken, OwnerWorldActionPayload.AgentPlacementPayloadDomain);
+            action, deviceKey, cancellationToken,
+            // A host that accepts thinking also accepts this placement format.
+            OwnerWorldActionPayload.NeedsModelThinkingHost(action.Cognition.Provider, action.Cognition.Thinking)
+                ? OwnerWorldActionPayload.ModelThinkingPayloadDomain : OwnerWorldActionPayload.AgentPlacementPayloadDomain);
 
     public Task<OwnerAgentRenameReceipt> RenameAgentAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
@@ -672,7 +677,9 @@ public sealed class OwnerWorldApi
             OwnerWorldActionPayload.ProviderConfiguration(action),
             action,
             deviceKey,
-            cancellationToken);
+            cancellationToken,
+            OwnerWorldActionPayload.NeedsModelThinkingHost(action.Provider, action.Thinking)
+                ? OwnerWorldActionPayload.ModelThinkingPayloadDomain : null);
 
     public Task<OwnerProviderConfigurationStatus> CreateCredentialSlotAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
@@ -681,7 +688,8 @@ public sealed class OwnerWorldApi
         pairing.SendSignedActionAsync<OwnerCredentialSlotCreationAction, OwnerProviderConfigurationStatus>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerCredentialSlotCreate,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.CredentialSlotCreation(action),
-            action, deviceKey, cancellationToken);
+            action, deviceKey, cancellationToken,
+            OwnerWorldActionPayload.NeedsModelThinkingHost(action.Provider) ? OwnerWorldActionPayload.ModelThinkingPayloadDomain : null);
 
     public Task<OwnerProviderConfigurationStatus> DeleteCredentialSlotAsync(
         Uri serverUri,
@@ -720,7 +728,8 @@ public sealed class OwnerWorldApi
             OwnerWorldActionPayload.ProviderModelList(action),
             action,
             deviceKey,
-            cancellationToken);
+            cancellationToken,
+            OwnerWorldActionPayload.NeedsModelThinkingHost(action.Provider) ? OwnerWorldActionPayload.ModelThinkingPayloadDomain : null);
 
     public Task<OwnerProviderSetupCheckResult> CheckProviderSetupAsync(
         Uri serverUri,
@@ -738,5 +747,7 @@ public sealed class OwnerWorldApi
             OwnerWorldActionPayload.ProviderSetupCheck(action),
             action,
             deviceKey,
-            cancellationToken);
+            cancellationToken,
+            OwnerWorldActionPayload.NeedsModelThinkingHost(action.Provider, action.Thinking)
+                ? OwnerWorldActionPayload.ModelThinkingPayloadDomain : null);
 }

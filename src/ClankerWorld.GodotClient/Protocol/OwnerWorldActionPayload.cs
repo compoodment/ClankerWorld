@@ -47,6 +47,16 @@ public static class OwnerWorldActionPayload
     public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v3";
     public const string AgentPlacementPayloadDomain = "clankerworld.owner-agent-placement.v2";
 
+    /// <summary>
+    /// A host that advertises this accepts Anthropic models and a thinking
+    /// line. Hosts that don't are asked to update instead of failing a signature.
+    /// </summary>
+    public const string ModelThinkingPayloadDomain = "clankerworld.owner-model-thinking.v1";
+
+    /// <summary>Whether a request names Anthropic or a thinking level, which older hosts don't accept.</summary>
+    public static bool NeedsModelThinkingHost(string? provider, string? thinking = null) =>
+        thinking is not null || provider?.Trim().ToLowerInvariant() is "anthropic" or "claude";
+
     public static string WorldCreation(OwnerWorldCreationAction action) => string.Join(
         '\n',
         WorldCreationPayloadDomain,
@@ -170,8 +180,9 @@ public static class OwnerWorldActionPayload
     {
         ArgumentNullException.ThrowIfNull(action);
         var provider = action.Provider?.Trim().ToLowerInvariant();
-        if (provider is not ("openai" or "ollama-cloud"))
-            throw new ArgumentException("Choose OpenAI or Ollama Cloud for a personal model check.", nameof(action));
+        if (provider == "claude") provider = "anthropic";
+        if (provider is not ("openai" or "ollama-cloud" or "anthropic"))
+            throw new ArgumentException("Choose OpenAI, Ollama Cloud or Anthropic for a personal model check.", nameof(action));
         ArgumentException.ThrowIfNullOrWhiteSpace(action.Model);
         if (action.Model.Length > 200 || action.Model.Any(char.IsControl))
             throw new ArgumentException("Model names must be 200 characters or fewer and contain no control characters.", nameof(action));
@@ -184,11 +195,14 @@ public static class OwnerWorldActionPayload
         var apiKeyDigest = action.ApiKey is null
             ? "-"
             : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
-        return string.Join('\n', "clankerworld.owner-provider-setup-check.v1",
+        var payload = string.Join('\n', "clankerworld.owner-provider-setup-check.v1",
             $"provider={EncodeRequired(provider, nameof(action.Provider))}",
             $"model={EncodeRequired(action.Model.Trim(), nameof(action.Model))}",
             $"credential-slot={EncodeOptional(action.CredentialSlotId)}",
             $"api-key-sha256={apiKeyDigest}");
+        if (action.Thinking is not null)
+            payload += "\nthinking=" + EncodeRequired(action.Thinking, nameof(action.Thinking));
+        return payload;
     }
 
     public static string ProviderConfiguration(OwnerProviderConfigurationAction action)
@@ -211,6 +225,8 @@ public static class OwnerWorldActionPayload
             payload += "\ncredential-slot=" + EncodeRequired(action.CredentialSlotId, nameof(action.CredentialSlotId));
         if (action.NewCredentialLabel is not null)
             payload += "\ncredential-label=" + EncodeRequired(action.NewCredentialLabel, nameof(action.NewCredentialLabel));
+        if (action.Thinking is not null)
+            payload += "\nthinking=" + EncodeRequired(action.Thinking, nameof(action.Thinking));
         return payload;
     }
 
