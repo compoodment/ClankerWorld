@@ -195,10 +195,9 @@ public sealed partial class PrivateWorldRuntime
                 !AgentKnowledgeRules.IsArtifactKind(lot.ItemKind));
     }
 
-    private bool MayVisitTownBusiness(string buyer, PlacedBuilding building)
+    private bool MayVisitBusiness(string buyer, PlacedBuilding building)
     {
         if (!AdultResident(buyer) || NeedsUrgentWarmth(inhabitants[buyer]) ||
-            TownForResident(buyer) is not { } townId || building.TownId != townId ||
             building.HouseholdId is not { } seller || seller == HouseholdFor(buyer) ||
             !society.Checkpoint.Households.Any(household => household.Id == seller) ||
             !inhabitants.Keys.Any(actor => AdultResident(actor) && HouseholdFor(actor) == seller) ||
@@ -210,13 +209,12 @@ public sealed partial class PrivateWorldRuntime
 
     private bool RestaurantIngredientShopTrip(string buyer, PlacedBuilding building)
     {
-        if (!MayVisitTownBusiness(buyer, building) || HouseholdFor(buyer) is not { } householdId) return false;
-        var townId = TownForResident(buyer);
+        if (!MayVisitBusiness(buyer, building) || HouseholdFor(buyer) is not { } householdId) return false;
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         if (BusinessRules.KindOf(definition) is not { } kind) return false;
         // A Town shop's location and kind can motivate a visit. Its private
         // stock and exact terms are inspected only after the buyer arrives.
-        var inputs = worldSimulation.Buildings.Where(site => site.HouseholdId == householdId && site.TownId == townId &&
+        var inputs = worldSimulation.Buildings.Where(site => site.HouseholdId == householdId &&
                 worldContent.Buildings.Any(item => item.CanonicalId == site.DefinitionId &&
                     item.Tags.Contains("restaurant", StringComparer.Ordinal)))
             .SelectMany(site => worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == site.DefinitionId)
@@ -229,7 +227,7 @@ public sealed partial class PrivateWorldRuntime
 
     private bool RestaurantMealShopTrip(string buyer, PlacedBuilding building)
     {
-        if (!MayVisitTownBusiness(buyer, building)) return false;
+        if (!MayVisitBusiness(buyer, building)) return false;
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         if (BusinessRules.KindOf(definition) != "restaurant") return false;
         // The menu describes possible meals, never whether the private shelf

@@ -2452,7 +2452,13 @@ invalidated offers release their reservations without transporting goods.
 Buyers compare usable tool tiers and garment protection in the current weather.
 Their best usable tool in each family, equipped clothing and carrying aids, and
 the active equipment repair target are excluded from payment.
-Customers receive transaction access only. Store stocking first moves actual
+Customers receive transaction access only. Ingredient-shopping and Restaurant
+meal trips may cross Town borders. Planning uses the public building kind and
+menu, the customer's own demand and carried payment, and a reachable route;
+exact stock and terms are checked only after arrival. Restaurant demand follows
+the customer's household-owned Restaurants, even when they live in another Town.
+Visiting or buying grants no Warehouse stock or private household access.
+Store stocking first moves actual
 surplus into carried delivery lots, then uses ordinary household hauling to
 reach the Store. A remote House, field or Warehouse is never sale stock.
 Store stocking keeps one available unit of each adult's best usable work tool
@@ -2467,8 +2473,7 @@ stock cannot satisfy the reserve.
 Optional shelf restocking waits behind gathering materials needed by household work.
 Rates, the eight-unit shelf target and four-unit carried loads are provisional.
 Blacksmiths can sell real refined iron for another household's tool work.
-Meals remain tracked in #564 and its domain
-issues; currency remains later work. The Clinic sells actual medicine
+Currency remains later work. The Clinic sells actual medicine
 and bandages through the same inventory and physical business authority.
 
 Released Town construction loads retain their Town owner and exact material
