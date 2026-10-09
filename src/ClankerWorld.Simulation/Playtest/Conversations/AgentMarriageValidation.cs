@@ -55,6 +55,8 @@ internal static class AgentMarriageValidation
                 session.InitiatorId != consent.InitiatorId || session.InviteeId != consent.InviteeId || session.CreatedTick != marriage.AcceptedTick)
                 throw new InvalidDataException("A saved marriage lacks its own surname conversation.");
             AgentConversationRules.Validate(session, society.WorldTick);
+            if (marriage.EndReceipt is not null && session.Turns.Any(turn => turn.WorldTick > marriage.EndedTick))
+                throw new InvalidDataException("An ended marriage cannot retain surname turns after its ending.");
             if (session.Turns.Any(turn => !AgentMarriageRules.AllowedSurnames(marriage).Contains(turn.SurnameChoice!, StringComparer.Ordinal)))
                 throw new InvalidDataException("The surname conversation chose a surname outside the couple's original names.");
             if (marriage.CompletedTick is null)

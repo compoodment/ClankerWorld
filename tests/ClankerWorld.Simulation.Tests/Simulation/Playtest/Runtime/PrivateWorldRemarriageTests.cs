@@ -181,12 +181,14 @@ public sealed partial class PrivateWorldConversationTests
     {
         IDecisionProvider Route(string id) => new MarriagePersonalProvider(id);
         using var world = MarriedWorldSetup("unfinished-marriage-separation", Route);
-        await AdvanceRemarriageUntil(world, () => world.Marriages.Count == 1);
+        await AdvanceRemarriageUntil(world, () => world.Marriages.Count == 1 &&
+            world.Conversations.Single(item => item.Id == world.Marriages[0].SurnameConversationId).Turns.Count == 1);
         world.Pause();
         var names = world.Society.Inhabitants.Select(person => person.Name).ToArray();
         var beforeEnding = world.ExportState();
         var unfinishedSession = Assert.Single(beforeEnding.Conversations!,
             item => item.Id == Assert.Single(beforeEnding.Marriages).SurnameConversationId);
+        Assert.Single(unfinishedSession.Turns);
         Assert.True(world.ApplyDeveloperEdit(MarriageEdit(world, "end_partnership", InitiatorId, InviteeId)).Applied);
         var marriage = Assert.Single(world.Marriages);
         Assert.NotNull(marriage.EndedTick);
@@ -221,6 +223,29 @@ public sealed partial class PrivateWorldConversationTests
                 item.Id == afterEnding.Id ? afterEnding : item).ToArray(),
         };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(lateReceipt));
+
+        var actualTurn = Assert.Single(marriage.SurnameReceipt.Turns);
+        var lateTurnSession = marriage.SurnameReceipt with
+        {
+            Turns = [actualTurn with { WorldTick = world.WorldTick }],
+        };
+        // Keep the public/retained receipt and its hearing evidence internally
+        // consistent; only the activity after the ending is malformed.
+        var lateTurn = endedState with
+        {
+            Marriages = [marriage with { SurnameReceipt = lateTurnSession }],
+            Conversations = endedState.Conversations!.Select(item =>
+                item.Id == lateTurnSession.Id ? lateTurnSession : item).ToArray(),
+            Society = endedState.Society with
+            {
+                Society = endedState.Society.Society with
+                {
+                    Beliefs = (endedState.Society.Society.Beliefs ?? []).Select(belief =>
+                        belief.SourceTurnId == actualTurn.Id ? belief with { FormedTick = world.WorldTick } : belief).ToArray(),
+                },
+            },
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(lateTurn));
     }
 
     [Fact]
