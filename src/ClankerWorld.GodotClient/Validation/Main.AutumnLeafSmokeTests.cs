@@ -89,6 +89,11 @@ public partial class Main
             const int ForestSize = 192;
             layer.SetWorld(WorldTerrainMap.FromPacked(new OwnerWorldPackedTerrain(ForestSize, ForestSize,
                 "terrain-kind-v1", Convert.ToBase64String(Enumerable.Repeat((byte)8, ForestSize * ForestSize).ToArray()))));
+            layer.SetTrees(Enumerable.Range(0, ForestSize * ForestSize).Select(index => tree with
+            {
+                Id = $"forest-tree-{index}",
+                Position = new(index % ForestSize, index / ForestSize),
+            }).ToArray());
             layer.SetAutumnLeaves("autumn");
             layer.MeasureDrawCost = true;
             foreach (var size in new[] { 32, 16 })
@@ -105,7 +110,7 @@ public partial class Main
                 }
                 costs.Sort();
                 if (maximum <= 0 || maximum > 14 * 14 * 14 || layer.GetChildCount() != 0)
-                    throw new InvalidOperationException("A large autumn forest must draw only camera-bounded leaves without adding nodes.");
+                    throw new InvalidOperationException($"A large autumn forest must draw only camera-bounded leaves without adding nodes: leaves={maximum}, nodes={layer.GetChildCount()}, size={size}.");
                 GD.Print($"NATIVE_AUTUMN_FOREST world=192x192 camera=12x12 tileSize={size} samples=10 maximumLeaves={maximum} medianDrawMs={costs[5]:F3} p95DrawMs={costs[9]:F3}");
             }
             var before = GC.GetAllocatedBytesForCurrentThread();
