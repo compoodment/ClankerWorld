@@ -65,7 +65,13 @@ lists as damaged checkpoint data. Current lesson progress and skills survive pau
 save/load and replay. Schema 32 adds saved household requests and recent refusals
 for adults without an authorized home. These states are validated and survive
 save/load and replay. Older alpha lesson records need not load; no migration is
-provided. Saved skills grant no ordinary action permissions or speed bonus.
+provided. Saved skills grant no ordinary action permissions. Matching skills now shorten
+work with a provisional 20% reduction, without a new saved field or schema.
+Production, expansion and field jobs keep their recorded deadlines or remaining
+work across reload; the bonus is applied when a new job starts. Projects and
+repairs use their actor's saved skill with existing progress. Native paired
+continuation retains outputs, material costs, full completion receipts and
+current-format checkpoints; refused ticks keep the preceding state.
 
 Private-world schema 34 adds household field tiles and their crop/work state.
 The saved inventory also records a ground position for physical harvest lots.
@@ -274,6 +280,10 @@ only unresolved portions as competing claims. Loading validates the case's notic
 source, read, authority and adjustment links rather than inventing missing evidence.
 Notice party snapshots remain historical; current response standing is derived
 from the captured world, while each ruling retains its actual closure parties.
+Readers, evidence agents and judges retain their complete known person identities,
+including native-born adults. Unknown or malformed person references are refused;
+caller-owned keys and prose retain their existing limits. This identity validation
+fix changes no schema or saved field.
 
 The same ledger saves voluntary transfer requests with immutable exact plots,
 right versions, published party rosters and terms. Actual notice receipts remain
