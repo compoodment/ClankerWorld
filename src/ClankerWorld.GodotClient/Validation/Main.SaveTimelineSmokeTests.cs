@@ -335,11 +335,43 @@ public partial class Main
                     !boundaries.Contains(visiblePrefix.Length))
                     throw new InvalidOperationException("A shortened branch tag must end between complete visible characters.");
             }
+            void CheckFittedNames(string origin)
+            {
+                var labels = manualSaveList.FindChildren("*", nameof(Label), true, false).OfType<FittedLabel>()
+                    .Where(label => label.FullText.Contains(origin, StringComparison.Ordinal)).ToArray();
+                if (labels.Length == 0)
+                    throw new InvalidOperationException("The real save cards must display their originating name.");
+                foreach (var label in labels)
+                {
+                    var full = label.FullText;
+                    var boundaries = System.Globalization.StringInfo.ParseCombiningCharacters(full);
+                    bool WholePrefix(string text) => text == full || text.EndsWith("...", StringComparison.Ordinal) &&
+                        full.StartsWith(text[..^3], StringComparison.Ordinal) && boundaries.Contains(text.Length - 3);
+                    var font = label.GetThemeFont("font");
+                    var size = label.GetThemeFontSize("font_size");
+                    float Measure(string text)
+                    {
+                        if (!WholePrefix(text))
+                            throw new InvalidOperationException("Card shortening must never send a partial visible character to the native font.");
+                        return font.GetStringSize(text, HorizontalAlignment.Left, -1, size).X;
+                    }
+                    if (!WholePrefix(label.Text) || Measure(label.Text) > label.Size.X + 1)
+                        throw new InvalidOperationException("The displayed card name must fit and retain complete visible characters.");
+                    // Exercise a genuinely narrow native-font width as well as
+                    // the current card layout; every measured candidate is valid.
+                    var first = System.Globalization.StringInfo.GetNextTextElement(full);
+                    var width = font.GetStringSize(first + "...", HorizontalAlignment.Left, -1, size).X;
+                    var narrow = FittedLabel.Shorten(full, width, Measure);
+                    if (!narrow.EndsWith("...", StringComparison.Ordinal) || !WholePrefix(narrow) || Measure(narrow) > width + 1)
+                        throw new InvalidOperationException("A narrow card name must keep its native-font width and whole-character boundary.");
+                }
+            }
             CheckLongTag(manualSaveDetails, longLabel);
             manualSaveViewChoice.Select(1);
             manualSaveViewChoice.EmitSignal(SegmentedChoice.SignalName.ItemSelected, 1L);
             for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             CheckLongTag(manualSaveList, longLabel);
+            CheckFittedNames(longOrigin.Name);
             manualSaveOverlay.Hide();
 
             // Every origin is a valid eighty-unit name. Render real cards for
@@ -366,6 +398,7 @@ public partial class Main
                 manualSaveViewChoice.EmitSignal(SegmentedChoice.SignalName.ItemSelected, 1L);
                 for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 CheckLongTag(manualSaveList, unicodeLabel);
+                CheckFittedNames(unicodeOrigin.Name);
                 manualSaveOverlay.Hide();
             }
 
