@@ -237,6 +237,13 @@ leaves marriage incomplete until the surname is settled. The agent's Profile
 shows their spouse and whether that choice is still pending. Marriage is not
 required to have a child.
 
+Either partner may end their partnership and marriage alone. A partner's
+death also ends the marriage. Both keep their names, and a living former
+partner may form a new partnership and marry again. The Profile keeps past
+marriages alongside the current one. Renaming someone later changes only
+their current spouse's surname. During paused Developer Tools, **End
+partnership** also ends the pair's marriage and any unfinished surname choice.
+
 **Suggest** shares an idea with the agent's own planning model. **Order** gives
 it a task. A new suggestion or recognized order asks for one fresh planning
 decision; any short reply comes in that same response. Following an order does
@@ -347,6 +354,8 @@ in their current or former household's storage, or where they were dropped.
 They keep ownership and use normal carrying space. A plain request collects
 one load; a quantity stops exactly at that number. Full hands or unavailable
 goods leave the task waiting. Add **from (12, 4)** to require that source tile.
+Routine recovery also skips belongings it cannot currently reach, so an item on
+disconnected land does not block pickup of nearby personal goods.
 You can also collect personal food or equipment without eating or equipping it.
 Named meals include **Collect two bread**, **Collect berry porridge** and
 **Collect restaurant meals**. These collect only the agent's own goods.
