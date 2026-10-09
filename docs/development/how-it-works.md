@@ -1819,14 +1819,9 @@ Saved footprint rights and requests retain that same known household reference.
 A generated household party key longer than 256 characters uses a stable hash,
 while its separate household field keeps the complete identity.
 
-Hearing actions enter through admitted personal-model civic choices. Readers,
-evidence sources and submitters, and judges keep their complete known saved agent
-identities, including adults born in the world. The shared civic identity check
-rejects blank, padded and control-character identities; caller-owned evidence,
-record and authority keys and prose keep their existing bounds. Current-world
-identity, notice and authority checks still apply.
-Public statements remain allegations; actual nearby observations and inspected
-rights, title, law versions and earlier rulings retain their sources. The current land
+Hearing actions enter through admitted personal-model civic choices. Public
+statements remain allegations; actual nearby observations and inspected rights,
+title, law versions and earlier rulings retain their sources. The current land
 mayor must inspect the file and revalidate authority, conflicts and the response
 window before ruling. A permission past its agreed end must be renewed, amended
 or ended; it cannot be confirmed or left as it is. A renewal renews every lapsed
@@ -1916,6 +1911,13 @@ on the agent's ordinary decision cadence.
 Long ancestry-based agent IDs use stable SHA-256 aliases in civic model action
 tokens. The runtime resolves these against current inhabitants before checking a
 ballot; saved candidates and choices retain the actual IDs.
+
+Land-hearing readers, evidence sources and submitters, and judges keep their
+complete known saved agent identities, including adults born in the world.
+The shared civic identity check rejects blank, padded and control-character
+identities; caller-owned evidence, record and authority keys and prose keep
+their existing bounds. Current-world identity, notice and authority checks
+still apply.
 
 Saved notice receipts enter a bounded `CognitionSelfContext.CivicNote` excerpt
 with read/relay provenance and readable names/world days. An actor receives no

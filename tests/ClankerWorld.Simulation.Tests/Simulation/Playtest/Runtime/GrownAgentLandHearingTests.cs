@@ -11,6 +11,7 @@ public sealed partial class GrownAgentHelperMemoryTests
 {
     private const string NativeHearingJudge = "founder:00000000000000000000000000000002";
     private const string NativeHearingHouse = "first-town-house-b";
+    private const int NativeHearingDay = 40;
     private static readonly Lazy<Task<byte[]>> NativeHearingGovernment = new(() => CreateNativeHearingGovernmentAsync(false));
     private static readonly Lazy<Task<byte[]>> NativeJudgeGovernment = new(() => CreateNativeHearingGovernmentAsync(true));
 
@@ -63,6 +64,11 @@ public sealed partial class GrownAgentHelperMemoryTests
         var birth = Assert.Single(state.Society.Society.Births);
         var actor = nativeBorn ? birth.ChildId : birth.PrimaryCaregiverId;
         Assert.True(birth.ChildId.Length > 128);
+        using (var displaced = PrivateWorldRuntime.Restore(state, _ => new NativeLandHearingChoices()))
+        {
+            Assert.True(displaced.DisplaceAdult(actor));
+            state = displaced.ExportState();
+        }
         const string recipient = "household:native-hearing-recipient";
         var society = SocietyFixture.CreateHousehold(state.Society.Society, recipient, "Receiving household", [actor]).Checkpoint;
         var choices = new NativeLandHearingChoices
@@ -92,7 +98,9 @@ public sealed partial class GrownAgentHelperMemoryTests
         Assert.Equal(pending, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
         Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
         Assert.Equal(pending, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        for (var step = 0; step < 25 && world.Towns[0].LandHearings.Cases[1].Status == "pending"; step++)
+        // A recipient who also represents the Town can still owe the separate
+        // Town response opportunity. Allow its actual full notice window.
+        for (var step = 0; step < NativeHearingDay + 10 && world.Towns[0].LandHearings.Cases[1].Status == "pending"; step++)
         {
             NativeHearingPromptAll(world);
             NativeHearingPromptAll(replay);
@@ -146,7 +154,7 @@ public sealed partial class GrownAgentHelperMemoryTests
     {
         var state = PrivateWorldRuntimeCodec.Decode(await ConversationAdult.Value);
         var society = state.Society.Society;
-        const int day = 40;
+        const int day = NativeHearingDay;
         var oldDay = society.Config.TicksPerWorldDay;
         var life = society.LifeTickAt(society.WorldTick);
         var worldConfig = state.WorldSystems!.Config with { TicksPerDay = day, CalendarOffsetTicks = 0 };
