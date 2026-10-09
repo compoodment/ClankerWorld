@@ -592,15 +592,17 @@ constrain records, maps or books; `TargetKnowledgeArtifactId` binds an exact
 artifact resolved from a complete ID, lot ID or unique title. An unspecified
 source is chosen from eligible personally held items when the step executes.
 An explicit source cannot be replaced by another available item while blocked.
-The native read returns its actual number of new facts. A positive effect
-stores `KnowledgeReadCompletion` with the tick and sorted newly learned sites,
-then credits one task through a deterministic receipt. A missing, foreign,
-reserved or uncarried source, exhausted knowledge capacity, existing writing
-work or an account with no new sites blocks the task. It uses existing
-provenance and partial-capacity rules; writing, sharing and another person's
-reading cannot credit it. Later firsthand updates preserve the historical
-completion. Only the bound artifact identity reaches the order projection;
-completion evidence stays with authoritative saves.
+The native read returns its actual number of newly learned sites and recipes.
+A positive effect stores `KnowledgeReadCompletion` with the reader, bound
+source, tick, sorted newly learned site coordinates and sorted recipe identities,
+then credits one task through a deterministic receipt covering both collections.
+A missing, foreign, reserved or uncarried source, no remaining capacity for any unknown contents
+in the item, existing writing work or an account with no new contents
+blocks the task. It uses existing provenance and partial-capacity rules for
+each ledger; writing, sharing and another person's reading cannot credit it.
+Later firsthand site updates preserve the historical completion. Only the
+bound artifact identity reaches the order projection; completion evidence
+stays with authoritative saves.
 `talk_to` resolves a complete person ID, full name or unique first name with
 Unicode normalization, excluding the addressed actor. It keeps `TargetAgentId`
 even if that person is renamed or becomes unavailable. The native invitation
