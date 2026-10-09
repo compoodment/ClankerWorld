@@ -14,10 +14,10 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class SettlementParenthoodTests
 {
-    private const string ContinuityOnText = "The continuity rule is on because fewer than eight people who are not elders are alive. " +
-        "Couples may put off having a child for up to two days but cannot refuse.";
-    private const string ContinuityOffText = "The continuity rule is off because eight or more people who are not elders are alive. " +
-        "Couples may decide against having a child again.";
+    private const string ContinuityOnText =
+        "Fewer than eight people who aren't elders are alive, so couples must now have children. They can wait up to two days.";
+    private const string ContinuityOffText =
+        "Eight or more people who aren't elders are alive again, so couples can choose not to have children.";
     private static readonly JsonSerializerOptions ContinuityGodotJson = new(JsonSerializerDefaults.Web);
 
     [Fact]
