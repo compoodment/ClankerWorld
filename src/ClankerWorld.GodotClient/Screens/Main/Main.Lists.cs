@@ -208,12 +208,12 @@ public partial class Main
                 var find = new Button
                 {
                     TooltipText = "Show where this happened",
-                    FocusMode = Control.FocusModeEnum.None,
+                    FocusMode = Control.FocusModeEnum.All,
                     Flat = true,
                     Icon = PixelIcons.Themed(PixelGlyph.Find, UiTheme.Current.Primary, 1),
                     MouseDefaultCursorShape = Control.CursorShape.PointingHand,
                 };
-                foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "focus" })
+                foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed" })
                     find.AddThemeStyleboxOverride(state, new StyleBoxEmpty { ContentMarginLeft = 2, ContentMarginRight = 2 });
                 find.AddThemeColorOverride("icon_hover_color", UiTheme.Current.Link);
                 var id = entry.EventId.ToString(CultureInfo.InvariantCulture);
@@ -249,7 +249,7 @@ public partial class Main
         {
             Text = "Add a newcomer",
             TooltipText = "Open Add Agent to place another adult.",
-            FocusMode = Control.FocusModeEnum.None,
+            FocusMode = Control.FocusModeEnum.All,
             SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
         };
         add.Pressed += () => _ = HandleEventLogActionAsync("add-newcomer");
@@ -317,6 +317,7 @@ public partial class Main
             (["+", "−"], "Zoom in or out"),
             (["H"], "Back to the first Town"),
             (["M"], "World Map"),
+            (["K"], "Focus a tile: arrows move, Enter selects"),
         ]),
         ("Time and agents", false, [
             (["Space"], "Pause or resume (or P)"),
@@ -328,6 +329,11 @@ public partial class Main
             (["Click"], "Select an agent or inspect a tile"),
             (["Wheel"], "Zoom toward the pointer"),
             (["Middle-drag"], "Move the map"),
+        ]),
+        ("Keyboard focus", false, [
+            (["Tab"], "Next control"),
+            (["Shift", "Tab"], "Previous control"),
+            (["Enter"], "Use the focused control"),
         ]),
         ("Panels", true, [
             (["F"], "Map filters"),

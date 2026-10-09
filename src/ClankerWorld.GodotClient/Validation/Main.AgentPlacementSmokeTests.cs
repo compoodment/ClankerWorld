@@ -14,6 +14,10 @@ public partial class Main
         var previousObservation = observationSession.Current;
         var previousConfiguration = providerConfiguration;
         var previousRefreshing = isRefreshing;
+        var previousInWorld = isInWorld;
+        var previousMainMenu = mainMenuOverlay.Visible;
+        var previousKeyboard = keyboardNavigation;
+        var previousCursor = keyboardMapTile;
         var previousCi = System.Environment.GetEnvironmentVariable("CI");
         System.Environment.SetEnvironmentVariable("CI", "true");
         using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
@@ -55,7 +59,26 @@ public partial class Main
                 founderModelPicker.SetModel("placement-smoke-model");
                 placingAddedAgent = true;
                 founderSetupPanel.Show();
-                await PlaceAgentAtAsync(new(0, 0));
+                if (boundary == "success")
+                {
+                    mainMenuOverlay.Hide();
+                    isInWorld = true;
+                    for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                    GetViewport().GuiReleaseFocus();
+                    await KeyboardKeyAsync(Key.K);
+                    if (!mapCanvas.HasFocus()) throw new InvalidOperationException("Keyboard placement must enter the map.");
+                    for (var step = 0; step < 3; step++)
+                    {
+                        await KeyboardKeyAsync(Key.Left);
+                        await KeyboardKeyAsync(Key.Up);
+                    }
+                    if (keyboardMapTile != new Vector2I(0, 0))
+                        throw new InvalidOperationException("Placement arrows must reach the requested tile.");
+                    await KeyboardKeyAsync(Key.Enter);
+                    for (var frame = 0; frame < 600 && (host.AgentPlacements.IsEmpty || isOwnerAction); frame++)
+                        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                }
+                else await PlaceAgentAtAsync(new(0, 0));
                 var refused = boundary == "placement-refusal";
                 if (host.AgentPlacements.Count != 1 || placingAddedAgent != refused || founderSetupPanel.Visible != refused)
                     throw new InvalidOperationException($"An acknowledged placement must leave placement mode; a refused placement must keep it: boundary={boundary}, attempts={host.AgentPlacements.Count}, mode={placingAddedAgent}, panel={founderSetupPanel.Visible}, status={statusLabel.Text}.");
@@ -91,6 +114,11 @@ public partial class Main
         finally
         {
             founderSetupPanel.Hide();
+            isInWorld = previousInWorld;
+            mainMenuOverlay.Visible = previousMainMenu;
+            keyboardNavigation = previousKeyboard;
+            keyboardMapTile = previousCursor;
+            GetViewport().GuiReleaseFocus();
             placingAddedAgent = false;
             registration = previousRegistration;
             deviceKey = previousKey;

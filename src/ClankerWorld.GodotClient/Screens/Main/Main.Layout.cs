@@ -195,8 +195,16 @@ public partial class Main
         worldOverviewPanel.Hide();
         uiLayer.AddChild(worldOverviewPanel);
         mapCanvas.GuiInput += HandleMapInput;
+        mapCanvas.FocusMode = FocusModeEnum.All;
+        mapCanvas.FocusEntered += BeginKeyboardMapSelection;
+        mapCanvas.FocusExited += () =>
+        {
+            terrainLayer.SetHoveredTile(null);
+            UpdateHoverReadout(null, null);
+        };
         mapCanvas.MouseExited += () =>
         {
+            if (mapCanvas.HasFocus()) return;
             terrainLayer.SetHoveredTile(null);
             UpdateHoverReadout(null, null);
             if (placingAddedAgent) ResetAddAgentPlacementHint();

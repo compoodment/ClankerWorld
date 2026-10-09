@@ -353,6 +353,7 @@ public static class UiTheme
         theme.SetColor("selection_color", "RichTextLabel", p.Selection);
         theme.SetStylebox("normal", "RichTextLabel", new StyleBoxEmpty());
         theme.SetStylebox("focus", "RichTextLabel", new StyleBoxEmpty());
+        theme.SetStylebox("focus", "ScrollContainer", Focus(p));
 
         // Sliders: a sunken track that fills green up to a wooden knob.
         theme.SetStylebox("slider", "HSlider", Box(p.Field, p.FieldEdge, 2, 0, 3));

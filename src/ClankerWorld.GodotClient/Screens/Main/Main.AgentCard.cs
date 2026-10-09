@@ -523,6 +523,8 @@ public partial class Main
             instructionText.CallDeferred(Control.MethodName.GrabFocus);
             QueueAgentProfileFit();
         }
+        else if (keyboardNavigation)
+            Callable.From(() => FocusKeyboardPanel(agentProfilePanel)).CallDeferred();
     }
 
     /// <summary>
