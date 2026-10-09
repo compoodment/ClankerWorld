@@ -911,6 +911,11 @@ use those supplies directly. The adult walks and brings actual available
 supplies; an order waits when permission, supplies, product, space or a route
 is missing. Care without safe feed or jug water shows a blocker and can resume
 when supplies become available.
+Care keeps two usable ready-to-eat portions per living household member, plus
+the existing extra allowance for an active family plan. Food trapped in a broken
+pot or on an actively borrowed Market stall cannot cover that reserve. Once
+stall borrowing ends, its food can count again. Grain can feed animals without
+spending the family's ready-to-eat meals.
 Taming needs two grain/greens and one jug water. Chickens need one feed and one
 water daily; sheep, cows and horses need two each. Jugs remain reusable.
 

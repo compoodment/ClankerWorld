@@ -672,7 +672,10 @@ grain keeps its owner and location. Water jugs travel with their contents.
 Yard stock is picked up before approaching an animal on another
 tile; care at the stock tile can use it directly. Care uses grain before
 ready-to-eat greens when available, and may combine grain with spare greens
-across lots. An incomplete safe feed or water load spends nothing. Care orders
+across lots. An incomplete safe feed or water load spends nothing. Care can
+protect usable family meals: broken-pot contents and food on an actively borrowed
+Market stall do not count toward the reserve. Released stall stock can count
+again; grain remains usable feed without spending ready-to-eat meals. Care orders
 explain missing safe feed and jug water, while valid supply fetching stays
 active. They resume when physical supplies become available. Building Details lists animals standing within its footprint,
 with their names, care, ready products and permissions; animals on open ground
