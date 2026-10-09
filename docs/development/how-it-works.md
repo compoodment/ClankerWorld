@@ -2654,7 +2654,10 @@ usable seed. Autonomous crop claims keep their terrain eligibility while
 temporary occupants pass and the existing physical route retries.
 
 Planning compares population and available ready-to-eat food with a trial reserve of two
-days at two meals per resident per day, then estimates fields from expected
+days at two meals per resident per day. Loose food and food in usable vessels
+count after the existing condition, freshness and reservation checks; food
+inside a broken pot does not cover the reserve or suppress replacement planting.
+Planning then estimates fields from expected
 yield. It picks free reachable soil by fertility and distance, favouring
 tiles beside the household's existing fields. It can expand during shortages;
 the existing household-building planner can establish another Farmhouse for a
