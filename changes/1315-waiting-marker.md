@@ -1,0 +1,1 @@
+- Agents waiting for a model show the approved circling gold spark after two seconds. The spark clears on reply or pause; actual provider failures add one Event Log line naming the agent and problem.

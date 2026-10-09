@@ -12,8 +12,7 @@ public partial class Main
     {
         var snapshot = observationSession.Current?.Baseline.Snapshot;
         var offersNewcomer = WorldEventText.OffersNewcomer(snapshot);
-        var entries = knownEvents.Values
-            .Where(worldEvent => GameUiText.IsPlayerFacingEvent(worldEvent.Kind))
+        var entries = GameUiText.PlayerEvents(knownEvents.Values)
             .OrderByDescending(worldEvent => worldEvent.EventId)
             .Take(30)
             .Select(worldEvent => (worldEvent.EventId, Located: worldEvent.Position is not null,
@@ -118,7 +117,7 @@ public partial class Main
         eventsPanel.Hide();
     }
 
-    private void SelectInhabitantFromList(long index)
+    private void SelectInhabitantFromList(long index, bool keepRosterOpen = false)
     {
         if (index < 0 || index >= inhabitantList.ItemCount)
         {
@@ -128,12 +127,12 @@ public partial class Main
         var inhabitantId = inhabitantList.GetItemMetadata((int)index).AsString();
         if (string.Equals(inhabitantId, selectedInhabitantId, StringComparison.Ordinal))
         {
-            ClearInhabitantSelection();
+            if (!keepRosterOpen) ClearInhabitantSelection();
             return;
         }
 
         selectedInhabitantId = inhabitantId;
-        rosterPanel.Hide();
+        if (!keepRosterOpen) rosterPanel.Hide();
         // The roster promises to find the agent, so bring them into view.
         CenterOnInhabitant(inhabitantId);
         if (observationSession.Current is { } current)

@@ -152,10 +152,8 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
-    private int PhysicalUnreservedQuantity(InventoryLot lot) => Math.Max(0, lot.Quantity -
-        society.Checkpoint.Inventory.Reservations.Where(item => item.LotId == lot.Id && item.State is
-            InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed)
-            .Sum(item => item.Quantity));
+    private int PhysicalUnreservedQuantity(InventoryLot lot) =>
+        Math.Max(0, InventoryRules.UnreservedQuantity(InventoryIndex.For(society.Checkpoint.Inventory), lot));
 
     private IEnumerable<InventoryLot> PersonalGoodsAwaitingCollection(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
         // A parked handcart stays on the ground with its cargo; its owner pulls it rather than carrying it.
@@ -324,6 +322,7 @@ public sealed partial class PrivateWorldRuntime
         if (FreeCarryCapacity(actor) > 0)
         {
             foreach (var lot in PersonalGoodsAwaitingCollection(actor).Where(lot => VesselFits(lot, FreeCarryCapacity(actor)))
+                         .Where(lot => CanReachPersonalGoods(actor, lot))
                          .OrderBy(lot => lot.Id, StringComparer.Ordinal))
             {
                 var knowledgeAtHome = KeptAtHomeByRoutine(lot.ItemKind) &&
@@ -340,14 +339,15 @@ public sealed partial class PrivateWorldRuntime
         }
         foreach (var lot in BorrowedGoods(actor).OrderBy(lot => lot.Id, StringComparer.Ordinal))
             if (lot.OwnerId != society.Checkpoint.GetInhabitant(actor).HouseholdId && HouseForHousehold(lot.OwnerId) is { } ownerHouse &&
-                VesselFits(lot, StorageRoom(ownerHouse.InstanceId)))
+                StorageRoomAfterInboundDeliveries(ownerHouse.InstanceId) > 0 &&
+                VesselFits(lot, StorageRoomAfterInboundDeliveries(ownerHouse.InstanceId)))
                 candidates.Add(new("household_return:" + lot.Id, $"Physically return borrowed {lot.ItemKind.Replace('_', ' ')} to its owning household.", 22));
             // Goods carried to or from the Market stay household property and can only be used again from the House.
             else if (lot.OwnerId == home && MarketTradeRules.IsLoose(lot) && !ProtectedMarketItem(actor, lot) &&
                      PhysicalUnreservedQuantity(lot) > 0 && HouseForHousehold(lot.OwnerId) is { } ownHouse &&
-                     StorageRoom(ownHouse.InstanceId) > 0)
+                     StorageRoomAfterInboundDeliveries(ownHouse.InstanceId) > 0)
                 candidates.Add(new("household_return:" + lot.Id, $"Carry your household's {lot.ItemKind.Replace('_', ' ')} back to its House.", 22));
-        if (home is not null && HouseForHousehold(home) is { } house && StorageRoom(house.InstanceId) > 0)
+        if (home is not null && HouseForHousehold(home) is { } house && StorageRoomAfterInboundDeliveries(house.InstanceId) > 0)
         {
             foreach (var lot in PersonalStorageLots(actor, house.InstanceId))
                 candidates.Add(new("household_store_personal:" + lot.Id, $"Store your own {lot.ItemKind.Replace('_', ' ')} in your House while keeping personal ownership.",

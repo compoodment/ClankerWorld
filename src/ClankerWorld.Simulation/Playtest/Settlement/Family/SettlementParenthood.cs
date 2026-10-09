@@ -348,8 +348,8 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
-            inhabitants.Add(birth.ChildId, new(birth.ChildId, site.Value, 8_000, 0, "curious", "grow with the household",
-                Survival: new SurvivalCondition()));
+            inhabitants.Add(birth.ChildId, new(birth.ChildId, site.Value, 8_000, 0, "undecided", "find a purpose",
+                Survival: new SurvivalCondition(), IdentityChoicePending: true));
             var housingBlocker = HousingBlocker(birth.ChildId);
             if (housingBlocker is not null)
             {

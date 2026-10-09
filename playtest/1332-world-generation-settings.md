@@ -1,0 +1,1 @@
+- Create a world with a chosen seed and climate, open Settings → World, and check that World generation shows its size, climate, wrapping and seed with no way to edit them. Load a different world and check that the values change to that world's choices; Main Menu Settings still offers only Game settings. ([#1332](https://github.com/compoodment/ClankerWorld/issues/1332))

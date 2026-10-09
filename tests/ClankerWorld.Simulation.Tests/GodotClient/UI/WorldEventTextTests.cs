@@ -8,6 +8,20 @@ public sealed class WorldEventTextTests
     private const string AgentId = "agent:00000000000000000000000000000099";
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
+    [Fact]
+    public void ModelLogKeepsOneContinuingProblemAndUsesTheCompleteDescendantIdentity()
+    {
+        OwnerWorldEvent Status(long id, string status) => new(id, id, "model_attempt_status", $"{ChildId}:{status}");
+        var events = new[] { Status(1, "waiting"), Status(2, "waiting"), Status(3, "ready"),
+            Status(4, "waiting"), Status(5, "timed_out"), Status(6, "timed_out"), Status(7, "waiting"),
+            Status(8, "timed_out"), Status(9, "canceled"), Status(10, "ready"), Status(11, "waiting"), Status(12, "timed_out") };
+        var rows = GameUiText.PlayerEvents(events.Reverse()).ToArray();
+        Assert.Equal(new long[] { 5, 12 }, rows.Select(item => item.EventId));
+        Assert.Equal("Aster could not get a model reply: the model reply timed out.",
+            WorldEventText.Describe(rows[0], Snapshot(Person(FounderId, "Mira"), Person(ChildId, "Aster"))));
+        Assert.Equal(rows, GameUiText.PlayerEvents(events).ToArray());
+    }
+
     [Theory]
     [InlineData("{")]
     [InlineData("null")]
