@@ -561,6 +561,19 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
+Private-world schema 106 adds `talk_to` order bindings: stable `TargetAgentId`,
+optional `TalkConversationId` and the completed `TalkOutcome`. Validation binds
+an active task to one actual ordinary invitation from its actor to its target;
+several tasks cannot share an invitation. Completion requires a closed outcome
+and the matching deterministic task receipt, with no duplicated progress.
+Completed and cancelled task links may outlive bounded closed history.
+Restored accepted conversations remain stopped until both people make fresh
+resume choices; proposals retain their original acceptance and deadline rules.
+Replay checks cover normal generated-map approach, proposal and completed
+reloads, halfway resumption and rejected invitation/completion ticks. The
+number is provisional until merge. Older alpha saves are refused and preserved
+without migration.
+
 Private-world schema 84 adds required marriage records and conversation kinds.
 Each marriage retains its accepted partnership snapshot and the ordinary
 conversation's separate mutual marriage consent. Its surname session admits
@@ -858,7 +871,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 105. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 106. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus

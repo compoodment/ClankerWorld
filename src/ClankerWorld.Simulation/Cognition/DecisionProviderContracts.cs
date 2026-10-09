@@ -356,6 +356,7 @@ public sealed record InhabitantObservation(
                 message.Kind == "must_do" && message.UnderstoodTask is not
                     ("reach and attach the selected owned handcart" or
                         "park the selected attached handcart here with its cargo intact" or
+                        "attempt to talk with the named person; agreement and resumption remain each participant's choice" or
                         "care for the named animal with real feed and jug water" or
                         "collect the named animal's ready products locally" or
                         "tame the named wild animal for your household" or

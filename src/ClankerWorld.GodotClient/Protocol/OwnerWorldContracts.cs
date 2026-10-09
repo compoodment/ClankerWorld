@@ -441,7 +441,10 @@ public sealed record OwnerWorldInstructionOrder(
     string? TargetBuildingKind = null,
     string? TargetAnimalId = null,
     string? TargetKnowledgeKind = null,
-    string? TargetCartLotId = null);
+    string? TargetCartLotId = null,
+    string? TalkConversationId = null,
+    string? TalkStatus = null,
+    string? TalkOutcome = null);
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 

@@ -215,7 +215,8 @@ seeking a food source, harvesting food, gathering supported raw materials,
 storing personal raw materials or equipment, collecting personal raw materials,
 ready-to-eat food or equipment, repairing supported personal
 clothing, carrying aids and tools, household field work, and moving to an exact
-tile, attaching/parking owned handcarts, and supported non-food production recipes. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
+tile, attaching/parking owned handcarts, supported non-food production recipes,
+and a named face-to-face talk attempt. Harvest and food-source travel orders must name a supported kind or resource; explicit resource names must match a complete
 identifier and the requested kind. Unsupported
 objects or operations, mixed tasks, unknown explicit targets, and invalid
 quantities or leftover words are rejected as not understood rather than mapped
@@ -574,6 +575,19 @@ to the completed instructions with an `instruction_not_understood` event
 active and queued recognized orders. A closed unsupported order requests no
 decision and does not block later instructions. Suggestive interpretation stays
 separate from the strict MustDo grammar.
+
+`talk_to` resolves a complete person ID, full name or unique first name with
+Unicode normalization, excluding the addressed actor. It keeps `TargetAgentId`
+even if that person is renamed or becomes unavailable. The native invitation
+binds `TalkConversationId` only after normal range, route, provider and
+allowance checks. The task holds queued work until that exact conversation
+closes, then records its outcome and one attempt with a deterministic receipt.
+Refusal is a finished attempt, not consent. Linked orders preserve ordinary
+model choices for wrap-up, ending and mutual resumption; a MustDo never forces
+an affirmative choice. A replacement talk task also lets an already active
+conversation finish before sending its own invitation. Urgent survival remains available. Active links keep
+closed history from being pruned before completion is credited. The owner
+projection reports the actual phase and saved outcome to the card.
 
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses. Default gathering counts one harvest; explicit quantities
@@ -3317,9 +3331,11 @@ keeps the existing supply path collecting feed and enough usable jug water befor
 approaching the animal, including after a partial pickup. Water may be split
 across jugs or content lots; fetching counts the usable water already carried
 and rechecks each whole jug against reservations and free carrying space.
-At the animal's tile,
-permitted local yard stock remains usable directly. Physical supply trips
-retain the owning household. Cancelling or replacing an animal order releases
+At the animal's tile, permitted local yard stock remains usable directly.
+Supply pickup leaves household sale stock on an actively borrowed Market stall.
+Once borrowing ends, that stock can be collected through the normal ownership,
+reservation, capacity and travel checks. Physical supply trips retain the
+owning household. Cancelling or replacing an animal order releases
 only a supply trip matching its actor, animal and action, without relocating,
 transferring or spending its cargo. Executing a new animal order also discards
 an unrelated retained trip, including one loaded from a previously cancelled
