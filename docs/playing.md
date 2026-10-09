@@ -902,6 +902,18 @@ server's displayed information and unfinished edit.
 
 ## Save and return
 
+If the host restarts with a saved state it cannot open, **Recover world**
+appears before you enter the world. It offers the last usable autosave from
+that world's current history and says when it was saved. Choose **Recover
+autosave** to open it paused. Progress since that autosave will be absent from
+the recovered world; your other saves stay unchanged and the refused file is
+kept. There is no automatic replacement.
+
+If no usable autosave is available, recovery stays blocked. **Check again**
+checks for a usable autosave without changing your world. You can quit and keep
+the saved files for recovery. A lost recovery reply also offers **Check again**
+so you can find out whether recovery finished before trying it again.
+
 **Save World** creates a named save for the current world. Its name starts as
 the world's date, so **Save** works straight away; type another name first if
 you like. The card under the timeline says whether the new save continues a
