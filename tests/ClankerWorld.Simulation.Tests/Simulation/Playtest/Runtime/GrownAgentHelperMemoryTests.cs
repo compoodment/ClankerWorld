@@ -30,6 +30,19 @@ public sealed class GrownAgentHelperMemoryTests
             }
             if (age == 15)
             {
+                // Accelerated aging can cross several identity boundaries
+                // before a hosted reply is admitted. Finish the ordinary
+                // request at the normal rate before swapping to the helper.
+                aging.Pause();
+                aging.SetLifePace(1);
+                aging.Resume();
+                for (var tick = 0; tick < 40 &&
+                    (aging.Inhabitants.Single(item => item.InhabitantId == childId).IdentityChoicePending ||
+                     aging.Society.GetInhabitant(childId).NeedsName); tick++)
+                {
+                    Assert.True((await aging.AdvanceOneTickNonBlockingAsync()).Advanced);
+                    await WaitForRequests(aging);
+                }
                 Assert.False(aging.Inhabitants.Single(item => item.InhabitantId == childId).IdentityChoicePending);
                 Assert.False(aging.Society.GetInhabitant(childId).NeedsName);
             }
