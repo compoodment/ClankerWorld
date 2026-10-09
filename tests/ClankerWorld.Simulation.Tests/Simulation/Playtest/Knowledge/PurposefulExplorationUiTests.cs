@@ -25,7 +25,7 @@ public sealed partial class PurposefulExplorationTests
         loaded.CancelOrder(new("cancel-shown-purpose", "owner:test", loaded.Society.WorldId, actor, receipt.InstructionId));
         var visible = new OwnerWorldObservationStore(loaded).GetSnapshot().Inhabitants.Single(person => person.Id == actor);
         Assert.NotEqual("looking for " + target, visible.PublicIntention!.Summary);
-        Assert.Equal("explore", visible.PublicIntention.CandidateId);
+        Assert.Equal("safe_idle", visible.PublicIntention.CandidateId);
         Assert.Equal(("cancelled", 0), (Order(loaded, receipt.InstructionId).Status, Order(loaded, receipt.InstructionId).CompletedUnits));
         loaded.Validate();
     }
@@ -33,10 +33,13 @@ public sealed partial class PurposefulExplorationTests
     private static void AssertPurpose(PrivateWorldRuntime world, string actor, string target)
     {
         var visible = new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants.Single(person => person.Id == actor);
-        Assert.Equal("explore", visible.PublicIntention!.CandidateId);
+        Assert.Equal("safe_idle", visible.PublicIntention!.CandidateId);
         Assert.Equal("looking for " + target, visible.PublicIntention.Summary);
-        // These are the actual card/list call arguments; no alternate candidate identity is invented.
+        // Local Must Do execution retains the prior admitted model intention.
+        // These are the actual card/list arguments; no intention identity is invented.
         Assert.Equal("looking for " + target, ClankerWorld.GodotClient.UI.GameUiText.ActivityPhrase(
             visible.PublicIntention.CandidateId, visible.PublicIntention.Summary));
+        Assert.Equal("looking for " + target, ClankerWorld.GodotClient.UI.GameUiText.ActivityPhrase(
+            "knowledge_write:field_record", visible.PublicIntention.Summary));
     }
 }

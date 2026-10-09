@@ -440,6 +440,8 @@ public static class GameUiText
     /// </summary>
     public static string ActivityPhrase(string? candidateId, string? summary)
     {
+        if (summary?.StartsWith("looking for ", StringComparison.Ordinal) == true && !summary.Contains(':', StringComparison.Ordinal))
+            return summary.Trim();
         if (candidateId is not null && KnowledgeActionPhrase(candidateId, inProgress: true) is { } knowledgeActivity)
             return knowledgeActivity;
         if (candidateId?.StartsWith("explore_for:resource:", StringComparison.Ordinal) == true)

@@ -1280,7 +1280,7 @@ public sealed partial class OwnerWorldObservationStore
         {
             PublicIntention = runtime?.CurrentIntention is { } publicIntention
                 ? ToPublicIntention(publicIntention.CandidateId, publicIntention.Provider.ToString().ToLowerInvariant(), publicIntention.WorldTick,
-                    OrderExplorationPurpose(state, physical, publicIntention.CandidateId, publicIntention.OperativeOrderInstructionId))
+                    OrderExplorationPurpose(state, physical))
                 : null,
             Relationships = RelationshipsFor(state, inhabitant.Id),
             RecentPrivateThoughts = (physical.RecentThoughts ?? [])
@@ -1706,11 +1706,11 @@ public sealed partial class OwnerWorldObservationStore
             .Select(marriage => AgentMarriageRules.Note(marriage, agentId, state.Society.Society));
 
     private static string? OrderExplorationPurpose(PrivateWorldRuntimeState state,
-        PlaytestInhabitantState physical, string candidateId, string? operativeOrderId)
+        PlaytestInhabitantState physical)
     {
-        if (candidateId != "explore" || physical.Exploration is not
-            { Returning: false, OutingPath.Count: > 0, Goal: { Kind: "resource", OrderInstructionId: { } id } goal } ||
-            operativeOrderId != id)
+        if (physical.Exploration is not
+            { Returning: false, OutingPath.Count: > 0, Goal: { Kind: "resource", OrderInstructionId: { } id } goal } exploration ||
+            exploration.OutingPath[^1] != physical.Position)
             return null;
         var instruction = (state.Instructions ?? []).Where(item =>
                 item.TargetInhabitantId == physical.InhabitantId && item.Kind == OwnerInstructionKind.MustDo &&
@@ -1718,7 +1718,7 @@ public sealed partial class OwnerWorldObservationStore
                 !(state.CompletedInstructionIds ?? []).Contains(item.InstructionId, StringComparer.Ordinal))
             .OrderBy(item => item.SubmissionSequence).FirstOrDefault();
         if (instruction is null || instruction.InstructionId != id || instruction.Order is not
-            { TargetResourceId: null, TargetPosition: null } order)
+            { Status: "doing", TargetResourceId: null, TargetPosition: null } order)
             return null;
         var target = order.Action == "gather_material" ? order.TargetMaterialKind
             : order.Action is "seek_food" or "harvest_food" ? order.TargetFoodKind ?? "food" : null;
