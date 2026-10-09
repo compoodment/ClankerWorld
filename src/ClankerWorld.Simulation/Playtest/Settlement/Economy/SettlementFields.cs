@@ -286,6 +286,15 @@ public sealed partial class PrivateWorldRuntime
     {
         var cycle = checked(field.Cycle + 1);
         var prefix = $"{FarmFieldRules.FieldId(field.Position)}:harvest:{cycle}";
+        // Retilling starts a new field, but goods and released reservations
+        // from the old field remain. Never reuse one of their identities.
+        var previousInventory = society.Checkpoint.Inventory;
+        while (previousInventory.Lots.Any(lot => lot.Id == prefix + ":crop" || lot.Id == prefix + ":seed") ||
+            previousInventory.Reservations.Any(reservation => reservation.Id == prefix + ":replant"))
+        {
+            cycle = checked(cycle + 1);
+            prefix = $"{FarmFieldRules.FieldId(field.Position)}:harvest:{cycle}";
+        }
         var crop = field.Crop!;
         var plantingItem = FarmFieldRules.PlantingItem(crop);
         var plantingLotId = plantingItem == crop ? prefix + ":crop" : prefix + ":seed";

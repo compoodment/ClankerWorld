@@ -49,7 +49,8 @@ public sealed partial class PrivateWorldRuntime
                 if (work.OrderInstructionId is { } orderId && (string.IsNullOrWhiteSpace(orderId) || orderId.Length > 128 || orderId.Any(char.IsControl)) ||
                     worker is null || worker.Status != SocietyInhabitantStatus.Active || worker.AgeBand is not (SocietyAgeBand.Adult or SocietyAgeBand.Elder) ||
                     worker.HouseholdId != field.HouseholdId || !Enum.IsDefined(work.Kind) || work.LastWorkedTick < 0 ||
-                    work.LastWorkedTick > society.WorldTick || work.RemainingTicks < 1 || work.RemainingTicks > FarmFieldRules.WorkTicks(work.Kind) ||
+                    work.LastWorkedTick > society.WorldTick || work.LastWorkedTick != field.LastWorkedTick ||
+                    work.RemainingTicks < 1 || work.RemainingTicks > FarmFieldRules.WorkTicks(work.Kind) ||
                     work.Kind == FarmWorkKind.Till && field.Stage != FarmFieldStage.Preparing ||
                     work.Kind == FarmWorkKind.Tend && (field.Stage != FarmFieldStage.Growing || field.Tended) ||
                     work.Kind == FarmWorkKind.Harvest && field.Stage != FarmFieldStage.Ready ||

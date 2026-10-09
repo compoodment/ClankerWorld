@@ -292,6 +292,10 @@ everything that is available in the current build. See [what works today](../wha
   provider doesn't make it look frozen. The Event Log adds one line only when
   the provider actually fails. What the agent may do while it waits is in
   [The world](world.md#world-time-pausing-and-slow-models).
+  The owner selected **C · Circling spark** from the October 8 marker review
+  on [#1315](https://github.com/compoodment/ClankerWorld/issues/1315), recorded
+  in its discussion. The proposed short delay is two seconds; it remains
+  provisional for playtesting.
 - **Agreed after the September 30 building panel review:** selecting a
   building opens a small **quick card** beside it, like an agent's: its roof,
   name and owner (household or Town), one line on what is happening there (who
@@ -587,7 +591,11 @@ provide a UI drawing.
   weather readable without opaque repeating circles. **Agreed on October 8
   ([#1254](https://github.com/compoodment/ClankerWorld/issues/1254)):** the
   map's weather overlay goes through the next art review round, with options
-  to choose from, like every other picture.
+  to choose from, like every other picture. **Agreed on October 8
+  ([#1325](https://github.com/compoodment/ClankerWorld/issues/1325)):**
+  computment chose look B, crisp pixel streaks: straight one-pixel rain that
+  lands as a small burst, sharp storm streaks in gusts, and small snowflake
+  crosses blown by the wind. No cloud shadows.
 - Ground remains square-tiled, but permanent **black tile-border grid lines**
   are not part of the intended presentation; they would clash with textures.
 - **Agreed on October 8
@@ -733,6 +741,14 @@ provide a UI drawing.
     rails or planks instead. A revived Town looks lived in again.
 
   The pictures and notes are in `tools/ArtPreview/Proposed/Round4.md`.
+- **Agreed on October 7: animals step as they walk.** computment chose
+  option **B**: each time an animal moves to a new tile, a front hoof shows
+  just ahead of its chest on one side and the hind hoof just behind its rump
+  on the other, then the pair swaps on the next step, and the tail swings.
+  Hens and chicks show one foot behind them at a time and bob their heads. An
+  animal that stops stands in its approved standing drawing; legs show only
+  while it walks. The rejected option A was a legless head nod and sway. The
+  pictures and notes are in `tools/ArtPreview/Proposed/AnimalWalk.md`.
 - Art is drawn in code, not stored as image files. computment prefers this.
   Approved art waits in `tools/ArtPreview/Proposed/` until the feature that
   uses it lands.

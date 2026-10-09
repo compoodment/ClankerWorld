@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
@@ -11,7 +13,7 @@ public sealed class FieldReturnsToGrassTests
     [Fact]
     public async Task AFieldNobodyWorksForAFullSeasonReturnsToGrassWhileAWorkedFieldStays()
     {
-        var (state, _, household, idle, worked) = TwoFields("field-returns-to-grass");
+        var (state, actor, household, idle, worked) = TwoFields("field-returns-to-grass");
         var season = FarmFieldRules.IdleTicksBeforeGrass(state.WorldSystems!.Config);
         var fertility = new LandFertility(state.Map, "field-returns-to-grass").At(idle);
         using var world = FarmFieldTests.Restore(state);
@@ -20,17 +22,32 @@ public sealed class FieldReturnsToGrassTests
         // Halfway through the season someone works the second field, which restarts its clock.
         await AdvanceTo(world, start + season / 2);
         var halfway = world.ExportState();
-        var reloaded = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(halfway with
+        halfway = FarmFieldTests.WithInventory(halfway, InventoryFixture.AddLot(halfway.Society.Society.Inventory,
+            "worked-field-seed", FarmFieldRules.GrainSeed, actor, 1)) with
         {
-            Fields = halfway.Fields!.Select(field => field.Position == worked ? field with { LastWorkedTick = halfway.Society.Society.WorldTick } : field).ToArray(),
-        })));
+            Inhabitants = halfway.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Position = worked, LastDecisionContext = null } : person).ToArray(),
+        };
+        var reloaded = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(halfway)));
         try
         {
+            Assert.True(reloaded.StartFieldWork(actor, worked, FarmWorkKind.Plant, FarmFieldRules.Grain, "worked-field-seed").Accepted);
+            var started = reloaded.Fields.Single(field => field.Position == worked);
+            await AdvanceTo(reloaded, reloaded.WorldTick + 1);
+            var stroke = reloaded.Fields.Single(field => field.Position == worked);
+            Assert.True(stroke.Work!.RemainingTicks < started.Work!.RemainingTicks);
+            Assert.Equal(reloaded.WorldTick, stroke.LastWorkedTick);
+            Assert.Equal(stroke.LastWorkedTick, stroke.Work.LastWorkedTick);
+            await FinishWork(reloaded, worked);
+            var lastWorked = reloaded.Fields.Single(field => field.Position == worked).LastWorkedTick;
             Assert.Equal(start, reloaded.Fields.Single(field => field.Position == idle).LastWorkedTick);
             await AdvanceTo(reloaded, start + season - 1);
             Assert.Equal(2, reloaded.Fields.Count);
-
+            using var replay = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(
+                PrivateWorldRuntimeCodec.Encode(reloaded.ExportState())));
             await AdvanceTo(reloaded, start + season + 1);
+            await AdvanceTo(replay, start + season + 1);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
             var remaining = Assert.Single(reloaded.Fields);
             Assert.Equal(worked, remaining.Position);
             var events = reloaded.ExportState().Events.Where(item => item.Kind == "field_returned_to_grass").ToArray();
@@ -38,12 +55,13 @@ public sealed class FieldReturnsToGrassTests
             // The seed kept back for replanting is free again, and the land keeps its fertility.
             Assert.Contains(reloaded.Society.Inventory.Reservations, reservation => reservation.Id == "grass-test:replant" &&
                 reservation.State != InventoryReservationState.Reserved);
-            Assert.Equal(fertility, new LandFertility(state.Map, "field-returns-to-grass").At(idle));
+            Assert.Equal(fertility, new LandFertility(reloaded.ExportState().Map, "field-returns-to-grass").At(idle));
             Assert.DoesNotContain(new OwnerWorldObservationStore(reloaded).GetSnapshot().Fields!, field =>
                 field.Position.X == idle.X && field.Position.Y == idle.Y);
 
             // The worked field goes too once a full season passes without work.
-            await AdvanceTo(reloaded, start + season / 2 + season + 1);
+            Assert.NotNull(remaining.Crop);
+            await AdvanceTo(reloaded, lastWorked + season + 1);
             Assert.Empty(reloaded.Fields);
 
             var bytes = PrivateWorldRuntimeCodec.Encode(reloaded.ExportState());
@@ -54,13 +72,44 @@ public sealed class FieldReturnsToGrassTests
     }
 
     [Fact]
-    public void FieldWorkRecordsWhenTheFieldWasLastWorkedAndSavesIt()
+    public async Task FieldWorkRecordsWhenTheFieldWasLastWorkedAndSavesIt()
     {
         var (state, actor, _, point) = FarmFieldTests.PreparedFarmer("field-last-worked");
+        state = ShortDays(state, 1);
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Config = state.Society.Society.Config with { DaysPerWorldYear = 4 },
+                },
+            },
+            WorldSystems = RegionalWeatherRules.Initialize(state.WorldSystems! with
+            {
+                Config = state.WorldSystems!.Config with
+                {
+                    DaysPerYear = 4,
+                    SpringDays = 1,
+                    SummerDays = 1,
+                    AutumnDays = 1,
+                    WinterDays = 1,
+                },
+                RegionalWeather = null,
+            }, state.Map),
+        };
         using var world = FarmFieldTests.Restore(state);
         Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
         var field = Assert.Single(world.Fields);
         Assert.Equal(world.WorldTick, field.LastWorkedTick);
+        var started = field.LastWorkedTick;
+        await AdvanceTo(world, world.WorldTick + 1);
+        field = Assert.Single(world.Fields);
+        Assert.True(world.WorldTick - started >= FarmFieldRules.IdleTicksBeforeGrass(state.WorldSystems.Config));
+        Assert.NotNull(field.Work);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "field_returned_to_grass");
+        Assert.Equal(world.WorldTick, field.LastWorkedTick);
+        Assert.Equal(field.LastWorkedTick, field.Work!.LastWorkedTick);
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var restored = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
         Assert.Equal(field, Assert.Single(restored.Fields));
@@ -70,6 +119,119 @@ public sealed class FieldReturnsToGrassTests
         {
             Fields = [field with { LastWorkedTick = future.Society.Society.WorldTick + 1 }],
         }));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CurrentFieldCheckpointRefusesMissingOrContradictoryWorkedTicks(bool missing)
+    {
+        var (state, actor, _, point) = FarmFieldTests.PreparedFarmer("field-required-worked-clock");
+        using var world = FarmFieldTests.Restore(state);
+        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
+        await AdvanceTo(world, world.WorldTick + 1);
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var document = JsonNode.Parse(bytes)!;
+        var field = Assert.Single(document["state"]!["fields"]!.AsArray())!.AsObject();
+        if (missing) Assert.True(field.Remove("lastWorkedTick"));
+        else field["lastWorkedTick"] = world.WorldTick - 1;
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(JsonSerializer.SerializeToUtf8Bytes(document)));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        using var restored = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AbandonedFieldCanBeRetilledAndHarvestedWithItsPriorInventoryHistory(bool consumeOldLots)
+    {
+        var (state, actor, household, point) = FarmFieldTests.PreparedFarmer("field-retill-history");
+        state = ShortDays(state, 2);
+        state = FarmFieldTests.WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "retill-carried-seed", FarmFieldRules.GrainSeed, actor, 2));
+        using var first = FarmFieldTests.Restore(state);
+        await CropCycle(first, actor, point, "retill-carried-seed");
+        var harvested = Assert.Single(first.Fields);
+        var oldReserve = first.Society.Inventory.GetReservation(harvested.ReplantingReservationId!);
+        var oldLots = first.Society.Inventory.Lots.Where(lot => lot.Id.StartsWith(
+            FarmFieldRules.FieldId(point) + ":harvest:", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(2, oldLots.Length);
+        var fertility = new LandFertility(first.ExportState().Map, state.WorldSeed).At(point);
+        await AdvanceTo(first, harvested.LastWorkedTick + FarmFieldRules.IdleTicksBeforeGrass(state.WorldSystems!.Config));
+        Assert.Empty(first.Fields);
+        Assert.Equal(InventoryReservationState.Released, first.Society.Inventory.GetReservation(oldReserve.Id).State);
+        Assert.Equal(oldLots.Select(lot => (lot.Id, lot.Quantity, lot.OwnerId, lot.GroundPosition)),
+            oldLots.Select(lot => first.Society.Inventory.GetLot(lot.Id)).Select(lot => (lot.Id, lot.Quantity, lot.OwnerId, lot.GroundPosition)));
+        Assert.Equal(fertility, new LandFertility(first.ExportState().Map, state.WorldSeed).At(point));
+        Assert.Single(first.ExportState().Events, item => item.Kind == "field_returned_to_grass");
+        var abandoned = first.ExportState();
+        // The idle interval also drains unrelated survival needs. Supply the
+        // second work fixture a healthy farmer; keep the actual clock, terrain,
+        // abandoned field and complete first-harvest inventory history.
+        abandoned = abandoned with
+        {
+            Inhabitants = abandoned.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    HungerBasisPoints = 10_000,
+                    Survival = (person.Survival ?? new SurvivalCondition()) with
+                    { WarmthBasisPoints = 10_000, NutritionBasisPoints = 10_000, IllnessBasisPoints = 0 },
+                } : person).ToArray(),
+        };
+        // The first crop also wore the wooden hoe. A fresh, better carried
+        // tool lets this control reach the second harvest rather than stop
+        // correctly when the old tool breaks during retilling.
+        abandoned = FarmFieldTests.WithInventory(abandoned, InventoryFixture.AddLot(abandoned.Society.Society.Inventory,
+            "retill-fresh-hoe", "iron_hoe", actor, 1));
+        if (consumeOldLots)
+        {
+            var inventory = abandoned.Society.Society.Inventory;
+            foreach (var lot in oldLots)
+            {
+                var id = "used-old-harvest:" + lot.Id;
+                inventory = InventoryFixture.ConsumeReservation(InventoryFixture.Reserve(inventory, id,
+                    household, lot.Id, lot.Quantity, "used_old_harvest", long.MaxValue), id);
+            }
+            abandoned = FarmFieldTests.WithInventory(abandoned, inventory);
+        }
+        using var retilled = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(abandoned)));
+        Assert.Equal("retill-fresh-hoe", ToolProgressionRules.PlanWork(retilled.Society.Inventory, actor, ToolFamily.Hoe)!.ToolLotId);
+        await CropCycle(retilled, actor, point, "retill-carried-seed");
+        var second = Assert.Single(retilled.Fields);
+        Assert.Equal(FarmFieldStage.Harvested, second.Stage);
+        Assert.NotEqual(oldReserve.Id, second.ReplantingReservationId);
+        Assert.Equal(InventoryReservationState.Released, retilled.Society.Inventory.GetReservation(oldReserve.Id).State);
+        Assert.Equal(InventoryReservationState.Reserved, retilled.Society.Inventory.GetReservation(second.ReplantingReservationId!).State);
+        if (!consumeOldLots)
+            Assert.Equal(oldLots.Select(lot => (lot.Id, lot.Quantity, lot.OwnerId, lot.GroundPosition)),
+                oldLots.Select(lot => retilled.Society.Inventory.GetLot(lot.Id)).Select(lot => (lot.Id, lot.Quantity, lot.OwnerId, lot.GroundPosition)));
+        var bytes = PrivateWorldRuntimeCodec.Encode(retilled.ExportState());
+        using var restored = FarmFieldTests.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
+    private static async Task CropCycle(PrivateWorldRuntime world, string actor, GridPoint point, string seed)
+    {
+        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
+        await FinishWork(world, point);
+        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Plant, FarmFieldRules.Grain, seed).Accepted);
+        await FinishWork(world, point);
+        await AdvanceTo(world, world.WorldTick + 1);
+        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Tend).Accepted);
+        await FinishWork(world, point);
+        await AdvanceTo(world, Math.Max(world.WorldTick + 1, Assert.Single(world.Fields).ReadyTick));
+        Assert.True(world.StartFieldWork(actor, point, FarmWorkKind.Harvest).Accepted);
+        await FinishWork(world, point);
+    }
+
+    private static async Task FinishWork(PrivateWorldRuntime world, GridPoint point)
+    {
+        for (var tick = 0; tick < 12 && world.Fields.SingleOrDefault(field => field.Position == point)?.Work is not null; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Contains(world.Fields, field => field.Position == point);
+        Assert.Null(world.Fields.Single(field => field.Position == point).Work);
+        world.Validate();
     }
 
     /// <summary>

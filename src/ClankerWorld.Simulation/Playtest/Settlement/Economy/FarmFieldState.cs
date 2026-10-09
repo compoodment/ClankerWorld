@@ -17,7 +17,7 @@ public sealed record FarmFieldState(GridPoint Position, string HouseholdId, Farm
     string? Crop = null, long PlantedTick = 0, long ReadyTick = 0, bool Tended = false, int Cycle = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] FarmFieldWork? Work = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReplantingReservationId = null,
-    long LastWorkedTick = 0);
+    [property: JsonRequired] long LastWorkedTick = 0);
 
 public sealed record FarmWorkResult(bool Accepted, string Message);
 
