@@ -199,6 +199,7 @@ public partial class Main
                 choiceBounds.End.X > settingsViewport.End.X + 1)
                 throw new InvalidOperationException("Game Settings escaped its usable bounds at 1440p and 200%.");
             await VerifyAgentConversationReaderAt200PercentAsync();
+            VerifyResourceAppearanceReuse(smokeMap);
 
             var emptyLayer = Convert.ToBase64String(new byte[16]);
             var fieldMap = smokeMap with
