@@ -1356,6 +1356,11 @@ so each can be checked on its own
    35% tree chance; meadows have a 2% chance. Seeded ranking spreads trees
    through any chunk that reaches its budget instead of filling one edge.
 
+The running world places starter clay on unoccupied, reachable buildable dry
+ground beside a river or lake. A rocky mountain shore can be walkable but is
+not a valid clay resource site. If no valid bank exists, the runtime records
+`settlement_resource_blocked` for clay and keeps advancing and saving.
+
 Generated sites use at most 1,016 of a chunk's 1,024 resource slots; the validated
 configuration ceiling is 2,048. The remaining eight slots stay
 free for sites the running world adds, such as the three settlement sites
@@ -3106,7 +3111,9 @@ non-food cargo keep their ordinary loading rules.
 
 Crafting uses the Blacksmith's handcart recipe with the adult worker's carried
 wood, fittings and rope. An adult collects them from household or Town
-Warehouse stock only while the whole set is carried or in that stock, and the
+Warehouse stock only while the whole set is carried or in stock they can
+physically reach and collect. Unreachable household stock and goods on an
+actively borrowed Market stall do not complete the set. The
 Blacksmith, Store and workstation supply hauls leave the carried set with them
 rather than returning it to stock. Exact inputs are reserved through the
 production job; the personal cart appears on the work site's ground after
@@ -3161,6 +3168,13 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
   worlds) and falls when that season ends. New worlds start in spring, so
   orchards start without fruit.
+- **Ecology batches** validate the current configuration, resource bounds,
+  unique IDs and every resource before regeneration. They then share the
+  standalone regeneration calculation without repeating configuration checks
+  for each resource. No validation result is retained across batches: changed
+  profile lists and newly loaded inputs are checked again. Standalone
+  `EcologyRules.Regenerate` still validates its own configuration, and each
+  resource is checked again during regeneration as before.
 - **Owner orders** accept bounded tree counts, repeat-until-cancelled work,
   optional broadleaf/conifer/orchard species and an exact planting tile. The
   parser, observer guidance and strict saved-order validation use the same
