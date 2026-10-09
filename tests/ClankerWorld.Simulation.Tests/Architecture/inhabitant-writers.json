@@ -1,0 +1,229 @@
+{
+  "$collection": [
+    "src/ClankerWorld.Simulation/Playtest/Animals/PrivateWorldRuntime.AnimalActions.cs",
+    "src/ClankerWorld.Simulation/Playtest/Knowledge/SettlementExploration.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Actions.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ChildModels.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Cognition.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ConstructionOrders.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.DeveloperEdits.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Identity.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.IdentityMoments.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ModelOutcomes.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Orders.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ProductionOrders.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Tick.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementDeparture.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementHousing.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementLearning.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementProficiency.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementSkills.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementSocialStanding.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementEquipment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementOrnaments.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementProjects.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementToolMakingRequests.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementDependentCare.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementGuardianPlacement.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementMedicalCare.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/SettlementSurvival.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Boats.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "Aspiration": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Identity.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.IdentityMoments.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "ChildModelSelection": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ChildModels.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "Departures": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementDeparture.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "Equipment": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementEquipment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementOrnaments.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "Exploration": [
+    "src/ClankerWorld.Simulation/Playtest/Knowledge/SettlementExploration.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "GuardianPlacement": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementGuardianPlacement.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "GuardianSearch": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementDependentCare.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "Housing": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementDeparture.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementHousing.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "HungerBasisPoints": [
+    "src/ClankerWorld.Simulation/Playtest/Animals/PrivateWorldRuntime.AnimalActions.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Actions.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.DeveloperEdits.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "IdentityChoicePending": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Identity.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "IdentityMoments": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.IdentityMoments.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "InhabitantId": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "LastDecisionContext": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Cognition.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.DeveloperEdits.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.IdentityMoments.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementDeparture.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "LastModelAttempt": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ModelOutcomes.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "Lesson": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementLearning.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "MedicalConsent": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementMedicalCare.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "MedicalSupplyTrip": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementMedicalCare.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "MedicalTreatment": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementMedicalCare.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "MoveWaitTicks": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Actions.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Boats.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "Parenthood": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "Personality": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Identity.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.IdentityMoments.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "Position": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Actions.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Boats.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "Proficiency": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementProficiency.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "Project": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ConstructionOrders.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ProductionOrders.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementDeparture.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementProjects.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementToolMakingRequests.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "RecentThoughts": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Tick.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "Skills": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.DeveloperEdits.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementSkills.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "SocialStanding": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementSocialStanding.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "Survival": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Actions.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.DeveloperEdits.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementDependentCare.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementMedicalCare.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/SettlementSurvival.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ],
+  "TravelCooldownTicks": [
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Actions.cs",
+    "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+    "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Boats.cs",
+    "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs"
+  ]
+}

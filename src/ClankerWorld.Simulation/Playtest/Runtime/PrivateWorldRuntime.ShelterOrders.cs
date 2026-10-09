@@ -17,10 +17,11 @@ public sealed partial class PrivateWorldRuntime
     private bool ShelterBuildingKnown(string actor, PlaytestInhabitantState person, PlacedBuilding building) =>
         building.HouseholdId is { } owner &&
             (owner == society.Checkpoint.GetInhabitant(actor).HouseholdId || HasHouseGuestInvitation(actor, building.InstanceId)) ||
+        IsTownHallStormRefuge(actor, building) ||
         IsWithinInteractionRange(person.Position, building.Position, ResourceInteractionRange);
 
     private bool ShelterBuildingCovers(PlacedBuilding building, GridPoint point) =>
-        building.HouseholdId is null
+        building.HouseholdId is null && !IsTownHall(building)
             ? IsWithinInteractionRange(point, building.Position, ResourceInteractionRange)
             : WorldContentSimulationRules.Footprint(worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building).Contains(point);
 
@@ -74,6 +75,8 @@ public sealed partial class PrivateWorldRuntime
             }
             else if (order.Action == "seek_shelter" && ShelterBuildingCovers(building, person.Position))
                 position = person.Position;
+            else if (IsTownHall(building))
+                position = ReachableHallShelterPoint(actor, person.Position, building);
             else if (building.HouseholdId is null)
                 position = map.FootNeighbors(building.Position).Append(building.Position)
                     .Where(point => map.IsPassable(point) && ShelterRouteIsOpen(actor, person.Position, point))
@@ -253,7 +256,7 @@ public sealed partial class PrivateWorldRuntime
                         binding.BuildingPosition is not { X: >= 0, Y: >= 0 } || binding.BuildingPlacedTick is not { } placed || placed < 0 || placed > worldTick ||
                         binding.OwnerId is { } owner && !householdIds.Contains(owner) ||
                         order.TargetBuildingKind == "house" && (!definition.Tags.Contains("house", StringComparer.Ordinal) || binding.OwnerId is null) ||
-                        !(order.Action == "seek_shelter" ? definition.Tags.Contains("shelter", StringComparer.Ordinal) :
+                        !(order.Action == "seek_shelter" ? definition.Tags.Any(tag => tag is "shelter" or TownHallContent.HallTag) :
                             definition.Tags.Any(tag => tag is "cooking" or "warmth")))
                         throw new InvalidDataException("A shelter order has an invalid building binding.");
                 }

@@ -44,8 +44,8 @@ public static class TerrainTextures
 {
     public const int VariantCount = 2;
     private static readonly int StyleCount = Enum.GetValues<TerrainStyle>().Length;
-    private static readonly Dictionary<int, ImageTexture> Atlases = [];
-    private static readonly Dictionary<int, Image> AtlasImages = [];
+    private static readonly Dictionary<(int Size, LandscapeSeason Season), ImageTexture> Atlases = [];
+    private static readonly Dictionary<(int Size, LandscapeSeason Season), Image> AtlasImages = [];
 
     public static Color BaseColor(TerrainStyle style) => style switch
     {
@@ -81,11 +81,14 @@ public static class TerrainTextures
     /// <summary>The shared atlas at 32 px, or 16 px for mid zoom where 32 px detail would alias.</summary>
     public static int AtlasTileSize(int drawnTileSize) => drawnTileSize >= 32 ? 32 : 16;
 
-    public static ImageTexture Atlas(int atlasTileSize)
+    public static ImageTexture Atlas(int atlasTileSize) => Atlas(atlasTileSize, LandscapeSeason.Summer);
+
+    public static ImageTexture Atlas(int atlasTileSize, LandscapeSeason season)
     {
-        if (Atlases.TryGetValue(atlasTileSize, out var cached)) return cached;
-        var texture = ImageTexture.CreateFromImage(AtlasImage(atlasTileSize));
-        Atlases[atlasTileSize] = texture;
+        var key = (atlasTileSize, season);
+        if (Atlases.TryGetValue(key, out var cached)) return cached;
+        var texture = ImageTexture.CreateFromImage(AtlasImage(atlasTileSize, season));
+        Atlases[key] = texture;
         return texture;
     }
 
@@ -95,6 +98,10 @@ public static class TerrainTextures
     /// <summary>One generated tile, for inspection and tests.</summary>
     public static Image Tile(TerrainStyle style, int variant, int atlasTileSize) =>
         AtlasImage(atlasTileSize).GetRegion(new Rect2I(variant * atlasTileSize, (int)style * atlasTileSize,
+            atlasTileSize, atlasTileSize));
+
+    public static Image Tile(TerrainStyle style, int variant, int atlasTileSize, LandscapeSeason season) =>
+        AtlasImage(atlasTileSize, season).GetRegion(new Rect2I(variant * atlasTileSize, (int)style * atlasTileSize,
             atlasTileSize, atlasTileSize));
 
     /// <summary>Overview color for a hill: its ground color, warmed and slightly darkened.</summary>
@@ -157,20 +164,21 @@ public static class TerrainTextures
             }
     }
 
-    private static Image AtlasImage(int size)
+    private static Image AtlasImage(int size, LandscapeSeason season = LandscapeSeason.Summer)
     {
-        if (AtlasImages.TryGetValue(size, out var cached)) return cached;
+        var key = (size, season);
+        if (AtlasImages.TryGetValue(key, out var cached)) return cached;
         var image = Image.CreateEmpty(size * VariantCount, size * StyleCount, false, Image.Format.Rgba8);
         foreach (var style in Enum.GetValues<TerrainStyle>())
             for (var variant = 0; variant < VariantCount; variant++)
             {
                 var tile = new Rect2I(variant * size, (int)style * size, size, size);
                 if (Ground.Draws(style))
-                    image.BlitRect(Ground.Paint(style, variant, size), new Rect2I(0, 0, size, size), tile.Position);
+                    image.BlitRect(Ground.Paint(style, variant, size, season), new Rect2I(0, 0, size, size), tile.Position);
                 else
                     Paint(image, tile, style, variant);
             }
-        AtlasImages[size] = image;
+        AtlasImages[key] = image;
         return image;
     }
 
@@ -347,10 +355,14 @@ public static class TerrainTextures
         };
 
         /// <summary>Paints one tile of the given size (32 or 16): base fill, then the style's mottling and motifs.</summary>
-        public static Image Paint(TerrainStyle style, int variant, int size)
+        public static Image Paint(TerrainStyle style, int variant, int size, LandscapeSeason season)
         {
             var image = Image.CreateEmpty(size, size, false, Image.Format.Rgba8);
             var ramp = RampOf(style);
+            if (LandscapePalette.HasGrass(style) && season != LandscapeSeason.Summer)
+                ramp = new(LandscapePalette.Apply(ramp.Edge, season), LandscapePalette.Apply(ramp.Shade, season),
+                    LandscapePalette.Apply(ramp.Base, season), LandscapePalette.Apply(ramp.Light, season),
+                    LandscapePalette.Apply(ramp.Highlight, season));
             image.Fill(ramp.Base);
             var busy = variant == 1;
             var painter = new GroundPainter(image, size, new PixelArt.Stream(PixelArt.Hash((int)style * 7 + 3, variant, size)));
