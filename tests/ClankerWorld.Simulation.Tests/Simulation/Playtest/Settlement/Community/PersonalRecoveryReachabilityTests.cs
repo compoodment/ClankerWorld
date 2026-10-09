@@ -10,7 +10,6 @@ public sealed class PersonalRecoveryReachabilityTests
 {
     private const string Earlier = "a-audit-personal-stone";
     private const string Local = "z-audit-personal-stone";
-    private static readonly GridPoint Disconnected = new(209, 1);
 
     [Theory]
     [InlineData("unreachable", true, false)]
@@ -31,15 +30,20 @@ public sealed class PersonalRecoveryReachabilityTests
         var house = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-house-a");
         var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == house.HouseholdId &&
             person.AgeBand == SocietyAgeBand.Adult).Id;
-        Assert.True(state.Map.IsBuildable(Disconnected));
-        Assert.False(state.Map.IsReachableFromCampOnFoot(Disconnected));
-        Assert.True(state.Map.FootDistance(house.Position, Disconnected) > 16);
+        // The north edge is polar sea. Use actual disconnected land for the
+        // earlier lot, preserving the native route and custody controls.
+        var disconnected = state.Map.Tiles.Select(tile => tile.Position).First(point =>
+            state.Map.IsBuildable(point) && !state.Map.IsReachableFromCampOnFoot(point) &&
+            state.Map.FootDistance(house.Position, point) > 16);
+        Assert.True(state.Map.IsBuildable(disconnected));
+        Assert.False(state.Map.IsReachableFromCampOnFoot(disconnected));
+        Assert.True(state.Map.FootDistance(house.Position, disconnected) > 16);
         var inventory = state.Society.Society.Inventory;
         foreach (var kind in new[] { "wooden_axe", "wooden_pickaxe", "wooden_hoe" })
             inventory = InventoryFixture.AddLot(inventory, "recovery-tool-" + kind, kind, actor, 1);
         if (earlier != "missing")
         {
-            var position = earlier == "reachable" ? house.Position : Disconnected;
+            var position = earlier == "reachable" ? house.Position : disconnected;
             if (earlier == "moved")
                 position = Enumerable.Range(0, state.Map.Height).SelectMany(y => Enumerable.Range(0, state.Map.Width)
                     .Select(x => new GridPoint(x, y))).First(point => state.Map.IsBuildable(point) &&
@@ -72,7 +76,7 @@ public sealed class PersonalRecoveryReachabilityTests
             Assert.NotEqual(house.Position, world.ExportState().Inhabitants.Single(person => person.InhabitantId == actor).Position);
             Assert.False(PersonalEquipmentRules.IsCarried(world.Society.Inventory.GetLot(Earlier), actor));
             state = FarmFieldTests.WithInventory(world.ExportState(), InventoryFixture.Relocate(world.Society.Inventory,
-                "recovery-source-moved", Earlier, actor, 1, groundPosition: new(Disconnected.X, Disconnected.Y)));
+                "recovery-source-moved", Earlier, actor, 1, groundPosition: new(disconnected.X, disconnected.Y)));
             var resumedChooser = new RecoveryChooser(false);
             using var resumed = Restore(state, actor, resumedChooser);
             using var replay = Restore(state, actor, new RecoveryChooser(false));
@@ -86,7 +90,7 @@ public sealed class PersonalRecoveryReachabilityTests
             Assert.True(PersonalEquipmentRules.IsCarried(resumed.Society.Inventory.GetLot(Local), actor));
             Assert.DoesNotContain("household_collect:" + Earlier, resumedChooser.Offered);
             var moved = resumed.Society.Inventory.GetLot(Earlier);
-            Assert.Equal((actor, 1, new InventoryGroundPosition(Disconnected.X, Disconnected.Y)),
+            Assert.Equal((actor, 1, new InventoryGroundPosition(disconnected.X, disconnected.Y)),
                 (moved.OwnerId, moved.Quantity, moved.GroundPosition));
             resumed.Validate();
             return;
@@ -102,7 +106,7 @@ public sealed class PersonalRecoveryReachabilityTests
         if (earlier == "unreachable")
         {
             var remote = world.Society.Inventory.GetLot(Earlier);
-            Assert.Equal((actor, 1, new InventoryGroundPosition(Disconnected.X, Disconnected.Y)),
+            Assert.Equal((actor, 1, new InventoryGroundPosition(disconnected.X, disconnected.Y)),
                 (remote.OwnerId, remote.Quantity, remote.GroundPosition));
             Assert.DoesNotContain("household_collect:" + Earlier, chooser.Offered);
         }

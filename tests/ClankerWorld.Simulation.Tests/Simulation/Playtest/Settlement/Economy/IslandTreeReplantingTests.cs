@@ -51,18 +51,24 @@ public sealed class IslandTreeReplantingTests
                 Climate = state.WorldSystems.Climate with { Weather = WeatherKind.Snow },
             },
         };
-        // The actor reaches this local grove after collecting the Town's axe.
-        var local = state.Map.GetResource("grove-tree-141-16");
-        Assert.True(TreeGrowthRules.IsWoodTree(local.TreeKind));
-        Assert.True(state.Map.IsReachableOnFoot(origin, local.Position));
-        Assert.False(state.Map.IsReachableFromCampOnFoot(local.Position));
+        // The actor fells a local tree on the island after collecting the Town's axe.
+        var standing = state.WorldSystems.Ecology.Resources.Where(resource => resource.Quantity > 0)
+            .Select(resource => resource.Id).ToHashSet(StringComparer.Ordinal);
+        Assert.Contains(state.Map.Resources, resource => TreeGrowthRules.IsWoodTree(resource.TreeKind) &&
+            state.Map.IsReachableOnFoot(origin, resource.Position) && !state.Map.IsReachableFromCampOnFoot(resource.Position));
 
         var harvestProvider = new ActionProvider("tend_fire", "collect_wooden_axe");
+        MapResource local;
         using (var harvesting = PrivateWorldRuntime.Restore(state, id => id == actor ? harvestProvider : new ActionProvider("safe_idle")))
         {
-            for (var tick = 0; tick < 24; tick++) Assert.True((await harvesting.AdvanceOneTickAsync()).Advanced);
+            bool HoldsSeed() => harvesting.Society.Inventory.Lots.Any(lot => lot.OwnerId == actor && lot.ItemKind == TreeGrowthRules.TreeSeedItem);
+            for (var tick = 0; tick < 60 && !HoldsSeed(); tick++)
+                Assert.True((await harvesting.AdvanceOneTickAsync()).Advanced);
             state = harvesting.ExportState();
-            Assert.Equal(0, harvesting.WorldSystems.Ecology.GetResource(local.Id).Quantity);
+            local = Assert.Single(state.Map.Resources, resource => TreeGrowthRules.IsWoodTree(resource.TreeKind) &&
+                standing.Contains(resource.Id) && harvesting.WorldSystems.Ecology.GetResource(resource.Id).Quantity == 0);
+            Assert.True(state.Map.IsReachableOnFoot(origin, local.Position));
+            Assert.False(state.Map.IsReachableFromCampOnFoot(local.Position));
             Assert.Single(state.Society.Society.Inventory.Lots, lot => lot.OwnerId == actor &&
                 lot.ItemKind == TreeGrowthRules.TreeSeedItem && lot.Quantity == 1);
         }
