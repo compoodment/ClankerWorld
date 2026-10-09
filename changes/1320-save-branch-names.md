@@ -1,0 +1,1 @@
+- Save branches show the name of the save they started from, such as From Before the flood. The label stays with the branch if the source save changes later; shortened names keep whole visible characters, including emoji and accents. Hover a shortened label to read it in full.

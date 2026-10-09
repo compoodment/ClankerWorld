@@ -153,6 +153,9 @@ public sealed partial class PrivateWorldRuntime
     {
         // Civic agreement and votes are explicit personal choices, never a built-in idle alternative.
         if (NeedsUrgentWarmth(inhabitants[actor])) return;
+        if (TownFoundingLayout(actor) is { } founding)
+            candidates.Add(new(CivicAction(founding.Id, "found"),
+                "Explicitly found a new Town here on unclaimed land. You leave your previous Town and your dependent children join without moving or changing care. The new council begins with its adult residents. Existing household property stays owned; no House, goods or household membership are supplied.", 170));
         foreach (var town in towns.Where(t => t.Governance is not null))
         {
             if (MayResettleTown(actor, town))
@@ -268,6 +271,11 @@ public sealed partial class PrivateWorldRuntime
     {
         var parts = candidate.Split('|');
         if (parts.Length != 5) return;
+        if (parts[2] == "found")
+        {
+            FoundTown(actor, candidate);
+            return;
+        }
         var selectedId = candidate;
         if (parts[2] is "nominate" or "relay" or "request_admission") parts[3] = ResolveCivicAgentToken(parts[3]);
         if (parts[2] == "single") parts[4] = ResolveCivicAgentToken(parts[4]);

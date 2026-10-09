@@ -27,9 +27,11 @@ public sealed partial class PrivateWorldRuntime
             return null;
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
+        if (order.Action == "read_knowledge") return KnowledgeReadOrderCandidate(instruction);
         if (order.Action == "talk_to") return TalkOrderCandidateFor(instruction, person);
         if (IsCartOrder(order.Action)) return CartOrderCandidateFor(instruction, person);
         if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
+        if (order.Action == "travel_by_boat") return BoatOrderCandidate(instruction);
         if (IsTreePlantingOrder(order.Action)) return TreePlantingOrderCandidate(instruction, person);
         if (IsKnowledgeOrder(order.Action)) return KnowledgeOrderCandidateFor(instruction);
 
@@ -197,7 +199,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool IsFoodSurvivalCandidate(string actor, string candidateId) => candidateId is
-        "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
+        "consume_food" or "drink_milk" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
         "harvest_food" or "seek_food" || candidateId.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal) ||
         NeedsUrgentFood(inhabitants[actor]) &&
         (IsBusinessFoodCandidate(actor, candidateId) || IsMarketFoodCandidate(actor, candidateId));
@@ -214,6 +216,8 @@ public sealed partial class PrivateWorldRuntime
         var order = instruction.Order!;
         SetOrderStatus(instruction, "doing", null, waitForDecision: false);
         var actor = instruction.TargetInhabitantId;
+        if (candidate.Id != "explore" && person.Exploration?.Goal?.OrderInstructionId == instruction.InstructionId)
+            person = CompleteExplorationGoal(actor, person);
         // An order step interrupts timed repair work, as any other chosen action does.
         if (order.Action != "repair_equipment" && inhabitants[actor].Equipment?.Repair is not null)
         {
@@ -235,6 +239,11 @@ public sealed partial class PrivateWorldRuntime
             ExecuteAnimalOrder(instruction);
             return;
         }
+        if (order.Action == "travel_by_boat")
+        {
+            ExecuteBoatOrder(instruction);
+            return;
+        }
         if (IsTreePlantingOrder(order.Action))
         {
             ExecuteTreePlantingOrder(instruction, person);
@@ -242,6 +251,9 @@ public sealed partial class PrivateWorldRuntime
         }
         switch (candidate.Id)
         {
+            case "read_knowledge":
+                ExecuteKnowledgeReadOrder(instruction);
+                return;
             case "talk_to":
                 ExecuteTalkOrderStep(instruction, person);
                 return;
@@ -319,7 +331,7 @@ public sealed partial class PrivateWorldRuntime
                 return;
             case "explore":
                 inhabitants[actor] = person;
-                Explore(actor, person);
+                Explore(actor, person, ExplorationGoalForOrder(instruction), replaceGoal: true);
                 return;
             case "seek_food":
                 {
@@ -434,6 +446,9 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "travel_by_boat") return BoatOrderBlockedReason(instruction);
+        if (instruction.Order?.Action == "read_knowledge")
+            return KnowledgeReadOrderBlocker(instruction) ?? "Waiting to read the written item.";
         if (instruction.Order?.Action == "talk_to") return TalkOrderBlocker(instruction, person) ?? "Waiting for the conversation outcome.";
         if (instruction.Order is { } treeOrder && IsTreePlantingOrder(treeOrder.Action))
             return TreePlantingOrderBlockedReason(instruction, person);

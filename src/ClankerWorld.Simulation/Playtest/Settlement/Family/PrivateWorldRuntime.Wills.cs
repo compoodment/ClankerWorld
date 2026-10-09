@@ -168,7 +168,7 @@ public sealed partial class PrivateWorldRuntime
 
         var self = archived is null ? null : new CognitionSelfContext(deceased.Id, deceased.Name,
             deceased.AgeBand.ToString(), archived.LastPhysical.Personality, archived.LastPhysical.Aspiration,
-            deceased.HouseholdId, null, null, null,
+            CognitionHouseholdId(deceased.HouseholdId), null, null, null,
             checkpoint.Households.SingleOrDefault(item => item.Id == deceased.HouseholdId)?.Name,
             towns.SingleOrDefault(item => item.Id == archived.TownId)?.Name);
         var memories = PrivateWorldMemoryRetrieval.Retrieve(checkpoint.Memories, checkpoint.Beliefs ?? [],

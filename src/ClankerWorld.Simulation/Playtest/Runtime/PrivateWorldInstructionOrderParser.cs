@@ -41,14 +41,15 @@ internal static class PrivateWorldInstructionOrderParser
         Func<MapResource, string> foodKnowledgeKind,
         IReadOnlyList<ProductionOrderRecipe>? productionRecipes = null,
         IReadOnlyList<DeliveryOrderInput>? deliveryInputs = null,
-        IReadOnlyList<BuildingOrderDefinition>? buildings = null)
+        IReadOnlyList<BuildingOrderDefinition>? buildings = null,
+        IReadOnlyList<PlacedBuilding>? ports = null)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(resources);
         ArgumentNullException.ThrowIfNull(foodKnowledgeKind);
 
         return TryTokenize(text, out var tokens)
-            ? new OrderParser(tokens, resources, foodKnowledgeKind, productionRecipes ?? [], deliveryInputs ?? [], buildings ?? []).Parse()
+            ? new OrderParser(tokens, resources, foodKnowledgeKind, productionRecipes ?? [], deliveryInputs ?? [], buildings ?? [], ports ?? []).Parse()
             : null;
     }
 
@@ -127,7 +128,8 @@ internal static class PrivateWorldInstructionOrderParser
         Func<MapResource, string> foodKnowledgeKind,
         IReadOnlyList<ProductionOrderRecipe> productionRecipes,
         IReadOnlyList<DeliveryOrderInput> deliveryInputs,
-        IReadOnlyList<BuildingOrderDefinition> buildings)
+        IReadOnlyList<BuildingOrderDefinition> buildings,
+        IReadOnlyList<PlacedBuilding> ports)
     {
         private int position;
 
@@ -146,6 +148,8 @@ internal static class PrivateWorldInstructionOrderParser
             var repeatPrefix = keepPrefix || ReadWord("repeat") || ReadWord("repeatedly");
 
             var actionStart = position;
+            if (TryReadBoatOrder(end, repeatPrefix) is { } boatOrder) return boatOrder;
+            position = actionStart;
             if (TryReadKnowledgeOrder(end, repeatPrefix, keepPrefix) is { } knowledgeOrder) return knowledgeOrder;
             position = actionStart;
             if (TryReadShelterOrder(end, repeatPrefix) is { } shelterOrder) return shelterOrder;
@@ -1036,6 +1040,20 @@ internal static class PrivateWorldInstructionOrderParser
             targetResourceId = resource.Resource!.Id;
             position += resource.TokensConsumed;
             return true;
+        }
+
+        private OwnerInstructionOrder? TryReadBoatOrder(int end, bool repeat)
+        {
+            if (repeat || !ReadWord("travel") || !ReadWord("by") || !ReadWord("boat") || !ReadWord("to")) return null;
+            _ = ReadWord("the");
+            if (!ReadWord("port") || !ReadWord("at") || !TryReadCoordinate(out var destination)) return null;
+            _ = ReadWord("please");
+            if (position != end) return null;
+            var matches = ports.Where(port => port.Position == destination).ToArray();
+            return matches.Length == 1
+                ? new OwnerInstructionOrder("travel_by_boat", "queued", 1, 0, "arrivals", false, TargetPosition: destination)
+                { BoatTravel = new(matches[0].InstanceId) }
+                : null;
         }
 
         private bool TryReadCoordinate(out GridPoint coordinate)

@@ -1,0 +1,1 @@
+- [ ] With a nearly full House and a collected jug shipment coming home, order a housemate to store personal wood or return borrowed goods. Check that the order waits when the shipment needs the remaining space, that the jug can be delivered, and that both tasks finish when there is room for both loads. Repeat across save/load, including a full jug returned as one whole vessel.

@@ -1,0 +1,1 @@
+- Routine personal recovery now skips unreachable belongings and collects reachable goods instead. Unreachable items retain their owner and location; recovery rechecks the route as the world changes.
