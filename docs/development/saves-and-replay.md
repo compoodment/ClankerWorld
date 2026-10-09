@@ -885,7 +885,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 107. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 109. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -1032,11 +1032,13 @@ current alpha cutoff.
 | Schema 98 | Existing inventory events retain exact physical storage additions/removals by building and item kind, with signed quantities. Event identities, trade receipts, rollback and bounded archival remain intact. Malformed changes and earlier alpha schemas are refused; no migration or history reconstruction is added. |
 | Schema 99 | Towns retain the latest abandonment tick independently of bounded events. Revival clears it; missing markers, future or pre-founding ticks, and markers on lived-in Towns are refused. Earlier alpha saves are refused and preserved without migration. |
 | Schema 100 | Actual observations refresh current personal map facts. The required bounded `EarlierFacts` ledger backs unchanged artifacts and writing snapshots; duplicate, orphaned, future and mismatched versions are refused. Native writing, copying, planting, cancellation and current-format continuation retain exact contents and paid materials. Earlier alpha saves are refused and preserved without migration. |
+| Schema 108 | Owner Port-travel orders bind the exact destination Port and latest native boat request. Requests retain their originating instruction; sequential retry and actual destination-arrival receipts are validated. Cancellation preserves underway recovery, and return to departure supplies no completion. Earlier alpha saves are refused and preserved without migration. |
 | Schema 105 | Attach/pull and park orders retain optional stable cart identities and native completion receipts. Strict validation checks cart references, task shape and receipt identity; owner/Godot projections retain the target. Queue, cancellation/replacement, urgent food, ownership changes, refused-tick rollback and paired replay/reload preserve actual cart and cargo state. Earlier alpha saves are refused and preserved without migration. |
 | Schema 104 | Scouting can continue beyond eight steps and explicitly return. Loop-free outward paths are bounded by map tile count; visited tiles and recent discoveries retain their 256-entry limits. Current-format saves retain longer outward and returning paths, original origins, actual knowledge and historical bridge validation. Replay includes chosen return, occupied-corner detours, interruption and refused-tick rollback. Earlier alpha saves are refused and preserved without migration. |
 | Schema 103 | Boat transport requires compact retired-request sequence ranges. Checkpoint compaction durably archives full older closed requests before retaining all active requests and the latest 40 closed requests. Ranges and live requests cover each issued sequence exactly once, including gaps around older active travelers. Loading verifies that the reachable archive contains exactly those retired closed requests. Earlier alpha saves are refused and preserved without migration. |
 | Schema 102 | Copy orders retain the exact held source while gathering supplies and writing, alongside the native project and paid completion receipt. Strict load checks source kind, project/source/order links and copy provenance; original writing cannot credit a copy task. Source loss releases the project while retaining the source pointer for retry; completion clears both pointers. Older alpha checkpoints are refused and preserved without migration. |
 | Schema 101 | Knowledge-writing orders bind their exact native project and credit only completed physical artifacts carrying that instruction ID. Reload checks actor, kind, current-order priority, paid artifact provenance and exact progress. Cancellation and replacement release only owned unspent reservations; ordinary writing is preserved. Older alpha checkpoints are refused and preserved without migration. |
+| Schema 109 | Native newborns retain a pending first personality/aspiration choice through infancy and failed personal replies. Their ordinary initial-choice observation may retain at most two bounded parental identities as family background, covered by the observation digest. Accepted choices clear retained queued background and cannot apply twice after reload. Native birth, day-3 decisions, retry, and paired replay cover the marker and chosen fields. Earlier alpha checkpoints are refused and preserved; no migration is added. |
 
 ### Tool-making requests
 
@@ -1192,9 +1194,21 @@ owner, passenger or request, duplicate physical or incoming dock claims, invalid
 water steps and an active passenger separated from the boat. Waiting requests
 hold no boat reservation; terminal history remains saved.
 
+Schema 108 adds `OwnerInstructionOrder.BoatTravel`, containing the stable
+destination Port ID and latest request ID, and optional `BoatTripRequest.OrderInstructionId`.
+Validation binds each ordered request to the same instruction, passenger and
+destination, disallows overlapping retries, and requires the latest actual
+`arrived` request for a finished order. Unknown Ports, changed destination
+tiles and invented progress are refused; a removed Port remains identifiable
+through its paid construction record. Cancelled orders may retain an underway
+or settled journey, but never an unused waiting request. Native arrival
+receipts survive event and request-history compaction: each saved order’s latest
+bound request stays live, while older retries and unrelated closed requests can
+be archived. Events or retired sequence ranges alone cannot prove completion.
 Schema 103 requires non-null `RetiredRequestRanges`, empty until the first
 retirement. When more than 40 requests are closed, checkpoint compaction keeps
-all waiting and underway requests and the latest 40 closed requests by sequence,
+all waiting and underway requests, the latest 40 closed requests by sequence,
+and each saved boat order’s latest bound request,
 matching the existing owner view. The older full records go into
 `ClosedBoatRequests` in the same digest-addressed history segment as event
 prefixes. The segment is fsync-written before the smaller checkpoint is

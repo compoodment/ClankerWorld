@@ -85,6 +85,13 @@ both names unchanged. An unfinished rename stays in the open editor through
 world refreshes, even when the name field loses focus. Closing the editor or
 choosing another agent or world discards it.
 
+Children born in the world choose their own personality and aspiration when
+their personal model first makes a decision after infancy, at day 3. Their
+parents' chosen identities, household and Town provide background; the child's
+choice is its own. An unavailable model or unusable reply leaves the choice
+pending until a later ordinary decision. You can inspect the chosen identity
+on the child's Profile; saving preserves it.
+
 ## Create your first Town
 
 On a fresh server, **Continue** opens **New World** so you can choose the map
@@ -289,6 +296,14 @@ blocked with a reason. These are single trips; queue another order for the
 return journey. A destination in another household's House requires an
 invitation. Urgent food or warmth needs can interrupt the trip, then it resumes.
 
+For a boat trip, use **Travel by boat to Port at (196, 13)**, replacing the
+coordinates with the Port's listed tile. The adult walks to a usable departure
+Port and waits for a real communal boat. Visitors still need Council permission.
+The order shows why it is waiting for a route, permission, a boat or landing
+space, and finishes only at the named destination. Cancelling before boarding
+releases the request. Cancelling aboard lets the boat finish its safe journey
+or return; returning to departure never counts as reaching the destination.
+
 Use **Read a field record**, **Read a map**, **Read a book** or **Read** to
 read one eligible written item the adult personally owns and carries. Add its
 exact artifact ID, lot ID or unique title to select it explicitly. Stored,
@@ -330,6 +345,8 @@ in their current or former household's storage, or where they were dropped.
 They keep ownership and use normal carrying space. A plain request collects
 one load; a quantity stops exactly at that number. Full hands or unavailable
 goods leave the task waiting. Add **from (12, 4)** to require that source tile.
+Routine recovery also skips belongings it cannot currently reach, so an item on
+disconnected land does not block pickup of nearby personal goods.
 You can also collect personal food or equipment without eating or equipping it.
 Named meals include **Collect two bread**, **Collect berry porridge** and
 **Collect restaurant meals**. These collect only the agent's own goods.

@@ -140,7 +140,8 @@ public sealed partial class PrivateWorldRuntime
                 AllowedChildSurnames: inhabitant.NeedsName && InhabitantNameRules.RequiresParentSurname(checkpoint, inhabitant.Id)
                     ? InhabitantNameRules.AllowedChildSurnames(checkpoint, inhabitant.Id) : null,
                 MarriageNote: marriages.SingleOrDefault(item => AgentMarriageRules.HasParticipant(item, inhabitant.Id)) is { } marriage
-                    ? AgentMarriageRules.Note(marriage, inhabitant.Id, checkpoint) : null);
+                    ? AgentMarriageRules.Note(marriage, inhabitant.Id, checkpoint) : null,
+                FamilyBackground: InitialChildFamilyBackground(inhabitant.Id, physical));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,

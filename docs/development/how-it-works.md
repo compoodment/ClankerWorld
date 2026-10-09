@@ -285,8 +285,11 @@ Storage orders reuse the material, equipment and goods catalogues and normal per
 eligibility. `StorePersonalGoods` serves both ordinary choices and orders: it
 walks to the House entrance, then uses `InventoryFixture.Relocate` to preserve
 ownership, condition and provenance. Reserved goods, promised deliveries,
-container contents, food and selected equipment are excluded. Only a committed
-relocation receipt advances the order; its identity is hashed to a fixed length
+container contents, food and selected equipment are excluded.
+House capacity already promised to collected inbound deliveries is unavailable
+to personal storage and borrowed returns, at both choice admission and the
+physical move. Whole vessels must fit with every content lot in the remaining
+space. Only a committed relocation receipt advances the order; its identity is hashed to a fixed length
 because split inventory identifiers can grow. Walking and survival actions earn
 no storage progress. Default tasks count one stored lot, while explicit quantities
 limit the final relocation to the remaining amount. Repetition keeps waiting
@@ -318,6 +321,11 @@ and reserved portions, with the final quantity capped by carrying space and
 the requested remainder. Only the committed relocation earns progress, using
 a bounded hashed receipt. Former-household collection grants no other access.
 Vessels must fit with their entire contents before selection as well as execution.
+
+Routine personal recovery uses the same current pickup-range and unoccupied-route
+check before offering a lot and again before collection. An unreachable lot keeps
+its ownership and location without blocking reachable belongings. Routine
+priorities and identity ordering still apply among eligible reachable lots.
 
 `collect_goods` and `store_goods` use an exact `TargetItemKind` from a separate
 logistics catalogue. They do not broaden the gathering or repair subjects.
@@ -796,7 +804,27 @@ personality, aspiration, household, available warmth/illness and the latest
 private thought. Absent fields remain unknown. Need scales are explained;
 `hunger_basis_points` measures fullness (0 starving, 10,000 full).
 Self context is included in the queued-observation digest. Nearby relationships,
-carried inventory and current activity are not provided. Jev's routine request
+carried inventory and current activity are not provided. During a world-born
+child's pending first identity choice, self context also contains at most two
+biological parents' recorded names and chosen personalities/aspirations as
+`family_background`. An unchosen parental identity remains unknown; a deceased
+parent's last recorded identity may supply the background. Private thoughts,
+memories and unrelated identities are excluded. Household and Town keep their
+existing recorded-name fields. This bounded snapshot is part of the ordinary
+personal-model request and its digest, in both numeric and word-based need
+formats; it creates no separate request or inherited traits.
+
+Native births use the existing `IdentityChoicePending` marker and the
+`undecided`/`find a purpose` placeholders. Infants still receive no cognition.
+At the first ordinary decision after infancy (currently day 3), both chosen
+identity fields must be usable before the opportunity completes. A missing,
+invalid, partial, failed or cancelled reply leaves it pending for the next
+ordinary decision; the existing idle and action cadences still apply. Accepted
+identity completes retained queued observations and removes their initial
+family background. Later ordinary replies cannot overwrite the chosen fields;
+the existing bounded life-moment opportunities remain separate.
+
+Jev's routine request
 sends the same three needs as flat fields after `hunger_basis_points`:
 `warmth_basis_points` and `illness_basis_points`, `null` when unknown, with
 their scales explained in its instructions.
@@ -833,8 +861,9 @@ stays without an additional model attempt. Routine replies cannot overwrite it.
 The pending opportunity is checkpointed, so pause/reload discards late replies
 and preserves an unconsumed choice. It selects the personal planner rather than
 Jev's routine router. Choice events contain only the agent ID; chosen text stays
-in that agent's saved state and later self context, not runtime logs. Children's
-initial identity remains separate work.
+in that agent's saved state and later self context, not runtime logs. World-born
+children use the ordinary first-choice path described above and require both
+usable identity fields before completing it.
 
 The runtime records five named identity opportunities: midlife (half the
 configured maximum life, day 30 by default), parenthood, loss of a partner,
@@ -3027,6 +3056,17 @@ Repeal ends future permission; it does not abandon a passenger already aboard.
 A grant changes no membership, ownership or Warehouse access.
 
 Native personal decisions approach the Port and create a sequenced trip request.
+The complete owner grammar also accepts `Travel by boat to Port at (x, y)`.
+It resolves that existing Port's instance ID at submission and retains the
+requested tile; ambiguous or absent targets and mixed/repeated tasks are not
+understood. `boat_order` uses the same departure choices, approach movement and
+request creation as ordinary travel. Each ordered request retains its instruction
+ID, and the order binds its latest request. Queue admission, physical boats,
+permissions, reservations and recovery remain authoritative. Native destination
+arrival credits one receipt; a safe return or a cancelled order receives none.
+Cancellation/replacement settles only waiting requests, preserving underway
+journeys. A settled return or lost permission can retry through the normal queue
+when conditions permit, with a new request after the old one settles.
 Queue processing chooses the oldest currently usable request, atomically binds
 one idle boat and a free destination dock, and boards only that passenger with
 their actual carried goods. Blocked requests retain their sequence; cancellation
