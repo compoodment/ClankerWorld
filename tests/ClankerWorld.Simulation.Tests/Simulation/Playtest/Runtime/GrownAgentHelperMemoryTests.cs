@@ -82,7 +82,9 @@ public sealed class GrownAgentHelperMemoryTests
             runtime.SetJevEnabled(helperOn);
             runtime.Resume();
         }
-        for (var tick = 0; tick < 8 && provider.Observations.Count == 0; tick++)
+        // The native identity reply was just admitted. Wait through the
+        // ordinary decision cadence rather than requiring a second call early.
+        for (var tick = 0; tick < 310 && provider.Observations.Count == 0; tick++)
         {
             Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
             await WaitForRequests(world);
