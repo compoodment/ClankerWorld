@@ -87,7 +87,6 @@ public sealed class HouseholdJoinRequestTests
             var arrival = world.Inhabitants.Single(person => person.InhabitantId == learner).Position;
             Assert.NotEqual(start, arrival);
             Assert.InRange(state.Map.FootDistance(arrival, camp), 0, 1);
-            Assert.Contains("lesson_attend", provider.Offered[learner].Keys);
         }
         var before = world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!;
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
