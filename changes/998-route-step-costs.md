@@ -1,0 +1,1 @@
+- Construction layout and shared route searches avoid repeating legality checks for foot steps they just verified, reducing measured native tick time while preserving offered choices, Road costs and placement checks.

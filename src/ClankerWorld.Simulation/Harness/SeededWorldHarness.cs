@@ -232,7 +232,12 @@ public sealed record SeededMap(
     public int FootStepCost(GridPoint origin, GridPoint destination) =>
         !CanFootStep(origin, destination)
             ? throw new ArgumentOutOfRangeException(nameof(destination), "The foot step is illegal.")
-            : checked(FootTravelCost(destination) * (IsDiagonalFootStep(origin, destination) ? 141 : 100) / 100);
+            : LegalFootStepCost(origin, destination);
+
+    // Only for a step just returned by FootNeighbors on this same map. Public
+    // callers still validate the complete step, including river and bridge axes.
+    internal int LegalFootStepCost(GridPoint origin, GridPoint destination) =>
+        checked(FootTravelCost(destination) * (IsDiagonalFootStep(origin, destination) ? 141 : 100) / 100);
 
     private static readonly (int X, int Y)[] FootNeighborOffsets =
     [

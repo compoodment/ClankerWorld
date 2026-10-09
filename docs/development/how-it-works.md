@@ -2029,6 +2029,11 @@ Household planning computes each prospective building's identity once per design
 before checking placed buildings for it. Each later query reads current reservations
 again. See [household plan query measurements](household-plan-query-measurements.md)
 for native candidate/state equivalence, repeated timings and allocation results.
+Layout and shared route searches reuse the step legality just established by
+`FootNeighbors` when computing Road costs. Public step costs and movement still
+validate the complete step; terrain, Road discounts, occupied corners and queue
+order retain their existing rules. See [route step cost measurements](route-step-cost-measurements.md)
+for matched native captures and timing limits.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
