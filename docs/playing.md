@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Playing the current game
@@ -263,6 +263,10 @@ space. A recognized new order replaces the current one unless you turn on
 An agent can also eat from a usable storage pot they own and carry, leaving
 the pot and remaining food together. Eating a serving needs no extra carrying
 space; food reserved for other work or being delivered is unavailable.
+
+A hungry child whose load is full can put spare unreserved supplies at their
+household House or camp to make room for food. Worn equipment, maps, held work
+supplies and delivery loads stay with them. Infants still need their caregivers.
 
 Material orders can gather wood, stone, plant fiber, clay, iron ore, gold ore
 or diamond. For example, use **Gather five wood**, **Keep gathering clay**, or

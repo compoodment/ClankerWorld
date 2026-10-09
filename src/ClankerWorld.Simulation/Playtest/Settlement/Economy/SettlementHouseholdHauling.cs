@@ -279,15 +279,15 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>
-    /// A hungry adult whose load leaves no room for a food pickup may make room
+    /// A hungry resident past infancy whose load leaves no room for a food pickup may make room
     /// by setting down spare supplies for the household. Maps, field records,
     /// worn gear, work reservations and delivery loads stay carried. Urgent
-    /// food recovery may release only the orchard seeds it actually sets down.
+    /// adult food recovery may release only the orchard seeds it actually sets down.
     /// </summary>
     private void AddMakeRoomForFoodCandidate(List<CognitionCandidate> candidates, string actor,
         PlaytestInhabitantState state, int priority)
     {
-        if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is null)
+        if (!(AdultResident(actor) || ChildResident(actor)) || society.Checkpoint.GetInhabitant(actor).HouseholdId is null)
             return;
         var cargo = FoodRecoveryCargo(actor, state);
         if (cargo.Count == 0 ||
@@ -369,7 +369,7 @@ public sealed partial class PrivateWorldRuntime
         var moves = OrdinarySpareCargo(actor, missing);
         missing -= moves.Sum(move => move.PhysicalQuantity);
         if (missing <= 0) return moves;
-        if (!NeedsUrgentFood(state) || PreferredFood(actor, actor).Any()) return [];
+        if (!AdultResident(actor) || !NeedsUrgentFood(state) || PreferredFood(actor, actor).Any()) return [];
 
         var inventory = society.Checkpoint.Inventory;
         foreach (var lot in inventory.Lots.OrderBy(lot => lot.Id, StringComparer.Ordinal))
@@ -416,7 +416,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void MakeRoomForFood(string actor, PlaytestInhabitantState state)
     {
-        if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
+        if (!(AdultResident(actor) || ChildResident(actor)) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId)
             return;
         var cargo = FoodRecoveryCargo(actor, state);
         StoreSpareCargo(actor, state, householdId, cargo);
