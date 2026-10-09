@@ -124,10 +124,10 @@ public partial class FamilyTreeView : Control
                     ClipText = true,
                     Position = new Vector2(left + column * ColumnWidth, Margin + rowIndex * RowHeight),
                     Size = new Vector2(NodeWidth, NodeHeight),
-                    TooltipText = "Open " + person.DisplayName + "'s profile",
-                    // The person whose tree this is stands out; the deceased are faded.
+                    TooltipText = deceased ? "Open " + person.DisplayName + "'s historical profile · died"
+                        : "Open " + person.DisplayName + "'s profile",
+                    // The current person stands out; the deceased status stays in the tooltip when text is clipped.
                     ThemeTypeVariation = person.Id == centerId ? "PrimaryButton" : string.Empty,
-                    Modulate = deceased ? new Color(1, 1, 1, 0.68f) : Colors.White,
                 };
                 var personId = person.Id;
                 button.Pressed += () => PersonRequested?.Invoke(personId);
