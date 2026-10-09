@@ -280,8 +280,11 @@ only unresolved portions as competing claims. Loading validates the case's notic
 source, read, authority and adjustment links rather than inventing missing evidence.
 Notice party snapshots remain historical; current response standing is derived
 from the captured world, while each ruling retains its actual closure parties.
-Readers, evidence agents and judges retain their complete known person identities,
-including native-born adults. Unknown or malformed person references are refused;
+Readers, evidence agents, judges, notice and ruling parties, personal stakes and
+live or historical case-election rosters retain complete known person identities,
+including later-generation adults whose ancestry-based identities exceed 256
+characters. Person rosters keep canonical order and uniqueness.
+Unknown or malformed person references are refused;
 caller-owned keys and prose retain their existing limits. This identity validation
 fix changes no schema or saved field.
 
