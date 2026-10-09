@@ -38,6 +38,14 @@ public sealed class GrownAgentHelperMemoryTests
             }
             if (age == 15)
             {
+                // Finish the actual adult boundary before slowing the clock;
+                // the accelerated next-tick forecast can still be a child now.
+                while (aging.Society.AgeAt(aging.Society.GetInhabitant(childId), aging.WorldTick) < age)
+                {
+                    Assert.True((await aging.AdvanceOneTickNonBlockingAsync()).Advanced);
+                    await WaitForRequests(aging);
+                }
+                Assert.Equal(SocietyAgeBand.Adult, aging.Society.GetInhabitant(childId).AgeBand);
                 // Accelerated aging can cross several identity boundaries
                 // before a hosted reply is admitted. Finish the ordinary
                 // request at the normal rate before swapping to the helper.
