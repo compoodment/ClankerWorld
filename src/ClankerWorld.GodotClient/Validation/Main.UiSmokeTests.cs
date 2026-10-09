@@ -3030,6 +3030,7 @@ public partial class Main
             await VerifyMountainReliefAsync();
             await VerifyDesertAndSnowArtAsync();
             await VerifyGroundSnowAsync();
+            await VerifyRoofSnowAsync();
             var crowded = sample with
             {
                 WorldId = "ui-marker-bounds",

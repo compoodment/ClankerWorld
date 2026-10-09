@@ -77,7 +77,10 @@ night-lights rule for when a building is lit.
 Ground snow A and footprints are implemented in `Implemented/Snow.cs`, using
 the client's `GroundSnowSprites` pixel rules. `dotnet run -- snow out` writes
 the approved stills and loops; the still's roof dusting is retained as review
-context, while client roof snow is separate work. Ground cover follows
+context. Roof snow A2 is now implemented in [Implemented/RoofSnow.cs](../Implemented/RoofSnow.cs),
+sharing the live slope/tint rules; `dotnet run -- roof-snow out` writes its
+approved 32/16px references. The client applies it to actual roof geometry
+with the same region history, leaving flues, outlines, shadows and yards clear. Ground cover follows
 observed snowfall in each region and melts afterwards; footprints fade within
 a game hour. The remaining marks below are proposals.
 

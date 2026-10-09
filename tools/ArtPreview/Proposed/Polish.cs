@@ -307,7 +307,6 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
             yield return new(Family, $"ground-snow-b-{size}", SnowMarksPreview.Scene(size, patchy: true), "Ground snow B: patchy cover that thins and melts unevenly");
             yield return new(Family, $"puddles-a-{size}", Puddles(size, wetGround: false), "Puddles A: small puddles on Roads and bare ground");
             yield return new(Family, $"puddles-b-{size}", Puddles(size, wetGround: true), "Puddles B: puddles plus darker, wet-looking ground");
-            yield return new(Family, $"roof-snow-a2-{size}", RoofSnowFollowingSlopes(size), "Roof snow A, second round: the shaded slope covered, the sunny slope keeping snow near the ridge, following each roof's shape");
             foreach (var look in PuddleLooks)
                 yield return new(Family, $"puddles-r3-{look}-{size}", Puddles(size, look), $"Puddles, third round: {look}");
             yield return new(Family, $"leaves-a-{size}", Leaves(size, carpet: false), "Leaves A: a few fallen leaves under each tree");
@@ -375,124 +374,6 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
         var top = building.Footprint.Position.Y * size;
         var line = top + building.Footprint.Size.Y * size * 0.5f + (Polish.Hash01(x / Math.Max(1, size / 16), 0, 43) - 0.5f) * 4 * size / 32f;
         return y < line;
-    }
-
-    private enum RoofShape { GableEastWest, GableNorthSouth, Hipped, Cone }
-
-    /// <summary>The shape each building's roof art draws, read off the art.</summary>
-    private static RoofShape ShapeOf(BuildingKind kind) => kind switch
-    {
-        BuildingKind.Warehouse => RoofShape.GableEastWest,
-        BuildingKind.Blacksmith => RoofShape.GableNorthSouth,
-        BuildingKind.Silo => RoofShape.Cone,
-        _ => RoofShape.Hipped,
-    };
-
-    /// <summary>
-    /// Which building's roof each pixel belongs to, or -1. Like <see cref="Roofs"/>,
-    /// but leaves out the building's shadow on the grass (a pixel that is only a
-    /// darker copy of the ground), the Blacksmith's open forge yard and the
-    /// Farmhouse's grain sacks.
-    /// </summary>
-    private static int[] RoofOwners(int size)
-    {
-        var with = Polish.Scene(size);
-        var without = Polish.Scene(size, buildings: false);
-        var owners = new int[with.GetWidth() * with.GetHeight()];
-        Array.Fill(owners, -1);
-        for (var i = 0; i < Polish.Buildings.Count; i++)
-        {
-            var f = Polish.Buildings[i].Footprint;
-            var kind = Polish.Buildings[i].Kind;
-            var right = kind == BuildingKind.Blacksmith ? f.Position.X * size + f.Size.X * size * 0.66f : f.End.X * size;
-            var bottom = kind == BuildingKind.Farmhouse ? f.Position.Y * size + f.Size.Y * size * 0.68f : f.End.Y * size;
-            for (var y = f.Position.Y * size; y < bottom; y++)
-                for (var x = f.Position.X * size; x < right; x++)
-                {
-                    Color w = with.GetPixel(x, y), o = without.GetPixel(x, y);
-                    if (w == o) continue;
-                    float rr = w.R / MathF.Max(o.R, 0.01f), rg = w.G / MathF.Max(o.G, 0.01f), rb = w.B / MathF.Max(o.B, 0.01f);
-                    var shadow = MathF.Max(rr, MathF.Max(rg, rb)) - MathF.Min(rr, MathF.Min(rg, rb)) < 0.1f && rg is > 0.35f and < 0.98f;
-                    if (!shadow) owners[y * with.GetWidth() + x] = i;
-                }
-        }
-        return owners;
-    }
-
-    /// <summary>
-    /// Snow that follows each roof's own slopes. The shaded faces (north and
-    /// east, away from the north-west light the art uses) stay covered. Each
-    /// sunlit face (south and west) keeps snow from its ridge down to a ragged
-    /// melt line that runs along its eave, and below that a thin, broken
-    /// dusting, so no face is ever bare. A gable roof has two faces, a hipped
-    /// roof four (the nearest eave decides the face), and the Silo's cone
-    /// melts on its south-west side.
-    /// </summary>
-    private static Image RoofSnowFollowingSlopes(int size)
-    {
-        var canvas = Winter(size);
-        var owners = RoofOwners(size);
-        var bounds = new (int X0, int Y0, int X1, int Y1)[Polish.Buildings.Count];
-        Array.Fill(bounds, (int.MaxValue, int.MaxValue, -1, -1));
-        for (var y = 0; y < canvas.Height; y++)
-            for (var x = 0; x < canvas.Width; x++)
-            {
-                var i = owners[y * canvas.Width + x];
-                if (i < 0) continue;
-                var b = bounds[i];
-                bounds[i] = (Math.Min(b.X0, x), Math.Min(b.Y0, y), Math.Max(b.X1, x), Math.Max(b.Y1, y));
-            }
-        for (var y = 0; y < canvas.Height; y++)
-            for (var x = 0; x < canvas.Width; x++)
-            {
-                var i = owners[y * canvas.Width + x];
-                if (i < 0) continue;
-                var c = canvas.Get(x, y);
-                var luma = c.R * 0.3f + c.G * 0.59f + c.B * 0.11f;
-                if (luma < 0.2f) continue; // outlines, flues and eave shadow stay dark
-                var amount = SlopeCover(x, y, size, ShapeOf(Polish.Buildings[i].Kind), bounds[i], i);
-                if (amount <= 0) continue;
-                canvas.Set(x, y, c.Lerp(SnowShade.Lerp(Snow, Math.Clamp((luma - 0.2f) * 2.2f, 0, 1)), amount));
-            }
-        return canvas.ToImage();
-    }
-
-    private static float SlopeCover(int x, int y, int size, RoofShape shape, (int X0, int Y0, int X1, int Y1) roof, int seed)
-    {
-        const float shaded = 0.74f, sunlit = 0.64f, dusting = 0.24f;
-        float w = roof.X1 - roof.X0 + 1, h = roof.Y1 - roof.Y0 + 1;
-        float px = x + 0.5f - roof.X0, py = y + 0.5f - roof.Y0;
-        var grain = Math.Max(1, size / 16);
-        // On a sunlit face: snow down to a ragged line about 45% of the way from
-        // ridge to eave, then a thin dusting with a few brighter flecks.
-        float Sunlit(float fromEave, float depth, float along)
-        {
-            var line = depth * (0.55f + (Polish.Hash01((int)(along / (2 * grain)), seed, 47) - 0.5f) * 0.18f);
-            if (fromEave > line) return sunlit;
-            return Polish.Hash01(x / grain, y / grain, 53 + seed) < 0.2f ? sunlit * 0.75f : dusting;
-        }
-        switch (shape)
-        {
-            case RoofShape.GableEastWest:
-                return py < h / 2 ? shaded : Sunlit(h - py, h / 2, px);
-            case RoofShape.GableNorthSouth:
-                return px >= w / 2 ? shaded : Sunlit(px, w / 2, py);
-            case RoofShape.Cone:
-            {
-                float dx = px - w / 2, dy = py - h / 2, r = MathF.Sqrt(dx * dx + dy * dy), radius = w / 2;
-                if (dx - dy > 0) return shaded;
-                return Sunlit(radius - r, radius, MathF.Atan2(dy, dx) * radius);
-            }
-            default:
-            {
-                // A hipped roof at 45 degrees: the nearest eave names the face.
-                float north = py, south = h - py, west = px, east = w - px;
-                var depth = MathF.Min(w, h) / 2;
-                var nearest = MathF.Min(MathF.Min(north, south), MathF.Min(west, east));
-                if (nearest == north || nearest == east) return shaded;
-                return nearest == south ? Sunlit(south, depth, px) : Sunlit(west, depth, py);
-            }
-        }
     }
 
     /// <summary>

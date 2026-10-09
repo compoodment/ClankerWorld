@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Playing the current game
@@ -156,7 +156,10 @@ Snowfall gradually covers open ground in the regions you watch, with grass
 tips and greyer, trodden Roads still showing. Walking agents and animals leave
 prints that fade within a game hour. Cover melts after snow stops, and pausing
 holds it still. Reopening a world starts this local weather history again;
-permanent snowy ground keeps its usual picture.
+permanent snowy ground keeps its usual picture. Roofs share that snow history:
+shaded north/east slopes stay covered, while sunny south/west slopes keep snow
+near the ridge and a thin dusting below. Outlines, flues and open yards stay clear.
+Roof snow shows at close and mid zoom and melts with the ground cover.
 
 **Filters** turns map overlays on and off: Town borders, household property,
 Town land title, household land use and disputed land. Each one says what it

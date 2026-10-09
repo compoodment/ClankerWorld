@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # What works today
@@ -1376,8 +1376,12 @@ Observed snowfall now leaves white cover on open ground in that region,
 keeping grass tips and trodden Roads visible. Cover builds over a game hour
 and melts over two hours after snow stops. Walking agents and animals leave
 footprints that fade within an hour. Pause freezes both; reload, rewind and
-world changes clear this local display history. Water, buildings, trees and
-permanent snow retain their own artwork. Close/mid zoom and snowy walking
+world changes clear this local display history. Roofs share the same cover:
+gable, hipped and conical slopes keep the approved shaded-side snow and sunny
+ridge-to-eave dusting. Flues, outlines, grass shadows and open yards stay clear;
+roofs crossing a region edge use each side's cover. Water, trees and permanent
+snow retain their own artwork. Roof appearance at close/mid zoom still needs
+[the Windows check](../playtest/1475-roof-snow.md). Snowy walking
 still need [the Windows check](../playtest/1463-ground-snow-footprints.md).
 
 The map uses the pixel art approved in the October 1 art review: every ground
