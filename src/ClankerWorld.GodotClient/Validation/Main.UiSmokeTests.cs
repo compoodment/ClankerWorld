@@ -3870,6 +3870,7 @@ public partial class Main
             };
             var child = deceased with
             {
+                DisplayName = "Alexandria Montgomery Historical Relative Name",
                 Relationships = [new OwnerWorldInhabitantRelationship("birth:test", parent.Id,
                     "biological_parentage", "accepted", "family", 1, "child")],
             };
@@ -3896,8 +3897,12 @@ public partial class Main
                 throw new InvalidOperationException("Family tree must show ancestry, partnerships and deceased profiles.");
             var deceasedFamilyButtons = familyTreeView.GetChildren().OfType<Button>()
                 .Where(button => button.Text.EndsWith(" · died", StringComparison.Ordinal)).ToArray();
-            if (deceasedFamilyButtons.Length == 0 || deceasedFamilyButtons.Any(button => button.Modulate.A < 1 || button.SelfModulate.A < 1))
-                throw new InvalidOperationException("Deceased family profiles must keep readable text and say died without relying on fading.");
+            if (deceasedFamilyButtons.Length == 0 || deceasedFamilyButtons.Any(button => button.Modulate.A < 1 || button.SelfModulate.A < 1 ||
+                !button.TooltipText.Contains("died", StringComparison.Ordinal)))
+                throw new InvalidOperationException("Deceased family profiles must keep readable text and say died in their tooltip when their name is clipped.");
+            if (!deceasedFamilyButtons.Any(button => button.ClipText &&
+                button.GetThemeFont("font").GetStringSize(button.Text, fontSize: button.GetThemeFontSize("font_size")).X > button.Size.X))
+                throw new InvalidOperationException("The deceased family tooltip check must exercise a name wider than its button.");
             var familyWindow = GetWindow();
             var originalFamilySize = familyWindow.Size;
             var originalFamilyRenderSize = familyWindow.ContentScaleSize;

@@ -124,8 +124,9 @@ public partial class FamilyTreeView : Control
                     ClipText = true,
                     Position = new Vector2(left + column * ColumnWidth, Margin + rowIndex * RowHeight),
                     Size = new Vector2(NodeWidth, NodeHeight),
-                    TooltipText = "Open " + person.DisplayName + "'s profile",
-                    // The current person stands out; deceased people have an explicit "died" label.
+                    TooltipText = deceased ? "Open " + person.DisplayName + "'s historical profile · died"
+                        : "Open " + person.DisplayName + "'s profile",
+                    // The current person stands out; the deceased status stays in the tooltip when text is clipped.
                     ThemeTypeVariation = person.Id == centerId ? "PrimaryButton" : string.Empty,
                 };
                 var personId = person.Id;
