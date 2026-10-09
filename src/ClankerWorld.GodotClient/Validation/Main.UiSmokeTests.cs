@@ -3027,6 +3027,7 @@ public partial class Main
             if (mapObjectVisuals.ContainsKey("resource:wood")) throw new InvalidOperationException("Removed resource marker was retained.");
             if (mapObjectVisuals.ContainsKey("building:test-hall")) throw new InvalidOperationException("Removed building marker was retained.");
             await VerifyAgentPosesAsync(sample, founder);
+            await VerifyGlidingMarkersAsync();
             await VerifyMountainReliefAsync();
             await VerifyDesertAndSnowArtAsync();
             var crowded = sample with

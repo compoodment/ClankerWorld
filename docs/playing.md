@@ -158,6 +158,13 @@ draws, and all start off. Town borders show as a pale dashed line. While you
 place a founder or an added agent, the map shows all of them without turning
 Filters on.
 
+Agents and animals glide to each reported position, changing walking frames
+with a small bob. Boats and handcarts glide too. Pausing holds their drawing
+in place; resuming continues it. Longer jumps and loaded checkpoints snap to
+the reported position. Click the moving figure to select it; its name and
+quick card follow the drawing. This does not change how fast anyone travels
+in the world.
+
 Click an agent to open a small card beside them: what they are doing and bars
 for fullness, warmth and illness. **Profile** opens everything else on the left
 of the screen: diet, belongings, work, their newest private thought, the people

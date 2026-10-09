@@ -657,6 +657,19 @@ category/type/tick fields, not raw exceptions or file paths. Do not restart a
 held process before preserving its unsaved state. Filesystem fault injection
 does not establish arbitrary mid-tick rollback or crash durability.
 
+The Godot map keeps unsaved local motion per agent, animal, boat or
+handcart marker. Each short reported move retargets a one-second linear glide
+from its current drawing; it never predicts a future tile. A separate local
+quarter-second phase selects the approved walk frames and one-pixel bob for
+agents/animals. The same `WalkingMotion` code feeds the implemented reference
+animation. Pausing freezes elapsed glide and pose time; a paused authoring
+relocation, a move longer than three tiles, a new world or a checkpoint rewind
+snaps and clears the phase. Wrapped targets use the nearest world copy and
+camera/zoom changes retain intermediate tile coordinates. Pointer targets,
+names, conversation badges and the selected agent card follow the drawn
+control. Despawn removes the local entry. The host's positions, routes,
+observations, clock and save schema are unchanged.
+
 ### Time of day and night
 
 Time of day is worked out from the elapsed tick and the world's saved calendar

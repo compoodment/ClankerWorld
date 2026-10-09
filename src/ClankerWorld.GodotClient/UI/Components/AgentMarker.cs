@@ -21,19 +21,11 @@ public partial class AgentMarker : Control
     private int facing = AgentSprites.South;
     private AgentFrame activity;
     private AgentFrame step;
-    private double stepSecondsLeft;
     private string? motionWorldId;
     private Vector2I? lastTile;
 
     private const float SpriteScale = 1.35f;
     private const float NameMinimum = 20;
-
-    /// <summary>
-    /// How long the last walk frame stays after a step. Observations arrive
-    /// about once a second, so an agent who keeps walking alternates walk
-    /// frames on every step and stands still again once they stop.
-    /// </summary>
-    public const double StepSeconds = 1.5;
 
     /// <summary>A position change longer than this many tiles is a relocation, such as a reload, not a step.</summary>
     public const int MaxStepTiles = 3;
@@ -160,12 +152,10 @@ public partial class AgentMarker : Control
         MouseExited += () => { hovered = false; Raise(); };
     }
 
-    public override void _Ready() => SetProcess(step != AgentFrame.Still);
-
     /// <summary>
     /// Records the agent's tile from an observation. A change of tile turns the
     /// agent toward the move (the shorter way round a world that wraps east and
-    /// west) and shows the next walk frame; standing keeps the last facing. A
+    /// west); the map's glide clock supplies the walk frame. Standing keeps the last facing. A
     /// new world, or a jump longer than <see cref="MaxStepTiles"/>, starts over
     /// without a step.
     /// </summary>
@@ -189,25 +179,27 @@ public partial class AgentMarker : Control
         var dx = tile.X - previous.X;
         var dy = tile.Y - previous.Y;
         if (wrapsEastWest && mapWidth > 0) dx -= (int)Math.Round(dx / (double)mapWidth) * mapWidth;
-        if ((dx == 0 && dy == 0) || Math.Max(Math.Abs(dx), Math.Abs(dy)) > MaxStepTiles) return;
+        if (dx == 0 && dy == 0) return;
+        if (Math.Max(Math.Abs(dx), Math.Abs(dy)) > MaxStepTiles) { EndStep(); return; }
         facing = AgentSprites.FacingToward(dx, dy);
-        step = step == AgentFrame.Walk1 ? AgentFrame.Walk2 : AgentFrame.Walk1;
-        stepSecondsLeft = StepSeconds;
-        SetProcess(true);
+        step = AgentFrame.Walk1;
         QueueRedraw();
     }
 
-    public override void _Process(double delta)
+    /// <summary>The map's local glide clock owns the walking pose while this marker moves.</summary>
+    public void ShowMotion(bool moving, double seconds)
     {
-        stepSecondsLeft -= delta;
-        if (stepSecondsLeft <= 0) EndStep();
+        var frame = moving ? (WalkingMotion.StepAt(seconds) == 1 ? AgentFrame.Walk1 : AgentFrame.Walk2) : AgentFrame.Still;
+        SetProcess(false);
+        if (step == frame) return;
+        step = frame;
+        QueueRedraw();
     }
 
     private void EndStep()
     {
         if (step != AgentFrame.Still) QueueRedraw();
         step = AgentFrame.Still;
-        stepSecondsLeft = 0;
         SetProcess(false);
     }
 

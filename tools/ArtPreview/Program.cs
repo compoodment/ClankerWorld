@@ -19,6 +19,9 @@ switch (command)
     case "animate":
         Animations.Run(Path.Combine(outRoot, "animated"), args.Length > 2 ? args[2] : null);
         break;
+    case "movement":
+        MovementPreview.Run(Path.Combine(outRoot, "baseline", "movement"));
+        break;
     case "check":
         ArtContractChecks.Run();
         break;
