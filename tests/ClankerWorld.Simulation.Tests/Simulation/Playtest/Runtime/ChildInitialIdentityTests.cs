@@ -15,87 +15,33 @@ public sealed class ChildInitialIdentityTests
 {
     private static readonly Lazy<Task<byte[]>> Born = new(CreateBornAsync);
     private static readonly Lazy<Task<byte[]>> InfancyEnds = new(CreateBeforeChildhoodAsync);
+    private static readonly Lazy<Task<byte[]>> LongParentInfancyEnds = new(CreateLongParentBeforeChildhoodAsync);
 
-    [Fact]
-    public async Task ANativeBornLongIdParentRemainsInItsChildsOrdinarySavedFamilyBackground()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ANativeBornLongIdParentRemainsInItsChildsOrdinarySavedFamilyBackground(bool delayRequestStart)
     {
-        var state = PrivateWorldRuntimeCodec.Decode(await NewbornModelBindingCheckpointTests.BeforeBirth(78));
-        string parentId;
-        using (var firstGeneration = PrivateWorldRuntime.Restore(state, NewbornModelBindingCheckpointTests.Providers))
-        {
-            Assert.True((await firstGeneration.AdvanceOneTickAsync()).Advanced);
-            parentId = Assert.Single(firstGeneration.Society.Births).ChildId;
-            Assert.True(parentId.Length > 128);
-            firstGeneration.Pause();
-            firstGeneration.SetLifePace(1460);
-            firstGeneration.Resume();
-            for (var tick = 0; tick < 40 && firstGeneration.Society.GetInhabitant(parentId).AgeBand != SocietyAgeBand.Adult; tick++)
-                Assert.True((await firstGeneration.AdvanceOneTickAsync()).Advanced);
-            Assert.Equal(SocietyAgeBand.Adult, firstGeneration.Society.GetInhabitant(parentId).AgeBand);
-            firstGeneration.Pause();
-            firstGeneration.SetLifePace(1);
-            firstGeneration.Resume();
-            state = firstGeneration.ExportState();
-        }
+        var state = PrivateWorldRuntimeCodec.Decode(await LongParentInfancyEnds.Value);
+        var parentId = Assert.Single(state.Society.Society.Births, birth => birth.ChildId.Length > 128 &&
+            state.Society.Society.GetInhabitant(birth.ChildId).AgeBand == SocietyAgeBand.Adult).ChildId;
+        var childId = Assert.Single(state.Society.Society.Births, birth => birth.ChildId != parentId).ChildId;
+        Assert.True(parentId.Length > 128);
+        Assert.Equal(SocietyAgeBand.Infant, state.Society.Society.GetInhabitant(childId).AgeBand);
 
-        const string partnerId = "founder:00000000000000000000000000000003";
-        Assert.Equal(SocietyAgeBand.Adult, state.Society.Society.GetInhabitant(partnerId).AgeBand);
-        var household = state.Society.Society.GetInhabitant(parentId).HouseholdId!;
-        var home = state.WorldSimulation!.Buildings.Single(building => building.HouseholdId == household &&
-            state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("house"));
-        using (var society = SocietyWorldRuntime.Restore(state.Society))
+        using var handler = new ChildReplyHandler
         {
-            society.Apply(checkpoint => SocietyFixture.ProposeRelationship(checkpoint,
-                new("native-grandchild-parents", 1, SocietyRelationshipType.Partnership, parentId, partnerId, checkpoint.WorldTick)));
-            society.Apply(checkpoint => SocietyFixture.AcceptRelationship(checkpoint, "native-grandchild-parents", 1, partnerId));
-            state = state with { Society = society.ExportState() };
-        }
-        var checkpoint = state.Society.Society;
-        foreach (var person in checkpoint.Inhabitants)
-            checkpoint = ChosenBirthNameTestFixture.NameParent(checkpoint, person.Id);
-        // Names, chosen traits, food and position are controlled fixture inputs;
-        // both births, the long parent ID, aging and the observation are native.
-        checkpoint = checkpoint with
-        {
-            Inventory = InventoryFixture.AddLot(checkpoint.Inventory, "native-grandchild-food", "food", household, 12,
-                storageBuildingId: home.InstanceId),
+            Release = new(TaskCreationOptions.RunContinuationsAsynchronously),
+            StartGate = delayRequestStart ? new(TaskCreationOptions.RunContinuationsAsynchronously) : null,
         };
-        state = state with
-        {
-            Society = state.Society with { Society = checkpoint },
-            Inhabitants = state.Inhabitants.Select(person => person with
-            {
-                Position = person.InhabitantId == parentId || person.InhabitantId == partnerId ? home.Position : person.Position,
-                HungerBasisPoints = 10_000,
-                LastDecisionContext = null,
-                Parenthood = null,
-                IdentityChoicePending = false,
-                Personality = "Patient native parent",
-                Aspiration = "Supply the household",
-            }).ToArray(),
-        };
-        string childId;
-        using (var secondGeneration = PrivateWorldRuntime.Restore(state,
-            id => new CookedBirthFixture.BirthChooser(id, parentId, partnerId)))
-        {
-            for (var tick = 0; tick < 650 && secondGeneration.Society.Births.Count == 1; tick++)
-                Assert.True((await secondGeneration.AdvanceOneTickAsync()).Advanced);
-            var birth = Assert.Single(secondGeneration.Society.Births, birth => birth.ChildId != parentId);
-            childId = birth.ChildId;
-            Assert.Contains(secondGeneration.Society.Relationships, edge => edge.Type == SocietyRelationshipType.BiologicalParentage &&
-                edge.ProposerId == parentId && edge.TargetId == childId);
-            state = secondGeneration.ExportState();
-        }
-
-        using var handler = new ChildReplyHandler { Release = new(TaskCreationOptions.RunContinuationsAsynchronously) };
         using var client = new HttpClient(handler);
         var model = PersonalModel(client);
         using var world = PrivateWorldRuntime.Restore(state, id => id == childId ? model : new QuietProvider());
-        world.Pause();
-        world.SetLifePace(365);
-        world.Resume();
+        // Normal aging is already restored before the first ordinary child
+        // request. Delaying its start must not age this child into an adult.
         for (var tick = 0; tick < 24 && !handler.Started.Task.IsCompleted; tick++)
             Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        handler.StartGate?.TrySetResult(true);
         await handler.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(SocietyAgeBand.Child, world.Society.GetInhabitant(childId).AgeBand);
         var observation = Assert.Single(world.ExportState().Society.Cognition.Queue, entry => entry.InhabitantId == childId).Observation;
@@ -316,6 +262,81 @@ public sealed class ChildInitialIdentityTests
 
     private static async Task<PrivateWorldRuntimeState> BeforeChildhoodAsync() => PrivateWorldRuntimeCodec.Decode(await InfancyEnds.Value);
 
+    private static async Task<byte[]> CreateLongParentBeforeChildhoodAsync()
+    {
+        var state = PrivateWorldRuntimeCodec.Decode(await NewbornModelBindingCheckpointTests.BeforeBirth(78));
+        string parentId;
+        using (var firstGeneration = PrivateWorldRuntime.Restore(state, NewbornModelBindingCheckpointTests.Providers))
+        {
+            Assert.True((await firstGeneration.AdvanceOneTickAsync()).Advanced);
+            parentId = Assert.Single(firstGeneration.Society.Births).ChildId;
+            Assert.True(parentId.Length > 128);
+            firstGeneration.Pause();
+            firstGeneration.SetLifePace(1460);
+            firstGeneration.Resume();
+            for (var tick = 0; tick < 40 && firstGeneration.Society.GetInhabitant(parentId).AgeBand != SocietyAgeBand.Adult; tick++)
+                Assert.True((await firstGeneration.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(SocietyAgeBand.Adult, firstGeneration.Society.GetInhabitant(parentId).AgeBand);
+            firstGeneration.Pause();
+            firstGeneration.SetLifePace(1);
+            firstGeneration.Resume();
+            state = firstGeneration.ExportState();
+        }
+
+        const string partnerId = "founder:00000000000000000000000000000003";
+        Assert.Equal(SocietyAgeBand.Adult, state.Society.Society.GetInhabitant(partnerId).AgeBand);
+        var household = state.Society.Society.GetInhabitant(parentId).HouseholdId!;
+        var home = state.WorldSimulation!.Buildings.Single(building => building.HouseholdId == household &&
+            state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("house"));
+        using (var society = SocietyWorldRuntime.Restore(state.Society))
+        {
+            society.Apply(checkpoint => SocietyFixture.ProposeRelationship(checkpoint,
+                new("native-grandchild-parents", 1, SocietyRelationshipType.Partnership, parentId, partnerId, checkpoint.WorldTick)));
+            society.Apply(checkpoint => SocietyFixture.AcceptRelationship(checkpoint, "native-grandchild-parents", 1, partnerId));
+            state = state with { Society = society.ExportState() };
+        }
+        var checkpoint = state.Society.Society;
+        foreach (var person in checkpoint.Inhabitants)
+            checkpoint = ChosenBirthNameTestFixture.NameParent(checkpoint, person.Id);
+        // Names, chosen traits, food and position are controlled fixture inputs;
+        // both births, the long parent ID, aging and the observation are native.
+        checkpoint = checkpoint with
+        {
+            Inventory = InventoryFixture.AddLot(checkpoint.Inventory, "native-grandchild-food", "food", household, 12,
+                storageBuildingId: home.InstanceId),
+        };
+        state = state with
+        {
+            Society = state.Society with { Society = checkpoint },
+            Inhabitants = state.Inhabitants.Select(person => person with
+            {
+                Position = person.InhabitantId == parentId || person.InhabitantId == partnerId ? home.Position : person.Position,
+                HungerBasisPoints = 10_000,
+                LastDecisionContext = null,
+                Parenthood = null,
+                IdentityChoicePending = false,
+                Personality = "Patient native parent",
+                Aspiration = "Supply the household",
+            }).ToArray(),
+        };
+        string childId;
+        using (var secondGeneration = PrivateWorldRuntime.Restore(state,
+            id => new CookedBirthFixture.BirthChooser(id, parentId, partnerId)))
+        {
+            for (var tick = 0; tick < 650 && secondGeneration.Society.Births.Count == 1; tick++)
+                Assert.True((await secondGeneration.AdvanceOneTickAsync()).Advanced);
+            var birth = Assert.Single(secondGeneration.Society.Births, birth => birth.ChildId != parentId);
+            childId = birth.ChildId;
+            Assert.Contains(secondGeneration.Society.Relationships, edge => edge.Type == SocietyRelationshipType.BiologicalParentage &&
+                edge.ProposerId == parentId && edge.TargetId == childId);
+            state = secondGeneration.ExportState();
+        }
+
+        using var world = PrivateWorldRuntime.Restore(state, _ => new QuietProvider());
+        await ApproachChildhoodAtOrdinaryRate(world, childId);
+        return PrivateWorldRuntimeCodec.Encode(world.ExportState());
+    }
+
     private static async Task<byte[]> CreateBeforeChildhoodAsync()
     {
         var state = PrivateWorldRuntimeCodec.Decode(await Born.Value);
@@ -337,6 +358,12 @@ public sealed class ChildInitialIdentityTests
             }).ToArray()
         };
         using var world = PrivateWorldRuntime.Restore(state, _ => new QuietProvider());
+        await ApproachChildhoodAtOrdinaryRate(world, childId);
+        return PrivateWorldRuntimeCodec.Encode(world.ExportState());
+    }
+
+    private static async Task ApproachChildhoodAtOrdinaryRate(PrivateWorldRuntime world, string childId)
+    {
         world.Pause();
         world.SetLifePace(365);
         world.Resume();
@@ -352,7 +379,7 @@ public sealed class ChildInitialIdentityTests
         world.Resume();
         while (world.Society.AgeAt(world.Society.GetInhabitant(childId), world.WorldTick + 1) < 3)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        return PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.Equal(SocietyAgeBand.Infant, world.Society.GetInhabitant(childId).AgeBand);
     }
 
     private sealed class QuietProvider : IDecisionProvider
@@ -369,10 +396,12 @@ public sealed class ChildInitialIdentityTests
         public ConcurrentQueue<string> Bodies { get; } = new();
         public string Reply { get; set; } = "valid";
         public TaskCompletionSource<bool>? Release { get; init; }
+        public TaskCompletionSource<bool>? StartGate { get; init; }
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (StartGate is not null) await StartGate.Task.WaitAsync(cancellationToken);
             using var envelope = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
             var body = envelope.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!;
             Bodies.Enqueue(body);
