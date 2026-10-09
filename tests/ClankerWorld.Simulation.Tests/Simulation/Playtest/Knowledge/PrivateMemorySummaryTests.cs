@@ -82,7 +82,6 @@ public sealed class PrivateMemorySummaryTests
         var switched = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         held.Release.SetResult(true);
         await held.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        while (!world.HostedDecisionsFinished(owner)) await Task.Yield();
         Assert.False((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         Assert.Equal(switched, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         Assert.Empty(world.Society.MemorySummaries);
@@ -206,7 +205,7 @@ public sealed class PrivateMemorySummaryTests
             observations?.Add(request.Observation);
             if (mode == "failure" && kind == DecisionProviderKind.Jev) throw new InvalidOperationException("Helper unavailable.");
             const string selected = "safe_idle";
-            var choice = mode == "unrequested" ? "unknown" : mode == "accepted" ? request.Observation.MemorySummaryOptions is { Count: > 0 } options ? options[^1].Choice : null : null;
+            var choice = mode == "unrequested" ? "unknown" : mode == "accepted" ? request.Observation.MemorySummaryOptions is { Count: > 0 } options ? options[0].Choice : null : null;
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId, Kind, ProviderEpoch,
                 request.Observation.RunEpoch, request.Observation.DecisionGeneration, request.Observation.ObservationDigest, selected, 1,
                 new Dictionary<string, double> { [selected] = 1 }, MemorySummaryChoice: choice));

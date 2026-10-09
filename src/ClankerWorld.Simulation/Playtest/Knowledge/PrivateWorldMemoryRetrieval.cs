@@ -36,6 +36,8 @@ internal static class PrivateWorldMemoryRetrieval
                 "summary", "private", null, null, null, null,
                 Attribution(checkpoint!, ownerId, item.Sources).Any(source => source.IsCorrected)));
         return summaryRecords.Concat(SourceRecords(socialMemories, beliefs, ownerId, worldTick))
+            .OrderByDescending(item => item.SourceTick).ThenBy(item => item.Kind, StringComparer.Ordinal)
+            .ThenBy(item => item.Id, StringComparer.Ordinal)
             .Take(MaximumScanned)
             .Select(source =>
             {

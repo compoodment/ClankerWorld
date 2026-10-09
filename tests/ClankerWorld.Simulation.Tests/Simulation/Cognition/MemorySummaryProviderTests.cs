@@ -68,7 +68,7 @@ public sealed class MemorySummaryProviderTests
         var request = runtime.IssueRequest(observation);
         var result = runtime.ApplyResponse(new(request.RequestId, "agent", provider.Kind, provider.ProviderEpoch, 0, 1,
             observation.ObservationDigest, "safe_idle", 1, new Dictionary<string, double> { ["safe_idle"] = 1 }, MemorySummaryChoice: "recent"));
-        Assert.True(result.FellBack);
+        Assert.False(result.Accepted);
         Assert.Null(result.MemorySummary);
     }
 
