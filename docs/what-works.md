@@ -653,7 +653,13 @@ checks remain pending in the
 
 Thoughts, memories, beliefs and explored map facts belong to the individual
 agent. The player can inspect mistakes and where a belief came from. Jev can
-rank existing memories during a normal call. Agents can also start a nearby
+rank existing memories during a normal call. Once per world day, ordinary
+experiences and beliefs at least three world days old with importance below
+25% move into each agent's saved private archive, which ordinary recall skips.
+Unscored records use zero importance, so this also works with the routine helper
+off. Life, relationship, skill and commitment records stay active; open work
+and conversations postpone archiving. These age and importance limits are
+provisional. Original evidence and corrections survive saves. Agents can also start a nearby
 public conversation: each speaker uses their own assigned planning model,
 accepted speech is saved with the people who could hear it, and only those
 listeners receive a hearsay memory, including descendants with long generated
