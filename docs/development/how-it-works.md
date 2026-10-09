@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # How the game works
@@ -1277,6 +1277,16 @@ the older three-day daily-weather estimate in this first experiment; it is not
 a saved moisture grid or an episode-integrated rainfall model. Existing saves
 keep their active weather when loaded; the first resumed tick imports it into
 an episode. See [save handling](saves-and-replay.md#regional-weather-episodes).
+
+The client renders the approved pixel-streak overlay through `WeatherStreaks`:
+straight rain and three-pixel landing bursts, two-down-one-across storm streaks
+in eastward gusts, and wind-blown snowflake crosses. The review tool uses the
+same geometry, timing and ink. `WeatherLayer` caches seven tiny nearest-filtered
+textures and submits one command per particle, bounded by the camera. Its
+precipitation timing and particle count describe synchronous command creation;
+they exclude later layout, drawing and GPU work. Weather fields, soft regional
+edges, cloud haze, storm flashes, settings and the pause clock remain unchanged.
+Nothing new is saved or sent by the host.
 
 The generator vendors [FastNoiseLite](../../src/ClankerWorld.Simulation/ThirdParty/FastNoiseLite/README.md).
 Its drainage approach draws on [Red Blob's noise guide](https://www.redblobgames.com/maps/terrain-from-noise/),

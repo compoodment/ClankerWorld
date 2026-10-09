@@ -3317,6 +3317,7 @@ public partial class Main
                 weatherLayer.CoverageAt(144, 80, "snow") > 0.1f || edgeColumns.Count < 10 ||
                 edgeColumns.Max() - edgeColumns.Min() < 3)
                 throw new InvalidOperationException($"Rain must fill its region and end in a wandering edge, not a square: edge={string.Join(',', edgeColumns)}.");
+            await VerifyWeatherStreaksAsync();
             // Lightning brightens softly and rarely: never a strobe.
             var (brightest, lit, flashes, wasLit) = (0f, 0, 0, false);
             for (var step = 0; step < 9000; step++)

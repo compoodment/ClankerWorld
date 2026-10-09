@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Playing the current game
@@ -704,6 +704,10 @@ applies when you reopen the menu while it is still resuming.
 Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
+
+Rain falls as straight streaks with tiny landing bursts. Storm streaks arrive
+in gusts, and snowflake crosses drift sideways. The weather stays light enough
+to read the map and freezes with the world when paused.
 
 Game Settings controls the window, theme, weather effects, date/time format
 and the model-call limit.
