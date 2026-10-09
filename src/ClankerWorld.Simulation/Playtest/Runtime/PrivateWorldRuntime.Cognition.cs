@@ -495,7 +495,7 @@ public sealed partial class PrivateWorldRuntime
             }
             if (CanContinueLesson(inhabitant.Id, waitingForModel))
             {
-                ContinueLesson(inhabitant.Id);
+                ContinueLesson(inhabitant.Id, waitingForModel);
                 continue;
             }
             if (ContinueFarmWork(inhabitant.Id)) continue;
@@ -609,11 +609,12 @@ public sealed partial class PrivateWorldRuntime
         "harvest_food" or "seek_food" or "wear_clothing" or "tend_fire" or "seek_warmth" ||
         id.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal);
 
-    private static bool CanContinuePendingTask(PlaytestInhabitantState state, string id) =>
+    private bool CanContinuePendingTask(PlaytestInhabitantState state, string id) =>
         IsWaitingSurvivalCandidate(id) || IsTownProjectCandidate(id) || id is "knowledge_continue" or "haul_household_stock" or
             "store_household_food" or "store_town_resources" or "haul_farm_grain" or "haul_farm_flour" or
             "haul_smith_input" or "gather_smith_ore" or "deliver_smith_ore" or "collect_water_jug" or "return_water_jug" or
             "store_food_in_pot" ||
+        KnowledgeWritingFor(state.InhabitantId) is { OrderInstructionId: null } writing && writing.CandidateId == id ||
         id == "explore" && state.Exploration?.OutingPath.Count > 0 ||
         id.StartsWith("assist:", StringComparison.Ordinal) ||
         id.StartsWith(GatherBlacksmithInputPrefix, StringComparison.Ordinal) ||

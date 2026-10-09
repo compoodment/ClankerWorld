@@ -181,9 +181,9 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private void ContinueLesson(string actor)
+    private void ContinueLesson(string actor, bool waitingForModel = false)
     {
-        if (!CanContinueLesson(actor))
+        if (!CanContinueLesson(actor, waitingForModel))
         {
             return;
         }
