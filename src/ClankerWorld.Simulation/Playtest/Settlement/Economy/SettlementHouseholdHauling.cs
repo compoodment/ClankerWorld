@@ -107,7 +107,8 @@ public sealed partial class PrivateWorldRuntime
         if (worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == destinationId) is { } building &&
             IsFarmStorage(building))
             room = Math.Min(room, FarmStorageFree(destinationId));
-        var capacity = Math.Min(FreeCarryCapacity(actor), room);
+        var destination = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == destinationId);
+        var capacity = destination is null ? 0 : Math.Min(PickupCarryCapacity(actor, stock, destination.Position), room);
         if (capacity == 0)
             return 0;
         return InventoryContainerRules.IsContainer(stock.ItemKind)

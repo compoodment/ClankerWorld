@@ -110,7 +110,8 @@ public sealed partial class PrivateWorldRuntime
         !IsWithinInteractionRange(person.Position, target, ResourceInteractionRange) &&
         FindUnoccupiedRoute(actor, person.Position, target, ResourceInteractionRange).Count > 0;
 
-    private MapResource? KnownOrderFirewoodSource(string actor, PlaytestInhabitantState person)
+    private MapResource? KnownOrderFirewoodSource(string actor, PlaytestInhabitantState person,
+        GridPoint? returnTo = null)
     {
         var known = knowledge.Facts.Where(fact => fact.OwnerId == actor &&
                 fact.ResourceKinds.Any(kind => kind is "wood" or "construction"))
@@ -124,11 +125,12 @@ public sealed partial class PrivateWorldRuntime
                 FreeCarryCapacity(actor) > 0 &&
                 (ProjectMaterialHarvest(actor, "wood", source) is not { } harvest ||
                     FreeCarryCapacity(actor) >= harvest.Quantity + harvest.TreeSeedQuantity) &&
-                MaterialOrderRouteIsOpen(actor, person.Position, source.Position));
+                MaterialOrderRouteIsOpen(actor, person.Position, source.Position) &&
+                (returnTo is null || CanReturnWithHarvest(actor, "wood", source, returnTo.Value)));
     }
 
-    private bool CanObtainFirewood(string actor, PlaytestInhabitantState person) => HasCarriedOwnItem(actor, "wood") ||
-        FreeCarryCapacity(actor) > 0 && SharedItem("wood", actor) is not null || KnownOrderFirewoodSource(actor, person) is not null;
+    private bool CanObtainFirewood(string actor, PlaytestInhabitantState person, GridPoint? returnTo = null) => HasCarriedOwnItem(actor, "wood") ||
+        FreeCarryCapacity(actor) > 0 && SharedItem("wood", actor, returnTo) is not null || KnownOrderFirewoodSource(actor, person, returnTo) is not null;
 
     private CognitionCandidate? ShelterOrderCandidateFor(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
@@ -140,7 +142,7 @@ public sealed partial class PrivateWorldRuntime
                 ? new CognitionCandidate("inspect_shelter_site", "Travel to observe the shelter site named by this order.", 0) : null;
         if (!ShelterBindingIsAvailable(instruction.TargetInhabitantId, order with { ShelterBinding = binding }) ||
             !ShelterRouteIsOpen(instruction.TargetInhabitantId, person.Position, binding.Position) ||
-            order.Action == "tend_fire" && !CanObtainFirewood(instruction.TargetInhabitantId, person)) return null;
+            order.Action == "tend_fire" && !CanObtainFirewood(instruction.TargetInhabitantId, person, binding.Position)) return null;
         return new CognitionCandidate(order.Action,
             order.Action == "seek_shelter" ? "Reach the requested permitted shelter." : "Light one permitted hearth using your own wood.",
             0, binding.BuildingInstanceId);
@@ -179,11 +181,11 @@ public sealed partial class PrivateWorldRuntime
         }
         if (order.Action == "tend_fire" && !HasCarriedOwnItem(actor, "wood"))
         {
-            if (FreeCarryCapacity(actor) > 0 && SharedItem("wood", actor) is not null)
-                CollectEquipment(actor, person, "wood");
-            else if (KnownOrderFirewoodSource(actor, person) is { } source)
+            if (FreeCarryCapacity(actor) > 0 && SharedItem("wood", actor, binding.Position) is not null)
+                CollectEquipment(actor, person, "wood", binding.Position);
+            else if (KnownOrderFirewoodSource(actor, person, binding.Position) is { } source)
             {
-                _ = GatherProjectMaterial(actor, person, "wood", source);
+                _ = GatherProjectMaterial(actor, person, "wood", source, returnTo: binding.Position);
                 var reached = inhabitants[actor].Position;
                 if (IsWithinInteractionRange(reached, source.Position, ResourceInteractionRange))
                     RecordKnowledgeFact(actor, source.Position);

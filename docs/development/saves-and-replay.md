@@ -280,8 +280,11 @@ only unresolved portions as competing claims. Loading validates the case's notic
 source, read, authority and adjustment links rather than inventing missing evidence.
 Notice party snapshots remain historical; current response standing is derived
 from the captured world, while each ruling retains its actual closure parties.
-Readers, evidence agents and judges retain their complete known person identities,
-including native-born adults. Unknown or malformed person references are refused;
+Readers, evidence agents, judges, notice and ruling parties, personal stakes and
+live or historical case-election rosters retain complete known person identities,
+including later-generation adults whose ancestry-based identities exceed 256
+characters. Person rosters keep canonical order and uniqueness.
+Unknown or malformed person references are refused;
 caller-owned keys and prose retain their existing limits. This identity validation
 fix changes no schema or saved field.
 
@@ -1498,6 +1501,43 @@ An alpha checkpoint already damaged by a split law excerpt is refused and
 preserved. No wording repair or migration is attempted. Return to an earlier
 usable manual or recovery save, keeping the damaged file as evidence. Healthy
 current-format checkpoints retain their schema and roundtrip behavior.
+
+On private-host startup, `PrivateWorldStartupRecovery` holds a refused active
+checkpoint without constructing a replacement world. A readable current-format
+checkpoint identifies the affected world even if an interrupted selection left
+the catalog behind. Otherwise the existing catalog, adjacent autosave settings
+or authority identity supply that identity. Pairing and signed recovery status and
+restore requests remain available. Middleware refuses other owner-world routes
+before dependency binding, and the simulation and catalog warm-up services wait
+for recovery. No model work, checkpoint retry, autosave rotation or world selection
+runs against the refused checkpoint.
+
+The offered candidate comes from the world's current save branch, ordered by
+branch position rather than a possibly corrected clock. If play continues from
+an older save and its new branch has no autosave yet, recovery considers only
+autosaves at or before that loaded point. Candidate metadata, current-format
+checkpoint, world identity, saved tick, model routing, autosave interval and
+rotation, and every required history segment must verify. A damaged newer autosave is retained and skipped. No usable
+candidate leaves recovery pending; named saves and other worlds are not automatic
+fallbacks. An older alpha schema receives a format explanation, never a migration.
+
+The owner signs the offered autosave ID. Recovery rechecks it under the world
+mutation gate, verifies that the refused active bytes have not changed, fsyncs a
+private `*.damaged.<id>.json` copy, then applies the autosave through the normal
+paused runtime, routing, autosave and save-branch boundaries. Other snapshots are
+unchanged. Publication remains atomic; a failed operation restores the prior
+routing, schedule and timeline and, if checkpoint publication was attempted, the
+refused active bytes. Preserved copies remain even after a failed retry. A second
+failure during rollback still requires operator recovery.
+
+Successful recovery discards earlier owner challenges before exposing the new
+runtime. The client requests a fresh observation timeline and never resumes it
+implicitly. A lost response offers a status check rather than an automatic second
+restore. Preserved refused checkpoints also remain conservative history roots:
+history reclamation refuses to delete segments while any retained root cannot be
+verified. This adds no checkpoint fields, schema change or automatic retention
+policy. It does not extend the crash guarantee to storage or power-loss behavior
+beyond the existing per-second checkpoint.
 
 Named manual checkpoints use a private `.manual` directory and reference the
 same history archive. Overwriting a selected checkpoint retains a recovery copy;

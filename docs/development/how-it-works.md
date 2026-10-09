@@ -675,6 +675,22 @@ Gathering and collecting household food check free carrying capacity before
 starting a step. A provider fallback leaves the order blocked for a bounded
 normal retry; it cannot strand the task permanently on `safe_idle`.
 
+Pending personal-model work also preserves already chosen non-order physical
+tasks. `ApplyContinuingIntentions` continues existing repairs, accepted lessons,
+field work, projects and bounded travel. Outstanding social or civic choices do
+not by themselves stop an existing project or lesson while its model is waiting;
+the normal physical access, illness, consent and fresh-choice guards still apply.
+Important civic acts, family and ownership changes, new projects and lessons
+cannot be repeated through the pending-task path. Existing civic, Market,
+ornament and donation intentions continue only their ordinary physical walk.
+Built-in urgent food/warmth takes priority; otherwise a waiting adult may feed
+or tend a needy dependent already within interaction range, using actual goods
+and the normal care transition without accepting a new caregiver relationship.
+A waiting routine and an ordinary continuation take at most one action per
+agent in a tick, and an admitted reply excludes that agent from waiting routines.
+These transitions use the prepared tick and the existing save/replay format;
+no provider reply, paid retry or failure event is fabricated for an ordinary delay.
+
 The owner snapshot sends every open message, plus the six most recently
 submitted closed orders and, separately, the six most recently submitted closed
 suggestions for each agent, whether or not a personal model heard them. An
@@ -1372,7 +1388,12 @@ receive ordinary weather exposure instead. A swimmer seeking shelter or heat
 must reach dry ground before that destination counts as arrived. Starting
 requires at least 6,000 warmth, illness below 2,500 and no more than four
 physically carried units, including vessel contents. Equipped clothing and
-carry aids follow the usual cargo exemptions. A rider, an animal
+carry aids follow the usual cargo exemptions. Pickups and whole harvests with
+a known delivery destination check the load after collection against the
+return route. A foot or cart return keeps its usual capacity; a freshwater-only
+return limits loose pickups to the remaining swimming capacity and keeps an
+oversized vessel family intact. Water collection also keeps room to return
+with the jug and its contents. A rider, an animal
 leader or a cart puller cannot start swimming, and moving dependants must also
 meet the starting conditions. Infants and adults carrying guardian-placement
 dependants cannot start. A swimmer whose condition changes can still leave
@@ -1973,8 +1994,11 @@ Long ancestry-based agent IDs use stable SHA-256 aliases in civic model action
 tokens. The runtime resolves these against current inhabitants before checking a
 ballot; saved candidates and choices retain the actual IDs.
 
-Land-hearing readers, evidence sources and submitters, and judges keep their
-complete known saved agent identities, including adults born in the world.
+Land-hearing readers, evidence sources and submitters, judges, affected parties,
+personal stakes and live or historical election rosters keep their complete known
+saved agent identities, including later-generation adults born in the world.
+Person rosters retain canonical order and uniqueness without applying the
+256-character ledger-key limit to ancestry-based identities.
 The shared civic identity check rejects blank, padded and control-character
 identities; caller-owned evidence, record and authority keys and prose keep
 their existing bounds. Current-world identity, notice and authority checks
@@ -2261,9 +2285,11 @@ adult members in the request, which expires after 120 ticks like other
 proposals. Adults who join the household or reach adulthood while it is pending
 must also answer; existing answers are retained and adults who die or leave no
 longer need to answer. Each current adult is offered `household_admit:{applicant}` and
-`household_refuse:{applicant}` and cannot continue a project or lesson until
-they answer. An ongoing lesson waits while either participant owes a housing
-answer, retaining its progress and already learned skills.
+`household_refuse:{applicant}`. During ordinary planning, an unanswered housing
+choice pauses project and lesson work. While that participant's personal-model
+reply is pending, an already chosen project or agreed lesson can continue under
+its normal physical and urgent-need checks. This records no housing answer and
+grants no membership; an ongoing lesson retains its progress and learned skills.
 One refusal by a living member ends the request; when every living
 member has agreed, `SocietyFixture.JoinHouseholdCareGroup` records the membership and
 `household_joined` is appended. A refusal or an unanswered request is remembered

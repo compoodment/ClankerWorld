@@ -18,8 +18,8 @@ public sealed class SwimmingRuntimeTests
     [InlineData(TerrainKind.Lake)]
     public async Task LightHealthyAgentCrossesWideWaterSlowlyLosesWarmthAndResumesAcrossReload(TerrainKind water)
     {
-        var start = water == TerrainKind.River ? new GridPoint(145, 0) : new GridPoint(4, 1);
-        var destination = water == TerrainKind.River ? new GridPoint(150, 0) : new GridPoint(8, 1);
+        var start = water == TerrainKind.River ? new GridPoint(42, 4) : new GridPoint(4, 2);
+        var destination = water == TerrainKind.River ? new GridPoint(46, 4) : new GridPoint(8, 2);
         var firstWater = new GridPoint(start.X + 1, start.Y);
         var state = CrossingState(start);
         using var world = Restore(state);
@@ -76,17 +76,17 @@ public sealed class SwimmingRuntimeTests
     [Fact]
     public async Task NativeLandDestinationUsesSwimmingWhenItIsTheCheapestRoute()
     {
-        var start = new GridPoint(103, 0);
-        var destination = new GridPoint(110, 0);
+        var start = new GridPoint(84, 80);
+        var destination = new GridPoint(89, 80);
         using var world = Restore(CrossingState(start, "traffic-bridge-0"));
-        world.SubmitInstruction(new("cross-lake", "owner:test", Actor, OwnerInstructionKind.MustDo, "Move to tile (110, 0)"));
+        world.SubmitInstruction(new("cross-lake", "owner:test", Actor, OwnerInstructionKind.MustDo, "Move to tile (89, 80)"));
         var sawSwimming = false;
         for (var tick = 0; tick < 96 && Position(world) != destination; tick++)
         {
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             sawSwimming |= !world.ExportState().Map.IsPassable(Position(world));
         }
-        Assert.True(sawSwimming, "The native route to the opposite bank must use this six-tile lake crossing.");
+        Assert.True(sawSwimming, "The native route to the opposite bank must use this four-tile lake crossing.");
         Assert.Equal(destination, Position(world));
         var order = Assert.Single(world.ExportState().Instructions!).Order!;
         Assert.Equal("finished", order.Status);
@@ -99,7 +99,7 @@ public sealed class SwimmingRuntimeTests
     [InlineData(10_000, 0, 5)]
     public async Task ColdIllOrHeavilyLoadedAgentDoesNotStartSwimming(int warmth, int illness, int load)
     {
-        var start = new GridPoint(4, 1);
+        var start = new GridPoint(4, 2);
         var state = CrossingState(start);
         state = state with
         {
@@ -109,7 +109,7 @@ public sealed class SwimmingRuntimeTests
         if (load > 0)
             state = WithLoad(state, load);
         using var world = Restore(state);
-        world.SubmitInstruction(new("unsafe-swim", "owner:test", Actor, OwnerInstructionKind.MustDo, "Move to tile (5, 1)"));
+        world.SubmitInstruction(new("unsafe-swim", "owner:test", Actor, OwnerInstructionKind.MustDo, "Move to tile (5, 2)"));
         for (var tick = 0; tick < 8; tick++)
         {
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
@@ -122,7 +122,7 @@ public sealed class SwimmingRuntimeTests
     [Fact]
     public async Task SeaStillRequiresABoatAndCannotBeSavedAsAnUnaccompaniedSwimmer()
     {
-        var map = GeneratedCampMapGenerator.Generate(new GeographyOptions("swimming-native", WorldSizePreset.Small));
+        var map = GeographyCandidateSelector.GenerateCandidate(new GeographyOptions("swimming-native", WorldSizePreset.Small));
         var bank = map.Tiles.Select(tile => tile.Position).First(point => map.IsBuildable(point) &&
             map.Contains(new(point.X + 1, point.Y)) && map.HydrologyAt(new(point.X + 1, point.Y)) == WaterKind.Ocean);
         var sea = new GridPoint(bank.X + 1, bank.Y);
@@ -149,11 +149,11 @@ public sealed class SwimmingRuntimeTests
     [InlineData(10_000, 0, 5)]
     public async Task SwimmerCanStillLeaveWaterAfterTheirConditionChangesAcrossReload(int warmth, int illness, int load)
     {
-        using var setup = Restore(CrossingState(new(4, 1)));
-        setup.SubmitInstruction(new("enter-water", "owner:test", Actor, OwnerInstructionKind.MustDo, "Move to tile (5, 1)"));
-        for (var tick = 0; tick < 16 && Position(setup) != new GridPoint(5, 1); tick++)
+        using var setup = Restore(CrossingState(new(4, 2)));
+        setup.SubmitInstruction(new("enter-water", "owner:test", Actor, OwnerInstructionKind.MustDo, "Move to tile (5, 2)"));
+        for (var tick = 0; tick < 16 && Position(setup) != new GridPoint(5, 2); tick++)
             Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(new GridPoint(5, 1), Position(setup));
+        Assert.Equal(new GridPoint(5, 2), Position(setup));
         var state = setup.ExportState();
         state = state with
         {
@@ -162,7 +162,7 @@ public sealed class SwimmingRuntimeTests
         };
         if (load > 0) state = WithLoad(state, load);
         using var world = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
-        world.SubmitInstruction(new("leave-water", "owner:test", Actor, OwnerInstructionKind.MustDo, "Move to tile (4, 1)"));
+        world.SubmitInstruction(new("leave-water", "owner:test", Actor, OwnerInstructionKind.MustDo, "Move to tile (4, 2)"));
         for (var tick = 0; tick < 24 && !world.ExportState().Map.IsPassable(Position(world)); tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.True(world.ExportState().Map.IsPassable(Position(world)));
@@ -173,13 +173,13 @@ public sealed class SwimmingRuntimeTests
     public async Task ColdSwimmerReachesShoreRatherThanWaitingBesideAPublicShelterAcrossReload()
     {
         const string actor = "agent:00000000000000000000000000000042";
-        var shore = new GridPoint(4, 1);
-        var water = new GridPoint(5, 1);
-        using var setup = Restore(CrossingState(new(3, 1)));
+        var shore = new GridPoint(4, 2);
+        var water = new GridPoint(5, 2);
+        using var setup = Restore(CrossingState(new(3, 2)));
         var household = setup.AddAgent(actor, shore);
         Assert.Equal("household:" + actor, household);
         Assert.DoesNotContain(setup.WorldSimulation.Buildings, building => building.HouseholdId == household);
-        setup.SubmitInstruction(new("shelter-enter-water", "owner:test", actor, OwnerInstructionKind.MustDo, "Move to tile (5, 1)"));
+        setup.SubmitInstruction(new("shelter-enter-water", "owner:test", actor, OwnerInstructionKind.MustDo, "Move to tile (5, 2)"));
         for (var tick = 0; tick < 16 && Position(setup, actor) != water; tick++)
             Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(water, Position(setup, actor));
@@ -245,6 +245,10 @@ public sealed class SwimmingRuntimeTests
         setup.InitializeFirstTownContent();
         var map = setup.ExportState().Map;
         setup.AcceptFirstTownLayout(map.GetResource("berry-patch").Position);
+        map = setup.ExportState().Map;
+        Assert.True(map.IsBuildable(start));
+        Assert.DoesNotContain(map.Resources, resource => resource.Position == start);
+        Assert.DoesNotContain(map.CampObjects, item => item.Position == start);
         var definitions = setup.WorldContent.Buildings.ToDictionary(item => item.CanonicalId);
         var occupied = map.Resources.Select(item => item.Position)
             .Concat(map.CampObjects.Select(item => item.Position)).Concat(setup.RoadTiles)

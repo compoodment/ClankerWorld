@@ -212,7 +212,12 @@ people, relationships, what the agent carries or what it is doing now
 ([#255](https://github.com/compoodment/ClankerWorld/issues/255)). Better pacing
 or thought quality from these changes has not been proven in live play.
 
-One slow model can wait while other agents and the world continue. A legal
+One slow model can wait while other agents and the world continue. The waiting
+agent keeps its already chosen physical task, including ongoing project work,
+lessons and trips. Built-in rules meet urgent food or warmth needs and provide
+practical care for nearby dependants. New civic, family, ownership and work
+commitments wait for a personal-model choice; a delay starts no new agreement
+and adds no failure line to the Event Log. A legal
 choice is accepted even when the model reports low confidence. A failed or
 unusable reply uses the safe fallback and finishes that attempt without another
 paid repair request. The agent card shows whether the model is ready, waiting,
@@ -1001,6 +1006,8 @@ land mayor stands aside for a willing independent adult elected for that case
 only. Without valid authority, the case and existing rights remain pending.
 Adults born in the world can inspect hearing files, contribute evidence, give
 their own property consent and serve as elected judges, just as founders can.
+This also works for later generations: hearing parties and case-election records
+keep their full identities when the world is saved and reloaded.
 
 Parties named at notice publication remain separate from current adult responders
 and the authorized Town representative. Death, household departure or loss of authority
@@ -1532,10 +1539,19 @@ the host's clock moves backwards, including across a restart.
 Rotation keeps the newest copies on each known branch despite earlier future
 dates, while named manual saves remain separate.
 
-If a world tick fails, the server holds the world paused. A failed active
-checkpoint write can retry while paused, but other faults require operator
-inspection. The detailed recovery screen is unfinished; preserve unsaved
-in-memory progress before restarting the server.
+If the active saved state cannot open on restart, the host stays available for
+pairing and an authenticated **Recover world** screen. It offers the last
+verified autosave from the affected world's current history. Recovery requires
+an explicit choice, retains the refused bytes, leaves other saves unchanged
+and opens the recovered world paused. Unusable newer autosaves are skipped;
+without a usable autosave, the screen offers checking again or quitting. Older
+alpha formats remain refused, with a format explanation and no migration.
+Automated restart, file-preservation and native UI checks cover this path; the
+[Windows playtest](../playtest/1319-checkpoint-recovery.md) remains pending.
+
+If a live world tick fails, the server holds the world paused. A failed active
+checkpoint write can retry while paused, but other live faults require operator
+inspection. Preserve unsaved in-memory progress before restarting the server.
 
 Named saves can be overwritten after choosing one and confirming. Load World
 can load an older save of the current world. Playing on from it starts a new

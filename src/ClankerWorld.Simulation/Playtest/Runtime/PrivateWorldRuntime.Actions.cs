@@ -86,7 +86,9 @@ public sealed partial class PrivateWorldRuntime
         string inhabitantId,
         GridPoint origin,
         GridPoint destination,
-        int interactionRange)
+        int interactionRange,
+        bool allowSwimming = true,
+        int additionalCarriedUnits = 0)
     {
         var occupied = inhabitants.Values
             .Where(item => item.InhabitantId != inhabitantId)
@@ -112,7 +114,8 @@ public sealed partial class PrivateWorldRuntime
         if (interactionRange == 0 && origin != destination && occupied.Contains(destination))
             return [];
         if (AttachedHandcart(inhabitantId) is null)
-            return SharedUnoccupiedRoute(origin, occupied, destination, interactionRange, CanSwim(inhabitantId));
+            return SharedUnoccupiedRoute(origin, occupied, destination, interactionRange,
+                allowSwimming && CanSwim(inhabitantId, origin, additionalCarriedUnits));
 
         var open = new PriorityQueue<GridPoint, (int Cost, int Y, int X, int Order)>();
         var best = new Dictionary<GridPoint, int> { [origin] = 0 };

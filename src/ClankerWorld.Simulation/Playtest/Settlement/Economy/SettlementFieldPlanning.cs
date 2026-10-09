@@ -155,7 +155,7 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(lot => lot.OwnerId == actor ? 0 : reserve?.LotId == lot.Id ? 1 : 2)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal)
             .FirstOrDefault(lot => lot.OwnerId == actor ||
-                (requirePickupRoute
+                PickupCarryCapacity(actor, lot, field.Position, 1) >= 1 && (requirePickupRoute
                     ? CanWalkToFieldOrderSite(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
                         HouseholdStockInteractionRange(lot))
                     : CanReachByFootOrSwimming(actor, inhabitants[actor].Position, HouseholdStockPosition(lot))));
@@ -176,7 +176,7 @@ public sealed partial class PrivateWorldRuntime
                 PlantingStock(actor, field, crop, requirePickupRoute: orderInstructionId is not null) is not { } seed) return;
             if (seed.OwnerId != actor)
             {
-                if (FreeCarryCapacity(actor) == 0) return;
+                if (PickupCarryCapacity(actor, seed, point, 1) < 1) return;
                 var source = HouseholdStockPosition(seed);
                 var range = HouseholdStockInteractionRange(seed);
                 if (!IsWithinInteractionRange(state.Position, source, range))

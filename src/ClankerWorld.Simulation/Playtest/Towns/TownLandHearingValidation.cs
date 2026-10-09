@@ -133,7 +133,7 @@ public static class TownLandHearingValidation
             Unique(revision.Parties.Select(p => p.Id));
             Check(revision.Parties.Select(p => p.Id).SequenceEqual(revision.Parties.Select(p => p.Id).Order(StringComparer.Ordinal)), "Case parties must be in canonical order.");
             foreach (var party in revision.Parties)
-                Check(party is not null && Id(party.Id) && party.AdultIds is not null && Canonical(party.AdultIds) && party.AdultIds.All(agents.Contains) &&
+                Check(party is not null && Id(party.Id) && party.AdultIds is not null && CanonicalPeople(party.AdultIds) && party.AdultIds.All(agents.Contains) &&
                     (party.Kind == "household" && party.HouseholdId is { } household && households.Contains(household) && (party.TownId is null || party.TownId == townId) && party.RepresentativeId is null ||
                         party.Kind == "town" && party.TownId == townId && party.HouseholdId is null && party.AdultIds.Count == 0 && (party.RepresentativeId is null || agents.Contains(party.RepresentativeId))),
                     "A saved case party must identify its actual household adults or recorded Town representative.");
@@ -144,7 +144,7 @@ public static class TownLandHearingValidation
                 Check(right.Right.Tiles.Any(revision.Tiles.Contains), "An inspected prior right must concern the noticed plot.");
             }
         }
-        Check(Canonical(item.DirectStakeIds) && item.DirectStakeIds.All(agents.Contains), "Personal stakes must name known agents.");
+        Check(CanonicalPeople(item.DirectStakeIds) && item.DirectStakeIds.All(agents.Contains), "Personal stakes must name known agents.");
         foreach (var filing in item.Filings)
             Check(filing.Kind is "dispute" or "expiry" or "town" && TownLandHearingRules.ValidText(filing.Text) && filing.Tick >= item.FiledTick && filing.Tick <= tick &&
                 TownLandHearingRules.IsValidOutcome(filing.RequestedOutcome, filing.Tick) &&
@@ -219,7 +219,7 @@ public static class TownLandHearingValidation
             Check(Generated(ruling.Id, "land-ruling:", townId, state.Sequence) && revision is not null && ruling.Tick >= revision.PublishedTick && ruling.Tick <= tick &&
                 TownLandHearingRules.IsValidOutcome(ruling.Outcome, ruling.Tick) && TownLandHearingRules.ValidText(ruling.Reasons) &&
                 Canonical(ruling.EvidenceIds) && Canonical(ruling.LawIds) && ruling.AdjustmentIds is not null && ruling.Parties is { Count: > 0 } && ruling.Parties.All(p => p is not null &&
-                    p.AdultIds is not null && Canonical(p.AdultIds) && p.AdultIds.All(agents.Contains)) &&
+                    p.AdultIds is not null && CanonicalPeople(p.AdultIds) && p.AdultIds.All(agents.Contains)) &&
                 !TownLandHearingRules.RequiresNewNotice(revision, revision.Tiles, revision.RightVersions.Select(r => r.Right), ruling.Parties) &&
                 ruling.EvidenceIds.All(id => item.Evidence.Any(e => e.Id == id && e.SubmittedTick <= ruling.Tick)) &&
                 ruling.LawIds.All(id => item.Evidence.Any(e => e.Kind == "record" && e.SourceRecordId == id && e.SubmittedTick <= ruling.Tick) &&
@@ -332,15 +332,16 @@ public static class TownLandHearingValidation
     {
         Check(contest is not null && Id(contest.Id) && contest.Stage is "voting" or "waiting" or "completed" or "failed" or "cancelled" && contest.Round >= 0 && contest.Interruptions >= 0 &&
             contest.OpenedTick >= item.FiledTick && contest.OpenedTick <= tick && contest.Rounds is not null && contest.Ballots is not null &&
-            Canonical(contest.Voters) && Canonical(contest.Candidates) && Canonical(contest.TiedCandidates) &&
-            contest.Voters.All(agents.Contains) && contest.Candidates.All(agents.Contains), "A saved case election needs actual resident candidates and ballots.");
+            CanonicalPeople(contest.Voters) && CanonicalPeople(contest.Candidates) && CanonicalPeople(contest.TiedCandidates) &&
+            contest.Voters.All(agents.Contains) && contest.Candidates.All(agents.Contains) && contest.TiedCandidates.All(agents.Contains), "A saved case election needs actual resident candidates and ballots.");
         ValidateBallots(contest.Voters, contest.Candidates, contest.Ballots);
         if (contest.Stage == "voting") Check(contest.RoundOpenedTick is { } opened && opened >= contest.OpenedTick && opened <= tick && contest.RoundDeadlineTick == opened + day,
             "A case election round needs a full unpaused voting day.");
         foreach (var round in contest.Rounds)
         {
             Check(round is not null && round.Number > 0 && round.Number <= contest.Round && round.OpenedTick >= contest.OpenedTick && round.ClosedTick >= round.OpenedTick && round.ClosedTick <= tick &&
-                round.Result is "winner" or "tie" or "interrupted" or "failed" or "cancelled" && Canonical(round.Voters) && Canonical(round.Candidates) && Canonical(round.TiedCandidates), "A saved case election must retain each completed or interrupted round.");
+                round.Result is "winner" or "tie" or "interrupted" or "failed" or "cancelled" && CanonicalPeople(round.Voters) && CanonicalPeople(round.Candidates) && CanonicalPeople(round.TiedCandidates) &&
+                round.Voters.All(agents.Contains) && round.Candidates.All(agents.Contains) && round.TiedCandidates.All(agents.Contains), "A saved case election must retain each completed or interrupted round.");
             ValidateBallots(round.Voters, round.Candidates, round.Ballots);
             Check(round.Candidates.All(id => item.JudgeConsents.Any(c => c.AgentId == id && c.Tick <= round.OpenedTick && (c.WithdrawnTick is null || c.WithdrawnTick >= round.ClosedTick))),
                 "A case candidate must personally consent to that case's mandate.");
@@ -377,6 +378,7 @@ public static class TownLandHearingValidation
     private static bool Generated(string? id, string prefix, string townId, long sequence) =>
         TownGovernmentValidation.ValidId(id, prefix + townId + ":", sequence);
     private static bool Canonical(IReadOnlyList<string>? ids) => ids is not null && ids.All(Id) && ids.SequenceEqual(TownLandHearingRules.Ordered(ids));
+    private static bool CanonicalPeople(IReadOnlyList<string>? ids) => ids is not null && ids.All(TownHearingProcedure.Id) && ids.SequenceEqual(TownLandHearingRules.Ordered(ids));
     private static void Unique(IEnumerable<string> ids) { var all = ids.ToArray(); Check(all.Distinct(StringComparer.Ordinal).Count() == all.Length, "Saved hearing record identities must be unique."); }
     private static void Check([DoesNotReturnIf(false)] bool valid, string reason) { if (!valid) throw new InvalidDataException(reason); }
 }

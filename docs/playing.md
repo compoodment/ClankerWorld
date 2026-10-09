@@ -902,6 +902,18 @@ server's displayed information and unfinished edit.
 
 ## Save and return
 
+If the host restarts with a saved state it cannot open, **Recover world**
+appears before you enter the world. It offers the last usable autosave from
+that world's current history and says when it was saved. Choose **Recover
+autosave** to open it paused. Progress since that autosave will be absent from
+the recovered world; your other saves stay unchanged and the refused file is
+kept. There is no automatic replacement.
+
+If no usable autosave is available, recovery stays blocked. **Check again**
+checks for a usable autosave without changing your world. You can quit and keep
+the saved files for recovery. A lost recovery reply also offers **Check again**
+so you can find out whether recovery finished before trying it again.
+
 **Save World** creates a named save for the current world. Its name starts as
 the world's date, so **Save** works straight away; type another name first if
 you like. The card under the timeline says whether the new save continues a
@@ -979,8 +991,9 @@ Agents can wade rivers one or two tiles wide. A healthy agent with enough
 warmth and a light load can also swim wider rivers and lakes, much more slowly,
 losing warmth as they move. The map shows the agent swimming with a
 **Swimming** label; their tooltip says the same. Cold or ill agents, loads above
-four carried units,
-carts and accompanying animals prevent a new swim. The sea still needs a boat.
+four carried units, carts and accompanying animals prevent a new swim.
+When supplies must return across freshwater, agents collect only what they can
+carry back; vessels count together with their contents. The sea still needs a boat.
 An agent already swimming can reach shore if their condition changes, and an
 unfinished crossing survives saving and loading. Swimming speed, warmth loss
 and the load limit are provisional for playtesting.

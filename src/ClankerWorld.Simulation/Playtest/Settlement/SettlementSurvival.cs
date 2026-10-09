@@ -139,11 +139,12 @@ public sealed partial class PrivateWorldRuntime
         lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
         lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0);
 
-    private InventoryLot? SharedItem(string kind, string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
+    private InventoryLot? SharedItem(string kind, string actor, GridPoint? returnTo = null, int returnRange = 0) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
         lot.OwnerId == HouseholdFor(actor) && lot.CarrierId is null && lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
         (lot.StorageBuildingId is null || society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
-        CanReachSharedItem(actor, lot)) ??
-        (kind == "food" ? null : AvailableWarehouseStock(actor, kind).FirstOrDefault());
+        CanReachSharedItem(actor, lot) && (returnTo is null || PickupCarryCapacity(actor, lot, returnTo.Value, returnRange) >= 1)) ??
+        (kind == "food" ? null : AvailableWarehouseStock(actor, kind).FirstOrDefault(lot =>
+            returnTo is null || PickupCarryCapacity(actor, lot, returnTo.Value, returnRange) >= 1));
 
     private bool CanReachSharedItem(string actor, InventoryLot lot) =>
         !OnBorrowedMarketStall(lot) && FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
@@ -289,9 +290,12 @@ public sealed partial class PrivateWorldRuntime
         AddEquipmentCandidates(candidates, actor, person);
         AddOrnamentCandidates(candidates, actor);
         var losingWarmth = WarmthChange(person) < 0;
-        if (AdultResident(actor) && losingWarmth && condition.WarmthBasisPoints < ComfortableWarmth && ReachableUnlitHearth(actor, person) is not null &&
-            (HasCarriedOwnItem(actor, "wood") || FreeCarryCapacity(actor) > 0 && SharedItem("wood", actor) is not null ||
-                MaterialSource("wood", actor) is { } firewood && FreeCarryCapacity(actor) >= ProjectMaterialCarryUnits(actor, "wood", firewood)))
+        if (AdultResident(actor) && losingWarmth && condition.WarmthBasisPoints < ComfortableWarmth &&
+            ReachableUnlitHearth(actor, person) is { } hearth &&
+            (HasCarriedOwnItem(actor, "wood") || FreeCarryCapacity(actor) > 0 && SharedItem("wood", actor,
+                hearth.Position, hearth.HouseholdId is null ? ResourceInteractionRange : 0) is not null ||
+                MaterialSource("wood", actor, hearth.Position, hearth.HouseholdId is null ? ResourceInteractionRange : 0) is { } firewood &&
+                FreeCarryCapacity(actor) >= ProjectMaterialCarryUnits(actor, "wood", firewood)))
         {
             candidates.Add(new CognitionCandidate("tend_fire", "Carry wood to an unlit hearth and keep it burning for warmth.", NeedsUrgentWarmth(person) ? 1 : 2));
         }
@@ -307,10 +311,11 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private void CollectEquipment(string actor, PlaytestInhabitantState person, string kind)
+    private void CollectEquipment(string actor, PlaytestInhabitantState person, string kind,
+        GridPoint? returnTo = null, int returnRange = 0)
     {
         if (FreeCarryCapacity(actor) <= 0 || HasCarriedEquipmentAtLeast(actor, kind) ||
-            SharedItem(kind, actor) is not { ContainerLotId: null } item)
+            SharedItem(kind, actor, returnTo, returnRange) is not { ContainerLotId: null } item)
         {
             return;
         }
@@ -353,10 +358,11 @@ public sealed partial class PrivateWorldRuntime
             return null;
         if (!HasCarriedOwnItem(actor, "wood"))
         {
-            if (SharedItem("wood", actor) is not null)
-                CollectEquipment(actor, person, "wood");
-            else if (MaterialSource("wood", actor) is { } source)
-                GatherProjectMaterial(actor, person, "wood", source);
+            var range = building.HouseholdId is null ? ResourceInteractionRange : 0;
+            if (SharedItem("wood", actor, building.Position, range) is not null)
+                CollectEquipment(actor, person, "wood", building.Position, range);
+            else if (MaterialSource("wood", actor, building.Position, range) is { } source)
+                GatherProjectMaterial(actor, person, "wood", source, returnTo: building.Position, returnRange: range);
             return null;
         }
         var interactionRange = building.HouseholdId is null ? ResourceInteractionRange : 0;
