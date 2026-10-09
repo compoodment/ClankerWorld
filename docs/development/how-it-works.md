@@ -1087,7 +1087,25 @@ Personal requests retrieve at most four relevant own-memory/belief excerpts and
 sixteen recent own-map facts. An existing Jev routine call may score up to twelve
 previously unassessed records; only linked salience/confidence values are saved.
 It adds no separate paid request or generated prose. Local retrieval works with
-Jev off. Automatic experience capture and narrative summarization are unfinished.
+Jev off. On an unpaused world-day boundary, `SocietyMemoryArchiveRules` moves
+ordinary experiences and beliefs at least three world days old and below 2,500
+importance basis points out of the active ledger into required owner-private
+archive lists. Unscored records count as zero. These constants are provisional.
+Archive entries retain the complete original record and archive tick; ordinary
+recall and memory-scoring candidates read only the active ledger. Typed life,
+relationship, skill and commitment records, durable cooperation/final-word
+receipts and world-event-backed beliefs stay active. Active orders, projects,
+lessons (including their teachers), parenthood, relationship proposals, barter,
+conversations and outstanding hosted calls protect their owners; surname
+conversation turns stay protected after closing. Correction links and source
+validation include both ledgers, while trimming old dialogue clears obsolete
+turn references in both. The daily rule makes no provider call, runs with Jev
+and the routine helper off, and commits or rolls back with the native tick.
+Its event contains only archived experience/belief counts. Deceased historical
+profiles inspect both ledgers without sharing that evidence with living agents.
+Authoritative life,
+relationship, skill and order state is unchanged. Automatic experience capture
+and narrative summarization are unfinished.
 
 Childhood talk, play and learning record owner-private experiences whose keys
 fit the same 128-character memory boundary used by recall and Jev scoring.
@@ -1915,6 +1933,13 @@ on the agent's ordinary decision cadence.
 Long ancestry-based agent IDs use stable SHA-256 aliases in civic model action
 tokens. The runtime resolves these against current inhabitants before checking a
 ballot; saved candidates and choices retain the actual IDs.
+
+Land-hearing readers, evidence sources and submitters, and judges keep their
+complete known saved agent identities, including adults born in the world.
+The shared civic identity check rejects blank, padded and control-character
+identities; caller-owned evidence, record and authority keys and prose keep
+their existing bounds. Current-world identity, notice and authority checks
+still apply.
 
 Saved notice receipts enter a bounded `CognitionSelfContext.CivicNote` excerpt
 with read/relay provenance and readable names/world days. An actor receives no
@@ -3460,8 +3485,21 @@ isolated teacher cannot hide another available teacher. Ordinary route checks
 include occupied tiles; they do not grant travel through disconnected land.
 Request, refusal, acceptance, cancellation and pause/reload retain their normal
 flow. A completed lesson changes neither the agent's role nor work proficiency.
-Stored skills currently affect only teaching availability, never ordinary
-action access or work speed. The agent card and Event Log describe the record.
+Matching skills use one provisional 20% work reduction. Building speeds ordinary
+construction, paid Town projects and expansions; farming speeds field work and
+Farmhouse production; smithing speeds Blacksmith production; crafting speeds
+other production and personal equipment repairs. Fixed work timers round down
+to whole ticks, with a minimum of one. Recipe timing applies the existing knife
+bonus first. Field growth, travel, gathering and lessons keep their own timers.
+Project progress stays in its existing full-work units: skilled progress maps
+those units back to elapsed work with a ceiling, adds the current tool/practice
+work, then maps forward at the reduced rate. Finished projects therefore keep
+the same full progress and exact order/payment receipts. Shared Town work
+credits the acting worker's skill, without reducing the whole project's budget.
+Ordinary action access still uses its existing recipe, tool and ownership rules.
+The agent card and Event Log describe the record. Each ordinary action request includes
+only its actor's sorted learned skill names in self context; that context also
+contributes to the observation digest.
 The owner observation keeps its existing JSON `role` field for the lesson's
 skill name so older clients can still display it; new code calls it `Skill`.
 This is separate from the saved lesson record, which now stores a skill.

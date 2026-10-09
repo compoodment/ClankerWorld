@@ -703,7 +703,9 @@ public sealed partial class PrivateWorldRuntime
             var work = (hammer?.WorkUnits ?? 1) + ProjectPracticeBonus(state, project);
             if (hammer is not null)
                 ApplyToolWork(inhabitantId, hammer);
-            SetProject(inhabitantId, project with { Stage = "working", WorkDone = Math.Min(ProjectWorkTicks, project.WorkDone + work), Blocker = null });
+            var done = SkilledWorkProgress(inhabitantId,
+                building is not null ? SettlementSkillKind.Building : SkillForRecipe(recipe!), project.WorkDone, work);
+            SetProject(inhabitantId, project with { Stage = "working", WorkDone = Math.Min(ProjectWorkTicks, done), Blocker = null });
             return;
         }
         ApplyBuildDecision(inhabitantId, state, project.CandidateId);
@@ -1109,7 +1111,8 @@ public sealed partial class PrivateWorldRuntime
         {
             society.Apply(checkpoint => SocietyFixture.RecordSocialMemory(checkpoint, new SocietySocialMemory(
                 memoryId, request.Requester, helperId,
-                $"Grateful for {society.Checkpoint.GetInhabitant(helperId).Name}'s help with project materials.", "public", WorldTick)));
+                $"Grateful for {society.Checkpoint.GetInhabitant(helperId).Name}'s help with project materials.", "public", WorldTick)
+            { Kind = SocietyMemoryKind.Relationship }));
         }
         AppendEvent("project_request_fulfilled", $"{helperId}:{request.Requester}:{itemKind}:{quantity}");
     }
