@@ -74,19 +74,23 @@ night-lights rule for when a building is lit.
 
 ## 7 · Weather that leaves a mark (`weathermarks`)
 
-Today snowfall never whitens the ground: the only white ground is the
-permanent snow terrain of cold climates. These marks would follow the
-weather the world records for each region, and fade after it passes.
+Ground snow A and footprints are implemented in `Implemented/Snow.cs`, using
+the client's `GroundSnowSprites` pixel rules. `dotnet run -- snow out` writes
+the approved stills and loops; the still's roof dusting is retained as review
+context, while client roof snow is separate work. Ground cover follows
+observed snowfall in each region and melts afterwards; footprints fade within
+a game hour. The remaining marks below are proposals.
 
-- **Ground snow A:** open ground covered, grass tips and trodden Roads
-  showing. **Ground snow B:** patchy cover that thins and melts unevenly.
+- **Ground snow A, implemented:** open ground covered, grass tips and trodden
+  Roads showing. **Ground snow B:** patchy cover that thins and melts unevenly.
 - **Roof snow A:** snow on the north half of each roof. **B:** roofs covered,
   edges and chimneys still dark.
 - **Puddles A:** small puddles on Roads and bare ground. **B:** puddles and
   darker, wet-looking ground.
 - **Leaves A:** a few fallen leaves under each broadleaf and orchard tree in
   autumn. **B:** a carpet of leaves around them.
-- **Footprints:** an agent crossing snow leaves prints that fade.
+- **Footprints, implemented:** agents and animals crossing snow leave prints
+  that fade.
 
 ## 8 · Golden hour (`goldenhour`)
 

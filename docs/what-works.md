@@ -1372,6 +1372,14 @@ Recent rain gives a modest soil-moisture estimate. The map shows rain, snow, sto
 haze/flashes, and darkens gently at night. Drifting visual edges do not mean weather fronts actually move
 between regions yet.
 
+Observed snowfall now leaves white cover on open ground in that region,
+keeping grass tips and trodden Roads visible. Cover builds over a game hour
+and melts over two hours after snow stops. Walking agents and animals leave
+footprints that fade within an hour. Pause freezes both; reload, rewind and
+world changes clear this local display history. Water, buildings, trees and
+permanent snow retain their own artwork. Close/mid zoom and snowy walking
+still need [the Windows check](../playtest/1463-ground-snow-footprints.md).
+
 The map uses the pixel art approved in the October 1 art review: every ground
 type, with mountains, peaks and hills drawn from the world's elevation as one
 landform spanning many tiles, and snow that thins into frost at its edges;

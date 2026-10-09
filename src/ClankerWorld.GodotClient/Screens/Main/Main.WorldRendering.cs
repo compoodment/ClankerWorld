@@ -15,6 +15,7 @@ public partial class Main
 
     private void ResetDisplayedWorldContext()
     {
+        terrainLayer.ResetGroundSnow();
         knownEvents.Clear();
         eventsWorldId = null;
         lastSeenEventId = long.MinValue;
@@ -158,6 +159,7 @@ public partial class Main
             handcartFacings.Clear();
             animalFacings.Clear();
             boatFacings.Clear();
+            terrainLayer.ResetGroundSnow();
         }
         renderedMapSnapshot = snapshot;
         var objectIds = snapshot.Resources.Where(resource => resource.TreeKind is null)
@@ -182,6 +184,7 @@ public partial class Main
 
         if (!HasMap(snapshot))
         {
+            terrainLayer.ResetGroundSnow();
             handcartFacings.Clear();
             animalFacings.Clear();
             boatFacings.Clear();
@@ -221,6 +224,15 @@ public partial class Main
         nightLightsLayer.SetBuildings(BuildingLights(snapshot));
         nightLightsLayer.SetLanterns(StreetLanterns(snapshot), snapshot.WrapsEastWest);
         terrainLayer.SetConstructionSites(snapshot.ConstructionSites);
+        var peopleInside = PeopleInside(snapshot);
+        var indoors = peopleInside.Values.SelectMany(people => people).Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
+        var riders = snapshot.Animals.Where(animal => animal.RiderId is not null).Select(animal => animal.RiderId).ToHashSet(StringComparer.Ordinal);
+        terrainLayer.ObserveGroundSnow(snapshot.WorldTick, snapshot.CalendarPace?.TicksPerDay ?? 1440,
+            snapshot.Inhabitants.Where(person => !person.IsDraft && IsLiving(person) && !indoors.Contains(person.Id) && !riders.Contains(person.Id))
+                .Select(person => ("agent:" + person.Id, new Vector2I(person.Position.X, person.Position.Y)))
+                .Concat(snapshot.Animals.Where(animal => animal.LifeStage != "dead")
+                    .Select(animal => ("animal:" + animal.Id, new Vector2I(animal.Position.X, animal.Position.Y)))).ToArray(),
+            snapshot.Authoring?.IsPaused == true);
         nightLightsLayer.SetLanternSites(StreetLanternSites(snapshot));
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
@@ -388,7 +400,6 @@ public partial class Main
         }
 
         // People inside a building are hidden; the building shows how many instead.
-        var peopleInside = PeopleInside(snapshot);
         var hiddenInside = peopleInside.Values.SelectMany(people => people).Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var group in snapshot.Inhabitants
             .Where(inhabitant => !inhabitant.IsDraft && string.Equals(inhabitant.Lifecycle, "active", StringComparison.OrdinalIgnoreCase))
