@@ -40,7 +40,7 @@ public static class WorldEventText
     public static string Describe(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
     {
         var parts = worldEvent.Detail.Split(':', StringSplitOptions.RemoveEmptyEntries);
-        if (worldEvent.Kind is "marriage_accepted" or "marriage_surname_agreed" or "marriage_surname_draw")
+        if (worldEvent.Kind is "marriage_accepted" or "marriage_surname_agreed" or "marriage_surname_draw" or "marriage_ended")
             return worldEvent.Detail;
         if (worldEvent.Kind == "marriage_surname_blocked")
             return "The shared surname would make a name too long. Shorten the agent's name and resume the surname conversation; both names are unchanged.";
@@ -113,6 +113,7 @@ public static class WorldEventText
             "field_harvested" => $"{LeadingName(snapshot, worldEvent.Detail)} harvested {ThingAt(parts.Length - 1).ToLowerInvariant()}.",
             "field_ready" => "A field is ready to harvest.",
             "field_work_interrupted" => "Work on a field stopped.",
+            "field_returned_to_grass" => "A field nobody worked for a season went back to grass.",
             "crop_weather_loss" => $"{ThingAt(parts.Length - 1)} reduced a crop harvest.",
             "crop_moisture_effect" when parts.Length >= 3 => parts[^2] == "wet"
                 ? "Moist soil improved a crop harvest."
@@ -143,6 +144,8 @@ public static class WorldEventText
             "medical_treatment_started" => $"{LeadingName(snapshot, worldEvent.Detail)} began a course of medicine.",
             "medical_treatment_completed" => $"{Name(snapshot, worldEvent.Detail)} finished a course of medicine.",
             "medical_treatment_interrupted" => $"{Name(snapshot, worldEvent.Detail)} stopped treatment; the used dose was not returned.",
+            "child_collected_household" => $"{LeadingName(snapshot, worldEvent.Detail)} picked up a small household load to bring home.",
+            "child_delivered_household" => $"{LeadingName(snapshot, worldEvent.Detail)} brought a small household load to their House.",
             "empty_vessel_picked_up" => $"{LeadingName(snapshot, worldEvent.Detail)} collected an empty household vessel to bring home.",
             "ornament_worn" => $"{LeadingName(snapshot, worldEvent.Detail)} put on an ornament.",
             "ornament_removed" => $"{LeadingName(snapshot, worldEvent.Detail)} took off an ornament.",
@@ -257,6 +260,7 @@ public static class WorldEventText
             "town_admission_lapsed" => $"{Name(snapshot, Field(worldEvent.Detail, 1))} did not join {civicTownName}: the approval no longer fits their circumstances.",
             "town_building_assigned" => "A building joined the first Town.",
             "town_border_expanded" => "The first Town border expanded.",
+            "town_founded" when worldEvent.Detail.Contains('|') => $"{Name(snapshot, Field(worldEvent.Detail, 1))} founded {civicTownName}.",
             "town_founded" => "Your first Town is founded.",
             "bridge_built" when parts.Length > 0 && parts[0] == "road" => "A new Road crosses a river on a new bridge.",
             "bridge_built" => "Agents crossed a river here so often that a bridge was built.",
@@ -281,6 +285,7 @@ public static class WorldEventText
             "paused" => "The world was paused.",
             "resumed" => "The world resumed.",
             "model_call_warning" => DescribeModelCallWarning(parts),
+            "model_attempt_status" => DescribeModelFailure(worldEvent.Detail, snapshot),
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
         };
     }
@@ -351,7 +356,13 @@ public static class WorldEventText
             "land_case_notice" => $"{townName} published a formal notice for {subject}. See its response deadline in Towns.",
             "land_case_evidence" => $"Public evidence was added to {subject} in {townName}; its source is recorded in the case.",
             "land_case_response" => $"{actor ?? "An affected adult"} " +
-                (action == "waive" ? "explicitly waived their own response" : "recorded an answer") + $" in {subject}.",
+                (action switch
+                {
+                    "waive" => "explicitly waived their own response",
+                    "property_accept" => "personally agreed to the property transfer",
+                    "property_refuse" => "refused the property transfer",
+                    _ => "recorded an answer"
+                }) + $" in {subject}.",
             "land_case_judge_consent" => $"{actor ?? "An adult resident"} " + (action switch
             {
                 "judge_withdraw" => "withdrew their candidacy",
@@ -360,7 +371,7 @@ public static class WorldEventText
             }) + $" for {subject} only.",
             "land_case_judge_election" => $"{townName} recorded a case election update for {subject}. See Towns for its stage and result.",
             "land_case_judge_assigned" => $"{actor ?? "An eligible adjudicator"} was assigned to {subject} in {townName}.",
-            "land_case_ruling" => $"{townName} recorded a ruling in {subject}. See its exact permission change and reasons in Towns.",
+            "land_case_ruling" => $"{townName} recorded a ruling in {subject}. See the exact result and reasons in Towns.",
             "land_case_reopen_requested" => $"A rehearing was requested for {subject} in {townName}; current rights remain in effect.",
             "land_case_reopened" => $"{townName} reopened {subject}, preserving its earlier ruling and publishing a fresh notice.",
             "land_case_inspected" => $"{actor ?? "An authorized adult"} inspected the public case file for {subject} in {townName}.",
@@ -487,6 +498,22 @@ public static class WorldEventText
         snapshot?.Inhabitants.FirstOrDefault(person => person.Id == id)?.DisplayName
         ?? (string.IsNullOrEmpty(id) || id.Contains(':', StringComparison.Ordinal)
             ? "Someone" : GameUiText.HumanizeIdentifier(id));
+
+    private static string DescribeModelFailure(string detail, OwnerWorldSnapshot? snapshot)
+    {
+        var separator = detail.LastIndexOf(':');
+        if (separator <= 0) return "A model reply failed.";
+        var name = Name(snapshot, detail[..separator]);
+        var reason = detail[(separator + 1)..] switch
+        {
+            "missing_key" => "the model key is missing",
+            "usage_limit" => "the usage limit was reached",
+            "unusable_reply" => "the model sent an unusable reply",
+            "timed_out" => "the model reply timed out",
+            _ => "the model is unavailable",
+        };
+        return $"{name} could not get a model reply: {reason}.";
+    }
 
     private static string LeadingName(OwnerWorldSnapshot? snapshot, string detail)
     {

@@ -233,10 +233,9 @@ public sealed partial class PrivateWorldRuntime
         var inventory = society.Checkpoint.Inventory;
         foreach (var requested in quantities)
         {
-            var available = inventory.Lots
-                .Where(lot => lot.OwnerId == (ownerId ?? HouseholdId) && lot.ItemKind == requested.ResourceId &&
-                    !IsHandcartCargo(inventory, lot) && !OnBorrowedMarketStall(lot))
-                .Sum(AvailableLotQuantity);
+            var available = FindGoods(inventory, new(GoodsUse.Holdings, null,
+                    GoodsOwners.One(ownerId ?? HouseholdId), GoodsKinds.One(requested.ResourceId)))
+                .Matches.Where(match => !IsHandcartCargo(inventory, match.Lot)).Sum(match => (long)match.Quantity);
             if (available < requested.Amount)
             {
                 return false;
@@ -416,24 +415,18 @@ public sealed partial class PrivateWorldRuntime
         {
             var requested = quantities[quantityIndex];
             var remaining = requested.Amount;
-            var lots = current.Lots
-                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && !IsHandcartCargo(current, lot) && !OnBorrowedMarketStall(lot) && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
-                .OrderBy(lot => lot.Id, StringComparer.Ordinal)
-                .ToArray();
-            foreach (var lot in lots)
+            var request = new GoodsRequest(GoodsUse.Holdings, null,
+                GoodsOwners.One(ownerId), GoodsKinds.One(requested.ResourceId));
+            var matches = ProductionGoods(current, request).ToArray();
+            foreach (var match in matches)
             {
                 if (remaining == 0)
                 {
                     break;
                 }
 
-                var reserved = current.Reservations
-                    .Where(reservation => reservation.LotId == lot.Id &&
-                        reservation.State is InventoryReservationState.Reserved or
-                            InventoryReservationState.PartiallyConsumed or
-                            InventoryReservationState.Committed)
-                    .Sum(reservation => reservation.Quantity);
-                var available = lot.Quantity - reserved;
+                var lot = match.Lot;
+                var available = RecheckGoods(current, request, lot.Id)?.Quantity ?? 0;
                 if (available <= 0)
                 {
                     continue;
@@ -472,17 +465,23 @@ public sealed partial class PrivateWorldRuntime
     private string MissingProductionIngredients(RecipeDefinition recipe, string owner, string buildingId)
     {
         var missing = recipe.Inputs.First(input => !HasIngredientsAtBuilding([input], owner, buildingId));
-        var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
-                lot.StorageBuildingId == buildingId && lot.ItemKind == missing.ResourceId).Sum(AvailableLotQuantity);
+        var available = ProductionGoods(society.Checkpoint.Inventory,
+            ProductionGoodsRequest(owner, missing.ResourceId, buildingId)).Sum(match => (long)match.Quantity);
         return $"{MissingHouseholdIngredientsPrefix}{missing.Amount - available} {missing.ResourceId.Replace('_', ' ')} in its on-site stock. Bring it here before starting work.";
     }
 
     private bool HasIngredientsAtBuilding(IReadOnlyList<ContentQuantity> inputs,
         string ownerId, string buildingId) => inputs.All(input =>
-        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == ownerId &&
-                lot.StorageBuildingId == buildingId && lot.ItemKind == input.ResourceId &&
-                lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
-            .Sum(lot => (long)AvailableLotQuantity(lot)) >= input.Amount);
+        ProductionGoods(society.Checkpoint.Inventory, ProductionGoodsRequest(ownerId, input.ResourceId, buildingId))
+            .Sum(match => (long)match.Quantity) >= input.Amount);
+
+    private static GoodsRequest ProductionGoodsRequest(string owner, string kind, string? building = null) =>
+        new(GoodsUse.ConsumeAt, null, GoodsOwners.One(owner), GoodsKinds.One(kind), AtBuilding: building);
+
+    private IEnumerable<GoodsMatch> ProductionGoods(InventoryCheckpoint inventory, GoodsRequest request,
+        bool requireCarried = false) => FindGoods(inventory, request).Matches.Where(match =>
+        !IsHandcartCargo(inventory, match.Lot) && !OnBorrowedMarketStall(match.Lot) &&
+        (!requireCarried || ToolProgressionRules.IsTopLevelCarriedLot(match.Lot, match.Lot.OwnerId)));
 
     private InventoryCheckpoint ReserveQuantities(
         InventoryCheckpoint inventory,
@@ -500,27 +499,17 @@ public sealed partial class PrivateWorldRuntime
         {
             var requested = quantities[quantityIndex];
             var remaining = requested.Amount;
-            var lots = current.Lots
-                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId &&
-                    !IsHandcartCargo(current, lot) && !OnBorrowedMarketStall(lot) && (!requireCarried || ToolProgressionRules.IsTopLevelCarriedLot(lot, ownerId)) &&
-                    lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0 &&
-                    (requiredStorageBuildingId is null || lot.StorageBuildingId == requiredStorageBuildingId))
-                .OrderBy(lot => lot.Id, StringComparer.Ordinal)
-                .ToArray();
-            foreach (var lot in lots)
+            var request = ProductionGoodsRequest(ownerId, requested.ResourceId, requiredStorageBuildingId);
+            var matches = ProductionGoods(current, request, requireCarried).ToArray();
+            foreach (var match in matches)
             {
                 if (remaining == 0)
                 {
                     break;
                 }
 
-                var reserved = current.Reservations
-                    .Where(reservation => reservation.LotId == lot.Id &&
-                        reservation.State is InventoryReservationState.Reserved or
-                            InventoryReservationState.PartiallyConsumed or
-                            InventoryReservationState.Committed)
-                    .Sum(reservation => reservation.Quantity);
-                var available = lot.Quantity - reserved;
+                var lot = match.Lot;
+                var available = RecheckGoods(current, request, lot.Id)?.Quantity ?? 0;
                 if (available <= 0)
                 {
                     continue;

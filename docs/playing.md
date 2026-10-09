@@ -48,6 +48,15 @@ waiting for a home, meeting up or travelling. The child joins the guardian's
 household and Town only when they arrive together and the House still has room.
 Birth parents and family history stay unchanged.
 
+A well-fed child can choose to gather nearby wild food or fallen wood for
+home, or carry loose household food or wood back to their House. Inspect their
+current action, carried goods and the Event Log to follow the trip and delivery.
+Helping loads are limited to four carried units in total and short trips of up
+to eight steps each way, within eight tiles of home. Reserved goods, other
+households' supplies and heavy materials are unavailable for these tasks.
+Infants do no helping work. If the House fills, a child keeps their cargo until
+there is room to deliver it. These limits are initial trial values.
+
 A household can make a crude wooden axe and pickaxe at its own House from
 wood stored there. Nearby fallen wood can be gathered by hand to get started.
 The axe fells trees and the pickaxe extracts stone, so a household does not
@@ -85,6 +94,13 @@ both names unchanged. An unfinished rename stays in the open editor through
 world refreshes, even when the name field loses focus. Closing the editor or
 choosing another agent or world discards it.
 
+Children born in the world choose their own personality and aspiration when
+their personal model first makes a decision after infancy, at day 3. Their
+parents' chosen identities, household and Town provide background; the child's
+choice is its own. An unavailable model or unusable reply leaves the choice
+pending until a later ordinary decision. You can inspect the chosen identity
+on the child's Profile; saving preserves it.
+
 ## Create your first Town
 
 On a fresh server, **Continue** opens **New World** so you can choose the map
@@ -96,6 +112,8 @@ still open normally.
    [More New World options](#more-new-world-options)).
 2. Wait for the preview. Changing an option updates it; **Create World** becomes
    available when the preview for the current choices succeeds.
+   Different map sizes or generation choices can reuse a seed and keep separate
+   worlds. Changing only the name does not create another copy of the same map.
 3. Create the world. It opens paused at 06:00 on Spring 1, Year 1, in daylight.
    Choose a rough site for its first Town;
    greener shading and the hovered tips show nearby food, fertile ground, wood,
@@ -121,7 +139,9 @@ providers charge you for usage. While paused, open **Settings → World → Rout
 helper** to choose **Off**, **Jev** or **OpenAI Decisions**, pick its model and
 press **Apply helper**. Decisions uses your default OpenAI key or a named saved
 OpenAI key you choose; Jev uses the saved TypeSafe key. Switching helpers keeps
-memories and their scores. Decisions currently offers `gpt-6-luna`; **Type a
+memories and their scores. The helper serves every adult and elder, including
+people born in the world; children keep their own model. Conversations, identity
+and wills still use each person's own model. Decisions currently offers `gpt-6-luna`; **Type a
 model name...** also remains available.
 
 To save keys before placing any agents, open **Settings → Game → API keys**.
@@ -173,6 +193,19 @@ centers the camera on them, and back (or **Escape**) returns from the Profile
 to the small card. Inspection does not pause time, and reading private thoughts
 does not tell other agents.
 
+A small gold spark circles above an agent after its model has been waiting
+for two seconds. It disappears when the reply arrives or the world pauses.
+The spark is separate from the conversation bubble. Slow replies add no Event
+Log entry; a failed reply adds one line naming the agent and the problem.
+
+Agents can keep scouting beyond a short local trip and choose when to return
+to where they started. They learn from the places they actually reach, and
+keep their discoveries when they return. You can Suggest that an agent scout
+farther or return; their own model still chooses whether to follow that
+suggestion. Urgent food or warmth needs may interrupt a trip. A return goes
+around other people where possible; if it stays blocked, the Event Log records
+that the trip ended without reaching its start.
+
 **Memories** shows what the agent remembers, believes and has mapped as cards,
 newest first, with a tab for each kind. A belief shows how sure they are and
 whether they saw it or heard it from someone; a map record shows each place
@@ -219,6 +252,13 @@ surname. A failed call, pause or cancellation keeps the completed turns and
 leaves marriage incomplete until the surname is settled. The agent's Profile
 shows their spouse and whether that choice is still pending. Marriage is not
 required to have a child.
+
+Either partner may end their partnership and marriage alone. A partner's
+death also ends the marriage. Both keep their names, and a living former
+partner may form a new partnership and marry again. The Profile keeps past
+marriages alongside the current one. Renaming someone later changes only
+their current spouse's surname. During paused Developer Tools, **End
+partnership** also ends the pair's marriage and any unfinished surname choice.
 
 **Suggest** shares an idea with the agent's own planning model. **Order** gives
 it a task. A new suggestion or recognized order asks for one fresh planning
@@ -284,6 +324,24 @@ blocked with a reason. These are single trips; queue another order for the
 return journey. A destination in another household's House requires an
 invitation. Urgent food or warmth needs can interrupt the trip, then it resumes.
 
+For a boat trip, use **Travel by boat to Port at (196, 13)**, replacing the
+coordinates with the Port's listed tile. The adult walks to a usable departure
+Port and waits for a real communal boat. Visitors still need Council permission.
+The order shows why it is waiting for a route, permission, a boat or landing
+space, and finishes only at the named destination. Cancelling before boarding
+releases the request. Cancelling aboard lets the boat finish its safe journey
+or return; returning to departure never counts as reaching the destination.
+
+Use **Read a field record**, **Read a map**, **Read a book** or **Read** to
+read one eligible written item the adult personally owns and carries. Add its
+exact artifact ID, lot ID or unique title to select it explicitly. Stored,
+ground, borrowed, reserved and other people's items remain unavailable until
+the agent personally holds them. Reading teaches only the sites written in
+that item, with their original discovery sources; it neither updates the
+written account nor teaches other people. A full knowledge ledger or an item
+with no new sites leaves the task waiting. Queue, cancellation, replacement
+and save/reload follow the normal order rules, and urgent survival comes first.
+
 The small card and the Profile show the order the agent is on now: whether it
 is waiting, being done, interrupted or blocked, how far along it is, why it is
 held up, and how many orders are queued after it. With no open order, they
@@ -292,6 +350,15 @@ done. **All orders**, beside **Your messages** in the Profile, lists every
 order the world keeps for them: the current one, the queue in the order it will
 be done, and their six latest closed orders. Each shows your words, and any
 reply from the agent is set apart from the game's status.
+
+Use **Talk to Ari**, **Talk with Ari Vale** or **Speak to** followed by a
+person's exact name or ID to attempt one face-to-face invitation. The agent
+walks to them normally, and the named person can decline. Both need their own
+available conversation model and allowance. The card shows the invitation,
+acceptance, stopped conversation or outcome; a finished talk attempt can have
+been refused. Queued work waits for the conversation to end. Loading an
+accepted unfinished conversation stops it until both people choose to resume.
+Cancelling the order removes the task; it does not make either person agree.
 
 When a child needs a guardian, an adult can follow **Become guardian for Élodie Vale**,
 using the child's full name. Names with accents work when typed or pasted,
@@ -306,6 +373,8 @@ in their current or former household's storage, or where they were dropped.
 They keep ownership and use normal carrying space. A plain request collects
 one load; a quantity stops exactly at that number. Full hands or unavailable
 goods leave the task waiting. Add **from (12, 4)** to require that source tile.
+Routine recovery also skips belongings it cannot currently reach, so an item on
+disconnected land does not block pickup of nearby personal goods.
 You can also collect personal food or equipment without eating or equipping it.
 Named meals include **Collect two bread**, **Collect berry porridge** and
 **Collect restaurant meals**. These collect only the agent's own goods.
@@ -342,7 +411,9 @@ suitable fields, stock and tools. Counts mean completed fields, so include
 **fields** when giving a number; **Harvest five potatoes** is not understood.
 A named crop is never replaced with another. Planting orders can use another
 usable seed when someone blocks the pickup route to an earlier seed lot.
-Harvests remain on the field until carried. Cancel or replace the order to stop the current work and release
+Harvests remain on the field until carried. A field nobody works for a full
+season goes back to grass, with any crop still on it, and the Event Log says
+so; the land stays just as fertile. Cancel or replace the order to stop the current work and release
 unused planting stock. Add **at (12, 4)** to keep the task on that field tile.
 Ordinary crop and seed hauling tries another permitted farm store when the
 preferred one cannot fit the load. For example, a filled pot goes to the
@@ -381,6 +452,17 @@ Filled vessels need space for their whole contents. A water delivery moves a
 whole jug and counts the water delivered; it cannot pour out part of a jug to
 meet a smaller request. Cancelling keeps goods where they actually are,
 including any supplies already picked up for delivery.
+
+To start pulling a cart, use **Pull my handcart** or **Attach my cart**.
+An adult or elder walks to a usable cart they own and attaches it. **Park my
+cart** unhitches the cart where it stands, keeping its cargo and ownership.
+Use **Attach cart at (12, 4)** or **Park cart at (12, 4)** to name the unique
+owned cart on that tile. The order keeps that cart even if its location changes;
+an ambiguous tile is not understood. Exact cart identities are also accepted.
+Queue, replacement, cancellation, urgent interruptions and saves retain the
+task. Broken or reserved carts, another attached cart, riding or leading an
+animal, and blocked routes give a reason. Loading, unloading and cart repair
+orders are not supported yet. Once attached, the cart follows normal movement.
 
 To mend worn personal equipment, use **Repair my basket**, **Repair two padded
 coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
@@ -422,6 +504,11 @@ keeping one serving; **Stock restaurant meals in my Store** uses the normal shop
 limits. Loose personal meals are collected or shared, rather than put away with
 the nonfood **Store** command.
 
+Adults can visit another Town's shops to buy missing Restaurant ingredients,
+or visit its Restaurants for meals. Both traders must meet and agree before
+anything changes hands. The customer carries the purchase; visiting or buying
+gives no right to take Warehouse stock or another household's private goods.
+
 To start household building work, use **Build a Clinic**, **Build a Silo** or
 another supported household building name: House, Farmhouse, Blacksmith,
 Tailor Shop, Store or Restaurant. **Build a Restaurant** starts its 1×2 size
@@ -443,9 +530,11 @@ survival pauses the work before it resumes.
 
 Use **Seek shelter**, **Take cover** or **Shelter in my House** to reach
 permitted cover. Add **at (12, 4)** to require that location. A storm guest
-still needs a current invitation, and natural cover protects only during a
-storm. The task finishes when the agent reaches usable cover; this does not
-mean they have recovered their warmth.
+still needs a current invitation. Forests and trees give partial protection
+during a storm; a House gives more cover. A resident without a House can
+use their own Town's completed Town Hall during a storm. This gives shelter
+without household stock or hearth access. The task finishes when the agent
+reaches usable cover; this does not mean they have recovered their warmth.
 
 An adult can follow **Light a fire**, **Tend the fire** or **Light the fire in
 my House**, also with an optional location. The agent brings eligible wood
@@ -494,6 +583,12 @@ and survives saving or reconnecting; it covers the recent records still kept
 by the server. Goods changing owners in the same building do not count as a
 physical addition or removal.
 
+Grass and tree canopies follow the seasons: brighter in spring, their usual
+colours in summer, warmer in autumn and more muted in winter. Snow still
+appears only where the world records it. Panning, zooming and loading a world
+keep the same seasonal treatment, including the terrain and tree pictures in
+tile inspection.
+
 Every day has a night, with a short dusk and dawn. Nights are longest in winter
 and shortest in summer: from 19:12 to 04:48 on the clock in the top bar at the
 start of spring and autumn, about 2 min 24 s of a six-minute day; from 20:24
@@ -518,7 +613,9 @@ is on, the top of the log offers **Add a newcomer**, which opens Add Agent.
 Opening the offer adds nobody and makes no paid model call. **Agents** lists
 everyone with their portrait and what they are doing, and tags anyone
 **Hungry**, **Cold** or **Ill**. Click a row to find that agent, or
-double-click it to open their Profile.
+double-click it to open their Profile. With the list focused, use **Up** and
+**Down** to browse its rows and **Enter** to open the chosen Profile. The list
+stays open while you move between rows.
 
 **Add Agent** configures and places another adult after starting. Placement
 shows the household and Town that the selected tile would give the adult.
@@ -566,6 +663,16 @@ admitted, a resident may collect their Town's Warehouse stock in person, but
 approval never gives a House or household place. The agent's Profile shows
 their Town, what it lets them do and their admission status, and the Event Log
 notes approvals, admissions and approvals that no longer apply.
+
+An adult standing on buildable unclaimed land away from existing Town borders
+can choose to found a new Town through their personal model. Suggest founding
+there to the agent; the choice must still be legal when it executes. The adult
+leaves their previous Town, and dependent children who shared it follow without
+moving or changing care. The first council contains the new Town's adult
+residents. Founding gives no House, goods or household place. Existing household
+buildings and fields stay owned; another household's property blocks the site.
+A House built outside all Towns stays an ordinary household House until an adult
+chooses to found there. Later visitors need the new council's admission.
 
 Residents can also propose laws as a **subject: rule**, applying to the Town's
 claimed land, a nearby recorded site, or residents wherever they travel. Council
@@ -619,10 +726,22 @@ or ended; renewing renews every lapsed permission on the plot for its own househ
 residents can elect a willing, independent adult for that case only. A case waits
 if nobody qualifies. A rehearing requires material new evidence or a demonstrated
 procedural error. The old ruling remains recorded and current rights stay in
-effect until a valid correction. These decisions leave Town title, household
+effect until a valid correction. These permission decisions leave Town title, household
 membership, buildings, crops and goods with their holders; they neither evict
 occupants nor grant entry to private buildings. Plot and building details show
 the hearing, and the disputed-land filter marks plots still under review.
+
+When a household has no members left, its buildings and shared goods keep their
+recorded owner. Moving in gives nobody ownership. The Town government can ask
+for a property hearing naming an existing building and its shared goods on
+that plot. The usual notice, actual file reading and independent ruling apply.
+Every living former member must personally agree before ownership passes to
+the Town; answering, silence and waiving a response give no property consent.
+Towns shows the property and each person's agreement or refusal. The Town can
+then ask to grant a recovered building and its goods to a household whose
+adults agree, including a household that needs a House. Personal goods stay
+with their owners and can still be collected at the House entrance. Active
+work, deliveries and reserved goods must finish before a transfer can proceed.
 
 Witnesses, affected people and the legitimate Town government can report
 specific conduct under a law that applied when it happened. Visitors have the
@@ -719,7 +838,9 @@ YYYY-MM-DD), and the top bar then names the season beside the weather.
 Menus, panels and text grow with your screen in whole steps, so pixel letters
 stay crisp: 100% on small screens, 200% at 1080p and 1440p and 300% at 4K.
 There is no setting for this. World Settings contains that world's autosaves,
-the routine helper and agent model settings. Main Menu Settings exposes Game Settings only.
+the routine helper and agent model settings. **World generation** shows the world's
+size, climate, east/west wrapping and seed as chosen at creation; these are
+read-only. Main Menu Settings exposes Game Settings only.
 
 Life pace and routine helper changes apply to the world shown when you submit them.
 If another device opens a different world before your request arrives, the
@@ -861,7 +982,7 @@ to see the animals standing there. Use its exact unique name or ID in a Must do 
 **Tame Moss**, **Lead home Moss**, **Care for Moss**, or **Collect from Moss**.
 **Repeat care for Moss** and **Repeat collect from Moss** keep the task active
 until cancelled. When the animal is elsewhere in the yard, the adult picks up
-the feed and water jug before walking to it. Care beside the yard stock can
+feed and enough jug water before walking to it. Care beside the yard stock can
 use those supplies directly. The adult walks and brings actual available
 supplies; an order waits when permission, supplies, product, space or a route
 is missing. Care without safe feed or jug water shows a blocker and can resume

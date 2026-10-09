@@ -261,6 +261,7 @@ public sealed record OwnerTownLandHearing(string Id, string Kind, string Status,
     OwnerLandHearingElection? JudgeElection, OwnerLandHearingElection? LatestJudgeElection,
     IReadOnlyList<OwnerLandHearingReopenRequest> ReopenRequests)
 {
+    public IReadOnlyList<string> PropertyDetails { get; init; } = [];
     public IReadOnlyList<OwnerLandHearingRead> Reads { get; init; } = [];
     public IReadOnlyList<OwnerLandHearingParty> CurrentParties { get; init; } = [];
 }
@@ -445,7 +446,12 @@ public sealed record OwnerWorldInstructionOrder(
     string? TargetItemKind = null,
     string? TargetBuildingKind = null,
     string? TargetAnimalId = null,
-    string? TargetKnowledgeKind = null);
+    string? TargetKnowledgeKind = null,
+    string? TargetCartLotId = null,
+    string? TalkConversationId = null,
+    string? TalkStatus = null,
+    string? TalkOutcome = null,
+    string? TargetKnowledgeArtifactId = null);
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -615,6 +621,9 @@ public sealed record OwnerWorldActor(
     int FoodItems,
     int WoodItems);
 
+public sealed record OwnerWorldGeneration(string Seed, string Size, string ClimateMode,
+    string SelectedClimate, bool LatitudeCooling, bool WrapEastWest);
+
 public sealed record OwnerWorldSnapshot(
     string WorldId,
     long WorldTick,
@@ -629,6 +638,7 @@ public sealed record OwnerWorldSnapshot(
     public OwnerWorldPackedMapLayers? PackedMapLayers { get; init; }
     public string? MapLayersDigest { get; init; }
     public bool WrapsEastWest { get; init; }
+    public OwnerWorldGeneration? Generation { get; init; }
     public IReadOnlyList<OwnerWorldFarmField> Fields { get; init; } = [];
     public IReadOnlyList<OwnerWorldGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<OwnerWorldHandcart> Handcarts { get; init; } = [];

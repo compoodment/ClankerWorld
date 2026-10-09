@@ -13,6 +13,11 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
+    // Keep authoritative membership keys in saves; only model context needs a bounded alias.
+    private static string? CognitionHouseholdId(string? id) => id is null || id.Length <= 128
+        ? id
+        : "household-sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(id)));
+
     private void EnqueueDueCognition(IReadOnlySet<string> activeHostedIds)
     {
         var cognitionState = society.Capture().Cognition;
@@ -128,7 +133,7 @@ public sealed partial class PrivateWorldRuntime
             var requiresPersonalProvider = checkpoint.Births.Any(birth => birth.ChildId == inhabitant.Id);
             var knownMapFacts = KnownMapFactsForCognition(inhabitant.Id);
             var self = new CognitionSelfContext(inhabitant.Id, inhabitant.Name, inhabitant.AgeBand.ToString(),
-                physical.Personality, physical.Aspiration, inhabitant.HouseholdId,
+                physical.Personality, physical.Aspiration, CognitionHouseholdId(inhabitant.HouseholdId),
                 physical.Survival?.WarmthBasisPoints, physical.Survival?.IllnessBasisPoints,
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,
@@ -139,8 +144,11 @@ public sealed partial class PrivateWorldRuntime
                 ToolMakingRequestNote: ToolMakingRequestNoteCore(inhabitant.Id),
                 AllowedChildSurnames: inhabitant.NeedsName && InhabitantNameRules.RequiresParentSurname(checkpoint, inhabitant.Id)
                     ? InhabitantNameRules.AllowedChildSurnames(checkpoint, inhabitant.Id) : null,
-                MarriageNote: marriages.SingleOrDefault(item => AgentMarriageRules.HasParticipant(item, inhabitant.Id)) is { } marriage
+                MarriageNote: marriages.Where(item => AgentMarriageRules.HasParticipant(item, inhabitant.Id))
+                    .OrderBy(item => item.EndReceipt is not null).ThenByDescending(item => item.AcceptedTick)
+                    .ThenBy(item => item.Id, StringComparer.Ordinal).FirstOrDefault() is { } marriage
                     ? AgentMarriageRules.Note(marriage, inhabitant.Id, checkpoint) : null,
+                FamilyBackground: InitialChildFamilyBackground(inhabitant.Id, physical),
                 KnownRecipes: knowledge.Recipes.Where(item => item.OwnerId == inhabitant.Id)
                     .OrderByDescending(item => item.LearnedTick).ThenBy(item => item.RecipeId, StringComparer.Ordinal).Take(16)
                     .Select(item => worldContent.Recipes.Single(recipe => recipe.CanonicalId == item.RecipeId).DisplayName).ToArray());
@@ -165,7 +173,7 @@ public sealed partial class PrivateWorldRuntime
                 ConversationChoiceContext = conversationChoiceContext,
                 OperativeOrderInstructionId = operativeOrder?.InstructionId,
             };
-            if (jevEnabled && !requiresPersonalProvider && providerFactory is not null)
+            if (jevEnabled && AdultResident(inhabitant.Id) && providerFactory is not null)
             {
                 try
                 {
@@ -609,6 +617,11 @@ public sealed partial class PrivateWorldRuntime
 
         if (pendingInstruction is { } order)
         {
+            if (TalkOrderHasConversation(order))
+            {
+                ApplyTalkOrderConversationDecision(order, decision);
+                return;
+            }
             if (decision.Admission.FellBack)
             {
                 SetOrderStatus(order, "blocked", "The order will try again after a short wait.", waitForDecision: true);
@@ -1013,6 +1026,9 @@ public sealed partial class PrivateWorldRuntime
             case "explore":
                 Explore(inhabitantId, state);
                 break;
+            case "explore_return":
+                ChooseExplorationReturn(inhabitantId, state);
+                break;
             case "wear_clothing":
                 EquipPrivateItem(inhabitantId, state, carryAid: false);
                 break;
@@ -1336,6 +1352,9 @@ public sealed partial class PrivateWorldRuntime
         var urgentCandidate = urgent
             ? SelectOrderSurvivalCandidate(candidates, state, order)
             : null;
+        if (TalkOrderHasConversation(order))
+            return candidates.Where(item => item.Id == "safe_idle" || item.Id.StartsWith("conversation_", StringComparison.Ordinal) ||
+                urgent && IsSurvivalCandidate(state.InhabitantId, item.Id)).ToList();
         var taskCandidate = OrderCandidateFor(order, state);
         if (ShouldInterruptOrder(state, order, taskCandidate, urgentCandidate))
             taskCandidate = null;

@@ -1,0 +1,1 @@
+- Saving an unchanged world reuses its checked camp routes, reducing repeated walkability searches while retaining map validation and durable checkpoint writes.

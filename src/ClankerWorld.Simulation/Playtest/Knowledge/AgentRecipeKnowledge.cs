@@ -23,6 +23,8 @@ internal static partial class AgentKnowledgeRules
             throw new InvalidDataException("Recipe knowledge is missing or incomplete.");
         var agents = society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
         var definitions = content.Recipes.Select(item => item.CanonicalId).ToHashSet(StringComparer.Ordinal);
+        if (simulation.ProductionJobs.Select(item => item.JobId).Distinct(StringComparer.Ordinal).Count() != simulation.ProductionJobs.Count)
+            throw new InvalidDataException("Recipe production evidence contains duplicate job identities.");
         var jobs = simulation.ProductionJobs.ToDictionary(item => item.JobId, StringComparer.Ordinal);
         var artifacts = knowledge.Artifacts.ToDictionary(item => item.Id, StringComparer.Ordinal);
         if (knowledge.Recipes.Count > checked(agents.Count * MaximumRecipesPerAgent) ||

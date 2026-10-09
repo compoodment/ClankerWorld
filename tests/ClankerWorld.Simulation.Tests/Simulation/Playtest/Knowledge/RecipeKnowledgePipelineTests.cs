@@ -108,6 +108,84 @@ public sealed class RecipeKnowledgePipelineTests
         copying.Validate();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OwnerReadOrderCreditsActualRecipesAndSitesOnlyOnceAcrossRefusedTicksAndReload(bool includeSites)
+    {
+        var (state, author, recipeId) = await ProducedRecipe();
+        if (includeSites)
+        {
+            using (var exploring = Restore(state, author, "explore"))
+            {
+                await Until(exploring, () => exploring.Knowledge.Facts.Any(fact => fact.OwnerId == author));
+                state = exploring.ExportState();
+            }
+            using var returning = Restore(state, author, "explore_return");
+            returning.SubmitInstruction(new("return-before-recipe-book", "owner:test", author,
+                OwnerInstructionKind.Suggestive, "Return from scouting before writing the book."));
+            await Until(returning, () => returning.ExportState().Inhabitants.Single(person =>
+                person.InhabitantId == author).Exploration is { OutingPath.Count: 0 });
+            state = returning.ExportState();
+        }
+        using var writing = Restore(Supply(state, author, 2, 1), author, "knowledge_write:book", "knowledge_continue");
+        await Until(writing, () => writing.Knowledge.Artifacts.Count == 1);
+        var written = writing.ExportState();
+        var artifact = Assert.Single(written.Knowledge!.Artifacts);
+        Assert.Equal(includeSites, artifact.Facts.Count > 0);
+        Assert.Single(artifact.Recipes);
+        var reader = written.Inhabitants.First(person => person.InhabitantId != author &&
+            written.Society.Society.GetInhabitant(person.InhabitantId).HouseholdId !=
+            written.Society.Society.GetInhabitant(author).HouseholdId).InhabitantId;
+        using (var withheld = Restore(written, reader))
+        {
+            withheld.SubmitInstruction(new("read-withheld-recipe-book", "owner:test", reader,
+                OwnerInstructionKind.MustDo, "Read " + artifact.Id));
+            for (var tick = 0; tick < 3; tick++) Assert.True((await withheld.AdvanceOneTickAsync()).Advanced);
+            var blocked = Assert.Single(withheld.ExportState().Instructions!, item => item.IdempotencyKey == "read-withheld-recipe-book").Order!;
+            Assert.Equal(("blocked", 0), (blocked.Status, blocked.CompletedUnits));
+            Assert.DoesNotContain(withheld.Knowledge.Recipes, recipe => recipe.OwnerId == reader);
+            Assert.DoesNotContain(withheld.Knowledge.Facts, fact => fact.OwnerId == reader);
+        }
+        var handed = FarmFieldTests.WithInventory(written, InventoryFixture.Transfer(written.Society.Society.Inventory,
+            "hand-owner-read-book", author, reader, artifact.LotId, 1, "give the actual recipe book"));
+        using var reading = Restore(handed, reader);
+        reading.SubmitInstruction(new("read-real-recipe-book", "owner:test", reader, OwnerInstructionKind.MustDo,
+            includeSites ? "Read " + artifact.Id : "Read a book"));
+        var before = PrivateWorldRuntimeCodec.Encode(reading.ExportState());
+        Assert.False((await reading.AdvanceOneTickAsync(() => false)).Advanced);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(reading.ExportState()));
+        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(before), reader);
+        await PairedUntil(reading, replay, () => reading.ExportState().Instructions!.Single(item =>
+            item.IdempotencyKey == "read-real-recipe-book").Order!.Status == "finished");
+        var completed = reading.ExportState();
+        var instruction = Assert.Single(completed.Instructions!, item => item.IdempotencyKey == "read-real-recipe-book");
+        Assert.Equal(1, instruction.Order!.CompletedUnits);
+        Assert.Equal(artifact.Id, instruction.Order.TargetKnowledgeArtifactId);
+        var receipt = Assert.IsType<OwnerKnowledgeReadCompletion>(instruction.Order.KnowledgeReadCompletion);
+        Assert.Equal([recipeId], receipt.LearnedRecipes);
+        Assert.Equal(artifact.Facts.Count, receipt.LearnedSites.Count);
+        var learned = Assert.Single(completed.Knowledge!.Recipes, recipe => recipe.OwnerId == reader);
+        Assert.Equal(("read", artifact.Id, author, receipt.WorldTick),
+            (learned.Acquisition, learned.SourceArtifactId, learned.SourceAgentId, learned.LearnedTick));
+        Assert.Empty(completed.Inhabitants.Single(person => person.InhabitantId == reader).Skills ?? []);
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(completed with
+        {
+            Knowledge = completed.Knowledge with
+            { Recipes = completed.Knowledge.Recipes.Where(recipe => recipe.OwnerId != reader).ToArray() },
+        }));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(completed with
+        {
+            Instructions = completed.Instructions!.Select(item => item.InstructionId == instruction.InstructionId
+                ? item with { Order = item.Order! with { KnowledgeReadCompletion = receipt with { LearnedRecipes = [] } } } : item).ToArray(),
+        }));
+        Assert.True((await reading.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(1, reading.ExportState().Instructions!.Single(item => item.InstructionId == instruction.InstructionId).Order!.CompletedUnits);
+        Assert.Single(reading.ExportState().Events, item => item.Kind == "agent_knowledge_artifact_read" &&
+            item.Detail.Contains(artifact.Id, StringComparison.Ordinal));
+        reading.Validate();
+    }
+
     [Fact]
     public async Task SharingAHeldRecipeTeachesOnlyTheNearbyRecipientWithoutCreatingAnotherGood()
     {
@@ -162,6 +240,15 @@ public sealed class RecipeKnowledgePipelineTests
         var json = System.Text.Json.Nodes.JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!.AsObject();
         Assert.True(json["state"]!["knowledge"]!.AsObject().Remove("recipes"));
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(System.Text.Encoding.UTF8.GetBytes(json.ToJsonString())));
+        var duplicateJob = System.Text.Json.Nodes.JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!.AsObject();
+        var jobs = duplicateJob["state"]!["worldSimulation"]!["productionJobs"]!.AsArray();
+        jobs.Add(jobs[0]!.DeepClone());
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(
+            System.Text.Encoding.UTF8.GetBytes(duplicateJob.ToJsonString())));
+        var previousSchema = System.Text.Json.Nodes.JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!.AsObject();
+        previousSchema["state"]!["schemaVersion"] = 113;
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(
+            System.Text.Encoding.UTF8.GetBytes(previousSchema.ToJsonString())));
         using var restored = Restore(state, author);
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(state), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }

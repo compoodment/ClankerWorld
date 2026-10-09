@@ -224,7 +224,8 @@ public sealed partial class PrivateWorldRuntime
                 if (!society.Checkpoint.Memories.Any(memory => memory.Id == memoryId))
                 {
                     society.Apply(checkpoint => SocietyFixture.RecordSocialMemory(checkpoint, new(memoryId, owner, subject,
-                        $"Completed a mutually accepted exchange with {checkpoint.GetInhabitant(subject).Name}.", "public", WorldTick)));
+                        $"Completed a mutually accepted exchange with {checkpoint.GetInhabitant(subject).Name}.", "public", WorldTick)
+                    { Kind = SocietyMemoryKind.Relationship }));
                 }
             }
             AppendEvent("settlement_trade_completed", actor);
