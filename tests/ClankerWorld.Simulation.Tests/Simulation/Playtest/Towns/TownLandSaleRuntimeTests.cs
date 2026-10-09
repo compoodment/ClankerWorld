@@ -224,6 +224,70 @@ public sealed partial class TownLandTransferRuntimeTests
         world.Validate();
     }
 
+    [Theory]
+    [InlineData(6, true)]
+    [InlineData(8, false)]
+    public async Task SplitCarriedFoodPaymentKeepsTheBuyersNeededReserve(int price, bool completes)
+    {
+        var provider = new TransferProvider
+        {
+            Sell = true,
+            AllowPropose = true,
+            PaySales = false,
+            SaleItemKind = "food",
+            SaleQuantity = price,
+            CollectSalePayment = false
+        };
+        using var source = NewWorld(provider);
+        Configure(provider, source);
+        await UntilAsync(source, () => source.Towns[0].LandHearings.Transfers.Count == 1 &&
+            source.Towns[0].LandHearings.Transfers[0].Responses.Count == 4, 40, provider);
+        var state = source.ExportState();
+        var inventory = state.Society.Society.Inventory;
+        foreach (var lot in inventory.Lots.Where(lot => lot.OwnerId == Beneficiary && lot.ItemKind == "food").ToArray())
+            inventory = InventoryFixture.Discard(inventory, Beneficiary, lot.Id, lot.Quantity);
+        inventory = InventoryFixture.AddLot(inventory, "sale-food-a", "food", Beneficiary, 4);
+        inventory = InventoryFixture.AddLot(inventory, "sale-food-b", "food", Beneficiary, 4);
+        provider.PaySales = true;
+        using var world = PrivateWorldRuntime.Restore(state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person with
+            { Position = state.Towns![0].OriginSite!.Value, HungerBasisPoints = 10_000 }).ToArray()
+        }, _ => provider);
+        var before = world.ExportState();
+        var sellerFood = inventory.Lots.Where(lot => lot.OwnerId == provider.SourceHouseholdId && lot.ItemKind == "food").Sum(lot => lot.Quantity);
+        world.SubmitInstruction(new("split-food-payment", "owner:test", Beneficiary, OwnerInstructionKind.Suggestive,
+            "Consider paying the accepted food price from your actual carried surplus, keeping your needed food."));
+        for (var tick = 0; tick < 8 && world.Towns[0].LandHearings.Transfers[0].Status == "pending"; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var result = Assert.Single(world.Towns[0].LandHearings.Transfers);
+        Assert.Equal(completes ? "transferred" : "pending", result.Status);
+        Assert.True(world.Society.Inventory.Lots.Where(lot => lot.OwnerId == Beneficiary && lot.ItemKind == "food" &&
+            PersonalEquipmentRules.IsCarried(lot, Beneficiary)).Sum(lot => lot.Quantity) >= 2);
+        if (completes)
+        {
+            var payment = Assert.IsType<TownLandSalePayment>(result.Receipt!.Payment);
+            Assert.Equal(price, payment.Lots.Sum(lot => lot.Quantity));
+            Assert.Equal(2, payment.Lots.Count);
+            Assert.Equal(sellerFood + price, world.Society.Inventory.Lots.Where(lot =>
+                lot.OwnerId == provider.SourceHouseholdId && lot.ItemKind == "food").Sum(lot => lot.Quantity));
+        }
+        else
+        {
+            Assert.Null(result.Receipt);
+            Assert.Equal(Permissions(before), Permissions(world.ExportState()));
+            Assert.DoesNotContain(provider.Selected, choice => choice.StartsWith(Beneficiary + ":", StringComparison.Ordinal) &&
+                choice.Contains("|land_transfer_pay|", StringComparison.Ordinal));
+            Assert.DoesNotContain(world.Society.Inventory.Events.Skip(inventory.Events.Count),
+                item => item.Detail.EndsWith(":land_use_right_payment", StringComparison.Ordinal));
+        }
+        world.Validate();
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => provider.ReplayPolicy());
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
     private static OwnerLandTransfer SaleClient(PrivateWorldRuntime world)
     {
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);

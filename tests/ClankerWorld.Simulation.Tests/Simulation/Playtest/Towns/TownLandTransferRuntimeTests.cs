@@ -407,6 +407,9 @@ public sealed partial class TownLandTransferRuntimeTests
         public long ProviderEpoch => 1;
         public bool AllowPropose { get; set; }
         public bool Sell { get; set; }
+        public string SaleItemKind { get; set; } = "wood";
+        public int SaleQuantity { get; set; } = 2;
+        public bool CollectSalePayment { get; set; } = true;
         public bool PaySales { get; set; } = true;
         public bool HoldSellerMeeting { get; set; }
         public bool Proposed { get; set; }
@@ -424,6 +427,9 @@ public sealed partial class TownLandTransferRuntimeTests
         {
             AllowPropose = AllowPropose,
             Sell = Sell,
+            SaleItemKind = SaleItemKind,
+            SaleQuantity = SaleQuantity,
+            CollectSalePayment = CollectSalePayment,
             PaySales = PaySales,
             HoldSellerMeeting = HoldSellerMeeting,
             Proposed = Proposed,
@@ -445,7 +451,7 @@ public sealed partial class TownLandTransferRuntimeTests
                 ? Pick(Sell ? "land_transfer_sell" : "land_transfer_propose") : null;
             var choice = Kind == DecisionProviderKind.Jev ? proposal : null;
             choice ??= Pick("read") ?? Pick("land_transfer_read") ??
-                (Sell && PaySales && Mode is null ? Pick("land_transfer_collect_payment") ?? Pick("land_transfer_pay") ?? Pick("land_transfer_meet") : null) ?? Pick("visit");
+                (Sell && PaySales && Mode is null ? (CollectSalePayment ? Pick("land_transfer_collect_payment") : null) ?? Pick("land_transfer_pay") ?? Pick("land_transfer_meet") : null) ?? Pick("visit");
             if (choice is null && AcceptGrants)
                 choice = Pick("yes") ?? (observation.InhabitantId is Filer or SourcePartner ? Pick("accept_land_use") : null);
             if (choice is null && Mode == "withdraw" && observation.InhabitantId == Filer) choice = Pick("land_transfer_withdraw");
@@ -466,7 +472,7 @@ public sealed partial class TownLandTransferRuntimeTests
                 observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest, choice.Id, 1,
                 candidates.ToDictionary(candidate => candidate.Id, candidate => candidate.Id == choice.Id ? 1d : 0d, StringComparer.Ordinal),
                 CivicLandTiles: proposing ? Plot.Select(tile => new CognitionLandTile(tile.X, tile.Y)).ToArray() : null,
-                CivicLandHearing: proposing ? new(HouseholdId: TargetHouseholdId, PaymentItemKind: Sell ? "wood" : null, PaymentQuantity: Sell ? 2 : null) : null);
+                CivicLandHearing: proposing ? new(HouseholdId: TargetHouseholdId, PaymentItemKind: Sell ? SaleItemKind : null, PaymentQuantity: Sell ? SaleQuantity : null) : null);
             if (HoldPartner && observation.InhabitantId == SourcePartner && held is null && choice.Id.Contains("|land_transfer_accept|", StringComparison.Ordinal))
             {
                 held = response;

@@ -10,8 +10,18 @@ public sealed partial class PrivateWorldRuntime
 
     private InventoryLot[] LandSaleCarriedLots(string actor, TownLandSalePrice price) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.OwnerId == actor && lot.ItemKind == price.ItemKind && PersonalEquipmentRules.IsCarried(lot, actor) &&
-            lot.DeliveryBuildingId is null && !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id) && MarketSurplus(actor, lot) > 0)
+            lot.DeliveryBuildingId is null && !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id) && AvailableLotQuantity(lot) > 0)
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+
+    private int LandSaleCarriedQuantity(string actor, TownLandSalePrice price)
+    {
+        var available = LandSaleCarriedLots(actor, price).Sum(AvailableLotQuantity);
+        // Keep the food reserve once across all payment stacks, rather than
+        // letting each stack count the others as the same retained reserve.
+        var reserve = IsEdibleFood(price.ItemKind)
+            ? Math.Max(2, CaregiverFoodCarryRequirement(actor, inhabitants[actor])) : 0;
+        return Math.Max(0, available - reserve);
+    }
 
     private InventoryLot? LandSaleStock(string actor, TownLandSalePrice price) => SharedItem(price.ItemKind, actor) is { } lot &&
         lot.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId && lot.DeliveryBuildingId is null &&
@@ -26,7 +36,7 @@ public sealed partial class PrivateWorldRuntime
         var household = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (household == request.TargetHouseholdId)
         {
-            var carried = LandSaleCarriedLots(actor, price).Sum(lot => MarketSurplus(actor, lot));
+            var carried = LandSaleCarriedQuantity(actor, price);
             if (carried < price.Quantity && FreeCarryCapacity(actor) > 0 && LandSaleStock(actor, price) is not null)
                 candidates.Add(new(CivicAction(town.Id, "land_transfer_collect_payment", token),
                     "Collect available household goods you may carry for this accepted land-use sale. " + LandTransferTerms(request), 175));
@@ -60,7 +70,7 @@ public sealed partial class PrivateWorldRuntime
     private void CollectLandSalePayment(string actor, TownLandTransferRequest request)
     {
         var price = request.Price!;
-        var missing = price.Quantity - LandSaleCarriedLots(actor, price).Sum(lot => MarketSurplus(actor, lot));
+        var missing = price.Quantity - LandSaleCarriedQuantity(actor, price);
         if (missing <= 0 || LandSaleStock(actor, price) is not { } lot) return;
         var position = HouseholdStockPosition(lot);
         var range = HouseholdStockInteractionRange(lot);
@@ -90,12 +100,14 @@ public sealed partial class PrivateWorldRuntime
         var seller = parties.Single(party => party.HouseholdId == price.SellerHouseholdId).AdultIds
             .FirstOrDefault(actor => NearCivicBoard(actor, town));
         if (seller is null) return (council, town.LandHearings);
+        if (LandSaleCarriedQuantity(buyer, price) < price.Quantity)
+            throw new InvalidOperationException("The exact personally carried surplus goods price is unavailable.");
         var inventory = society.Checkpoint.Inventory;
         var remaining = price.Quantity;
         var paymentLots = new List<TownLandSalePaymentLot>();
         foreach (var lot in LandSaleCarriedLots(buyer, price))
         {
-            var quantity = Math.Min(remaining, Math.Min(AvailableLotQuantity(inventory, lot), MarketSurplus(buyer, lot)));
+            var quantity = Math.Min(remaining, AvailableLotQuantity(inventory, lot));
             inventory = InventoryFixture.Transfer(inventory, TownLandTransferRules.PaymentTransferId(request, buyer, paymentLots.Count),
                 buyer, price.SellerHouseholdId, lot.Id, quantity, "land_use_right_payment",
                 destinationGroundPosition: new(board.X, board.Y));
