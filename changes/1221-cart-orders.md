@@ -1,0 +1,1 @@
+- Adults and elders can follow orders to pull or park an owned handcart, including a cart named by its tile. Orders keep their chosen cart across saves and interruptions, preserve cargo and ownership, and explain physical blockers. Older alpha saves stop loading and are kept unchanged.

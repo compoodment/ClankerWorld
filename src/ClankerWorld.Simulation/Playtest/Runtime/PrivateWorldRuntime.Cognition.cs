@@ -139,8 +139,11 @@ public sealed partial class PrivateWorldRuntime
                 ToolMakingRequestNote: ToolMakingRequestNoteCore(inhabitant.Id),
                 AllowedChildSurnames: inhabitant.NeedsName && InhabitantNameRules.RequiresParentSurname(checkpoint, inhabitant.Id)
                     ? InhabitantNameRules.AllowedChildSurnames(checkpoint, inhabitant.Id) : null,
-                MarriageNote: marriages.SingleOrDefault(item => AgentMarriageRules.HasParticipant(item, inhabitant.Id)) is { } marriage
-                    ? AgentMarriageRules.Note(marriage, inhabitant.Id, checkpoint) : null);
+                MarriageNote: marriages.Where(item => AgentMarriageRules.HasParticipant(item, inhabitant.Id))
+                    .OrderBy(item => item.EndReceipt is not null).ThenByDescending(item => item.AcceptedTick)
+                    .ThenBy(item => item.Id, StringComparer.Ordinal).FirstOrDefault() is { } marriage
+                    ? AgentMarriageRules.Note(marriage, inhabitant.Id, checkpoint) : null,
+                FamilyBackground: InitialChildFamilyBackground(inhabitant.Id, physical));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,
@@ -606,6 +609,11 @@ public sealed partial class PrivateWorldRuntime
 
         if (pendingInstruction is { } order)
         {
+            if (TalkOrderHasConversation(order))
+            {
+                ApplyTalkOrderConversationDecision(order, decision);
+                return;
+            }
             if (decision.Admission.FellBack)
             {
                 SetOrderStatus(order, "blocked", "The order will try again after a short wait.", waitForDecision: true);
@@ -1010,6 +1018,9 @@ public sealed partial class PrivateWorldRuntime
             case "explore":
                 Explore(inhabitantId, state);
                 break;
+            case "explore_return":
+                ChooseExplorationReturn(inhabitantId, state);
+                break;
             case "wear_clothing":
                 EquipPrivateItem(inhabitantId, state, carryAid: false);
                 break;
@@ -1333,6 +1344,9 @@ public sealed partial class PrivateWorldRuntime
         var urgentCandidate = urgent
             ? SelectOrderSurvivalCandidate(candidates, state, order)
             : null;
+        if (TalkOrderHasConversation(order))
+            return candidates.Where(item => item.Id == "safe_idle" || item.Id.StartsWith("conversation_", StringComparison.Ordinal) ||
+                urgent && IsSurvivalCandidate(state.InhabitantId, item.Id)).ToList();
         var taskCandidate = OrderCandidateFor(order, state);
         if (ShouldInterruptOrder(state, order, taskCandidate, urgentCandidate))
             taskCandidate = null;

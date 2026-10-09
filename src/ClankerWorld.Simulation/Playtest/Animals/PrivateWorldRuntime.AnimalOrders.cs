@@ -68,25 +68,7 @@ public sealed partial class PrivateWorldRuntime
         var choice = AnimalChoices(actor).FirstOrDefault(choice => choice.AnimalId == animal.Id && choice.Action == action);
         var previousPosition = inhabitants[actor].Position;
         if (choice is not null) _ = ApplyAnimalCandidate(actor, choice.Id);
-        animal = Animal(animal.Id)!;
-        var finished = action switch
-        {
-            "care" => MayCareForAnimal(actor, animal) && animal.CareUntilTick > oldCare,
-            "collect" => oldProduct is not null && animal.ReadyProductLotId is null && MayCareForAnimal(actor, animal),
-            "tame" => AnimalHouseholdMember(actor, animal),
-            "lead_home" => AnimalHouseholdMember(actor, animal) && AssignedAnimalYard(animal) is { } yard &&
-                YardTiles(yard).Contains(animal.Position) && animal.LeaderId is null,
-            "saddle" => AnimalHouseholdMember(actor, animal) && animal.SaddleLotId is not null,
-            "mount" => animal.RiderId == actor,
-            _ => animal.RiderId is null,
-        };
-        if (finished)
-        {
-            CreditOrderEffect(instruction, "animal-order:" + AnimalKey(instruction.InstructionId + ":" + animal.Id + ":" +
-                (action == "care" ? animal.CareUntilTick.ToString(System.Globalization.CultureInfo.InvariantCulture) :
-                 action == "collect" ? oldProduct : WorldTick.ToString(System.Globalization.CultureInfo.InvariantCulture))), 1);
-            return;
-        }
+        if (CreditEffect()) return;
         if (inhabitants[actor].Position != previousPosition) return;
         if (action is "care" or "collect" or "saddle")
         {
@@ -95,7 +77,30 @@ public sealed partial class PrivateWorldRuntime
             else if (AnimalSupplyChoices(actor).FirstOrDefault(supply => supply.AnimalId == animal.Id && supply.Action == action) is { } supply)
                 _ = ApplyAnimalSupplyCandidate(actor, supply.Id);
         }
+        // A supply pickup can finish collection immediately at the animal.
+        if (CreditEffect()) return;
         if (choice is null) SetOrderStatus(instruction, "blocked", "Waiting for this animal's permission, physical supplies, product or free yard place.");
+
+        bool CreditEffect()
+        {
+            animal = Animal(animal.Id)!;
+            var finished = action switch
+            {
+                "care" => MayCareForAnimal(actor, animal) && animal.CareUntilTick > oldCare,
+                "collect" => oldProduct is not null && animal.ReadyProductLotId is null && MayCareForAnimal(actor, animal),
+                "tame" => AnimalHouseholdMember(actor, animal),
+                "lead_home" => AnimalHouseholdMember(actor, animal) && AssignedAnimalYard(animal) is { } yard &&
+                    YardTiles(yard).Contains(animal.Position) && animal.LeaderId is null,
+                "saddle" => AnimalHouseholdMember(actor, animal) && animal.SaddleLotId is not null,
+                "mount" => animal.RiderId == actor,
+                _ => animal.RiderId is null,
+            };
+            if (!finished) return false;
+            CreditOrderEffect(instruction, "animal-order:" + AnimalKey(instruction.InstructionId + ":" + animal.Id + ":" +
+                (action == "care" ? animal.CareUntilTick.ToString(System.Globalization.CultureInfo.InvariantCulture) :
+                 action == "collect" ? oldProduct : WorldTick.ToString(System.Globalization.CultureInfo.InvariantCulture))), 1);
+            return true;
+        }
     }
 
     private void CancelAnimalSupplyForOrder(OwnerQueuedInstruction instruction)

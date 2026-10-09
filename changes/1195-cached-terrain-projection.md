@@ -1,0 +1,1 @@
+- Cached client refreshes reuse terrain calculations, reducing server allocations while keeping the same map detail and live world updates.
