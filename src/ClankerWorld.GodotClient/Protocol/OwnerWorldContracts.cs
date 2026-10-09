@@ -208,7 +208,14 @@ public sealed record OwnerLandTransfer(string Id, string FilerId, string FilerNa
     string TargetHouseholdName, IReadOnlyList<OwnerWorldPosition> Tiles, IReadOnlyList<OwnerLandHearingRightVersion> RightVersions,
     IReadOnlyList<OwnerLandTransferParty> Parties, string NoticeId, long ProposedTick,
     IReadOnlyList<OwnerLandTransferResponse> Responses, string Status, long? SettledTick, string? Reason,
-    string? ReceiptAdjustmentId);
+    string? ReceiptAdjustmentId)
+{
+    public OwnerLandSalePrice? Price { get; init; }
+    public OwnerLandSalePayment? Payment { get; init; }
+}
+public sealed record OwnerLandSalePrice(string SellerHouseholdId, string SellerHouseholdName, string ItemKind, int Quantity);
+public sealed record OwnerLandSalePayment(string BuyerAgentId, string BuyerName, string SellerAgentId, string SellerName,
+    OwnerWorldPosition Position, long Tick);
 
 public sealed record OwnerLandHearingOutcome(string Kind, string? HouseholdId, string? HouseholdName, long? AgreedEndTick);
 public sealed record OwnerLandHearingProposal(IReadOnlyList<OwnerWorldPosition> Tiles,

@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Playing the current game
@@ -629,10 +629,20 @@ and receiving households must learn the published terms and personally accept;
 proposing, reading and silence supply no acceptance. A new adult joining while
 it is pending must accept too. This ordinary transfer needs no Council or mayor
 approval. It preserves the original grant date and any agreed end date, and
-moves only use permission. Town title, membership, buildings, crops, goods and
-private-building access stay unchanged. Expired, disputed or under-review land
+moves use permission and any agreed goods payment. Town title, membership,
+buildings, crops, other goods and private-building access stay unchanged. Expired, disputed or under-review land
 cannot use this route. Town, plot and property details show the exact terms,
 names, dates and each household's acceptance progress.
+
+A household can also offer that exact use permission for a named quantity of
+goods. Every affected adult accepts the published price as well as the plot.
+Permission waits until a buyer adult brings their own usable, unreserved loose
+goods to meet a seller adult at the Town's notice place. The payment becomes
+seller household stock there as the permission moves; no money price is used.
+Household work tools stay borrowed, and reserved goods, vessel contents, full
+hands or a blocked route cannot supply payment. Town and plot details show the
+price, whether payment is still needed, and who completed it. A decline or
+withdrawal leaves permissions and unpaid goods with their owners.
 
 An affected household can ask for a land hearing, and the Town can file through
 its legitimate government. A permission with an agreed end date enters review

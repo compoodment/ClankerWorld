@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Saves and replay
@@ -561,6 +561,17 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
+Private-world schema 107 adds optional goods prices to voluntary permission
+transfers and actual goods payment to their settlement receipts. The notice and
+consent token include the immutable price. A paid request stays pending after
+all current adults accept until physical payment and permission settle together.
+Receipts retain the buyer, seller adult, meeting place and exact inventory
+transfer event IDs and quantities; retained events must match the accepted terms.
+Current-format checks cover pending and completed reload, declined sales,
+refused-step rollback and paired byte-identical continuation. Older alpha saves
+are refused and preserved without migration. This number is provisional until
+merge.
+
 Private-world schema 106 adds `talk_to` order bindings: stable `TargetAgentId`,
 optional `TalkConversationId` and the completed `TalkOutcome`. Validation binds
 an active task to one actual ordinary invitation from its actor to its target;
@@ -871,7 +882,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 106. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 107. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus

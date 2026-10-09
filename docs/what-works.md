@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # What works today
@@ -878,11 +878,23 @@ learn the published terms and personally accept. A proposal, a read or silence
 supplies no consent, and a new adult joining before completion must accept too.
 This ordinary route needs no mayor or Council approval and preserves the original
 grant date and any agreed end date. It changes no Town title, household membership,
-building, crop, goods or private-building access. A decline or the proposer's
+building, crop, other goods or private-building access. An agreed goods price
+moves only through actual payment. A decline or the proposer's
 withdrawal closes it without moving permission. Expiry, disputed claims, an open
 hearing or changed source permission stop it. Town, plot and property details
 show exact terms, named adults and acceptance counts; Towns retains all pending
 transfers and eight recent closed ones, with full history in the save.
+
+Households can sell existing use permission for an exact goods quantity through
+that same adult consent process. Acceptance alone leaves a sale pending. A buyer
+collects permitted household stock within their carrying space, or uses their own
+carried goods, and physically meets a seller adult at the notice place. Usable,
+unreserved loose goods become seller household stock there in the same accepted
+step that transfers permission. Borrowed tools, delivery promises, containers,
+reserved goods and needed food cannot be spent. The saved receipt binds payment
+to the exact accepted price; reload retains unpaid consent and completed sales.
+Town and plot details show the goods price and distinguish awaiting acceptance
+from awaiting payment. Money prices remain future work.
 
 A House that needs more room can request the exact extra tiles for an expansion.
 Construction waits for recorded permission, and rechecks it before completion.

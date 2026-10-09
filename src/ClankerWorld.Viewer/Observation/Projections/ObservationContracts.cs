@@ -449,7 +449,14 @@ public sealed record ViewerLandTransfer(string Id, string FilerId, string FilerN
     string TargetHouseholdName, IReadOnlyList<ViewerPosition> Tiles, IReadOnlyList<ViewerLandHearingRightVersion> RightVersions,
     IReadOnlyList<ViewerLandTransferParty> Parties, string NoticeId, long ProposedTick,
     IReadOnlyList<ViewerLandTransferResponse> Responses, string Status, long? SettledTick, string? Reason,
-    string? ReceiptAdjustmentId);
+    string? ReceiptAdjustmentId)
+{
+    public ViewerLandSalePrice? Price { get; init; }
+    public ViewerLandSalePayment? Payment { get; init; }
+}
+public sealed record ViewerLandSalePrice(string SellerHouseholdId, string SellerHouseholdName, string ItemKind, int Quantity);
+public sealed record ViewerLandSalePayment(string BuyerAgentId, string BuyerName, string SellerAgentId, string SellerName,
+    ViewerPosition Position, long Tick);
 
 public sealed record ViewerLandHearingOutcome(string Kind, string? HouseholdId, string? HouseholdName, long? AgreedEndTick);
 public sealed record ViewerLandHearingProposal(IReadOnlyList<ViewerPosition> Tiles,
