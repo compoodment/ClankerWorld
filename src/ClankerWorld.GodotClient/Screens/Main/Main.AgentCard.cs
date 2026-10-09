@@ -867,6 +867,7 @@ public partial class Main
             "talk_to" => "Talking with the named person",
             "attach_handcart" => "Attaching a handcart",
             "park_handcart" => "Parking a handcart",
+            "repair_handcart" => "Repairing a handcart",
             "animal_care" => "Caring for an animal",
             "animal_collect" => "Collecting animal products",
             "animal_tame" => "Taming an animal",
