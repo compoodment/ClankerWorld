@@ -118,6 +118,8 @@ public sealed class RecipeKnowledgePipelineTests
         {
             var scout = new SelectingProvider(author, ["explore"]);
             using var exploring = PrivateWorldRuntime.Restore(state, _ => scout);
+            exploring.SubmitInstruction(new("scout-before-recipe-book", "owner:test", author,
+                OwnerInstructionKind.Suggestive, "Scout nearby before writing the book."));
             await Until(exploring, () => exploring.Knowledge.Facts.Any(fact => fact.OwnerId == author));
             scout.Prefixes = ["explore_return"];
             exploring.SubmitInstruction(new("return-before-recipe-book", "owner:test", author,
