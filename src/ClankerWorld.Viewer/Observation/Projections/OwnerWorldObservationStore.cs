@@ -869,8 +869,7 @@ public sealed partial class OwnerWorldObservationStore
                         order.TargetOutputKind, order.TargetItemKind, order.TargetBuildingKind, order.TargetAnimalId,
                         order.TargetKnowledgeKind, order.TargetCartLotId,
                         order.TalkConversationId,
-                        (state.Conversations ?? []).FirstOrDefault(item => item.Id == order.TalkConversationId) is { } talk
-                            ? ConversationStatus(talk.Status) : order.TalkOutcome is not null ? "closed" : null,
+                        ConversationOrderStatus(state, order),
                         order.TalkOutcome, order.TargetKnowledgeArtifactId) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
@@ -2158,4 +2157,13 @@ public sealed partial class OwnerWorldObservationStore
         OwnerInstructionState.Queued => "queued",
         _ => throw new ArgumentOutOfRangeException(nameof(state)),
     };
+    private static string? ConversationOrderStatus(PrivateWorldRuntimeState state, OwnerInstructionOrder order)
+    {
+        if (order.Action == "propose_marriage" && (state.Marriages ?? []).FirstOrDefault(item => item.Consent.Id == order.TalkConversationId) is { CompletedTick: null } marriage)
+            return (state.Conversations ?? []).FirstOrDefault(item => item.Id == marriage.SurnameConversationId) is { } surname
+                ? "surname_" + ConversationStatus(surname.Status) : "surname_pending";
+        return (state.Conversations ?? []).FirstOrDefault(item => item.Id == order.TalkConversationId) is { } talk
+            ? ConversationStatus(talk.Status) : order.TalkOutcome is not null ? "closed" : null;
+    }
+
 }

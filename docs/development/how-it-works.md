@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # How the game works
@@ -616,6 +616,22 @@ an affirmative choice. A replacement talk task also lets an already active
 conversation finish before sending its own invitation. Urgent survival remains available. Active links keep
 closed history from being pruned before completion is credited. The owner
 projection reports the actual phase and saved outcome to the card.
+
+`propose_marriage` recognizes "Propose marriage" and "Propose marriage to my
+partner" for adults. It reuses the conversation-order path, binds the current
+accepted partnership's other person, and checks `AgentMarriageRules.CanPropose`
+without changing eligibility. An initially missing partner leaves the order
+blocked; once selected, the target never changes to another partner. Only the
+addressed person's ordinary conversation request receives the bounded
+`RequestedActivity=propose_marriage` context. The invitation, marriage wrap-up
+and surname choices remain personal-model decisions. Speech changes no world
+state. Refusal is an honest completed attempt; an ordinary close without a
+marriage proposal records `not_proposed`. Accepted mutual marriage consent
+holds the task until the linked native surname session completes, then records
+`married` and one deterministic `marriage-order:` receipt. Active links retain
+the original consent conversation until credit. The owner projection follows
+surname status while consent is accepted but incomplete. Cancellation removes
+the task without undoing consent, renaming anyone or forcing resumption.
 
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses. Default gathering counts one harvest; explicit quantities
