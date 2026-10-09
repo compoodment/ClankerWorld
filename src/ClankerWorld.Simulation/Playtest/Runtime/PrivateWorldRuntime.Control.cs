@@ -410,6 +410,7 @@ public sealed partial class PrivateWorldRuntime
         "animal_dismount" => "dismount the named horse and leave excess cargo here",
         "seek_shelter" => "reach the requested permitted shelter",
         "tend_fire" => "light one permitted hearth using your own wood",
+        "read_knowledge" => KnowledgeReadOrderTask,
         "consume_food" => "eat one carried food item",
         "move_to" => "travel to the exact tile named in this order",
         "travel_by_boat" => "travel by communal boat to the exact Port named in this order",
@@ -443,7 +444,7 @@ public sealed partial class PrivateWorldRuntime
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
-        return ParseTalkOrder(text, actor) ?? ParseCartOrder(text, actor) ?? ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
+        return ParseKnowledgeReadOrder(text) ?? ParseTalkOrder(text, actor) ?? ParseCartOrder(text, actor) ?? ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
             PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent),
             PrivateWorldBuildingOrderCatalog.Available(worldContent),
             worldSimulation.Buildings.Where(port => Port(port.InstanceId) is not null).ToArray());

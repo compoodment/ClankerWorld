@@ -574,6 +574,20 @@ reloads, halfway resumption and rejected invitation/completion ticks. The
 number is provisional until merge. Older alpha saves are refused and preserved
 without migration.
 
+Private-world schema 107 adds `read_knowledge` task bindings. The optional
+`TargetKnowledgeArtifactId` is stable across waits; `KnowledgeReadCompletion`
+records the actual read tick and at most nine distinct, sorted newly learned
+sites. One deterministic receipt credits a successful task. Validation checks
+the target kind, frozen written membership and the actor's actual read
+provenance at that tick. A later personal observation may update the site
+without undoing its completed read task; historical completion can outlive a
+removed artifact only after all credited sites have later accounts. Active
+missing targets remain blocked. Completed tasks cannot be credited again.
+Tests cover native paid artifacts and ownership, paired replay/reload, urgent
+food, cancellation/replacement, exact targeting, full/partial knowledge limits,
+malformed progress and rejected read ticks. This number is provisional until
+merge. Older alpha checkpoints are refused and preserved without migration.
+
 Private-world schema 84 adds required marriage records and conversation kinds.
 Each marriage retains its accepted partnership snapshot and the ordinary
 conversation's separate mutual marriage consent. Its surname session admits
@@ -871,7 +885,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 107. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 108. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -1018,7 +1032,7 @@ current alpha cutoff.
 | Schema 98 | Existing inventory events retain exact physical storage additions/removals by building and item kind, with signed quantities. Event identities, trade receipts, rollback and bounded archival remain intact. Malformed changes and earlier alpha schemas are refused; no migration or history reconstruction is added. |
 | Schema 99 | Towns retain the latest abandonment tick independently of bounded events. Revival clears it; missing markers, future or pre-founding ticks, and markers on lived-in Towns are refused. Earlier alpha saves are refused and preserved without migration. |
 | Schema 100 | Actual observations refresh current personal map facts. The required bounded `EarlierFacts` ledger backs unchanged artifacts and writing snapshots; duplicate, orphaned, future and mismatched versions are refused. Native writing, copying, planting, cancellation and current-format continuation retain exact contents and paid materials. Earlier alpha saves are refused and preserved without migration. |
-| Schema 107 | Owner Port-travel orders bind the exact destination Port and latest native boat request. Requests retain their originating instruction; sequential retry and actual destination-arrival receipts are validated. Cancellation preserves underway recovery, and return to departure supplies no completion. Earlier alpha saves are refused and preserved without migration. |
+| Schema 108 | Owner Port-travel orders bind the exact destination Port and latest native boat request. Requests retain their originating instruction; sequential retry and actual destination-arrival receipts are validated. Cancellation preserves underway recovery, and return to departure supplies no completion. Earlier alpha saves are refused and preserved without migration. |
 | Schema 105 | Attach/pull and park orders retain optional stable cart identities and native completion receipts. Strict validation checks cart references, task shape and receipt identity; owner/Godot projections retain the target. Queue, cancellation/replacement, urgent food, ownership changes, refused-tick rollback and paired replay/reload preserve actual cart and cargo state. Earlier alpha saves are refused and preserved without migration. |
 | Schema 104 | Scouting can continue beyond eight steps and explicitly return. Loop-free outward paths are bounded by map tile count; visited tiles and recent discoveries retain their 256-entry limits. Current-format saves retain longer outward and returning paths, original origins, actual knowledge and historical bridge validation. Replay includes chosen return, occupied-corner detours, interruption and refused-tick rollback. Earlier alpha saves are refused and preserved without migration. |
 | Schema 103 | Boat transport requires compact retired-request sequence ranges. Checkpoint compaction durably archives full older closed requests before retaining all active requests and the latest 40 closed requests. Ranges and live requests cover each issued sequence exactly once, including gaps around older active travelers. Loading verifies that the reachable archive contains exactly those retired closed requests. Earlier alpha saves are refused and preserved without migration. |
@@ -1179,7 +1193,7 @@ owner, passenger or request, duplicate physical or incoming dock claims, invalid
 water steps and an active passenger separated from the boat. Waiting requests
 hold no boat reservation; terminal history remains saved.
 
-Schema 107 adds `OwnerInstructionOrder.BoatTravel`, containing the stable
+Schema 108 adds `OwnerInstructionOrder.BoatTravel`, containing the stable
 destination Port ID and latest request ID, and optional `BoatTripRequest.OrderInstructionId`.
 Validation binds each ordered request to the same instruction, passenger and
 destination, disallows overlapping retries, and requires the latest actual

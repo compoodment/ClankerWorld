@@ -267,6 +267,18 @@ Queued work waits for that outcome. An accepted unfinished conversation loads
 stopped and needs both people's fresh resume choices. Unavailable people,
 models, allowances and routes leave useful blockers. Marriage proposals are
 outside this talk adapter. [The Windows check](../playtest/1222-talk-order.md)
+is written, but has not been run.
+
+Reading orders cover personally owned, carried field records, maps and books.
+"Read a map", "Read a book" or "Read" selects one eligible item; an exact
+artifact ID, lot ID or unique title binds that item even while it is elsewhere.
+The task adds only its frozen written sites and original discovery sources,
+within the existing knowledge limit. Foreign, borrowed, stored, ground or
+reserved items leave a blocker. An unreadable item or one with no new sites
+does not finish the task. Only that agent's own successful native read counts;
+another person's reading teaches them separately. Queueing, cancellation,
+replacement, urgent survival and saving preserve the task and its actual
+progress. [The Windows reading-order check](../playtest/1223-reading-orders.md)
 is pending.
 
 Orders currently cover eating carried food, collecting accessible household
@@ -1424,6 +1436,12 @@ that follows the Light or Dark theme. Mineral/clay sites exist; some
 materials still lack a complete production chain.
 
 ## Saves, keys and inventions
+
+A written [private-server deployment checklist](development/private-server-deployment.md)
+is available for manual server updates. It covers staging a build, preserving
+installation state, checking the updated server while paused and rolling back
+if needed. The staged deployment command and local Windows package remain
+unfinished. Each deployment or rehearsal needs its own recorded results.
 
 Worlds keep their own saves, model assignments and autosave settings. API keys,
 pairing and the model-call count and limit belong to the installation. The
