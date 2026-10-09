@@ -68,9 +68,9 @@ public partial class Main
             "Manual saves, older unclassified copies and unverifiable checkpoints are kept. " +
             "Cleanup runs only when you confirm. There is no undo.\n\nRemove:\n" +
             (preview.Remove.Count == 0 ? "None" : string.Join('\n', preview.Remove.Select(save =>
-                $"• {save.Name} — {save.CreatedUtc.ToLocalTime():g} — tick {save.WorldTick} — {save.Id}"))) +
+                $"• {save.Name} — {save.CreatedUtc.ToLocalTime():g} — {DisplayWorldClock(save.WorldTick)} — {save.Id}"))) +
             "\n\nKeep:\n" + string.Join('\n', preview.Keep.Select(save =>
-                $"• {save.Name} — {save.CreatedUtc.ToLocalTime():g} — tick {save.WorldTick} — {save.Id}"));
+                $"• {save.Name} — {save.CreatedUtc.ToLocalTime():g} — {DisplayWorldClock(save.WorldTick)} — {save.Id}"));
         recoveryCleanupConfirmation.GetOkButton().Disabled = pendingRecoveryCleanup is null || isOwnerAction;
         PopupDialog(recoveryCleanupConfirmation);
     }
