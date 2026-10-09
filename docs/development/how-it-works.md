@@ -2579,16 +2579,31 @@ room and stores that kind; the runtime passes each Town's Warehouse, free room
 and refused kinds (food, and handcarts, which stay on the ground) as
 `SocietyTownStore`. Food refusal and Warehouse validation use the inventory's
 food classifier, including eggs, milk, cooked eggs, milk porridge and rich
-meals. The refusal set is built from actual stock only when a Town bequest is
-due. Whatever the will cannot deliver (a share for an heir who
+meals. The refusal set is built from actual stock only when an estate is due.
+Whatever the will cannot deliver (a share for an heir who
 has since died, food, a handcart or goods beyond the room) follows the
 household default: an equal split between the living household
-beneficiaries, with the first in ID order taking leftovers, or communal stock
-when none remain. A vessel and its contents move as one family and keep their
+beneficiaries, with the first in ID order taking leftovers, or the deceased
+resident's recorded Town when none remain. That Town's Warehouse receives
+eligible goods while space remains; overflow keeps its original location and
+Town ownership, with separate lot IDs for Warehouse and ground portions.
+A vessel and its contents move as one family and keep their
 lot IDs: the Town takes a family only when the Warehouse accepts every kind in
 it and has room for all of it, otherwise the family follows the household
 default, where vessels rotate between the living beneficiaries. A quantity-one
-map or field record keeps its lot ID.
+map, field record or book keeps its lot ID.
+
+`TownEstateDefaultRule` is a typed Resident-duty law proposed and amended by
+the ordinary Council process, with 0%, 25%, 50%, 75% and 100% choices offered
+to personal models. Free-form law text cannot create or amend that effect.
+When settlement is due, `DefaultEstateDivisionsForDueEstates` derives the rule
+from the deceased resident's saved Town and the version in force at death,
+strictly after that version's adoption. Later amendment or repeal cannot
+retarget the estate. Accepted wills always retain priority. Without one, the
+Town share is rounded down per lot and bounded by eligible Warehouse capacity;
+the remainder follows the household path. A whole vessel family is eligible
+for the law's Town share only at 100%, with room for all its contents.
+No living person's ownership changes when the law passes.
 
 Final words are optional with either outcome. `CognitionWillChoice.NormalizeFinalWords`
 turns control and invisible formatting characters into spaces, collapses

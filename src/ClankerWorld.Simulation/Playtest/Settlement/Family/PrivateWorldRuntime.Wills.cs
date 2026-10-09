@@ -222,12 +222,11 @@ public sealed partial class PrivateWorldRuntime
 
     /// <summary>
     /// Where each Town can keep goods an estate leaves it this tick. Only built
-    /// when a due estate names a Town, so ordinary ticks do no storage scan.
+    /// when an estate is due, so ordinary ticks do no storage scan.
     /// </summary>
     private SocietyTownStore[]? TownStoresForDueEstates(long targetTick)
     {
-        if (!society.Checkpoint.Estates.Any(estate => !estate.Settled && estate.WillStatus == "accepted" &&
-                estate.ExpiryTick <= targetTick && (estate.WillHeirIds ?? []).Any(id => towns.Any(town => town.Id == id))))
+        if (!society.Checkpoint.Estates.Any(estate => !estate.Settled && estate.WillStatus != "pending" && estate.ExpiryTick <= targetTick))
             return null;
         // A Warehouse takes no food, and no handcart, which stays on the ground:
         // the household path keeps such a cart and its cargo where they are.
@@ -239,6 +238,14 @@ public sealed partial class PrivateWorldRuntime
                 : null)
             .OfType<SocietyTownStore>().ToArray();
     }
+
+    private SocietyDefaultEstateDivision[] DefaultEstateDivisionsForDueEstates(long targetTick) =>
+        society.Checkpoint.Estates.Where(estate => !estate.Settled && estate.WillStatus != "pending" && estate.ExpiryTick <= targetTick)
+            .Select(estate => deceasedInhabitants.TryGetValue(estate.DeceasedId, out var deceased) && deceased.TownId is { } townId &&
+                towns.FirstOrDefault(town => town.Id == townId) is { } town
+                ? new SocietyDefaultEstateDivision(estate.Id, townId,
+                    TownEstateDefaultRules.AtDeath(town.Government, estate.CreatedTick)?.Version.EstateDefault?.TownSharePercent ?? 0)
+                : null).OfType<SocietyDefaultEstateDivision>().ToArray();
 
     private void ProcessWillDecisions(
         IReadOnlyList<PendingWillDecision> completed, IReadOnlyList<string> activeIds,

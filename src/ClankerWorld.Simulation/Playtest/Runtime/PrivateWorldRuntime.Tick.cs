@@ -495,7 +495,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainProductionOrdersBeforeTick();
             MaintainConstructionOrdersBeforeTick();
             MaintainExpansionOrdersBeforeTick();
-            society.AdvanceTo(targetTick, TownStoresForDueEstates(targetTick));
+            society.AdvanceTo(targetTick, TownStoresForDueEstates(targetTick), DefaultEstateDivisionsForDueEstates(targetTick));
             foreach (var boat in boatTransport.Boats.Where(boat => boat.GroundCargoLotIds is { Count: > 0 }).ToArray())
                 MoveBoatGroundCargo(boat, preserveCustody: true);
             var previousClimate = worldSystems.Climate;

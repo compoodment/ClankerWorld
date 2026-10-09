@@ -573,6 +573,17 @@ long. **World** shows today's date, the season and weather where you are
 looking and the year length, then counts of agents, Towns, households,
 buildings, road tiles, bridges, resource sites and the map size.
 
+Residents with a personal model can propose a supported default estate law
+through their Town's ordinary Council. Its proposal names the Town's share:
+0%, 25%, 50%, 75% or 100%. It needs the Council's usual majority. The law
+applies only to residents who die after adoption without a valid will; a valid
+will keeps priority. Read the proposal and recorded law in Towns. Changing or
+repealing it later leaves earlier estates under their original rule.
+The Town keeps eligible goods in its Warehouse while there is room, and living
+household heirs share the rest. Whole vessels stay together. With no living
+household heir, goods belong to the deceased resident's Town; non-food goods
+in an abandoned Town's Warehouse can be salvaged through the usual choice.
+
 Town residents make civic choices through their normal personal-model turns.
 Adults can agree to stand for election, visit their Town's public notice place
 near its founding site, read notices, relay what they learned to someone nearby,
