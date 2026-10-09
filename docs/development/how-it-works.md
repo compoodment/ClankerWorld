@@ -1097,9 +1097,12 @@ Archive entries retain the complete original record and archive tick; ordinary
 recall and memory-scoring candidates read only the active ledger. Typed life,
 relationship, skill and commitment records, durable cooperation/final-word
 receipts and world-event-backed beliefs stay active. Active orders, projects,
-lessons (including their teachers), parenthood, relationship proposals, barter,
+lessons (including their teachers), requested or preparing parenthood plans,
+relationship proposals, barter,
 conversations and outstanding hosted calls protect their owners; surname
-conversation turns stay protected after closing. Correction links and source
+conversation turns stay protected after closing. A completed, postponed or
+cancelled parenthood plan does not protect its owner's ordinary old records;
+other open work and protected kinds still do. Correction links and source
 validation include both ledgers, while trimming old dialogue clears obsolete
 turn references in both. The daily rule makes no provider call, runs with Jev
 and the routine helper off, and commits or rolls back with the native tick.
@@ -1948,6 +1951,13 @@ on the agent's ordinary decision cadence.
 Long ancestry-based agent IDs use stable SHA-256 aliases in civic model action
 tokens. The runtime resolves these against current inhabitants before checking a
 ballot; saved candidates and choices retain the actual IDs.
+
+Land-hearing readers, evidence sources and submitters, and judges keep their
+complete known saved agent identities, including adults born in the world.
+The shared civic identity check rejects blank, padded and control-character
+identities; caller-owned evidence, record and authority keys and prose keep
+their existing bounds. Current-world identity, notice and authority checks
+still apply.
 
 Saved notice receipts enter a bounded `CognitionSelfContext.CivicNote` excerpt
 with read/relay provenance and readable names/world days. An actor receives no

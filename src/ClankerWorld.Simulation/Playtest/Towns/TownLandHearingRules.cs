@@ -134,7 +134,7 @@ public static class TownLandHearingRules
     public static TownLandHearingState Inspect(TownLandHearingState state, string caseId, int revision, string actor, long tick)
     {
         var item = Exact(state, caseId, revision);
-        if (tick < CurrentRevision(item).PublishedTick || !ValidText(actor, 128)) throw new InvalidOperationException("The current case file must actually be inspected.");
+        if (tick < CurrentRevision(item).PublishedTick || !TownHearingProcedure.Id(actor)) throw new InvalidOperationException("The current case file must actually be inspected.");
         var read = new TownLandCaseRead(revision, actor, tick, Ordered(item.Evidence.Select(e => e.Id)))
         { ReopenRequestIds = Ordered(item.ReopenRequests.Select(r => r.Id)) };
         return Replace(state, item with { Reads = item.Reads.Append(read).ToArray() });
@@ -187,7 +187,7 @@ public static class TownLandHearingRules
     }
 
     internal static bool ValidEvidence(TownLandEvidence e) => e is not null && ValidText(e.Id, 128) &&
-        e.Revision > 0 && ValidText(e.Text) && ValidText(e.SourceAgentId, 128) && ValidText(e.SubmittedByAgentId, 128) &&
+        e.Revision > 0 && ValidText(e.Text) && TownHearingProcedure.Id(e.SourceAgentId) && TownHearingProcedure.Id(e.SubmittedByAgentId) &&
         e.ObservedTick >= 0 && e.SubmittedTick >= e.ObservedTick &&
         (e.Kind == "allegation" && e.Acquisition is "statement" or "relay" && e.SourceRecordId is null && e.SourceVersion is null ||
             e.Kind == "observation" && e.Acquisition == "firsthand" && e.SourceAgentId == e.SubmittedByAgentId && e.SourceRecordId is null && e.SourceVersion is null ||
@@ -211,7 +211,7 @@ public static class TownLandHearingRules
     public static TownLandHearingState AssignJudge(TownLandHearingState state, string caseId, TownLandCaseJudge judge)
     {
         var item = state.Cases.Single(c => c.Id == caseId);
-        if (judge.Kind is not ("land_mayor" or "case_elected") || !ValidText(judge.AgentId, 128) || !ValidText(judge.AuthorityId, 128))
+        if (judge.Kind is not ("land_mayor" or "case_elected") || !TownHearingProcedure.Id(judge.AgentId) || !ValidText(judge.AuthorityId, 128))
             throw new InvalidOperationException("A case needs a recorded land mandate.");
         item = TownLandCaseJudgeRules.CancelContest(item, judge.AssignedTick, "authorized_judge_available");
         return Replace(state, item with { Judge = judge });

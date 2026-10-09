@@ -664,7 +664,9 @@ experiences and beliefs at least three world days old with importance below
 25% move into each agent's saved private archive, which ordinary recall skips.
 Unscored records use zero importance, so this also works with the routine helper
 off. Life, relationship, skill and commitment records stay active; open work
-and conversations postpone archiving. These age and importance limits are
+and conversations postpone archiving. Only requested or preparing parenthood plans
+postpone it; completed, postponed and cancelled plans keep their saved history without
+protecting otherwise eligible old records. These age and importance limits are
 provisional. Original evidence and corrections survive saves. Agents can also start a nearby
 public conversation: each speaker uses their own assigned planning model,
 accepted speech is saved with the people who could hear it, and only those
@@ -997,6 +999,8 @@ close their opportunity early. The file distinguishes allegations, observations
 and inspected records, with sources and the deciding mayor's reasons. A conflicted
 land mayor stands aside for a willing independent adult elected for that case
 only. Without valid authority, the case and existing rights remain pending.
+Adults born in the world can inspect hearing files, contribute evidence, give
+their own property consent and serve as elected judges, just as founders can.
 
 Parties named at notice publication remain separate from current adult responders
 and the authorized Town representative. Death, household departure or loss of authority
