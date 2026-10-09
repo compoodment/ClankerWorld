@@ -67,15 +67,20 @@ public sealed class GrownAgentHelperMemoryTests
             state = aging.ExportState();
         }
         var sourceTick = state.Society.Society.WorldTick;
-        var memories = Enumerable.Range(0, 4).Select(index => new SocietySocialMemory(
+        var memories = Enumerable.Range(0, 3).Select(index => new SocietySocialMemory(
             $"grown-memory-{index}", childId, childId, $"A private remembered promise {index}.", "private", sourceTick)).ToArray();
         var foreign = new SocietySocialMemory("foreign-memory", state.Society.Society.Births[0].PrimaryCaregiverId, childId,
             "Another person's private promise.", "private", sourceTick);
+        var belief = new SocietyAgentBelief("grown-birth-belief", childId, "I remember my own birth.",
+            SocietyBeliefProvenance.Firsthand, 8_000, sourceTick, SourceAgentId: childId,
+            SourceEventId: Assert.Single(state.Events, item => item.Kind == "child_born").EventId,
+            AboutInhabitantId: childId);
+        var withBelief = SocietyFixture.RecordAgentBelief(state.Society.Society, belief);
         state = state with
         {
             Society = state.Society with
             {
-                Society = state.Society.Society with { Memories = state.Society.Society.Memories.Concat(memories).Append(foreign).OrderBy(item => item.Id, StringComparer.Ordinal).ToArray() },
+                Society = withBelief with { Memories = state.Society.Society.Memories.Concat(memories).Append(foreign).OrderBy(item => item.Id, StringComparer.Ordinal).ToArray() },
             },
         };
         // A controlled helper exercises the runtime's age and memory boundary.
@@ -109,6 +114,12 @@ public sealed class GrownAgentHelperMemoryTests
             Assert.InRange(subject.Length, 1, 128);
             Assert.StartsWith("agent-sha256:", subject, StringComparison.Ordinal);
         }
+        var recalledBelief = Assert.Single(observation.RetrievedMemories!, item => item.Id == belief.Id);
+        Assert.Equal(recalledBelief.SubjectId, recalledBelief.SourceAgentId);
+        Assert.StartsWith("agent-sha256:", recalledBelief.SourceAgentId, StringComparison.Ordinal);
+        Assert.Equal(("firsthand", 8_000, belief.SourceEventId),
+            (recalledBelief.Provenance,
+                recalledBelief.ConfidenceBasisPoints, recalledBelief.SourceEventId));
         Assert.True(observation.RequiresPersonalProvider);
         if (age == 15)
         {
@@ -122,6 +133,10 @@ public sealed class GrownAgentHelperMemoryTests
         {
             Assert.All(memories, memory => Assert.Contains(sources, item => item.Id == memory.Id));
             Assert.All(sources, item => Assert.Equal(childId, item.OwnerId));
+            var candidate = Assert.Single(sources, item => item.Id == belief.Id);
+            Assert.Equal(recalledBelief.SourceAgentId, candidate.SourceAgentId);
+            Assert.Equal((recalledBelief.SubjectId, "firsthand", 8_000, belief.SourceEventId),
+                (candidate.SubjectId, candidate.Provenance, candidate.ConfidenceBasisPoints, candidate.SourceEventId));
             // Complete and admit the actual pending helper response.
             Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
             await WaitForRequests(world);
@@ -130,6 +145,7 @@ public sealed class GrownAgentHelperMemoryTests
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
             var index = Assert.Single(world.Society.MemoryCompactions!, item => item.OwnerId == childId);
             Assert.All(memories, memory => Assert.Contains(index.Sources, item => item.SourceId == memory.Id && item.ImportanceBasisPoints == 9_000));
+            Assert.Contains(index.Sources, item => item.SourceId == belief.Id && item.Kind == SocietyMemorySourceKind.Belief && item.ImportanceBasisPoints == 9_000);
         }
         else
         {
@@ -137,11 +153,88 @@ public sealed class GrownAgentHelperMemoryTests
             Assert.DoesNotContain(world.Society.MemoryCompactions ?? [], item => item.OwnerId == childId);
             Assert.Contains(observation.RetrievedMemories!, item => memories.Any(memory => memory.Id == item.Id));
         }
+        Assert.Equal(belief, Assert.Single(world.Society.Beliefs!, item => item.Id == belief.Id));
         Assert.DoesNotContain(sources, item => item.Id == foreign.Id);
         Assert.All(memories.Append(foreign), memory => Assert.Contains(world.Society.Memories, item => item == memory));
         var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved));
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NativeReporterBeliefAllowsPersonalDecisionAfterExactReload(bool nativeReporter)
+    {
+        var state = PrivateWorldRuntimeCodec.Decode(await Born.Value);
+        var birth = Assert.Single(state.Society.Society.Births);
+        Assert.True(birth.ChildId.Length > 128);
+        var actor = birth.PrimaryCaregiverId;
+        var reporter = nativeReporter ? birth.ChildId : state.Society.Society.Inhabitants
+            .First(person => person.Id != actor && person.Id.Length <= 128).Id;
+        var belief = new SocietyAgentBelief("reporter-belief", actor, "The family remembers a promise.",
+            SocietyBeliefProvenance.Hearsay, 6_500, state.Society.Society.WorldTick,
+            SourceAgentId: reporter, AboutInhabitantId: reporter,
+            SourceEventId: Assert.Single(state.Events, item => item.Kind == "child_born").EventId);
+        state = state with
+        {
+            JevEnabled = false,
+            RoutineHelper = RoutineHelperSettings.Off,
+            Society = state.Society with { Society = SocietyFixture.RecordAgentBelief(state.Society.Society, belief) },
+            Inhabitants = state.Inhabitants.Select(person => person with
+            {
+                HungerBasisPoints = 10_000,
+                LastDecisionContext = null,
+                Project = null,
+                Survival = person.Survival! with { WarmthBasisPoints = 10_000, IllnessBasisPoints = 0 },
+            }).ToArray(),
+        };
+        var saved = PrivateWorldRuntimeCodec.Encode(state);
+        var provider = new RecordingPersonal();
+        var replayProvider = new RecordingPersonal();
+        using var world = PrivateWorldRuntime.Restore(state, _ => provider);
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => replayProvider);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        world.Resume();
+        replay.Resume();
+        for (var tick = 0; tick < 4 && !provider.Observations.Any(item => item.InhabitantId == actor); tick++)
+        {
+            var step = await world.AdvanceOneTickAsync();
+            Assert.True(step.Advanced);
+            Assert.All(step.Decisions.Where(item => item.InhabitantId == actor), item => Assert.False(item.Admission.FellBack));
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        var observation = Assert.Single(provider.Observations, item => item.InhabitantId == actor);
+        observation.Validate();
+        var recalled = Assert.Single(observation.RetrievedMemories!, item => item.Id == belief.Id);
+        Assert.Equal(recalled.SubjectId, recalled.SourceAgentId);
+        if (nativeReporter)
+        {
+            Assert.StartsWith("agent-sha256:", recalled.SourceAgentId, StringComparison.Ordinal);
+            Assert.InRange(recalled.SourceAgentId!.Length, 1, 128);
+        }
+        else Assert.Equal(reporter, recalled.SourceAgentId);
+        Assert.Equal((actor, "hearsay", 6_500, belief.SourceEventId),
+            (recalled.OwnerId, recalled.Provenance, recalled.ConfidenceBasisPoints, recalled.SourceEventId));
+        Assert.Equal(belief, Assert.Single(world.Society.Beliefs!, item => item.Id == belief.Id));
+        var result = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(result));
+        Assert.Equal(result, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
+    private sealed class RecordingPersonal : IDecisionProvider
+    {
+        public List<InhabitantObservation> Observations { get; } = [];
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 0;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            Observations.Add(request.Observation);
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
+                Kind, ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
+                request.Observation.ObservationDigest, "safe_idle", 1, new Dictionary<string, double> { ["safe_idle"] = 1 }));
+        }
     }
 
     private static async Task WaitForRequests(PrivateWorldRuntime world)
