@@ -121,6 +121,75 @@ public sealed partial class ViewerHttpTests
         finally { await monitor.StopAsync(default); }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SaveSpaceAdvisoryRemainsReadableWhileStartupRecoveryKeepsTheWorldClosed(bool stalled)
+    {
+        var directory = Directory.CreateTempSubdirectory("disk-advisory-recovery-");
+        using var release = new ManualResetEventSlim();
+        try
+        {
+            string saveId;
+            using (var original = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true))
+            using (original.CreateClient())
+            {
+                var runtime = original.Services.GetRequiredService<PrivateWorldRuntime>();
+                runtime.Pause();
+                saveId = original.Services.GetRequiredService<ManualWorldSaveStore>().CreateAutosave(runtime, [],
+                    original.Services.GetRequiredService<WorldAutosaveStore>().Capture()).Id;
+            }
+            var path = Path.Combine(directory.FullName, "runtime.json");
+            var damaged = System.Text.Encoding.UTF8.GetBytes("{refused active checkpoint");
+            File.WriteAllBytes(path, damaged);
+            var snapshots = Directory.GetFiles(path + ".manual")
+                .Where(file => file.EndsWith(".save", StringComparison.Ordinal) || file.EndsWith(".meta.json", StringComparison.Ordinal))
+                .ToDictionary(file => file, File.ReadAllBytes);
+            var heldProbe = new StalledSaveSpaceProbe(release);
+            ISaveDiskSpaceProbe probe = stalled ? heldProbe : new FixedSaveSpaceProbe(0);
+            using var baseHost = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true);
+            using var host = baseHost.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+                services.Replace(ServiceDescriptor.Singleton<ISaveDiskSpaceProbe>(probe))));
+            try
+            {
+                using var client = host.CreateClient();
+                var monitor = host.Services.GetRequiredService<SaveDiskSpaceMonitor>();
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                if (stalled) await heldProbe.Entered.Task.WaitAsync(timeout.Token);
+                else while (monitor.Capture().CheckedUtc is null) await Task.Delay(10, timeout.Token);
+                using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+                var device = await StartAndActivateAsync(host, client, key);
+                var action = new OwnerControlAction("save-disk-status");
+                using var response = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/saves/disk-status", action, OwnerHttpBinding.EmptyPayload(action.Operation));
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                var status = (await response.Content.ReadFromJsonAsync<SaveDiskSpaceStatus>())!;
+                Assert.Equal(stalled ? "unknown" : "low", status.State);
+                Assert.Equal(stalled ? null : (long?)0, status.AvailableBytes);
+                Assert.True(host.Services.GetRequiredService<PrivateWorldStartupRecovery>().Pending);
+                Assert.Throws<InvalidOperationException>(() => host.Services.GetRequiredService<PrivateWorldRuntime>());
+                Assert.Equal(damaged, File.ReadAllBytes(path));
+                foreach (var file in snapshots) Assert.Equal(file.Value, File.ReadAllBytes(file.Key));
+                using var blocked = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/control/resume", new OwnerControlAction("resume"), OwnerHttpBinding.EmptyPayload("resume"));
+                Assert.Equal(HttpStatusCode.Conflict, blocked.StatusCode);
+                var recover = new OwnerManualSaveAction("recover", saveId);
+                using var restored = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/recovery/restore", recover, OwnerHttpBinding.ManualSavePayload(recover));
+                Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
+                Assert.False(host.Services.GetRequiredService<PrivateWorldStartupRecovery>().Pending);
+                var loaded = host.Services.GetRequiredService<PrivateWorldRuntime>();
+                Assert.True(loaded.Society.IsPaused);
+                loaded.Validate();
+                Assert.Equal(damaged, File.ReadAllBytes(Assert.Single(Directory.GetFiles(directory.FullName, "runtime.json.damaged.*.json"))));
+                foreach (var file in snapshots) Assert.Equal(file.Value, File.ReadAllBytes(file.Key));
+                if (stalled) Assert.False(release.IsSet);
+            }
+            finally { release.Set(); }
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [Fact]
     public async Task ADelayedLaterVolumeQueryCannotMakeAnEarlierSampleFreshAgain()
     {

@@ -172,6 +172,7 @@ public partial class Main
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
         public ManualWorldSave[]? ManualSaves { get; set; }
         public SaveDiskSpaceStatus DiskSpace { get; set; } = new("ok", 4L * 1024 * 1024 * 1024, 1024L * 1024 * 1024, DateTimeOffset.UtcNow);
+        public bool FailDiskSpace { get; set; }
         public StartupRecoveryStatus StartupRecovery { get; set; } = new(false, null, null);
         public TaskCompletionSource RecoveryReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource? ReleaseRecovery { get; set; }
@@ -338,7 +339,12 @@ public partial class Main
                         DateTimeOffset.UnixEpoch, 0);
                     break;
                 case "/api/v1/owner/saves/disk-status":
-                    response = DiskSpace;
+                    if (FailDiskSpace)
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled disk advisory failure." };
+                    }
+                    else response = DiskSpace;
                     break;
                 case OwnerPairingEndpoints.OwnerSaveLoad when LoadReceipt is { } loadReceipt:
                     LoadReceived.TrySetResult(envelope.GetProperty("action").GetProperty("value").GetString()!);

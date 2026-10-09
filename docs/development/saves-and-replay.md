@@ -21,7 +21,10 @@ unknown when a query fails or the sampling batch started at least thirty seconds
 The authenticated `save-disk-status` read returns bounded status and byte
 counts, without filesystem paths. The client polls independently of world
 refreshes and reads again before a manual save or overwrite. A failed status
-read cannot prevent submission.
+read cannot prevent submission. This installation read remains available while a
+world baseline or startup recovery is pending; world mutation controls keep their
+normal readiness guards. The recovery card also reads the advisory before its
+explicit autosave restore.
 
 The monitor owns no world or save lock. No free-space query runs on the
 checkpoint path, and even a stalled query cannot hold up emergency recovery.

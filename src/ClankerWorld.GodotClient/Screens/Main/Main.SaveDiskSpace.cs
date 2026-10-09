@@ -37,6 +37,8 @@ public partial class Main
         saveDiskWarningLabel.Text = text;
         manualSaveDiskWarning.Text = text;
         manualSaveDiskWarning.Visible = text.Length > 0;
+        startupRecoveryDiskWarning.Text = text;
+        startupRecoveryDiskWarning.Visible = text.Length > 0;
         saveDiskWarningPanel.Visible = text.Length > 0 && !manualSaveOverlay.Visible;
         saveDiskWarningPanel.ResetSize();
         ApplyResponsiveLayout();
@@ -47,7 +49,7 @@ public partial class Main
         if (diskSpaceReadPending && !force) return;
         while (diskSpaceReadPending)
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        if (!TryGetRegisteredOwner(out var authority, out var deviceId, out var signer)) return;
         var now = (long)Time.GetTicksMsec();
         if (!force && now - lastDiskSpaceReadMsec < 5000) return;
         lastDiskSpaceReadMsec = now;

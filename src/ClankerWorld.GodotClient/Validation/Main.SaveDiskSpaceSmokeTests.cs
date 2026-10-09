@@ -24,12 +24,12 @@ public partial class Main
             observationSession.ReplaceRegistration(registration);
             var handshake = new OwnerWorldHandshake(new(1, 1),
                 ["owner-observation.read.v1", "inhabitant-inspection.read.v1", "spatial-knowledge.read.v1",
-                 "owner-control.request.v1", "paused-authoring.request.v1"], []);
+                 "owner-control.request.v1", "paused-authoring.request.v1", "owner-observation-timeline.v1"], []);
             var snapshot = new OwnerWorldSnapshot("disk-warning-world", 0, "disk-warning-map", [new(0, 0, "meadow")], [], [], null, 0)
             {
                 Authoring = new(true, 0, 0, 0, "disk-warning-map", "disk-warning-map", "clear", "spring", []),
             };
-            host.Reconnect = new(handshake, new(snapshot, new(0, 0, [])));
+            host.Reconnect = new(handshake, new(snapshot, new(0, 0, []), new("disk-warning-host", 1)));
             host.ManualSaves = [];
             if (!observationSession.TryAccept(host.Reconnect, 0, out var failure))
                 throw new InvalidOperationException("Disk-warning observation was refused: " + failure);
@@ -60,6 +60,28 @@ public partial class Main
             await RefreshSaveDiskSpaceAsync(force: true);
             if (!saveDiskWarningLabel.Text.Contains("could not be checked", StringComparison.Ordinal))
                 throw new InvalidOperationException("An unknown disk assessment must not imply that space is sufficient.");
+
+            observationSession.ResetAfterLoad();
+            if (!observationSession.AwaitingFreshBaseline || TryGetOwner(out _, out _, out _))
+                throw new InvalidOperationException("The disk check must leave world actions gated during baseline recovery.");
+            host.DiskSpace = host.DiskSpace with { State = "low", AvailableBytes = 0 };
+            await RefreshSaveDiskSpaceAsync(force: true);
+            if (!saveDiskWarningLabel.Text.Contains("Make room soon", StringComparison.Ordinal))
+                throw new InvalidOperationException("The signed installation advisory must refresh while the world baseline is unavailable.");
+            host.FailDiskSpace = true;
+            await RefreshSaveDiskSpaceAsync(force: true);
+            if (!saveDiskWarningLabel.Text.Contains("could not be checked", StringComparison.Ordinal) ||
+                !observationSession.AwaitingFreshBaseline || TryGetOwner(out _, out _, out _))
+                throw new InvalidOperationException("A failed advisory must become unknown without opening world actions.");
+            host.FailDiskSpace = false;
+            if (!observationSession.TryAccept(host.Reconnect, 0, out failure))
+                throw new InvalidOperationException("The disk check's fresh baseline was refused: " + failure);
+            await OpenManualSavesAsync(false);
+            host.FailDiskSpace = true;
+            manualSaveName.Text = "Save despite unavailable advisory";
+            await CreateManualSaveAsync();
+            if (host.SaveCreateCount != 2 || manualSaveOverlay.Visible)
+                throw new InvalidOperationException("An unavailable advisory must still allow the signed manual save.");
         }
         finally
         {
