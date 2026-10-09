@@ -132,7 +132,7 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidateKnowledgeReadOrderBindings(IEnumerable<OwnerQueuedInstruction> instructions, PrivateWorldKnowledgeState knowledge)
     {
         var readingOrders = instructions.Where(instruction => instruction.Order is
-            { Action: "read_knowledge", TargetKnowledgeArtifactId: not null }).ToArray();
+        { Action: "read_knowledge", TargetKnowledgeArtifactId: not null }).ToArray();
         if (readingOrders.Length == 0) return;
         var artifacts = knowledge.Artifacts.ToDictionary(item => item.Id, StringComparer.Ordinal);
         var facts = knowledge.Facts.ToDictionary(item => (item.OwnerId, item.Position));
