@@ -22,6 +22,7 @@ internal static partial class OwnerEndpoints
         MapRuntimeControl(app, isPrivateWorld);
         MapWorlds(app, isPrivateWorld);
         MapSaves(app, isPrivateWorld);
+        MapStartupRecovery(app, isPrivateWorld);
         MapDeletion(app, isPrivateWorld);
         MapSetup(app, isPrivateWorld);
         MapInstructions(app, isPrivateWorld);
