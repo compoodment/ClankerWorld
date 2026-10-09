@@ -233,7 +233,7 @@ public sealed partial class PhysicalKnowledgePipelineTests
             { Knowledge = state.Knowledge! with { Facts = state.Knowledge!.Facts.Concat(existing).ToArray() } }, _ => new ChoosingProvider(reader));
             world.SubmitInstruction(new("capacity-read", "owner:test", reader, OwnerInstructionKind.MustDo, "Read " + artifact.Id));
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-            var order = Assert.Single(world.ExportState().Instructions!).Order!;
+            var order = Assert.Single(world.ExportState().Instructions!, item => item.IdempotencyKey == "capacity-read").Order!;
             Assert.Equal(128, world.Knowledge.Facts.Count(fact => fact.OwnerId == reader));
             Assert.Equal(JsonSerializer.Serialize(existing), JsonSerializer.Serialize(world.Knowledge.Facts.Where(fact => fact.OwnerId == reader && fact.Acquisition == "firsthand")));
             if (full)
