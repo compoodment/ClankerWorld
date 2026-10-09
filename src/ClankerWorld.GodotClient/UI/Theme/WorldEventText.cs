@@ -144,6 +144,8 @@ public static class WorldEventText
             "medical_treatment_started" => $"{LeadingName(snapshot, worldEvent.Detail)} began a course of medicine.",
             "medical_treatment_completed" => $"{Name(snapshot, worldEvent.Detail)} finished a course of medicine.",
             "medical_treatment_interrupted" => $"{Name(snapshot, worldEvent.Detail)} stopped treatment; the used dose was not returned.",
+            "child_collected_household" => $"{LeadingName(snapshot, worldEvent.Detail)} picked up a small household load to bring home.",
+            "child_delivered_household" => $"{LeadingName(snapshot, worldEvent.Detail)} brought a small household load to their House.",
             "empty_vessel_picked_up" => $"{LeadingName(snapshot, worldEvent.Detail)} collected an empty household vessel to bring home.",
             "ornament_worn" => $"{LeadingName(snapshot, worldEvent.Detail)} put on an ornament.",
             "ornament_removed" => $"{LeadingName(snapshot, worldEvent.Detail)} took off an ornament.",

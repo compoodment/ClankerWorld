@@ -81,6 +81,8 @@ public sealed class WorldEventTextTests
         {
             ("food_harvested", id + ":4", "gathered food"),
             ("food_consumed", id, "ate"),
+            ("child_collected_household", id + ":wood:4", "picked up a small household load to bring home"),
+            ("child_delivered_household", id + ":food:4:first-town-house-a", "brought a small household load to their House"),
             ("tree_planted", id + ":planted-tree-12-7:broadleaf", "planted a tree"),
             ("tree_replanted", id + ":tree-8-16:conifer", "replanted a tree"),
             ("inhabitant_slept", id, "slept"),
@@ -96,6 +98,7 @@ public sealed class WorldEventTextTests
         {
             var worldEvent = new OwnerWorldEvent(1, 1, kind, detail);
             Assert.Equal($"Aster {action}.", WorldEventText.Describe(worldEvent, snapshot));
+            if (kind.StartsWith("child_", StringComparison.Ordinal)) Assert.True(GameUiText.IsPlayerFacingEvent(kind));
             var renamed = snapshot with { Inhabitants = [Person(id, "Rowan", "dead")] };
             Assert.Equal($"Rowan {action}.", WorldEventText.Describe(worldEvent, renamed));
             Assert.Equal(detail, worldEvent.Detail);
