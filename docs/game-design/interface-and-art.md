@@ -591,7 +591,11 @@ provide a UI drawing.
   weather readable without opaque repeating circles. **Agreed on October 8
   ([#1254](https://github.com/compoodment/ClankerWorld/issues/1254)):** the
   map's weather overlay goes through the next art review round, with options
-  to choose from, like every other picture.
+  to choose from, like every other picture. **Agreed on October 8
+  ([#1325](https://github.com/compoodment/ClankerWorld/issues/1325)):**
+  computment chose look B, crisp pixel streaks: straight one-pixel rain that
+  lands as a small burst, sharp storm streaks in gusts, and small snowflake
+  crosses blown by the wind. No cloud shadows.
 - Ground remains square-tiled, but permanent **black tile-border grid lines**
   are not part of the intended presentation; they would clash with textures.
 - **Agreed on October 8
