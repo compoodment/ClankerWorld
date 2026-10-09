@@ -693,6 +693,14 @@ category/type/tick fields, not raw exceptions or file paths. Do not restart a
 held process before preserving its unsaved state. Filesystem fault injection
 does not establish arbitrary mid-tick rollback or crash durability.
 
+The Godot World Info page refreshes its date, season, camera-local weather,
+soil moisture and calendar separately from its eight count tiles. Advancing
+clocks and changing local conditions keep unchanged count nodes in place,
+even with the panel closed or its Towns page selected. Current observations
+still refresh both sections, so opening World shows the latest data at once.
+Changed counts, map dimensions or theme rebuild the count grid and its F1 hint;
+this cache is display-only and does not change observation cadence or saves.
+
 ### Time of day and night
 
 Time of day is worked out from the elapsed tick and the world's saved calendar
