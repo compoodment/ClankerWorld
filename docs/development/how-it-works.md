@@ -3456,7 +3456,10 @@ change no state, and the existing order schedule resumes the task when its
 physical supply path becomes available.
 
 Cared adult pairs breed automatically when their yard has a place and delivered
-supplies cover existing animals and the offspring. Pregnancy reserves one place;
+supplies cover existing animals and the offspring. Feed and water inside a
+broken vessel do not satisfy that prerequisite; healthy loose feed and usable
+alternative vessels still count, under the existing quantity and reservation
+rules. Pregnancy reserves one place;
 young animals and reservations count toward eight per household or wild herd.
 Missed care pauses progress. Only old age kills animals; an owned sheep, cow or
 horse leaves one household hide at its actual death position. Untamed animals
