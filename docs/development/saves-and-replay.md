@@ -897,8 +897,8 @@ Only completed footprints add resident places. Sole caregivers are protected
 from timed displacement even when their dependent lives in another household.
 No older-save migration or backfill is added.
 
-Private-world schema 70, society-runtime schema 2 and the standalone
-`clankerworld.society/v2` and `clankerworld.society-runtime/v2` envelopes require
+Private-world schema 70 introduced the chosen-name marker. The current standalone
+`clankerworld.society/v3` and `clankerworld.society-runtime/v3` envelopes require
 `HasChosenName` for every inhabitant. This separates a chosen identity
 from a temporary label after automatic naming has ended. Loading rejects a
 missing marker, chosen names still awaiting naming, or duplicate normalized
@@ -913,7 +913,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 112. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 113. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -1064,6 +1064,7 @@ current alpha cutoff.
 | Schema 105 | Attach/pull and park orders retain optional stable cart identities and native completion receipts. Strict validation checks cart references, task shape and receipt identity; owner/Godot projections retain the target. Queue, cancellation/replacement, urgent food, ownership changes, refused-tick rollback and paired replay/reload preserve actual cart and cargo state. Earlier alpha saves are refused and preserved without migration. |
 | Schema 104 | Scouting can continue beyond eight steps and explicitly return. Loop-free outward paths are bounded by map tile count; visited tiles and recent discoveries retain their 256-entry limits. Current-format saves retain longer outward and returning paths, original origins, actual knowledge and historical bridge validation. Replay includes chosen return, occupied-corner detours, interruption and refused-tick rollback. Earlier alpha saves are refused and preserved without migration. |
 | Schema 103 | Boat transport requires compact retired-request sequence ranges. Checkpoint compaction durably archives full older closed requests before retaining all active requests and the latest 40 closed requests. Ranges and live requests cover each issued sequence exactly once, including gaps around older active travelers. Loading verifies that the reachable archive contains exactly those retired closed requests. Earlier alpha saves are refused and preserved without migration. |
+| Schema 113 and society/runtime v3 | Required owner-private experience/belief archive lists and source kinds distinguish active recall from retained original evidence. Strict loading validates unique storage, owner/subject identities, archive times, protected kinds, salience sources, conversation evidence and corrections across both ledgers. Older alpha saves and society envelopes are refused and preserved without migration. |
 | Schema 102 | Copy orders retain the exact held source while gathering supplies and writing, alongside the native project and paid completion receipt. Strict load checks source kind, project/source/order links and copy provenance; original writing cannot credit a copy task. Source loss releases the project while retaining the source pointer for retry; completion clears both pointers. Older alpha checkpoints are refused and preserved without migration. |
 | Schema 101 | Knowledge-writing orders bind their exact native project and credit only completed physical artifacts carrying that instruction ID. Reload checks actor, kind, current-order priority, paid artifact provenance and exact progress. Cancellation and replacement release only owned unspent reservations; ordinary writing is preserved. Older alpha checkpoints are refused and preserved without migration. |
 | Schema 109 | Native newborns retain a pending first personality/aspiration choice through infancy and failed personal replies. Their ordinary initial-choice observation may retain at most two bounded parental identities as family background, covered by the observation digest. Accepted choices clear retained queued background and cannot apply twice after reload. Native birth, day-3 decisions, retry, and paired replay cover the marker and chosen fields. Earlier alpha checkpoints are refused and preserved; no migration is added. |
@@ -1289,6 +1290,28 @@ choices, real votes, supply and work, then exercise travel, mid-voyage replay,
 queues, cancellation, permissions, blocked arrival and damaged current-format
 records. Earlier alpha checkpoints are refused visibly and preserved without
 migration.
+
+## Private memory archives
+
+The once-per-world-day native rule moves eligible old, low-importance ordinary
+sources into `ArchivedMemories` and `ArchivedBeliefs`, retaining their complete
+record and `ArchivedTick`. Each live or archived source ID appears exactly once.
+The source's required `Kind` protects life events, relationships, skills and
+commitments. Validation also protects durable cooperation/final-word receipts
+and world-event-backed beliefs. Salience entries and correction chains may
+reference archived records and are validated against the same owner's complete
+ledger. Correcting an archived belief keeps the old record archived and adds
+its linked replacement to the active ledger. Conversation-history trimming
+clears removed turn references in both ledgers without erasing their evidence.
+
+Loading and pausing do not run archiving or reset source age. A refused native
+tick preserves both ledgers byte for byte; current-format save/reload and paired
+replay retain the same archive boundary, evidence and corrections. Archive
+events contain counts only, with no private source text. Ordinary recall and
+living agents' recent-memory lists use active records. Deceased historical
+profiles inspect retained records from both ledgers, filtered to their original
+owner. Earlier formats are refused and
+preserved; no archive migration, helper summary or automatic deletion is added.
 
 ## Paid Markets and stall trade
 

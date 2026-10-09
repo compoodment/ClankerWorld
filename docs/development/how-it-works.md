@@ -1087,7 +1087,25 @@ Personal requests retrieve at most four relevant own-memory/belief excerpts and
 sixteen recent own-map facts. An existing Jev routine call may score up to twelve
 previously unassessed records; only linked salience/confidence values are saved.
 It adds no separate paid request or generated prose. Local retrieval works with
-Jev off. Automatic experience capture and narrative summarization are unfinished.
+Jev off. On an unpaused world-day boundary, `SocietyMemoryArchiveRules` moves
+ordinary experiences and beliefs at least three world days old and below 2,500
+importance basis points out of the active ledger into required owner-private
+archive lists. Unscored records count as zero. These constants are provisional.
+Archive entries retain the complete original record and archive tick; ordinary
+recall and memory-scoring candidates read only the active ledger. Typed life,
+relationship, skill and commitment records, durable cooperation/final-word
+receipts and world-event-backed beliefs stay active. Active orders, projects,
+lessons (including their teachers), parenthood, relationship proposals, barter,
+conversations and outstanding hosted calls protect their owners; surname
+conversation turns stay protected after closing. Correction links and source
+validation include both ledgers, while trimming old dialogue clears obsolete
+turn references in both. The daily rule makes no provider call, runs with Jev
+and the routine helper off, and commits or rolls back with the native tick.
+Its event contains only archived experience/belief counts. Deceased historical
+profiles inspect both ledgers without sharing that evidence with living agents.
+Authoritative life,
+relationship, skill and order state is unchanged. Automatic experience capture
+and narrative summarization are unfinished.
 
 Childhood talk, play and learning record owner-private experiences whose keys
 fit the same 128-character memory boundary used by recall and Jev scoring.

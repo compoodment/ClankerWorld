@@ -16,7 +16,7 @@ public sealed partial class PrivateWorldRuntime
     public void Validate()
     {
         SocietyFixture.Validate(society.Checkpoint);
-        ValidateBeliefEventSources(society.Checkpoint.Beliefs ?? [], events, eventHistoryFloor);
+        ValidateBeliefEventSources(society.Checkpoint.AllBeliefs(), events, eventHistoryFloor);
         society.Validate();
         ValidateBusinessTrades(BusinessTrades, society.Checkpoint, map, WorldTick);
         ValidateToolMakingRequests(ToolMakingRequests, worldSimulation, worldContent, society.Checkpoint, inhabitants.Values, BusinessTrades, WorldTick);
@@ -420,7 +420,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateSavedInstructions(state.Instructions ?? [], state.CompletedInstructionIds ?? [], society.Checkpoint,
             state.Society.Society.WorldId, latestWorldEventId,
             state.OrderCancellations ?? [], state.WorldContent);
-        ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
+        ValidateBeliefEventSources(state.Society.Society.AllBeliefs(), state.Events, state.EventHistoryFloor);
         ValidateConversationState(state, society.Checkpoint);
         AgentMarriageValidation.Validate(state, society.Checkpoint);
         ValidateBusinessTrades(state.BusinessTrades, society.Checkpoint, state.Map, society.Checkpoint.WorldTick);
@@ -1030,7 +1030,7 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("An agent cannot take part in overlapping conversations.");
 
         var turns = conversations.SelectMany(item => item.Turns).ToDictionary(item => item.Id, StringComparer.Ordinal);
-        foreach (var group in (checkpoint.Beliefs ?? []).Where(item => item.SourceTurnId is not null)
+        foreach (var group in checkpoint.AllBeliefs().Where(item => item.SourceTurnId is not null)
                      .GroupBy(item => (item.OwnerId, item.SourceTurnId)))
         {
             var sourceTurnId = group.Key.SourceTurnId!;
