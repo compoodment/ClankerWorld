@@ -35,7 +35,7 @@ public partial class Main
         }
 
         var slotId = credentialChoice is "default" or "new" ? null : credentialChoice;
-        var action = new OwnerProviderSetupCheckAction(provider, model, slotId, apiKey);
+        var action = new OwnerProviderSetupCheckAction(provider, model, slotId, apiKey, SelectedThinking(founderThinkingChoice));
         await RunModelSetupCheckAsync(
             founderModelSetupCheckButton,
             founderModelSetupCheckStatus,
@@ -66,7 +66,7 @@ public partial class Main
         }
 
         var slotId = credentialChoice is "default" or "new" ? null : credentialChoice;
-        var action = new OwnerProviderSetupCheckAction(provider, model, slotId, apiKey);
+        var action = new OwnerProviderSetupCheckAction(provider, model, slotId, apiKey, SelectedThinking(cognitionThinkingChoice));
         await RunModelSetupCheckAsync(
             cognitionModelSetupCheckButton,
             cognitionModelSetupCheckStatus,
@@ -128,7 +128,7 @@ public partial class Main
 
     private void ResetCognitionModelSetupCheckForCurrentChoice()
     {
-        var context = $"{SelectedCognitionTarget()}|{SelectedProviderId()}|{cognitionModelPicker.Model}|{SelectedCredentialChoice()}";
+        var context = $"{SelectedCognitionTarget()}|{SelectedProviderId()}|{cognitionModelPicker.Model}|{SelectedCredentialChoice()}|{SelectedThinking(cognitionThinkingChoice)}";
         if (context == cognitionModelSetupCheckContext)
             return;
         cognitionModelSetupCheckContext = context;

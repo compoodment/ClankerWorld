@@ -477,6 +477,7 @@ public partial class Main
         founderProviderChoice.Disabled = actionDisabled;
         founderCredentialChoice.Disabled = actionDisabled;
         founderModelPicker.Editable = !actionDisabled;
+        founderThinkingChoice.Disabled = actionDisabled;
         founderModelSetupCheckButton.Disabled = actionDisabled;
         founderApiKeyInput.Editable = !actionDisabled;
         founderKeyLabelInput.Editable = !actionDisabled;
@@ -512,6 +513,7 @@ public partial class Main
         cognitionProviderChoice.Disabled = actionDisabled;
         cognitionCredentialChoice.Disabled = actionDisabled;
         cognitionModelPicker.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
+        cognitionThinkingChoice.Disabled = actionDisabled;
         cognitionModelSetupCheckButton.Disabled = actionDisabled;
         cognitionApiKeyInput.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
         cognitionCredentialLabelInput.Editable = !actionDisabled;
@@ -526,7 +528,7 @@ public partial class Main
         saveCognitionProviderButton.Disabled = actionDisabled ||
             SelectedCognitionTarget() is not null && selectedProvider == "jev" ||
             SelectedCognitionTarget() is not null && selectedProviderStatus?.HasCredential != true &&
-                selectedProvider is ("openai" or "ollama-cloud") && SelectedCredentialChoice() == "default";
+                IsHostedProvider(selectedProvider) && SelectedCredentialChoice() == "default";
         forgetCognitionCredentialButton.Disabled = actionDisabled || selectedProvider == "deterministic" ||
             selectedProviderStatus?.HasCredential != true;
         deleteCognitionCredentialSlotButton.Disabled = actionDisabled ||

@@ -61,6 +61,7 @@ public partial class Main : Control
     private readonly OptionButton cognitionProviderChoice = new();
     private readonly OptionButton cognitionCredentialChoice = new();
     private readonly ModelPicker cognitionModelPicker = new();
+    private readonly OptionButton cognitionThinkingChoice = new();
     private readonly LineEdit cognitionApiKeyInput = new();
     private readonly LineEdit cognitionCredentialLabelInput = new();
     private readonly Label cognitionConfigurationStatus = new();
