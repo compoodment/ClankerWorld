@@ -171,6 +171,7 @@ public partial class Main
         manualSaveOverlay.VisibilityChanged += () =>
         {
             if (!manualSaveOverlay.Visible) CancelManualSaveListRead();
+            saveDiskWarningPanel.Visible = !manualSaveOverlay.Visible && saveDiskWarningLabel.Text.Length > 0;
         };
         manualSaveOverlay.ZIndex = 220;
         menuLayer.AddChild(manualSaveOverlay);
@@ -194,6 +195,9 @@ public partial class Main
         body.AddChild(headingRow);
         manualSaveStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(manualSaveStatus);
+        manualSaveDiskWarning.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        manualSaveDiskWarning.Hide();
+        body.AddChild(manualSaveDiskWarning);
         // A new save opens already named after the world's date, so one click saves.
         var newSave = new HBoxContainer();
         newSave.AddThemeConstantOverride("separation", 8);
@@ -410,16 +414,23 @@ public partial class Main
             titleRow.AddThemeConstantOverride("separation", 8);
             var title = new Label { ThemeTypeVariation = "HeadingLabel" };
             titleRow.AddChild(title);
-            var branchTag = new Label { Text = lane.Title.ToUpperInvariant(), ThemeTypeVariation = "TagLabel", SizeFlagsVertical = SizeFlags.ShrinkCenter };
+            var branchTag = new Label
+            {
+                Text = ShortBranchTag(lane.Title),
+                TooltipText = lane.Title,
+                ThemeTypeVariation = "TagLabel",
+                SizeFlagsVertical = SizeFlags.ShrinkCenter,
+                MouseFilter = MouseFilterEnum.Pass,
+            };
             branchTag.AddThemeStyleboxOverride("normal", new StyleBoxFlat
             {
-                BgColor = color,
+                BgColor = SaveTimelineLayout.BranchLabelFill(UiTheme.Current, lane.ColorNumber),
                 ContentMarginLeft = 5,
                 ContentMarginRight = 5,
                 ContentMarginTop = 2,
                 ContentMarginBottom = 2,
             });
-            branchTag.AddThemeColorOverride("font_color", UiTheme.Current.Paper);
+            branchTag.AddThemeColorOverride("font_color", UiTheme.ReadableInk(UiTheme.Current, UiTheme.Current.Paper, SaveTimelineLayout.BranchLabelFill(UiTheme.Current, lane.ColorNumber)));
             titleRow.AddChild(branchTag);
             if (latest) titleRow.AddChild(new Label { Text = "LATEST", ThemeTypeVariation = "TagNoteLabel", SizeFlagsVertical = SizeFlags.ShrinkCenter });
             if (chosen.IsAutosave) titleRow.AddChild(new Label { Text = "AUTOMATIC", ThemeTypeVariation = "TagNoteLabel", SizeFlagsVertical = SizeFlags.ShrinkCenter });
@@ -430,7 +441,7 @@ public partial class Main
             title.Text = SaveTimelineLayout.Shorten(name, Math.Max(120, manualSaveCard.CustomMinimumSize.X - 300),
                 value => font.GetStringSize(value, HorizontalAlignment.Left, -1, size).X);
             if (title.Text != name) title.TooltipText = name;
-            var began = lane.ForkSave?.Name ?? lane.Branch?.StartedFromName;
+            var began = lane.Branch?.StartedFromName ?? lane.ForkSave?.Name;
             var origin = began is null ? string.Empty : $" · {lane.Title} began at \"{began}\"";
             text.AddChild(Line($"{DisplayWorldClock(chosen.WorldTick)} · Saved {GameUiText.SavedAgo(chosen.CreatedUtc, DateTimeOffset.Now)}{origin}", "DimLabel"));
             var grown = SaveTimelineLayout.BranchesFrom(manualSaveTimeline.Lanes, chosen);
@@ -458,7 +469,7 @@ public partial class Main
         var from = position.ContinuedFromId is { } id ? allListedManualSaves.FirstOrDefault(save => save.Id == id) : null;
         var playing = from is null ? string.Empty : $"Playing on from \"{(from.IsAutosave ? "Autosave" : from.Name)}\". ";
         var next = manualSaveLoadMode ? "Your next save" : "Your new save";
-        var newBranch = position.NextBranchNumber is > 0
+        var newBranch = from is not null ? $"\"From {from.Name}\"" : position.NextBranchNumber is > 0
             ? $"Branch {position.NextBranchNumber.Value.ToString(CultureInfo.InvariantCulture)}"
             : "a new branch";
         return lane.IsUnsaved
@@ -539,6 +550,7 @@ public partial class Main
         pendingDeletion = null;
         listedSaveWorldId = readWorldId;
         ShowManualSavePanel(loadMode);
+        _ = RefreshSaveDiskSpaceAsync(force: true);
         bool IsCurrentRead() => ReferenceEquals(manualSaveListCancellation, read) &&
             IsCurrentWorldRequest(readGeneration) &&
             manualSaveOverlay.Visible && ReferenceEquals(registration, readRegistration) &&
@@ -639,7 +651,8 @@ public partial class Main
             List<SlotTag> tags = [];
             if (showBranches)
             {
-                tags.Add(new SlotTag(BranchLabel(save.Branch)));
+                var branch = BranchLabel(save.Branch);
+                tags.Add(new SlotTag(ShortBranchTag(branch), Tooltip: branch));
                 if (IsLatestInBranch(save, allListedManualSaves)) tags.Add(new SlotTag("Latest"));
                 // The first card of each branch says where that branch began.
                 if (BranchKey(save) != previousBranch && save.Branch?.StartedFromName is { } from)
@@ -655,7 +668,15 @@ public partial class Main
     private static string BranchKey(ManualWorldSave save) => save.Branch?.Id ?? string.Empty;
 
     internal static string BranchLabel(SaveBranch? branch) =>
-        branch is null ? "Earlier saves" : $"Branch {branch.Number.ToString(CultureInfo.InvariantCulture)}";
+        SaveTimelineLayout.BranchLabel(branch);
+
+    private string ShortBranchTag(string label)
+    {
+        var font = manualSaveCard.GetThemeFont("font", "TagLabel");
+        var size = manualSaveCard.GetThemeFontSize("font_size", "TagLabel");
+        return SaveTimelineLayout.Shorten(label.ToUpperInvariant(), 160,
+            value => font.GetStringSize(value, HorizontalAlignment.Left, -1, size).X);
+    }
 
     /// <summary>
     /// Saves grouped by branch: the branch with the most recent save first, and
@@ -688,6 +709,10 @@ public partial class Main
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
+            var generation = observationSession.RequestGeneration;
+            await RefreshSaveDiskSpaceAsync(force: true);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!IsCurrentWorldRequest(generation)) throw new ObsoleteWorldRequestException();
             var saved = await AwaitCurrentWorldResultAsync(ownerApi.CreateManualSaveAsync(ResolveWorldUri(), authority,
                 deviceId, name, signer, CancellationToken.None));
             manualSaveOverlay.Hide();
@@ -714,6 +739,10 @@ public partial class Main
         if (id is null || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
+            var generation = observationSession.RequestGeneration;
+            await RefreshSaveDiskSpaceAsync(force: true);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!IsCurrentWorldRequest(generation)) throw new ObsoleteWorldRequestException();
             var receipt = await AwaitCurrentWorldResultAsync(ownerApi.OverwriteManualSaveAsync(ResolveWorldUri(), authority,
                 deviceId, id, signer, CancellationToken.None));
             manualSaveOverlay.Hide();

@@ -90,7 +90,11 @@ public sealed partial class PrivateWorldRuntime
         if ((destinationRange > 0 || map.IsReachableOnFoot(origin, destination)) &&
             FindUnoccupiedRoute(actor, origin, destination, destinationRange, allowSwimming: false).Count > 0)
             return true;
-        return ProjectMaterialCarryUnits(actor, itemKind, source, useHarvestBonus) <=
+        var required = ProjectMaterialCarryUnits(actor, itemKind, source, useHarvestBonus);
+        var swimmingRoom = Math.Max(0, SwimmingRules.MaximumCarriedUnits -
+            PersonalEquipmentRules.CarriedQuantity(society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment));
+        // After the foot return failed, an oversized harvest cannot gain a route by searching again.
+        return required <= swimmingRoom && required <=
             PickupCarryCapacity(actor, source.Position, destination, destinationRange, ResourceInteractionRange);
     }
 }
