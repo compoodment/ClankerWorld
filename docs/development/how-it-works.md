@@ -2621,6 +2621,11 @@ whole family fits the person and destination; loose inputs use four-unit loads.
 Protected planting reserves stay unavailable. Grain already delivered to a
 House or Restaurant is left there rather than hauled back into farm stock.
 
+Restaurant ingredient purchases count only household stock the worker can
+collect. Household goods on an actively borrowed Market stall stay on sale and
+do not reduce ingredient demand. After borrowing ends, reachable goods may
+reduce that demand under the normal pickup, source-reserve and capacity checks.
+
 House cooking and Restaurants use the named recipes in the
 [agreed food pipeline](../game-design/towns.md#food-and-replanting). Generic
 food-to-food production is refused. Production reserves exact usable on-site
