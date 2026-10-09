@@ -1578,7 +1578,12 @@ the running world continues with **You are here**, and keep the save list,
 grouped by branch, behind a **Timeline / List** switch
 ([#680](https://github.com/compoodment/ClankerWorld/issues/680)). A host from
 before the timeline can't say where the world continues, so the marker is left
-out. Neither has been checked by hand in the Windows game yet. Unusable list
+out. Branch rows and list tags use the recorded source save's name, such as
+**From Before the flood**, and keep it if the source save is renamed or
+replaced. Long labels fit within the controls and show their full text on
+hover. Numbered labels remain when the source name is missing. These screens
+have automated native checks but have not been checked by hand in the Windows
+game yet. Unusable list
 metadata is isolated so sound saves remain reachable. During the alpha, a save
 from an older build may stop loading after an update; the game refuses it with a
 reason and keeps the file. The agreed [mod compatibility](game-design/inventions-and-mods.md#inventions-mods-and-technology)

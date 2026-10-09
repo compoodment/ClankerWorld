@@ -57,7 +57,7 @@ public sealed record SaveTimelineLane(string Key, int Index, SaveBranch? Branch,
     public bool IsUnsaved => Key == SaveTimelineLayout.UnsavedKey;
 
     public string Title => IsUnsaved ? "New branch"
-        : Branch is { } branch ? $"Branch {branch.Number.ToString(CultureInfo.InvariantCulture)}" : "Earlier saves";
+        : SaveTimelineLayout.BranchLabel(Branch);
 
     /// <summary>Whether playing on from this save continues its branch rather than starting a new one.</summary>
     public bool IsLatest(ManualWorldSave save) =>
@@ -71,6 +71,11 @@ public static class SaveTimelineLayout
     public const string UnsavedKey = "unsaved";
 
     public static string Key(ManualWorldSave save) => save.Branch?.Id ?? string.Empty;
+
+    /// <summary>The saved origin name stays with a branch when its source save changes later.</summary>
+    public static string BranchLabel(SaveBranch? branch) => branch is null ? "Earlier saves"
+        : !string.IsNullOrWhiteSpace(branch.StartedFromName) ? $"From {branch.StartedFromName}"
+        : $"Branch {branch.Number.ToString(CultureInfo.InvariantCulture)}";
 
     /// <summary>
     /// Saves from before branches on top, then branch 1. Each branch sits under
@@ -196,14 +201,16 @@ public static class SaveTimelineLayout
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(measure);
         if (measure(text) <= width) return text;
-        int low = 0, high = text.Length;
+        var boundaries = StringInfo.ParseCombiningCharacters(text);
+        int CutAfter(int count) => count == boundaries.Length ? text.Length : boundaries[count];
+        int low = 0, high = boundaries.Length;
         while (low < high)
         {
             var middle = (low + high + 1) / 2;
-            if (measure(text[..middle].TrimEnd() + "...") <= width) low = middle;
+            if (measure(text[..CutAfter(middle)].TrimEnd() + "...") <= width) low = middle;
             else high = middle - 1;
         }
-        return text[..low].TrimEnd() + "...";
+        return text[..CutAfter(low)].TrimEnd() + "...";
     }
 }
 
@@ -389,7 +396,15 @@ public partial class SaveTimelineNames : Control
 
     public SaveTimelineNames()
     {
-        MouseFilter = MouseFilterEnum.Ignore;
+        MouseFilter = MouseFilterEnum.Pass;
+    }
+
+    public override string _GetTooltip(Vector2 atPosition)
+    {
+        var y = atPosition.Y + ViewTop;
+        if (y < SaveTimelineRows.Ruler) return string.Empty;
+        return Lanes.FirstOrDefault(lane => Math.Abs(y - SaveTimelineRows.LaneY(lane.Index)) <
+            SaveTimelineRows.LaneHeight / 2)?.Title ?? string.Empty;
     }
 
     public override void _Draw()
