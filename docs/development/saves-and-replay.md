@@ -808,6 +808,13 @@ The save format and schema number do not change. As with any unloadable active
 world, the host will not start until that save is moved aside. Hills are drawn
 from the saved elevation and water layers, so nothing extra is saved for them.
 
+The polar sea rows at the north and south edges
+([#1317](https://github.com/compoodment/ClankerWorld/issues/1317)) also change
+generated maps in the same way: there is no generator switch or migration.
+A saved map that differs from deterministic regeneration fails the check
+with the same message, and its file is kept. The save format and schema number
+do not change for the polar rows.
+
 Mountain massifs ([#683](https://github.com/compoodment/ClankerWorld/issues/683))
 change elevation, rivers, climate and resources for every generated world, so
 the terrain version saved in `GeographyOptions` (`balancedVisibilityVersion`)
@@ -1164,6 +1171,23 @@ generated-world gathering and donation, genuine Warehouse loads, intermediate
 restore/replay, discarded prepared ticks, stale votes, retained removal and
 coherently altered receipt/source references. Earlier
 alpha schemas, including 53, are refused visibly and preserved without migration.
+
+## Founding another Town
+
+The personal `found` choice records an additional `TownRuntimeState`, its first
+layout title, retained household footprint use rights and the founder's Town
+care group using existing saved fields. The schema is unchanged. Existing
+buildings keep their household owner and gain the new Town assignment; stock,
+bodies and care do not move. Council and government initialize from the new
+adult roster. The `town_founded` event uses a pipe-separated Town ID, founder,
+previous Town and care-group count; initial First Town events keep their format.
+
+The choice binds the current physical site and is rechecked when applied.
+Competing or delayed replies cannot claim another Town's land, move membership
+twice or supply free property. `TownFoundingTests` covers generated-world
+founding, care-group membership, existing owned and foreign Houses and fields, claimed
+land, competing and delayed hosted choices, exact replay/reload and discarded
+prepared ticks. Routine Windows playtesting remains pending.
 
 ## Abandoned Towns and physical salvage
 
