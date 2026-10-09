@@ -39,7 +39,7 @@ public sealed class HouseholdBuildingUseCoverageTests
         };
         // Work is demand-driven. Start with a real shortage rather than
         // requiring unnecessary crop work while starter rations are plentiful.
-        using var world = PrivateWorldRuntime.Restore(FarmFieldTests.FeedHouseholdFromAvailableStock(state, farmingHousehold),
+        using var world = PrivateWorldRuntime.Restore(FarmFieldTests.FeedFarmTownFromAvailableStock(state, farmingHousehold),
             _ => recorder);
         for (var tick = 0; tick < CoverageTicks; tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
