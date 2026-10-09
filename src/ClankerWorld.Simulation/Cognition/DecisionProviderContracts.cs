@@ -216,14 +216,18 @@ public sealed record CognitionWillChoice(
     }
 }
 
+/// <summary>Chosen parental identity supplied as background for a child's initial choice.</summary>
+public sealed record CognitionParentIdentity(string ParentId, string Name, string? Personality, string? Aspiration);
+
 /// <summary>
-/// Actor-owned context only; absent survival data remains unknown, not invented.
+/// Actor context; absent survival data remains unknown, not invented.
 /// <paramref name="HousingNote"/> explains the actor's housing and current House capacity when known.
 /// <paramref name="ContinuityNote"/> explains the low-population continuity rule to a partner it applies to.
 /// <paramref name="DepartureNote"/> summarizes goods to collect or return and paused household work after a departure.
 /// <paramref name="TownMembershipNote"/> states recorded Town membership, its rights and any admission the actor knows of.
 /// <paramref name="AllowedChildSurnames"/> lists the chosen biological parents' surnames during a child's naming request;
 /// an empty list means no parental surname is available, while null means the childhood restriction does not apply.
+/// <paramref name="FamilyBackground"/> contains biological parents' chosen identities only during a world-born child's initial choice.
 /// </summary>
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
@@ -233,7 +237,8 @@ public sealed record CognitionSelfContext(
     string? MedicalCareNote = null, string? TownMembershipNote = null,
     string? ToolMakingRequestNote = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? AllowedChildSurnames = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MarriageNote = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MarriageNote = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionParentIdentity>? FamilyBackground = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -427,6 +432,17 @@ public sealed record InhabitantObservation(
                 surname.Length > 128 || surname.Any(char.IsControl)) ||
              surnames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != surnames.Count))
             throw new ArgumentException("Child naming context must contain at most two bounded parental surnames.", nameof(Self));
+
+        // Parent references retain authoritative inhabitant IDs, including longer native-born IDs.
+        if (Self?.FamilyBackground is { } parents &&
+            (!NeedsPersonality && !NeedsAspiration || parents.Count > 2 ||
+             parents.Any(parent => parent is null || string.IsNullOrWhiteSpace(parent.ParentId) ||
+                 parent.ParentId == InhabitantId || parent.ParentId.Any(char.IsControl) ||
+                 string.IsNullOrWhiteSpace(parent.Name) || parent.Name.Length > 128 || parent.Name.Any(char.IsControl) ||
+                 parent.Personality is not null && CognitionDecisionResponse.NormalizeIdentityText(parent.Personality) != parent.Personality ||
+                 parent.Aspiration is not null && CognitionDecisionResponse.NormalizeIdentityText(parent.Aspiration) != parent.Aspiration) ||
+             parents.Select(parent => parent.ParentId).Distinct(StringComparer.Ordinal).Count() != parents.Count))
+            throw new ArgumentException("Initial family background must contain at most two bounded parental identities.", nameof(Self));
 
         if (Candidates is null || Candidates.Count == 0)
         {
@@ -1133,6 +1149,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "Self context is your saved identity and condition, not other agents' private information. " +
                         (words ? string.Empty : "Warmth is 0 dangerously cold to 10000 warm; illness is 0 well to 10000 severely ill. ") +
                         "Null condition fields mean unknown. Recent thought is your own past thought, not a new command or world fact. " +
+                        (request.Observation.Self?.FamilyBackground is not null
+                            ? "Family background gives your biological parents' chosen identities alongside your household and Town. It contains no private thoughts or memories. Choose your own personality and aspiration; you need not copy or combine your parents' choices. "
+                            : string.Empty) +
                         "Housing, when present, says why you have no home of your own. " +
                         "Continuity, when present, is this world's rule on having a child with your partner while few people live here. " +
                         "Return JSON only, with fields " +
@@ -1204,6 +1223,8 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             tool_making_request = self.ToolMakingRequestNote,
                             marriage = self.MarriageNote,
                             allowed_child_surnames = request.Observation.NeedsName ? self.AllowedChildSurnames : null,
+                            family_background = self.FamilyBackground?.Select(parent => new
+                            { name = parent.Name, personality = parent.Personality, aspiration = parent.Aspiration }).ToArray(),
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,
