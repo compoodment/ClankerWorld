@@ -3323,9 +3323,11 @@ keeps the existing supply path collecting feed and enough usable jug water befor
 approaching the animal, including after a partial pickup. Water may be split
 across jugs or content lots; fetching counts the usable water already carried
 and rechecks each whole jug against reservations and free carrying space.
-At the animal's tile,
-permitted local yard stock remains usable directly. Physical supply trips
-retain the owning household. Cancelling or replacing an animal order releases
+At the animal's tile, permitted local yard stock remains usable directly.
+Supply pickup leaves household sale stock on an actively borrowed Market stall.
+Once borrowing ends, that stock can be collected through the normal ownership,
+reservation, capacity and travel checks. Physical supply trips retain the
+owning household. Cancelling or replacing an animal order releases
 only a supply trip matching its actor, animal and action, without relocating,
 transferring or spending its cargo. Executing a new animal order also discards
 an unrelated retained trip, including one loaded from a previously cancelled
