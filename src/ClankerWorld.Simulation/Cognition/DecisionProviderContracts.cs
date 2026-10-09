@@ -239,6 +239,7 @@ public sealed record CognitionSelfContext(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? AllowedChildSurnames = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MarriageNote = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionParentIdentity>? FamilyBackground = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? KnownRecipes = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? Skills = null);
 
 /// <summary>
@@ -371,7 +372,7 @@ public sealed record InhabitantObservation(
                         "mount the named cared-for horse with permission" or
                         "dismount the named horse and leave excess cargo here" or
                         "eat one carried food item" or
-                    "read one personally held written record, map or book and learn only its written facts" or "travel within gathering range of an available food source" or
+                    "read one personally held written record, map or book and learn only its written contents" or "travel within gathering range of an available food source" or
                         "gather several food servings from a nearby food source" or
                         "gather the requested material from a natural source" or
                         "collect your own stored or dropped material" or
@@ -425,6 +426,8 @@ public sealed record InhabitantObservation(
             self.EquipmentNote?.Length > 256 || self.ContinuityNote?.Length > 256 || self.DepartureNote?.Length > 256 ||
             self.CivicNote?.Length > 1024 || self.MedicalCareNote?.Length > 256 || self.TownMembershipNote?.Length > 256 ||
             self.ToolMakingRequestNote?.Length > 256 || self.MarriageNote?.Length > 256 ||
+            self.KnownRecipes is { } recipes && (recipes.Count > 16 || recipes.Any(recipe =>
+                string.IsNullOrWhiteSpace(recipe) || recipe.Length > 128 || recipe.Any(char.IsControl))) ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
 
@@ -1007,6 +1010,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
             medical_care = observation.Self?.MedicalCareNote,
             tool_making_request = observation.Self?.ToolMakingRequestNote,
             marriage = observation.Self?.MarriageNote,
+            known_recipes = observation.Self?.KnownRecipes,
             skills = observation.Self?.Skills,
             candidates = observation.Candidates.Select(candidate => new
             {
@@ -1229,6 +1233,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             medical_care = self.MedicalCareNote,
                             tool_making_request = self.ToolMakingRequestNote,
                             marriage = self.MarriageNote,
+                            known_recipes = self.KnownRecipes,
                             skills = self.Skills,
                             allowed_child_surnames = request.Observation.NeedsName ? self.AllowedChildSurnames : null,
                             family_background = self.FamilyBackground?.Select(parent => new
