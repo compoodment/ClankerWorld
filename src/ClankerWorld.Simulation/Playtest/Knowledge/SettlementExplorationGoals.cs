@@ -62,8 +62,8 @@ public sealed partial class PrivateWorldRuntime
                       target == "wood" && fact.ResourceKinds.Contains("construction", StringComparer.Ordinal)))
             .Select(fact => fact.Position).ToHashSet();
         var tools = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
-        if (positions.Count == 0) return [];
-        return map.Resources.Where(source => positions.Contains(source.Position) &&
+        return map.Resources.Where(source => (positions.Contains(source.Position) ||
+                IsWithinInteractionRange(person.Position, source.Position, ResourceInteractionRange)) &&
                 (target == "food" ? source.Kind is "food" or "fruit"
                     : FoodKnowledgeKind(source) == target ||
                       target == "wood" && source.Kind == "construction") &&
@@ -84,8 +84,7 @@ public sealed partial class PrivateWorldRuntime
             return instruction?.InstructionId == id && OrderCandidateFor(instruction, person) is { Id: not "explore" };
         }
         if (goal.Kind == "terrain")
-            return knowledge.Facts.Any(fact => fact.OwnerId == actor && fact.DiscovererId == actor &&
-                fact.Acquisition == "firsthand" && fact.Position == person.Position && fact.Terrain == goal.Target);
+            return map.TerrainKindAt(person.Position)?.ToString() == goal.Target;
         return KnownExplorationSources(actor, person, goal.Target).Any();
     }
 

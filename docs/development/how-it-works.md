@@ -1241,8 +1241,9 @@ its existing precedence and never gains a substitute.
 An order search hands back only when its normal task candidate is usable,
 including actual observation or personal knowledge, source availability,
 tools, carrying room and an open route. An ordinary resource purpose likewise
-uses owned knowledge and the normal source checks; a terrain purpose finishes
-only on an actually reached first-hand matching tile. Finishing clears the
+uses current observation or owned knowledge and the normal source checks; a
+terrain purpose finishes only on an actually reached matching tile. A full
+personal fact ledger does not block either observation or invent a saved fact. Finishing clears the
 outing path and purpose, retaining discoveries and recording
 `exploration_goal_found`; it awards no harvest progress. Return, blocked-return
 abort and interrupted movement clear the purpose. Cancellation cannot make
