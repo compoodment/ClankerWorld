@@ -10,6 +10,27 @@ updated: 2026-10-08
 This page owns save implementation and recovery requirements. The
 [player guide](../playing.md#save-and-return) explains the controls;
 [game design](../game-design/saves.md) owns the intended experience.
+
+## Save-space warning
+
+The host samples available free space on the active checkpoint, manual/autosave,
+world-catalog and history-archive volumes every five seconds, resolving existing parent
+directories, symlinks and mounted volumes. The initial advisory level is below
+1 GiB. Any known low volume warns even if another cannot be read; space is
+unknown when a query fails or the sampling batch started at least thirty seconds ago.
+The authenticated `save-disk-status` read returns bounded status and byte
+counts, without filesystem paths. The client polls independently of world
+refreshes and reads again before a manual save or overwrite. A failed status
+read cannot prevent submission. This installation read remains available while a
+world baseline or startup recovery is pending; world mutation controls keep their
+normal readiness guards. The recovery card also reads the advisory before its
+explicit autosave restore.
+
+The monitor owns no world or save lock. No free-space query runs on the
+checkpoint path, and even a stalled query cannot hold up emergency recovery.
+Space is advisory rather than a reservation: a later write can still fail.
+Warnings do not authorize cleanup or deletion, and no warning state enters
+checkpoints, replay events or save metadata. The world schema is unchanged.
 [Releasing](releasing.md) owns version selection and rollback gates.
 
 ## Separate state by ownership
