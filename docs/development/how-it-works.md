@@ -2639,7 +2639,10 @@ usable seed. Autonomous crop claims keep their terrain eligibility while
 temporary occupants pass and the existing physical route retries.
 
 Planning compares population and available ready-to-eat food with a trial reserve of two
-days at two meals per resident per day, then estimates fields from expected
+days at two meals per resident per day. Loose food and food in usable vessels
+count after the existing condition, freshness and reservation checks; food
+inside a broken pot does not cover the reserve or suppress replacement planting.
+Planning then estimates fields from expected
 yield. It picks free reachable soil by fertility and distance, favouring
 tiles beside the household's existing fields. It can expand during shortages;
 the existing household-building planner can establish another Farmhouse for a
@@ -3324,6 +3327,8 @@ same; missing source records remain unavailable.
 
 Adults tame, care, collect, supply, lead, saddle, mount and dismount through
 ordinary revalidated choices. Native orders bind an exact animal name or ID.
+Order progress follows the completed animal action, including when fetching a
+supply at the animal completes that action in the same tick.
 Care spends actual unreserved grain/greens and jug water at the animal or yard;
 food, planting and workstation reserves stay protected. For care away from the
 actor's tile, input selection accepts only physically carried supplies. This
