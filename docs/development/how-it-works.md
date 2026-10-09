@@ -2922,7 +2922,9 @@ read back by the simulation, so they cannot change a tick, a save or replay.
   checkpoint, switching worlds or restarting the host clears them until the
   next tick.
 - **`LastTickMilliseconds`** on the snapshot is the wall-clock time to prepare
-  and advance the latest committed tick, rounded to 0.1 ms. It leaves out
+  and advance the latest committed tick, including synchronous reply admission,
+  listener belief extraction, child-model selection preparation and world commit,
+  rounded to 0.1 ms. The timer pauses for runtime-gate reacquisition. It leaves out
   waiting for the runtime gate, hosted model calls between ticks and the
   checkpoint save. It is null until the first tick after start, load or a
   world switch, and the legacy fixture host never reports it.

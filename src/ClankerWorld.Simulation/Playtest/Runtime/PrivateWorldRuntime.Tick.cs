@@ -122,15 +122,16 @@ public sealed partial class PrivateWorldRuntime
             // gate. Clone its mutable systems without regenerating or
             // revalidating millions of immutable terrain tiles each tick.
             // The timing is a Developer tools readout only, never world state.
-            var tickStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+            var tickTimer = System.Diagnostics.Stopwatch.StartNew();
             using var proposed = RestoreCore(baseline, providerFactory,
                 maxCognitionDispatchPerCycle,
                 trustedPreparedState: true);
             proposed.previousPlannedRoutes = routesBefore;
             var result = await proposed.AdvancePreparedTickAsync(deferHosted, completed, activeHostedIds, completedWills,
                 activeWillIds, inactiveWillReasons, completedConversationTurns, cancellationToken).ConfigureAwait(false);
-            var tickMilliseconds = Math.Round(System.Diagnostics.Stopwatch.GetElapsedTime(tickStarted).TotalMilliseconds, 1);
+            tickTimer.Stop();
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            tickTimer.Start();
             var gateHeld = true;
             try
             {
@@ -163,7 +164,9 @@ public sealed partial class PrivateWorldRuntime
                             throw new InvalidOperationException("A child model selection must belong to a child born in the committed tick.");
                         proposed.ApplyChildModelSelection(prepared.ChildId, prepared.Selection);
                     }
+                    tickTimer.Stop();
                     await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    tickTimer.Start();
                     gateHeld = true;
                     cancellationToken.ThrowIfCancellationRequested();
                     if (commitPermitted is not null && !commitPermitted())
@@ -186,7 +189,8 @@ public sealed partial class PrivateWorldRuntime
                         IsWillDecisionProviderCurrent);
                 CommitPreparedTick(proposed);
                 plannedRoutes = proposed.plannedRoutes;
-                lastTickMilliseconds = tickMilliseconds;
+                tickTimer.Stop();
+                lastTickMilliseconds = Math.Round(tickTimer.Elapsed.TotalMilliseconds, 1);
                 foreach (var item in completedIdentityMoments)
                 {
                     pendingIdentityMoments.Remove(item.Request.Observation.InhabitantId);
