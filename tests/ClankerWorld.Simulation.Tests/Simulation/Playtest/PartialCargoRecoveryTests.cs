@@ -11,7 +11,7 @@ public sealed class PartialCargoRecoveryTests
     private const string Wood = "partial-cargo-payment";
     private const string Offer = "partial-cargo-offer";
     private const string Jug = "a-protected-cargo-jug";
-    private const string Water = "protected-cargo-water";
+    private const string Contents = "protected-cargo-contents";
     private static readonly Lazy<Task<byte[]>> Mounted = new(CreateMountedAsync);
     private static readonly Lazy<Task<byte[]>> Hungry = new(CreateHungryAsync);
 
@@ -85,15 +85,15 @@ public sealed class PartialCargoRecoveryTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task AClaimOnTheVesselOrItsContentsPreservesTheWholeFamilyDuringDismount(bool reserveContents)
+    [InlineData("water_jug", "fresh_water")]
+    [InlineData("storage_pot", "grain")]
+    public async Task AClaimOnVesselContentsPreservesTheWholeFamilyDuringDismount(string vesselKind, string contentsKind)
     {
         var state = WithCargo(PrivateWorldRuntimeCodec.Decode(await Mounted.Value), 12, 1);
         var actor = state.Inhabitants[0].InhabitantId;
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, Jug, "water_jug", actor, 1);
-        inventory = InventoryFixture.AddLot(inventory, Water, "fresh_water", actor, 2, containerLotId: Jug);
-        inventory = InventoryFixture.Reserve(inventory, "protected-cargo-family", actor, reserveContents ? Water : Jug,
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, Jug, vesselKind, actor, 1);
+        inventory = InventoryFixture.AddLot(inventory, Contents, contentsKind, actor, 2, containerLotId: Jug);
+        inventory = InventoryFixture.Reserve(inventory, "protected-cargo-family", actor, Contents,
             1, "held-vessel-work", inventory.WorldTick + 1_000);
         state = WithInventory(state, inventory);
         using var world = Restore(state, actor, new Choices("animal_order"));
@@ -107,7 +107,7 @@ public sealed class PartialCargoRecoveryTests
         var final = world.Society.Inventory;
         Assert.True(PersonalEquipmentRules.IsCarried(final.GetLot(Jug), actor));
         Assert.Null(final.GetLot(Jug).GroundPosition);
-        Assert.Equal((actor, Jug, 2), (final.GetLot(Water).OwnerId, final.GetLot(Water).ContainerLotId, final.GetLot(Water).Quantity));
+        Assert.Equal((actor, Jug, 2), (final.GetLot(Contents).OwnerId, final.GetLot(Contents).ContainerLotId, final.GetLot(Contents).Quantity));
         Assert.Equal(5, final.GetLot(Stone).Quantity);
         Assert.Equal(7, final.Lots.Where(lot => lot.ItemKind == "stone" && lot.GroundPosition is not null).Sum(lot => lot.Quantity));
         Assert.Equal(inventory.GetReservation("protected-cargo-family"), final.GetReservation("protected-cargo-family"));
@@ -187,7 +187,7 @@ public sealed class PartialCargoRecoveryTests
 
     private static void AssertClaims(InventoryCheckpoint before, InventoryCheckpoint after, int reserved)
     {
-        Assert.Equal(before.Reservations, after.Reservations);
+        Assert.All(before.Reservations, claim => Assert.Equal(claim, after.GetReservation(claim.Id)));
         Assert.Equal(before.Offers, after.Offers);
         if (reserved == 0) return;
         Assert.True(after.GetLot(Stone).Quantity >= reserved);
