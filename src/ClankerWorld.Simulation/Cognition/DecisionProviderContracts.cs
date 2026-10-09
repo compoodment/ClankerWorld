@@ -354,7 +354,10 @@ public sealed record InhabitantObservation(
                 message.RunEpoch < 0 || message.RunEpoch > RunEpoch || message.SubmissionSequence <= 0 ||
                 !instructionIds.Add(message.InstructionId) ||
                 message.Kind == "must_do" && message.UnderstoodTask is not
-                    ("care for the named animal with real feed and jug water" or
+                    ("reach and attach the selected owned handcart" or
+                        "park the selected attached handcart here with its cargo intact" or
+                        "attempt to talk with the named person; agreement and resumption remain each participant's choice" or
+                        "care for the named animal with real feed and jug water" or
                         "collect the named animal's ready products locally" or
                         "tame the named wild animal for your household" or
                         "lead the named animal to its household yard" or
@@ -369,6 +372,8 @@ public sealed record InhabitantObservation(
                         "collect your own stored or dropped food" or
                         "deliver the requested goods to a permitted building" or
                         "make the requested goods at a permitted workstation" or
+                        "write the requested record, map or book from your learned sites using real materials" or
+                        "copy the requested held record, map or book using real materials and sites you know" or
                         "construct the requested household building at a permitted site" or
                         "complete the requested building's next permitted expansion" or
                         "reach the requested permitted shelter" or
@@ -383,6 +388,7 @@ public sealed record InhabitantObservation(
                         "repair your own worn tool" or
                         "till a field for your household" or
                         "plant the requested crop in your household field" or
+                        "plant the requested tree using a real seed outside Town borders" or
                         "tend your household crop" or
                         "harvest your household crop" or
                         "travel to the exact tile named in this order" or

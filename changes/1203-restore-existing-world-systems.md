@@ -1,0 +1,1 @@
+- World ticks and loading now reuse the existing ecology, chunk metadata and weather state instead of generating an unused initial world first, reducing preparation work without changing world detail or save contents.

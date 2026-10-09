@@ -127,6 +127,7 @@ public sealed partial class PrivateWorldRuntime
                 CancelConstructionForOrder(instruction);
                 CancelExpansionForOrder(instruction);
                 CancelAnimalSupplyForOrder(instruction);
+                CancelKnowledgeWritingForOrder(instruction);
                 status = "cancelled";
                 AppendEvent("instruction_order_cancelled", $"{instruction.TargetInhabitantId}:{instruction.InstructionId}:owner");
             }
@@ -343,6 +344,7 @@ public sealed partial class PrivateWorldRuntime
             CancelConstructionForOrder(instruction);
             CancelExpansionForOrder(instruction);
             CancelAnimalSupplyForOrder(instruction);
+            CancelKnowledgeWritingForOrder(instruction);
             AppendEvent("instruction_order_cancelled", $"{inhabitantId}:{instruction.InstructionId}:replaced");
         }
         checkpointSchemaVersion = StateSchemaVersion;
@@ -394,6 +396,9 @@ public sealed partial class PrivateWorldRuntime
 
     private static string? UnderstoodTaskFor(string? candidate) => candidate switch
     {
+        "talk_to" => TalkOrderTask,
+        "attach_handcart" => "reach and attach the selected owned handcart",
+        "park_handcart" => "park the selected attached handcart here with its cargo intact",
         "animal_care" => "care for the named animal with real feed and jug water",
         "animal_collect" => "collect the named animal's ready products locally",
         "animal_tame" => "tame the named wild animal for your household",
@@ -411,6 +416,7 @@ public sealed partial class PrivateWorldRuntime
         "gather_material" => "gather the requested material from a natural source",
         "till_field" => "till a field for your household",
         "plant_field" => "plant the requested crop in your household field",
+        "plant_tree" or "plant_broadleaf" or "plant_conifer" or "plant_orchard" => "plant the requested tree using a real seed outside Town borders",
         "tend_field" => "tend your household crop",
         "harvest_field" => "harvest your household crop",
         "repair_tool" => "repair your own worn tool",
@@ -426,6 +432,8 @@ public sealed partial class PrivateWorldRuntime
         "return_borrowed" => "return borrowed goods to their owning household's House",
         "deliver_stock" => "deliver the requested goods to a permitted building",
         "produce_item" => "make the requested goods at a permitted workstation",
+        "write_knowledge" => "write the requested record, map or book from your learned sites using real materials",
+        "copy_knowledge" => "copy the requested held record, map or book using real materials and sites you know",
         "construct_building" => "construct the requested household building at a permitted site",
         "expand_building" => "complete the requested building's next permitted expansion",
         _ => null,
@@ -433,7 +441,7 @@ public sealed partial class PrivateWorldRuntime
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
-        return ParseKnowledgeReadOrder(text) ?? ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
+        return ParseKnowledgeReadOrder(text) ?? ParseTalkOrder(text, actor) ?? ParseCartOrder(text, actor) ?? ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
             PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent),
             PrivateWorldBuildingOrderCatalog.Available(worldContent));
     }

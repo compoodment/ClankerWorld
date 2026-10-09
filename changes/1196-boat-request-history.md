@@ -1,0 +1,1 @@
+- Older finished boat-trip records move into the durable history archive when saving, keeping every current trip and the latest 40 finished requests in the live world. Earlier alpha saves are refused and preserved because the checkpoint format changes.

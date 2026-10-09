@@ -1116,9 +1116,9 @@ public sealed partial class PrivateWorldRuntime
 
     private int AvailableLotQuantity(InventoryLot lot) => AvailableLotQuantity(society.Checkpoint.Inventory, lot);
 
-    private static int AvailableLotQuantity(InventoryCheckpoint inventory, InventoryLot lot) => lot.FreshnessBasisPoints == 0 || lot.ConditionBasisPoints == 0 ? 0 : lot.Quantity - inventory.Reservations
-        .Where(reservation => reservation.LotId == lot.Id && reservation.State is InventoryReservationState.Reserved or
-            InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed).Sum(reservation => reservation.Quantity);
+    private static int AvailableLotQuantity(InventoryCheckpoint inventory, InventoryLot lot) =>
+        lot.FreshnessBasisPoints == 0 || lot.ConditionBasisPoints == 0 ? 0 :
+            InventoryRules.UnreservedQuantity(InventoryIndex.For(inventory), lot);
 
     private void SetProject(string inhabitantId, SettlementProject project)
     {

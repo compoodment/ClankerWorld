@@ -215,6 +215,7 @@ public partial class Main
     private void ClearBuildingSelection()
     {
         CancelBuildingRemoval();
+        buildingManagementChoice.GetPopup().Hide();
         renderedBuildingManagementWorldId = null;
         renderedBuildingManagementId = null;
         selectedBuildingId = null;
@@ -262,9 +263,7 @@ public partial class Main
         var household = building.HouseholdId is { } householdId ? GameUiText.PartyName(snapshot, householdId) : null;
         var town = snapshot.Towns.FirstOrDefault(item => item.Id == building.TownId)?.Name;
         var owner = string.Join(" · ", new[] { household, town }.Where(part => part is not null));
-        var inside = snapshot.Inhabitants
-            .Where(person => !person.IsDraft && IsLiving(person) &&
-                footprint.HasPoint(new Vector2I(person.Position.X, person.Position.Y)))
+        var inside = PeopleInside(snapshot, building.InstanceId).GetValueOrDefault(building.InstanceId, [])
             .Select(person => person.DisplayName).Order(StringComparer.CurrentCulture).ToArray();
         var jobs = snapshot.ProductionJobs
             .Where(job => job.BuildingInstanceId == building.InstanceId &&
@@ -570,13 +569,21 @@ public partial class Main
         if (!TryGetOwner(out _, out _, out _))
         {
             buildingManagementSection.Hide();
+            buildingManagementChoice.GetPopup().Hide();
             renderedBuildingManagementWorldId = null;
             renderedBuildingManagementId = null;
             return;
         }
 
-        var previousTarget = renderedBuildingManagementWorldId == snapshot.WorldId &&
-            renderedBuildingManagementId == building.InstanceId && buildingManagementChoice.Selected >= 0
+        var sameBuilding = renderedBuildingManagementWorldId == snapshot.WorldId &&
+            renderedBuildingManagementId == building.InstanceId;
+        var popup = buildingManagementChoice.GetPopup();
+        var focusedIndex = popup.Visible ? popup.GetFocusedItem() : -1;
+        var focusedTarget = sameBuilding && focusedIndex >= 0 && focusedIndex < buildingManagementChoice.ItemCount
+            ? buildingManagementChoice.GetItemMetadata(focusedIndex).AsString()
+            : null;
+        if (!sameBuilding) popup.Hide();
+        var previousTarget = sameBuilding && buildingManagementChoice.Selected >= 0
             ? buildingManagementChoice.GetItemMetadata(buildingManagementChoice.Selected).AsString()
             : null;
         buildingManagementSection.Show();
@@ -620,6 +627,20 @@ public partial class Main
                 break;
             }
         if (buildingManagementChoice.ItemCount > 0) buildingManagementChoice.Select(selectedTarget);
+        if (popup.Visible)
+        {
+            var restoredFocus = -1;
+            for (var index = 0; index < buildingManagementChoice.ItemCount; index++)
+                if (focusedTarget is not null && buildingManagementChoice.GetItemMetadata(index).AsString() == focusedTarget)
+                {
+                    restoredFocus = index;
+                    break;
+                }
+            if ((focusedTarget is not null && restoredFocus < 0) || buildingManagementChoice.ItemCount == 0)
+                popup.Hide();
+            else if (restoredFocus >= 0)
+                popup.SetFocusedItem(restoredFocus);
+        }
         renderedBuildingManagementWorldId = buildingManagementChoice.ItemCount > 0 ? snapshot.WorldId : null;
         renderedBuildingManagementId = buildingManagementChoice.ItemCount > 0 ? building.InstanceId : null;
         buildingManagementChoice.Visible = buildingManagementChoice.ItemCount > 0;

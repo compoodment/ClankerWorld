@@ -54,7 +54,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var actor = instruction.TargetInhabitantId;
         if (!AdultResident(actor)) return "Only an adult or elder resident can read this written item.";
-        if (KnowledgeWritingFor(actor) is not null) return "Waiting for the existing writing work to finish or be cancelled.";
+        if (KnowledgeWritingFor(actor) is not null) return "Cancel this read order to finish the current writing work first.";
         var artifact = KnowledgeReadOrderArtifact(instruction);
         if (artifact is null) return instruction.Order!.TargetKnowledgeArtifactId is null
             ? "Waiting for a personally held written item with something new to read."
