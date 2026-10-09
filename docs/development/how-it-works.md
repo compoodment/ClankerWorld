@@ -2399,7 +2399,10 @@ Customer access remains limited to the named transaction. See the
 saved layout, stock and offer checks.
 
 Missing-input demand checks the buyer's actual production owner, keeping each
-household's available materials separate. A nonterminal recipe plan marked
+household's available materials separate. Blacksmith iron and ornament-input
+purchasing reserves exclude household stock on an actively borrowed Market
+stall. Released household stock counts again, preventing redundant purchases.
+A nonterminal recipe plan marked
 `RequiresFreshChoice` may choose a Market purchase while remaining paused; an
 actively continuing plan keeps the adult at its work. Resuming the recipe
 still requires its ordinary choice and physical ingredient-delivery rules.
