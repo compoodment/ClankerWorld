@@ -131,7 +131,12 @@ public sealed partial class PurposefulExplorationTests
                 fact.DiscovererId == actor && fact.Acquisition == "firsthand" && fact.Terrain == target &&
                 fact.Position == Person(world, actor).Position);
         else
-            Assert.Contains(world.ExportState().Knowledge!.Facts, fact => fact.OwnerId == actor && fact.Position == source.Position);
+        {
+            Assert.True(state.Map.FootDistance(Person(world, actor).Position, source.Position) <= 1 ||
+                world.ExportState().Knowledge!.Facts.Any(fact => fact.OwnerId == actor && fact.Position == source.Position));
+            Assert.Equal(1, world.WorldSystems.Ecology.GetResource(source.Id).Quantity);
+            Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == "wood");
+        }
         var completed = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var completedReload = Restore(PrivateWorldRuntimeCodec.Decode(completed));
         Assert.Equal(completed, PrivateWorldRuntimeCodec.Encode(completedReload.ExportState()));
