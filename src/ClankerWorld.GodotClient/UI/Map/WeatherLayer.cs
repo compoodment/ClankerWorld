@@ -35,6 +35,10 @@ public partial class WeatherLayer : Control
     private float[] storm = [];
     private float[] snow = [];
     private float[] cloudy = [];
+    private float[] occupied = [];
+    private float[] rainSupport = [];
+    private float[] stormSupport = [];
+    private float[] snowSupport = [];
     private Image? tintImage;
     private ImageTexture? tintTexture;
     private Image? stormImage;
@@ -46,6 +50,58 @@ public partial class WeatherLayer : Control
     private float drawnCloudiness;
     private bool paused;
     private static ImageTexture? cloudTexture;
+    private WorldTerrainMap? weatherWorld;
+    private int regionVersion = -1;
+    private int regionSize;
+    private readonly Dictionary<Vector2I, RegionFade> regionFades = [];
+    private bool fading;
+    private bool displayedWeather;
+
+    private readonly record struct RegionFade(Color From, Color To, double Started)
+    {
+        public Color At(double time) => From.Lerp(To, WeatherFade.Progress(time - Started));
+    }
+
+    // RGBA here represents rain, storm, snow and cloud coverage, not a paint color.
+    private static Color WeatherAmounts(string weather) => weather switch
+    {
+        "rain" => new Color(1, 0, 0, 0),
+        "storm" => new Color(0, 1, 0, 0),
+        "snow" => new Color(0, 0, 1, 0),
+        "cloudy" => new Color(0, 0, 0, 1),
+        _ => new Color(0, 0, 0, 0),
+    };
+
+    private void UpdateRegions(double now)
+    {
+        if (source is null || regionVersion == source.WeatherVersion) return;
+        var reset = !ReferenceEquals(weatherWorld, source.World) || regionSize != source.WeatherRegionSize;
+        weatherWorld = source.World;
+        regionSize = source.WeatherRegionSize;
+        regionVersion = source.WeatherVersion;
+        if (reset) regionFades.Clear();
+        foreach (var key in regionFades.Keys.Union(source.WeatherRegions.Keys).ToArray())
+        {
+            var target = WeatherAmounts(source.WeatherRegions.GetValueOrDefault(key, "clear"));
+            if (regionFades.TryGetValue(key, out var previous) && previous.To == target) continue;
+            var from = reset ? target : regionFades.TryGetValue(key, out previous) ? previous.At(now) : new Color(0, 0, 0, 0);
+            regionFades[key] = new RegionFade(from, target, now);
+        }
+    }
+
+    private Color AmountsAt(int x, int y, double now, out float coverage, out Color support)
+    {
+        coverage = 0;
+        support = new Color(0, 0, 0, 0);
+        if (source?.World is not { } world || y < 0 || y >= world.Height ||
+            (!source.WrapsEastWest && (x < 0 || x >= world.Width))) return new Color(0, 0, 0, 0);
+        var canonicalX = source.WrapsEastWest ? ((x % world.Width) + world.Width) % world.Width : x;
+        if (!regionFades.TryGetValue(new Vector2I(canonicalX / regionSize, y / regionSize), out var fade)) return new Color(0, 0, 0, 0);
+        support = now - fade.Started < WeatherFade.Seconds ? fade.From + fade.To : fade.To;
+        coverage = support.R + support.G + support.B + support.A > 0 ? 1 : 0;
+        support = new Color(support.R > 0 ? 1 : 0, support.G > 0 ? 1 : 0, support.B > 0 ? 1 : 0, support.A > 0 ? 1 : 0);
+        return fade.At(now);
+    }
 
     public WeatherLayer()
     {
@@ -71,6 +127,9 @@ public partial class WeatherLayer : Control
             "storm" => storm,
             "snow" => snow,
             "cloudy" => cloudy,
+            "rain-support" => rainSupport,
+            "storm-support" => stormSupport,
+            "snow-support" => snowSupport,
             _ => null,
         };
         if (field is null || fieldWidth == 0) return -1;
@@ -106,12 +165,16 @@ public partial class WeatherLayer : Control
     public override void _Process(double delta)
     {
         if (source is null || !IsVisibleInTree() || source.TileSize <= 0) return;
+        UpdateRegions(animationTime);
         // The weather's own clock only runs while world time does.
         if (!Paused) animationTime += delta;
         var now = animationTime;
+        var wasFading = fading;
+        fading = regionFades.Values.Any(fade => fade.From != fade.To && now - fade.Started < WeatherFade.Seconds);
         var rebuilt = false;
         if (source.WeatherVersion != fieldVersion || !FieldCoversCamera() ||
-            source.TileSize != fieldTileSize || (source.HasActiveWeather && now - fieldTime >= FieldRefreshSeconds))
+            source.TileSize != fieldTileSize || (source.HasActiveWeather && now - fieldTime >= FieldRefreshSeconds) ||
+            (!Paused && ((fading && now - fieldTime >= WeatherFade.FrameSeconds) || (wasFading && !fading))))
         {
             RebuildField(now);
             rebuilt = true;
@@ -121,7 +184,6 @@ public partial class WeatherLayer : Control
             var target = TargetCloudiness();
             cloudiness += (target - cloudiness) * (float)Math.Min(1, delta * 0.5);
         }
-        if (!source.HasActiveWeather && !CloudsEnabled) return;
         // A paused frame only needs redrawing when the view itself changes.
         if (!Paused || rebuilt || source.VisibleTiles != drawnCamera || source.TileSize != drawnTileSize ||
             Math.Abs(cloudiness - drawnCloudiness) > 0.005f)
@@ -142,10 +204,10 @@ public partial class WeatherLayer : Control
         var shown = fieldRect.Intersection(MapRect(stride));
         var fieldSource = new Rect2((shown.Position - fieldRect.Position) / (fieldResolution * stride),
             shown.Size / (fieldResolution * stride));
-        if (source.HasActiveWeather && tintTexture is not null && shown.HasArea())
+        if (displayedWeather && tintTexture is not null && shown.HasArea())
             DrawTextureRectRegion(tintTexture, shown, fieldSource);
-        if (source.HasActiveWeather) DrawPrecipitation(time, stride);
-        if (source.HasActiveWeather && LightningEnabled && stormTexture is not null && shown.HasArea())
+        if (displayedWeather) DrawPrecipitation(time, stride);
+        if (displayedWeather && LightningEnabled && stormTexture is not null && shown.HasArea())
         {
             var flash = Paused ? 0 : LightningFlash(time);
             if (flash > 0) DrawTextureRectRegion(stormTexture, shown, fieldSource, new Color(0.86f, 0.9f, 1f, flash));
@@ -197,11 +259,19 @@ public partial class WeatherLayer : Control
             storm = new float[length];
             snow = new float[length];
             cloudy = new float[length];
+            occupied = new float[length];
+            rainSupport = new float[length];
+            stormSupport = new float[length];
+            snowSupport = new float[length];
         }
         Array.Clear(rain);
         Array.Clear(storm);
         Array.Clear(snow);
         Array.Clear(cloudy);
+        Array.Clear(occupied);
+        Array.Clear(rainSupport);
+        Array.Clear(stormSupport);
+        Array.Clear(snowSupport);
 
         // Each cell reads its weather from a point pushed around by smooth
         // noise, so a square region's edge becomes a wandering coastline of
@@ -222,16 +292,17 @@ public partial class WeatherLayer : Control
                 var wy = (WeatherNoise.At(x / 16f, y / 16f - drift, 23, broad) +
                     WeatherNoise.At(x / 8f, y / 8f + drift, 29, fine) * 0.4f) * 1.6f * reach;
                 var index = row * fieldWidth + column;
-                switch (source.WeatherAt((int)MathF.Floor(x + wx), (int)MathF.Floor(y + wy)))
-                {
-                    case "rain": rain[index] = 1; break;
-                    case "storm": storm[index] = 1; break;
-                    case "snow": snow[index] = 1; break;
-                    case "cloudy": cloudy[index] = 1; break;
-                }
+                var amounts = AmountsAt((int)MathF.Floor(x + wx), (int)MathF.Floor(y + wy), now, out occupied[index], out var support);
+                rainSupport[index] = support.R;
+                stormSupport[index] = support.G;
+                snowSupport[index] = support.B;
+                rain[index] = amounts.R;
+                storm[index] = amounts.G;
+                snow[index] = amounts.B;
+                cloudy[index] = amounts.A;
             }
         var radius = Math.Max(1, 3 / fieldResolution);
-        foreach (var field in new[] { rain, storm, snow, cloudy })
+        foreach (var field in new[] { rain, storm, snow, cloudy, occupied, rainSupport, stormSupport, snowSupport })
             Blur(field, radius);
         for (var index = 0; index < length; index++)
         {
@@ -239,12 +310,18 @@ public partial class WeatherLayer : Control
             // by kind, so a storm running into rain has no pale seam between.
             var total = rain[index] + storm[index] + snow[index] + cloudy[index];
             if (total <= 0.001f) continue;
-            var edge = SmoothStep(0.12f, 0.88f, Math.Min(1, total)) / total;
+            // Shape the region boundary independently of the transition's
+            // amount, preserving the approved temporal envelope at its center.
+            var edge = SmoothStep(0.12f, 0.88f, occupied[index]) / Math.Max(0.001f, occupied[index]);
             rain[index] *= edge;
             storm[index] *= edge;
             snow[index] *= edge;
             cloudy[index] *= edge;
+            rainSupport[index] *= edge;
+            stormSupport[index] *= edge;
+            snowSupport[index] *= edge;
         }
+        displayedWeather = rain.Any(value => value > 0) || storm.Any(value => value > 0) || snow.Any(value => value > 0);
         PaintWashes();
     }
 
@@ -319,51 +396,57 @@ public partial class WeatherLayer : Control
                 if (stormHere <= 0 && rainHere <= 0 && snowHere <= 0) continue;
                 if (tileY < 0 || tileY >= world.Height || (!source.WrapsEastWest && (tileX < 0 || tileX >= world.Width)))
                     continue;
-                for (var slot = 0; slot < 2; slot++)
-                {
-                    var seed = PixelArt.Hash(cx, cy, slot * 977 + 3);
-                    var threshold = (seed & 1023) / 1023f;
-                    var kind = stormHere > threshold ? 's' : slot > 0 ? ' ' :
-                        rainHere > threshold ? 'r' : snowHere > threshold ? 'n' : ' ';
-                    if (kind == ' ') continue;
-                    var spread = ((seed >> 10) & 255) / 255.0;
-                    var period = kind switch
+                for (var weatherKind = 0; weatherKind < 3; weatherKind++)
+                    for (var slot = 0; slot < (weatherKind == 0 ? 2 : 1); slot++)
                     {
-                        's' => 0.45 + spread * 0.25,
-                        'r' => 0.85 + spread * 0.5,
-                        _ => 3.0 + spread * 1.6,
-                    };
-                    var phase = ((seed >> 18) & 255) / 255.0 * period;
-                    var cycle = (long)Math.Floor((time + phase) / period);
-                    var progress = (float)((time + phase) / period - cycle);
-                    var landing = PixelArt.Hash(cx * 31 + (int)(cycle & 0xFFFF), cy * 17 + slot, (int)(cycle >> 16) + 41);
-                    var px = (cx + (landing & 255) / 255f) * DropCell;
-                    var py = (cy + ((landing >> 8) & 255) / 255f) * DropCell;
-                    switch (kind)
-                    {
-                        case 's':
-                            // Storms: faster, longer slanted streaks and a few splashes.
-                            var fall = size * 2.2f;
-                            var sx = px + fall * 0.4f * (1 - progress);
-                            var sy = py - fall * (1 - progress) - streakLength;
-                            DrawLine(new Vector2(sx, sy), new Vector2(sx - streakLength * 0.4f, sy + streakLength), streak, 1);
-                            if (slot == 0 && ((landing >> 16) & 3) == 0 && progress > 0.75f)
-                                DrawSplash(new Vector2(px, py), (progress - 0.75f) / 0.25f, ring, drop);
-                            break;
-                        case 'r':
-                            DrawRainDrop(new Vector2(px, py), progress, size * 1.6f, dropLength, dropWidth, ring, drop);
-                            break;
-                        default:
-                            var sway = MathF.Sin((progress * 2 + (seed >> 26) / 64f) * MathF.Tau) * Math.Max(2f, size * 0.08f);
-                            var fx = px + sway;
-                            var fy = py - DropCell * 1.3f * (1 - progress);
-                            var fade = Math.Min(1, Math.Min(progress / 0.12f, (1 - progress) / 0.2f));
-                            var flakeSize = size >= 12 ? 2f : 1f;
-                            DrawRect(new Rect2(MathF.Round(fx), MathF.Round(fy), flakeSize, flakeSize),
-                                flake with { A = flake.A * fade });
-                            break;
+                        var seed = PixelArt.Hash(cx, cy, slot * 977 + 3);
+                        var threshold = (seed & 1023) / 1023f;
+                        var (kind, amount, support) = weatherKind switch
+                        {
+                            0 => ('s', stormHere, CoverageAt(tileX, tileY, "storm-support")),
+                            1 => ('r', rainHere, CoverageAt(tileX, tileY, "rain-support")),
+                            _ => ('n', snowHere, CoverageAt(tileX, tileY, "snow-support")),
+                        };
+                        if (amount <= 0 || support <= threshold) continue;
+                        var opacity = Math.Clamp(amount / support, 0, 1);
+                        var spread = ((seed >> 10) & 255) / 255.0;
+                        var period = kind switch
+                        {
+                            's' => 0.45 + spread * 0.25,
+                            'r' => 0.85 + spread * 0.5,
+                            _ => 3.0 + spread * 1.6,
+                        };
+                        var phase = ((seed >> 18) & 255) / 255.0 * period;
+                        var cycle = (long)Math.Floor((time + phase) / period);
+                        var progress = (float)((time + phase) / period - cycle);
+                        var landing = PixelArt.Hash(cx * 31 + (int)(cycle & 0xFFFF), cy * 17 + slot, (int)(cycle >> 16) + 41);
+                        var px = (cx + (landing & 255) / 255f) * DropCell;
+                        var py = (cy + ((landing >> 8) & 255) / 255f) * DropCell;
+                        switch (kind)
+                        {
+                            case 's':
+                                // Storms: faster, longer slanted streaks and a few splashes.
+                                var fall = size * 2.2f;
+                                var sx = px + fall * 0.4f * (1 - progress);
+                                var sy = py - fall * (1 - progress) - streakLength;
+                                DrawLine(new Vector2(sx, sy), new Vector2(sx - streakLength * 0.4f, sy + streakLength), streak with { A = streak.A * opacity }, 1);
+                                if (slot == 0 && ((landing >> 16) & 3) == 0 && progress > 0.75f)
+                                    DrawSplash(new Vector2(px, py), (progress - 0.75f) / 0.25f, ring, drop with { A = drop.A * opacity });
+                                break;
+                            case 'r':
+                                DrawRainDrop(new Vector2(px, py), progress, size * 1.6f, dropLength, dropWidth, ring, drop with { A = drop.A * opacity });
+                                break;
+                            default:
+                                var sway = MathF.Sin((progress * 2 + (seed >> 26) / 64f) * MathF.Tau) * Math.Max(2f, size * 0.08f);
+                                var fx = px + sway;
+                                var fy = py - DropCell * 1.3f * (1 - progress);
+                                var fade = Math.Min(1, Math.Min(progress / 0.12f, (1 - progress) / 0.2f));
+                                var flakeSize = size >= 12 ? 2f : 1f;
+                                DrawRect(new Rect2(MathF.Round(fx), MathF.Round(fy), flakeSize, flakeSize),
+                                    flake with { A = flake.A * fade * opacity });
+                                break;
+                        }
                     }
-                }
             }
     }
 

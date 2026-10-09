@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Playing the current game
@@ -706,7 +706,9 @@ Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
 Game Settings controls the window, theme, weather effects, date/time format
-and the model-call limit.
+and the model-call limit. Rain, storms and snow fade in or out over about a
+second when regional weather changes. Pausing freezes a fade where it is;
+loading a world shows its existing weather at once.
 Dates name the season and its day, such as **Autumn 2, Year 1 · 14:20**; a new
 world's year has four ten-day seasons: Spring, Summer, Autumn and Winter. The
 top bar then shows the weather beside the date without naming the season again.

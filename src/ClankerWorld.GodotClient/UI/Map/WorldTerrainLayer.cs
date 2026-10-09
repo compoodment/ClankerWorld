@@ -98,6 +98,8 @@ public partial class WorldTerrainLayer : Control
 
     public int WeatherRegionSize => weatherRegionSize;
 
+    internal IReadOnlyDictionary<Vector2I, string> WeatherRegions => weatherRegions;
+
     /// <summary>Changes whenever the map or its weather regions change, for layers that cache weather.</summary>
     public int WeatherVersion { get; private set; }
 

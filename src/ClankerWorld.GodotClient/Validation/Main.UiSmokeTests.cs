@@ -3329,6 +3329,7 @@ public partial class Main
             }
             if (brightest > 0.31f || lit > 900 || flashes > 25)
                 throw new InvalidOperationException($"Lightning must stay soft and rare: peak={brightest}, lit samples={lit}, flashes={flashes}.");
+            await VerifyWeatherFadeAsync(largeMap);
             await VerifyNightWashAsync(largeMap);
             await VerifyNightLightsAsync(largeMap);
             var startedMap = largeMap with { FounderSetup = null };

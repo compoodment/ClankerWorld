@@ -124,7 +124,9 @@ zooms in one step.
 
 ## 13 · Weather fading in and out (`weatherfade`)
 
-Clear, then rain in the approved look B arrives and leaves.
+Clear, then rain in the approved look B arrives and leaves. Option B is integrated
+by #1469; the independent review drawing is kept in
+`../Approved/WeatherFade.cs`, and the baseline uses the client fade envelope.
 
 - **A · Today:** the weather switches on and off at once.
 - **B · Fade:** the rain fades in and out over about a second.

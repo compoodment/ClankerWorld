@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # What works today
@@ -1369,7 +1369,9 @@ storm lasts at most three-quarters of a day, and that region then gets at least
 half a day without another. Rain nearby makes rain a little more likely. These
 values are a prototype for playtesting ([#204](https://github.com/compoodment/ClankerWorld/issues/204)).
 Recent rain gives a modest soil-moisture estimate. The map shows rain, snow, storms and optional
-haze/flashes, and darkens gently at night. Drifting visual edges do not mean weather fronts actually move
+haze/flashes, and darkens gently at night. Rain, storms and snow fade in or out
+over 1.2 seconds when regional weather changes; pause freezes the transition.
+Loading a world shows its current weather immediately. Drifting visual edges do not mean weather fronts actually move
 between regions yet.
 
 The map uses the pixel art approved in the October 1 art review: every ground

@@ -36,6 +36,9 @@ static class Baseline
         Directory.CreateDirectory(root);
         var families = new List<(string Family, List<Entry> Entries, Color? Backdrop, int Columns)>();
 
+        families.Add(("weatherfade", new[] { 0.0, 1.4, 2.4, 3.9, 4.8 }
+            .Select(time => new Entry("weatherfade", $"b-fade-{time:0.0}", WeatherFadeClientPreview.Frame(time))).ToList(), null, 5));
+
         // Ground tiles: both variants at 32 px and at the 16 px mid-zoom atlas.
         var terrain = new List<Entry>();
         foreach (var style in Enum.GetValues<TerrainStyle>())
