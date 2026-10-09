@@ -103,6 +103,8 @@ still open normally.
    [More New World options](#more-new-world-options)).
 2. Wait for the preview. Changing an option updates it; **Create World** becomes
    available when the preview for the current choices succeeds.
+   Different map sizes or generation choices can reuse a seed and keep separate
+   worlds. Changing only the name does not create another copy of the same map.
 3. Create the world. It opens paused at 06:00 on Spring 1, Year 1, in daylight.
    Choose a rough site for its first Town;
    greener shading and the hovered tips show nearby food, fertile ground, wood,
@@ -509,8 +511,8 @@ survival pauses the work before it resumes.
 
 Use **Seek shelter**, **Take cover** or **Shelter in my House** to reach
 permitted cover. Add **at (12, 4)** to require that location. A storm guest
-still needs a current invitation, and natural cover protects only during a
-storm. The task finishes when the agent reaches usable cover; this does not
+still needs a current invitation. Forests and trees give partial protection
+during a storm; a House gives more cover. The task finishes when the agent reaches usable cover; this does not
 mean they have recovered their warmth.
 
 An adult can follow **Light a fire**, **Tend the fire** or **Light the fire in

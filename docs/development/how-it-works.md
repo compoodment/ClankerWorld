@@ -736,9 +736,11 @@ work or conversation, and no sleep or energy. Longer winter nights mean more
 hours of chill. Night does not change weather or crops yet.
 
 The warmth action keeps an agent in place when their current protection stops
-cooling. Otherwise, a reachable lit hearth takes priority over nearby natural
-storm cover, so a tree along the route cannot pull the agent back from the
-hearth. Natural cover remains a fallback when no lit destination is reachable;
+cooling. Forest and tree cover give a provisional 22 storm-protection points,
+compared with a building's 45. A cooling agent prefers a reachable permitted
+building over natural cover, with a usable lit hearth first. Once in a
+building, they keep its cover unless a usable lit hearth is reachable. Natural
+cover remains a fallback when no building destination is reachable;
 existing access permissions, routes and fuel use still apply.
 The lit destination must be a heating building the agent can use; a
 storm-shelter guest invitation alone does not grant use of a household hearth.
@@ -1015,10 +1017,12 @@ retain complete native inhabitant IDs, including longer identities created by
 birth; they do not share the length bounds for caller-provided belief IDs and
 prose. Canonical identity and known-owner checks still apply.
 Personal-model memory subjects use stable hash aliases for longer native IDs,
-as map-knowledge discoverers already do; saved belief ownership and subjects
-keep their complete identities.
+as map-knowledge discoverers already do; saved social-memory and belief
+ownership and subjects keep their complete identities.
 Memory salience indexes retain the same complete native owner identities while
 validating each indexed source against that owner's existing records.
+Helper score replies retain these owner IDs too; admission requires the exact
+requesting agent and one of its offered source records.
 Private thoughts, provider payloads
 and unaccepted replies never enter that history. Prose has no world effect; the
 only ordinary-dialogue effect is mutual trust, offered during wrap-up and

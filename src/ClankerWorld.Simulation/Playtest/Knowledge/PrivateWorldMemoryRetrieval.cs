@@ -115,11 +115,11 @@ internal static class PrivateWorldMemoryRetrieval
         var experiences = socialMemories
             .Where(memory => string.Equals(memory.OwnerId, ownerId, StringComparison.Ordinal) &&
                 memory.TombstonedTick is null && memory.SourceTick >= 0 && memory.SourceTick <= worldTick &&
-                IsValidId(memory.Id) && IsValidId(memory.SubjectId) && !string.IsNullOrWhiteSpace(memory.Summary))
+                IsValidId(memory.Id) && IsCanonicalId(memory.SubjectId) && !string.IsNullOrWhiteSpace(memory.Summary))
             .Select(memory => new SourceRecord(
                 memory.Id,
                 ownerId,
-                memory.SubjectId,
+                CognitionSubjectId(memory.SubjectId),
                 Bounded(memory.Summary, MaximumSummaryLength),
                 memory.SourceTick,
                 "experience",
@@ -169,7 +169,9 @@ internal static class PrivateWorldMemoryRetrieval
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
-    private static bool IsValidId(string? value) => value is { Length: > 0 and <= 128 } &&
+    private static bool IsValidId(string? value) => value is { Length: <= 128 } && IsCanonicalId(value);
+
+    private static bool IsCanonicalId(string? value) => value is { Length: > 0 } &&
         value == value.Trim() && !value.Any(char.IsControl);
 
     private static string CognitionSubjectId(string subjectId) => subjectId.Length <= 128
