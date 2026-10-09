@@ -670,9 +670,14 @@ public sealed partial class OwnerWorldObservationStore
                 .OrderBy(inhabitant => inhabitant.Id, StringComparer.Ordinal)
                 .ToArray(),
             Conversations = (state.Conversations ?? [])
+                .Where(conversation => conversation.Status != AgentConversationStatus.Closed)
+                .Concat((state.Conversations ?? [])
+                    .Where(conversation => conversation.Status == AgentConversationStatus.Closed)
+                    .OrderByDescending(conversation => conversation.LastUpdatedTick)
+                    .ThenBy(conversation => conversation.Id, StringComparer.Ordinal)
+                    .Take(16))
                 .OrderByDescending(conversation => conversation.LastUpdatedTick)
                 .ThenBy(conversation => conversation.Id, StringComparer.Ordinal)
-                .Take(16)
                 .Select(conversation => new ViewerConversation(
                     conversation.Id,
                     conversation.InitiatorId,
