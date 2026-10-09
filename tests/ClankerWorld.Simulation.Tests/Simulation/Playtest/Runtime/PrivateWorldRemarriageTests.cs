@@ -184,6 +184,9 @@ public sealed partial class PrivateWorldConversationTests
         await AdvanceRemarriageUntil(world, () => world.Marriages.Count == 1);
         world.Pause();
         var names = world.Society.Inhabitants.Select(person => person.Name).ToArray();
+        var beforeEnding = world.ExportState();
+        var unfinishedSession = Assert.Single(beforeEnding.Conversations!,
+            item => item.Id == Assert.Single(beforeEnding.Marriages).SurnameConversationId);
         Assert.True(world.ApplyDeveloperEdit(MarriageEdit(world, "end_partnership", InitiatorId, InviteeId)).Applied);
         var marriage = Assert.Single(world.Marriages);
         Assert.NotNull(marriage.EndedTick);
@@ -196,6 +199,28 @@ public sealed partial class PrivateWorldConversationTests
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), Route);
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        var endedState = world.ExportState();
+        var reopened = endedState with
+        {
+            Marriages = [marriage with { SurnameReceipt = null }],
+            Conversations = endedState.Conversations!.Select(item =>
+                item.Id == unfinishedSession.Id ? unfinishedSession : item).ToArray(),
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(reopened));
+
+        world.Resume();
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        world.Pause();
+        endedState = world.ExportState();
+        var afterEnding = marriage.SurnameReceipt with { LastUpdatedTick = world.WorldTick };
+        Assert.True(afterEnding.LastUpdatedTick > marriage.EndedTick);
+        var lateReceipt = endedState with
+        {
+            Marriages = [marriage with { SurnameReceipt = afterEnding }],
+            Conversations = endedState.Conversations!.Select(item =>
+                item.Id == afterEnding.Id ? afterEnding : item).ToArray(),
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(lateReceipt));
     }
 
     [Fact]
