@@ -17,6 +17,7 @@ public sealed partial class PrivateWorldRuntime
         if (householdId is null || FarmhouseForHousehold(householdId) is not { } farmhouse ||
             NeedsUrgentFood(state) || NeedsUrgentWarmth(state) ||
             (state.Project is { Stage: not ("completed" or "cancelled") } project && !project.RequiresFreshChoice)) return;
+        var demand = FarmFoodDemand(householdId);
         var hasHoe = ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, actor, ToolFamily.Hoe) is not null;
         foreach (var field in fields.Where(field => field.HouseholdId == householdId && field.Work is null))
         {
@@ -25,7 +26,7 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Harvest, field.Position), "Harvest the ready crop; it stays on the ground until carried.", 12));
             else if (hasHoe && field.Stage == FarmFieldStage.Growing && !field.Tended)
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Tend, field.Position), "Tend the growing crop with a hoe.", 13));
-            else if (field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested && FarmNeedsFood(householdId))
+            else if (field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested && demand.MissingMeals > 0)
             {
                 if (HasOtherInhabitantClaimedPlanting(field, actor)) continue;
                 var priority = 14;
@@ -34,11 +35,9 @@ public sealed partial class PrivateWorldRuntime
                         $"Carry {FarmFieldRules.PlantingItem(crop).Replace('_', ' ')} to the field and plant {crop.Replace('_', ' ')}.", priority++));
             }
         }
-        var population = society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == householdId &&
-            person.Status == SocietyInhabitantStatus.Active);
         var expectedYield = Math.Max(1, FarmFieldRules.HarvestQuantity(FarmFieldRules.Grain, fertility.At(farmhouse.Position)));
-        var wantedFields = Math.Max(1, (int)Math.Ceiling(population * FarmFieldRules.MealsPerPersonPerDay * 2d / expectedYield));
-        if (!hasHoe || !FarmNeedsFood(householdId) || fields.Count(field => field.HouseholdId == householdId) >= wantedFields) return;
+        var wantedFields = (int)Math.Ceiling(demand.MissingMeals / (demand.FarmingHouseholds * (double)expectedYield));
+        if (!hasHoe || fields.Count(field => field.HouseholdId == householdId) >= wantedFields) return;
         var heldByOthers = HouseholdLandHeldByOthers(householdId);
         var site = NearbyFarmTiles(farmhouse.Position)
             .Where(point => !heldByOthers.Contains(point) && FarmableFreeTile(point))
@@ -90,13 +89,27 @@ public sealed partial class PrivateWorldRuntime
     private bool CanReachField(string actor, GridPoint from, GridPoint destination) =>
         from == destination || map.IsReachableOnFoot(from, destination);
 
-    private bool FarmNeedsFood(string householdId)
+    private bool FarmNeedsFood(string householdId) => FarmFoodDemand(householdId).MissingMeals > 0;
+
+    private (int MissingMeals, int FarmingHouseholds) FarmFoodDemand(string householdId)
     {
-        var population = society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == householdId &&
-            person.Status == SocietyInhabitantStatus.Active);
-        var stock = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == householdId &&
-            IsEdibleFood(lot.ItemKind)).Sum(AvailableLotQuantity);
-        return stock < population * FarmFieldRules.MealsPerPersonPerDay * 2;
+        var checkpoint = society.Checkpoint;
+        var townId = FarmhouseForHousehold(householdId)?.TownId;
+        var town = towns.SingleOrDefault(item => item.Id == townId);
+        var residents = checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
+            (town is null ? person.HouseholdId == householdId : town.ResidentIds.Contains(person.Id, StringComparer.Ordinal)))
+            .ToArray();
+        var foodOwners = town is null ? new HashSet<string>(StringComparer.Ordinal) { householdId }
+            : residents.Select(person => person.Id).Concat(residents.Select(person => person.HouseholdId)
+                .OfType<string>()).ToHashSet(StringComparer.Ordinal);
+        var stock = checkpoint.Inventory.Lots.Where(lot => foodOwners.Contains(lot.OwnerId) &&
+            IsEdibleFood(lot.ItemKind) && InUsableVesselOrLoose(lot)).Sum(AvailableLotQuantity);
+        // The budget changes no ownership or access: each household still works
+        // its own fields and must physically carry its own planting supplies.
+        var farmingHouseholds = town is null ? 1 : residents.Select(person => person.HouseholdId).OfType<string>()
+            .Distinct(StringComparer.Ordinal).Count(owner => FarmhouseForHousehold(owner)?.TownId == town.Id);
+        return (Math.Max(0, residents.Length * FarmFieldRules.MealsPerPersonPerDay * 2 - stock),
+            Math.Max(1, farmingHouseholds));
     }
 
     // A missing unit for existing eligible field work, not an inventory buffer.

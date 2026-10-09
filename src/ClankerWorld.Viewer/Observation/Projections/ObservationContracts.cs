@@ -275,7 +275,12 @@ public sealed record ViewerInstructionOrder(
     string? TargetItemKind = null,
     string? TargetBuildingKind = null,
     string? TargetAnimalId = null,
-    string? TargetKnowledgeKind = null);
+    string? TargetKnowledgeKind = null,
+    string? TargetCartLotId = null,
+    string? TalkConversationId = null,
+    string? TalkStatus = null,
+    string? TalkOutcome = null,
+    string? TargetKnowledgeArtifactId = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -624,6 +629,9 @@ public sealed record ViewerConversation(
     public string? ChosenSurname { get; init; }
 }
 
+public sealed record ViewerWorldGeneration(string Seed, string Size, string ClimateMode,
+    string SelectedClimate, bool LatitudeCooling, bool WrapEastWest);
+
 public sealed record ViewerWorldSnapshot(
     string WorldId,
     long WorldTick,
@@ -638,6 +646,7 @@ public sealed record ViewerWorldSnapshot(
     public ViewerPackedMapLayers? PackedMapLayers { get; init; }
     public string? MapLayersDigest { get; init; }
     public bool WrapsEastWest { get; init; }
+    public ViewerWorldGeneration? Generation { get; init; }
     public IReadOnlyList<ViewerFarmField> Fields { get; init; } = [];
     public IReadOnlyList<ViewerGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<ViewerHandcart> Handcarts { get; init; } = [];

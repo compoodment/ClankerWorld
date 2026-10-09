@@ -1,0 +1,2 @@
+- On the paired world: watch a running world on Windows and check that fields, resources and Event Log entries keep updating while the map stays detailed. ([#1195](https://github.com/compoodment/ClankerWorld/issues/1195))
+- On the paired world: load an earlier save and select another generated world; check that the displayed terrain and current field work match that world. ([#1195](https://github.com/compoodment/ClankerWorld/issues/1195))
