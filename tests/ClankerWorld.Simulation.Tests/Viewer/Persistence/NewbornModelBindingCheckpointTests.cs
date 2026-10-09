@@ -120,6 +120,8 @@ public sealed class NewbornModelBindingCheckpointTests
         finally { directory.Delete(recursive: true); }
     }
 
+    internal static Task<byte[]> BeforeBirth(int seedSuffix) => BeforeBirth(seedSuffix, seedIdentified: true);
+
     private static async Task<byte[]> BeforeBirth(int seedSuffix, bool seedIdentified)
     {
         using var generated = NormalPathWorld.CreateGenerated("social-talk-" + new string('x', seedSuffix), Providers);
@@ -182,7 +184,7 @@ public sealed class NewbornModelBindingCheckpointTests
         });
     }
 
-    private static IDecisionProvider Providers(string actor) => new ParentChoices(actor);
+    internal static IDecisionProvider Providers(string actor) => new ParentChoices(actor);
 
     private sealed class ParentChoices(string actor) : IDecisionProvider
     {

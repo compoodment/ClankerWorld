@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 102;
+    public const int StateSchemaVersion = 110;
     // Founded Towns save laws, protected government changes and the mayor's office from this schema.
     public const int TownGovernmentSchemaVersion = 55;
     public const int ObserverGuidanceSchemaVersion = 41;
@@ -144,6 +144,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         GeographyOptions? geographyOptions,
         SeededMap? preparedMap,
         bool includeLegacyBedroll = false,
+        WorldSystemsState? restoredWorldSystems = null,
         string? savedWorldId = null)
     {
         this.worldSeed = NormalizeRequiredText(worldSeed, nameof(worldSeed));
@@ -169,7 +170,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                 : GeographyCandidateSelector.GenerateCandidate(geographyOptions, includeLegacyBedroll: includeLegacyBedroll)
             : SeededMapGenerator.Generate(this.worldSeed, includeLegacyBedroll));
         fertility = new LandFertility(map, this.worldSeed);
-        worldSystems = CreateWorldSystems(this.worldSeed, map, startPace);
+        // Restore supplies an already validated saved state or a trusted tick
+        // snapshot. Only a new world needs genesis ecology, chunks and weather.
+        worldSystems = restoredWorldSystems ?? CreateWorldSystems(this.worldSeed, map, startPace);
         // Restore and tick preparation reuse the stored ID, avoiding map hashing
         // after creation and preserving existing seed-identified worlds.
         society = CreateSociety(
@@ -317,6 +320,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             state.Geography,
             trustedPreparedState ? state.Map : null,
             includeLegacyBedroll: state.Map.CampObjects.Any(item => item.Id == "bedroll" && item.Kind == "bedroll"),
+            restoredWorldSystems: state.WorldSystems!,
             savedWorldId: state.Society.Society.WorldId);
         if (!trustedPreparedState && !IsCompatibleSavedMap(runtime.map, state))
         {
@@ -364,7 +368,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.survivalState = state.Survival;
         runtime.council = state.Council;
         runtime.continuity = state.Continuity!;
-        runtime.worldSystems = state.WorldSystems!;
         RegionalWeatherRules.ValidateMap(runtime.worldSystems, runtime.map);
         runtime.inhabitants.Clear();
         foreach (var inhabitant in state.Inhabitants)

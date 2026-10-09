@@ -79,6 +79,8 @@ public sealed class WorldSystemsContractTests
         var second = first with { Id = "tree-b", Position = new GridPoint(2, 1) };
         var ecology = new EcologyState([first, second]);
         Assert.Same(second, ecology.GetResource("tree-b"));
+        Assert.True(ecology.TryGetResource("tree-b", out var found));
+        Assert.Same(second, found);
 
         // `with` copies the state; the copy must find its own list's resources.
         var felled = second with { Quantity = 0, State = EcologyResourceState.Regenerating };
@@ -86,6 +88,10 @@ public sealed class WorldSystemsContractTests
         Assert.Same(felled, replaced.GetResource("tree-b"));
         Assert.Same(first, replaced.GetResource("tree-a"));
         Assert.Same(second, ecology.GetResource("tree-b"));
+        Assert.True(replaced.TryGetResource("tree-b", out found));
+        Assert.Same(felled, found);
+        Assert.False(ecology.TryGetResource("tree-c", out found));
+        Assert.Null(found);
 
         Assert.Throws<InvalidOperationException>(() => ecology.GetResource("tree-c"));
         Assert.Throws<InvalidOperationException>(() => new EcologyState([first, second, first]).GetResource("tree-a"));
