@@ -17,6 +17,14 @@ public sealed class GrownAgentHelperMemoryTests
     {
         var state = PrivateWorldRuntimeCodec.Decode(await Born.Value);
         var childId = Assert.Single(state.Society.Society.Births).ChildId;
+        if (age == 15)
+        {
+            var society = state.Society.Society;
+            foreach (var parent in society.Relationships.Where(edge => edge.Type == SocietyRelationshipType.BiologicalParentage && edge.TargetId == childId)
+                         .Select(edge => edge.ProposerId))
+                society = ChosenBirthNameTestFixture.NameParent(society, parent);
+            state = state with { Society = state.Society with { Society = society } };
+        }
         using (var aging = PrivateWorldRuntime.Restore(state,
             id => id == childId && age == 15 ? new InitialIdentityProvider() : new QuietProvider()))
         {
@@ -159,7 +167,7 @@ public sealed class GrownAgentHelperMemoryTests
             var probabilities = request.Observation.Candidates.ToDictionary(item => item.Id,
                 item => item.Id == "safe_idle" ? 1d : 0d, StringComparer.Ordinal);
             var name = request.Observation.NeedsName
-                ? "Zuri " + request.Observation.Self!.AllowedChildSurnames![0] : null;
+                ? "Zuri " + Assert.Single(request.Observation.Self!.AllowedChildSurnames!) : null;
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
                 KindFor(request.Observation), ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest, "safe_idle", 1, probabilities, ChosenName: name,
