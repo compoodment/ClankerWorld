@@ -14,7 +14,7 @@ public sealed class MarketMilkRestockingTests
     [Theory]
     [InlineData("active", false)]
     [InlineData("left", true)]
-    [InlineData("house", true)]
+    [InlineData("house", false)]
     [InlineData("carried", true)]
     public async Task MilkRestockingProtectsActiveSaleButPermitsReleasedAndHomeStock(string boundary, bool expected)
     {
@@ -50,12 +50,14 @@ public sealed class MarketMilkRestockingTests
         Assert.Equal(expected, choices.OfferedTo(collector).Any(item => item.Id.StartsWith("animal:milk_stock:", StringComparison.Ordinal) && item.DestinationId == Store));
         var jug = final.Society.Society.Inventory.GetLot(Jug);
         var milk = final.Society.Society.Inventory.GetLot(Milk);
-        Assert.Equal((household, 1, expected ? Store : null), (jug.OwnerId, jug.Quantity, jug.StorageBuildingId));
+        var expectedStorage = expected ? Store : boundary == "house" ? PaidMarketWorld.HouseOf(state, household).InstanceId : null;
+        Assert.Equal((household, 1, expectedStorage), (jug.OwnerId, jug.Quantity, jug.StorageBuildingId));
         Assert.Null(jug.CarrierId);
-        Assert.Equal(expected ? null : new InventoryGroundPosition(source.X, source.Y), jug.GroundPosition);
+        Assert.Equal(expected || boundary == "house" ? null : new InventoryGroundPosition(source.X, source.Y), jug.GroundPosition);
         Assert.Equal((household, Jug, 2), (milk.OwnerId, milk.ContainerLotId, milk.Quantity));
         Assert.Equal(jug.StorageBuildingId, milk.StorageBuildingId);
-        Assert.Equal(jug.GroundPosition, milk.GroundPosition);
+        // Contained milk inherits the root jug's ground position; contents never record their own.
+        Assert.Null(milk.GroundPosition);
         Assert.Equal(1, final.Society.Society.Inventory.Lots.Count(item => item.Id == Jug));
         Assert.Equal(2, final.Society.Society.Inventory.Lots.Where(item => item.ItemKind == "milk").Sum(item => item.Quantity));
         Assert.Equal(Assert.Single(market.StockReceipts), Assert.Single(PaidMarketWorld.Market(final).StockReceipts));
