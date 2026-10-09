@@ -106,6 +106,20 @@ public sealed class OwnerWorldApi
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Deletion(action),
             action, deviceKey, cancellationToken);
 
+    public Task<RecoveryCleanupPreview> PreviewRecoveryCleanupAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId, OwnerRecoveryCleanupAction action,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerRecoveryCleanupAction, RecoveryCleanupPreview>(
+            serverUri, authority, deviceId, "/api/v1/owner/saves/recovery-cleanup",
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.RecoveryCleanup(action), action, deviceKey, cancellationToken);
+
+    public Task<OwnerRecoveryCleanupReceipt> CleanRecoveryHistoryAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId, OwnerRecoveryCleanupAction action,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerRecoveryCleanupAction, OwnerRecoveryCleanupReceipt>(
+            serverUri, authority, deviceId, "/api/v1/owner/saves/recovery-cleanup",
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.RecoveryCleanup(action), action, deviceKey, cancellationToken);
+
     public Task<ManualWorldSave[]> ListManualSavesAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
         IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)

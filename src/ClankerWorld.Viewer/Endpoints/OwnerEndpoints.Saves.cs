@@ -229,12 +229,12 @@ internal static partial class OwnerEndpoints
                         return Results.Conflict(new { error = "This save belongs to a different world." });
                     }
                     // Loading must never lose the world being left. Its unsaved progress
-                    // becomes a normal save on its own branch, unless the world is
+                    // becomes a recovery copy on its own branch, unless the world is
                     // still exactly the save it continues from.
                     var currentAssignments = providers.CaptureRuntimeConfiguration().Assignments ?? [];
                     var currentAutosave = autosave.Capture();
                     var backup = saves.FindUnchangedSave(runtime, currentAssignments, currentAutosave)
-                        ?? saves.Create("Before loading", runtime, currentAssignments, currentAutosave);
+                        ?? saves.CreateLoadRecovery(runtime, currentAssignments, currentAutosave);
                     var timelineRestore = saves.ContinueFrom(action.Value);
                     try
                     {

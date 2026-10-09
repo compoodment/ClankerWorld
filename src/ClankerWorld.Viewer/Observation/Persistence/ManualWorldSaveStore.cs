@@ -36,11 +36,11 @@ public sealed record SaveTimelinePosition(string? ContinuedFromId, string? Branc
 /// atomic writes, and private files keep names out of paths and credentials
 /// out of world saves. History segments remain alongside the active save.
 /// </summary>
-public sealed class ManualWorldSaveStore
+public sealed partial class ManualWorldSaveStore
 {
     private sealed record Metadata(ManualWorldSave Save, IReadOnlyList<InhabitantProviderAssignment> Assignments,
         WorldAutosaveSettings? AutosaveSettings, string? WorldId = null, string? Generation = null,
-        [property: JsonIgnore] bool HasInvalidBranchMetadata = false);
+        [property: JsonIgnore] bool HasInvalidBranchMetadata = false, RecoveryProvenance? Recovery = null);
     private sealed record BranchMetadata(SaveBranch? Branch = null, string? ContinuedFromId = null,
         DateTimeOffset? ContinuedFromCreatedUtc = null, long BranchPosition = 0);
     // Where the running world's history continues from: its branch (null when the
@@ -111,7 +111,7 @@ public sealed class ManualWorldSaveStore
             };
             WriteAtomic(StatePath(backup.Id), previousBytes);
             WriteAtomic(MetadataPath(backup.Id), JsonSerializer.SerializeToUtf8Bytes(
-                previousMetadata with { Save = backup, Generation = null }));
+                previousMetadata with { Save = backup, Generation = null, Recovery = NextRecovery(id) }));
 
             // The backup keeps the old version in its original branch. The chosen
             // slot now holds the running world, so it joins the running world's branch.
@@ -154,7 +154,7 @@ public sealed class ManualWorldSaveStore
 
     private ManualWorldSave CreateCore(string name, PrivateWorldRuntime runtime,
         IReadOnlyList<InhabitantProviderAssignment> assignments,
-        WorldAutosaveSettings? autosaveSettings, bool isAutosave)
+        WorldAutosaveSettings? autosaveSettings, bool isAutosave, RecoveryProvenance? recovery = null)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(assignments);
@@ -179,7 +179,7 @@ public sealed class ManualWorldSaveStore
             // position still keeps the next save on this branch.
             AdvanceTimeline(worldId, timeline, entry, bytes);
             WriteAtomic(MetadataPath(entry.Id), JsonSerializer.SerializeToUtf8Bytes(
-                new Metadata(entry, assignments, autosaveSettings, worldId)));
+                new Metadata(entry, assignments, autosaveSettings, worldId, Recovery: recovery)));
             return entry;
         }
     }

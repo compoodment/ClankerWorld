@@ -171,6 +171,8 @@ public partial class Main
         public int DeleteCount => Volatile.Read(ref deleteCount);
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
         public ManualWorldSave[]? ManualSaves { get; set; }
+        public RecoveryCleanupPreview? RecoveryPreview { get; set; }
+        public System.Collections.Concurrent.ConcurrentQueue<OwnerRecoveryCleanupAction> RecoveryCleanupRequests { get; } = new();
         public string AutosaveWorldId { get; set; } = "autosave-world-B";
         public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
         /// <summary>The next signed refresh's world, or none to refuse refreshes.</summary>
@@ -309,6 +311,17 @@ public partial class Main
                     break;
                 case OwnerPairingEndpoints.OwnerSaveTimeline when ManualSaves is not null:
                     response = new SaveTimelinePosition(null, null, false);
+                    break;
+                case "/api/v1/owner/saves/recovery-cleanup" when RecoveryPreview is { } recoveryPreview:
+                    var cleanup = envelope.GetProperty("action").Deserialize<OwnerRecoveryCleanupAction>(JsonOptions)!;
+                    RecoveryCleanupRequests.Enqueue(cleanup);
+                    if (cleanup.Operation == "preview") response = recoveryPreview;
+                    else
+                    {
+                        var removed = recoveryPreview.Remove.Select(save => save.Id).ToArray();
+                        ManualSaves = ManualSaves?.Where(save => !removed.Contains(save.Id, StringComparer.Ordinal)).ToArray();
+                        response = new OwnerRecoveryCleanupReceipt(removed, true);
+                    }
                     break;
                 case OwnerPairingEndpoints.OwnerSaveCreate:
                     Interlocked.Increment(ref saveCreateCount);
