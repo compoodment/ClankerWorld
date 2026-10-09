@@ -913,7 +913,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 111. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 112. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -1069,6 +1069,7 @@ current alpha cutoff.
 | Schema 109 | Native newborns retain a pending first personality/aspiration choice through infancy and failed personal replies. Their ordinary initial-choice observation may retain at most two bounded parental identities as family background, covered by the observation digest. Accepted choices clear retained queued background and cannot apply twice after reload. Native birth, day-3 decisions, retry, and paired replay cover the marker and chosen fields. Earlier alpha checkpoints are refused and preserved; no migration is added. |
 | Schema 110 | Marriage endings retain the committed partnership revocation or death snapshot and its effective time. Current and historical marriage intervals, consent, surname receipts and current-spouse renames are validated together. Paired replay, rejected ticks and current-format reload preserve every ending; later deaths or new marriages cannot rewrite earlier receipts. Older alpha saves are refused and preserved without migration. |
 | Schema 111 | Household fields require their last worked tick (`LastWorkedTick`, from zero to the current tick); active work must carry the same clock. Field upkeep removes a field with no work in progress and no work for a full season, releasing its replanting reserve; paired replay preserves removal and ground goods. Retilling skips harvest identities still present in stock or reservation history. Older alpha checkpoints are refused and preserved without migration. |
+| Schema 112 | Empty-household property hearings retain exact building and shared-stock snapshots for each notice, living former members, receiving adults, personal consent and the physical transfer receipt linked to its independent ruling. Loading verifies filing authority, inspected records, consent, exact stock preservation and the bounded permission adjustment. A Town's onward grant retains its prior recovery ruling. Earlier alpha saves are refused and preserved without migration. This version is provisional until merge. |
 
 ### Tool-making requests
 

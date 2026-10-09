@@ -353,7 +353,13 @@ public static class WorldEventText
             "land_case_notice" => $"{townName} published a formal notice for {subject}. See its response deadline in Towns.",
             "land_case_evidence" => $"Public evidence was added to {subject} in {townName}; its source is recorded in the case.",
             "land_case_response" => $"{actor ?? "An affected adult"} " +
-                (action == "waive" ? "explicitly waived their own response" : "recorded an answer") + $" in {subject}.",
+                (action switch
+                {
+                    "waive" => "explicitly waived their own response",
+                    "property_accept" => "personally agreed to the property transfer",
+                    "property_refuse" => "refused the property transfer",
+                    _ => "recorded an answer"
+                }) + $" in {subject}.",
             "land_case_judge_consent" => $"{actor ?? "An adult resident"} " + (action switch
             {
                 "judge_withdraw" => "withdrew their candidacy",
@@ -362,7 +368,7 @@ public static class WorldEventText
             }) + $" for {subject} only.",
             "land_case_judge_election" => $"{townName} recorded a case election update for {subject}. See Towns for its stage and result.",
             "land_case_judge_assigned" => $"{actor ?? "An eligible adjudicator"} was assigned to {subject} in {townName}.",
-            "land_case_ruling" => $"{townName} recorded a ruling in {subject}. See its exact permission change and reasons in Towns.",
+            "land_case_ruling" => $"{townName} recorded a ruling in {subject}. See the exact result and reasons in Towns.",
             "land_case_reopen_requested" => $"A rehearing was requested for {subject} in {townName}; current rights remain in effect.",
             "land_case_reopened" => $"{townName} reopened {subject}, preserving its earlier ruling and publishing a fresh notice.",
             "land_case_inspected" => $"{actor ?? "An authorized adult"} inspected the public case file for {subject} in {townName}.",

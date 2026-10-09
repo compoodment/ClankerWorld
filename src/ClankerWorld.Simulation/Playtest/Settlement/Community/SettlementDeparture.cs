@@ -162,11 +162,12 @@ public sealed partial class PrivateWorldRuntime
         lot.DeliveryBuildingId is null && lot.ContainerLotId is null && PhysicalUnreservedQuantity(lot) > 0 &&
         !(InventoryContainerRules.IsContainer(lot.ItemKind) && HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)) &&
         (lot.GroundPosition is not null || lot.StorageBuildingId is { } storageId &&
-            worldSimulation.Buildings.Any(building => building.InstanceId == storageId && building.HouseholdId is { } home &&
-                (society.Checkpoint.GetInhabitant(actor).HouseholdId == home ||
+            worldSimulation.Buildings.Any(building => building.InstanceId == storageId &&
+                (building.HouseholdId is { } home && (society.Checkpoint.GetInhabitant(actor).HouseholdId == home ||
                  inhabitants[actor].Departures?.Any(departure => departure.HouseholdId == home) == true ||
                  HasCareGroupDepartureFrom(actor, home) ||
-                 IsStoredSettledBequest(actor, lot, storageId)))));
+                 IsStoredSettledBequest(actor, lot, storageId)) ||
+                 towns.Any(town => town.LandHearings.Cases.Any(item => item.Property?.Transfer?.PriorBuilding.InstanceId == storageId))))));
 
     // Children leave in the caregiver's recorded care group. That saved move
     // still authorizes their own belongings after adulthood or the caregiver's
