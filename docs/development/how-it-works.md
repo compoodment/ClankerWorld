@@ -2732,7 +2732,17 @@ advances progress and wears the selected tool. A new planting input claim
 lasts until actual completion or interruption, so illness does not make it
 expire while the worker is still planting.
 Completed harvests remain intact. Fertility and weather affect crop growth
-or yield. Harvesting creates grain, potatoes or cultivated greens on the
+or yield. Each field also saves the tick it was last worked: starting work and
+every successful work stroke update it. A field with no work in progress and
+no work for a full season (a quarter of the world's year,
+`FarmFieldRules.IdleTicksBeforeGrass`) goes back to grass during field
+upkeep. Any crop still on it is lost, its replanting reserve is released, and
+`field_returned_to_grass` names the field and household. Harvest lots already
+on the ground stay, and the land keeps its derived fertility. Retilling the
+same tile skips harvest identities retained in inventory or reservation
+history, so it cannot replace earlier stock or reuse a released reserve.
+Current saves require the worked tick and reject an active-work clock that
+disagrees with it. Harvesting creates grain, potatoes or cultivated greens on the
 field, and grain and greens also yield two replacement seeds. One usable
 planting item is reserved before surplus can be traded. Picking it up for
 the next planting releases the reserve and physically carries that item.

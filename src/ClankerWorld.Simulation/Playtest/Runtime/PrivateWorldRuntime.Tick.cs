@@ -287,6 +287,17 @@ public sealed partial class PrivateWorldRuntime
         string.Equals(observation.ConversationChoiceContext,
             ConversationChoiceContextFor(observation.InhabitantId), StringComparison.Ordinal);
 
+    /// <summary>
+    /// For tests: whether each named agent's model call has finished, so the
+    /// next tick admits all of them together.
+    /// </summary>
+    internal bool HostedDecisionsFinished(params string[] inhabitantIds)
+    {
+        gate.Wait();
+        try { return inhabitantIds.All(id => pendingHosted.TryGetValue(id, out var pending) && pending.Task.IsCompleted); }
+        finally { gate.Release(); }
+    }
+
     private void CancelPendingHosted(string inhabitantId, bool underRuntimeGate = true)
     {
         if (!pendingHosted.Remove(inhabitantId, out var pending)) return;
