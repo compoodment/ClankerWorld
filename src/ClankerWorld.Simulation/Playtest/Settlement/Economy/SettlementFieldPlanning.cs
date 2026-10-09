@@ -95,7 +95,7 @@ public sealed partial class PrivateWorldRuntime
         var population = society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == householdId &&
             person.Status == SocietyInhabitantStatus.Active);
         var stock = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == householdId &&
-            IsEdibleFood(lot.ItemKind)).Sum(AvailableLotQuantity);
+            IsEdibleFood(lot.ItemKind) && InUsableVesselOrLoose(lot)).Sum(AvailableLotQuantity);
         return stock < population * FarmFieldRules.MealsPerPersonPerDay * 2;
     }
 
