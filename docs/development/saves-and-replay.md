@@ -574,6 +574,20 @@ reloads, halfway resumption and rejected invitation/completion ticks. The
 number is provisional until merge. Older alpha saves are refused and preserved
 without migration.
 
+Private-world schema 107 adds `read_knowledge` task bindings. The optional
+`TargetKnowledgeArtifactId` is stable across waits; `KnowledgeReadCompletion`
+records the actual read tick and at most nine distinct, sorted newly learned
+sites. One deterministic receipt credits a successful task. Validation checks
+the target kind, frozen written membership and the actor's actual read
+provenance at that tick. A later personal observation may update the site
+without undoing its completed read task; historical completion can outlive a
+removed artifact only after all credited sites have later accounts. Active
+missing targets remain blocked. Completed tasks cannot be credited again.
+Tests cover native paid artifacts and ownership, paired replay/reload, urgent
+food, cancellation/replacement, exact targeting, full/partial knowledge limits,
+malformed progress and rejected read ticks. This number is provisional until
+merge. Older alpha checkpoints are refused and preserved without migration.
+
 Private-world schema 84 adds required marriage records and conversation kinds.
 Each marriage retains its accepted partnership snapshot and the ordinary
 conversation's separate mutual marriage consent. Its surname session admits
@@ -871,7 +885,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 106. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 107. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
