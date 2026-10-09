@@ -319,7 +319,7 @@ public sealed class RecipeKnowledgePipelineTests
                 recipe.DurationTicks,
                 recipe.WorkstationBuildingId,
                 recipe.Tags,
-            }, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+            }, System.Text.Json.JsonSerializerOptions.Web);
             var package = new ContentPackageManifest("long-written-recipe", version, digest,
                 [new(FarmContent.PackageId, new(version, ContentVersion.Parse("2.0.0")))],
                 [new(RecipeDefinition.SchemaKind, recipe.LocalId, version, recipe.DisplayName, recipe.PayloadDigest, payload)], []);
