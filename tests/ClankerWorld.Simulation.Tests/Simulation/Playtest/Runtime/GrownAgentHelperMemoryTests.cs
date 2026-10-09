@@ -17,13 +17,23 @@ public sealed class GrownAgentHelperMemoryTests
     {
         var state = PrivateWorldRuntimeCodec.Decode(await Born.Value);
         var childId = Assert.Single(state.Society.Society.Births).ChildId;
-        using (var aging = PrivateWorldRuntime.Restore(state, _ => new QuietProvider()))
+        using (var aging = PrivateWorldRuntime.Restore(state,
+            id => id == childId && age == 15 ? new InitialIdentityProvider() : new QuietProvider()))
         {
             aging.Pause();
             aging.SetLifePace(365);
             aging.Resume();
             while (aging.Society.AgeAt(aging.Society.GetInhabitant(childId), aging.WorldTick + 1) < age)
-                Assert.True((await aging.AdvanceOneTickAsync()).Advanced);
+            {
+                Assert.True((await aging.AdvanceOneTickNonBlockingAsync()).Advanced);
+                await WaitForRequests(aging);
+            }
+            if (age == 15)
+            {
+                Assert.False(aging.Inhabitants.Single(item => item.InhabitantId == childId).IdentityChoicePending);
+                Assert.False(aging.Society.GetInhabitant(childId).NeedsName);
+            }
+            aging.Pause();
             state = aging.ExportState();
         }
         var sourceTick = state.Society.Society.WorldTick;
@@ -61,6 +71,13 @@ public sealed class GrownAgentHelperMemoryTests
         }
         var observation = Assert.Single(provider.Observations, item => item.Self?.LifeStage == (age == 3 ? "Child" : "Adult"));
         Assert.True(observation.RequiresPersonalProvider);
+        if (age == 15)
+        {
+            Assert.False(observation.NeedsName);
+            Assert.False(observation.IsNameRetry);
+            Assert.False(observation.NeedsPersonality);
+            Assert.False(observation.NeedsAspiration);
+        }
         var sources = observation.MemoryCompactionCandidates ?? [];
         if (age == 15 && helperOn)
         {
@@ -114,6 +131,27 @@ public sealed class GrownAgentHelperMemoryTests
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default) =>
             new DeterministicDecisionProvider().DecideAsync(request with
             { Observation = request.Observation with { Candidates = [request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle")] } }, cancellationToken);
+    }
+
+    private sealed class InitialIdentityProvider : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 0;
+        public DecisionProviderKind KindFor(InhabitantObservation observation) =>
+            observation.IdentityMoment is null &&
+            (observation.NeedsName || observation.IsNameRetry || observation.NeedsPersonality || observation.NeedsAspiration)
+                ? DecisionProviderKind.LargeLanguageModel : DecisionProviderKind.Deterministic;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            var probabilities = request.Observation.Candidates.ToDictionary(item => item.Id,
+                item => item.Id == "safe_idle" ? 1d : 0d, StringComparer.Ordinal);
+            var name = request.Observation.NeedsName
+                ? "Zuri " + request.Observation.Self!.AllowedChildSurnames![0] : null;
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
+                KindFor(request.Observation), ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
+                request.Observation.ObservationDigest, "safe_idle", 1, probabilities, ChosenName: name,
+                ChosenPersonality: "Inventive and independent", ChosenAspiration: "Study the hills"));
+        }
     }
 
     private sealed class RecordingHelper : IDecisionProvider
