@@ -237,7 +237,7 @@ public sealed class PrivateWorldCartRepairOrderTests
     {
         var state = await CartState();
         var actor = state.Inhabitants[0].InhabitantId;
-        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "urgent-food", "berries", actor, 1));
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "urgent-food", "berries", actor, 4));
         state = state with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
