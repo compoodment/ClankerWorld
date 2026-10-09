@@ -614,8 +614,9 @@ provide a UI drawing.
     stays for a year of game time, then fades;
   - weather fades in and out instead of switching at once.
 
-  Puddles after rain are agreed too, but computment has not yet chosen
-  their look.
+  Puddles after rain are postponed: none of the three rounds of drawings
+  matched what computment has in mind, and whether puddles belong in the
+  game at all is left open for later.
 - Ground remains square-tiled, but permanent **black tile-border grid lines**
   are not part of the intended presentation; they would clash with textures.
 - **Agreed on October 8

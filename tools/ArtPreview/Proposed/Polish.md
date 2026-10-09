@@ -17,7 +17,7 @@ computment answered the review on October 9:
 | 7 · Ground snow | **A**, covered, with footprints |
 | 7 · Fallen leaves | **A**, a few |
 | 7 · Roof snow | **A**, redrawn to follow each roof's slopes (approved on the second look) |
-| 7 · Puddles | not settled yet: see below |
+| 7 · Puddles | postponed: see below |
 | 8 · Golden hour | **C**, rose at dawn and gold at dusk |
 | 9 · Stock | **A**, at the door |
 | 11 · Camera | **B**, ease |
@@ -36,13 +36,13 @@ Three pieces went back for better drawing at computment's request:
   the eaves. Building shadows and the forge yard stay clear.
 - **Graves** (`grave-a2-cross`, `grave-b2-stone`), approved: the wooden cross
   and the headstone, redrawn as 32 px sprites on a fresh earth mound.
-- **Puddles**, still open: the first redraw was bigger and see-through, but
-  computment asked for "total different vibes". The third round
+- **Puddles**, postponed: the first redraw was bigger and see-through,
+  then computment asked for "total different vibes", and a third round
   (`puddles-r3-<look>`, with `-rain` loops showing rings while rain falls)
-  offers four moods: **mirror** (glassy pools mirroring the sky),
-  **muddy** (murky brown pools), **outlined** (chunky puddles drawn like
-  the sprites) and **sheen** (the whole Road dark and glistening, with a
-  few small pools).
+  offered four moods: **mirror**, **muddy**, **outlined** and **sheen**.
+  None matched what computment has in mind, so puddles are postponed, and
+  whether they belong in the game at all is open. The drawings stay here
+  for whoever picks the idea up again.
 
 ## Drawing the pictures
 
