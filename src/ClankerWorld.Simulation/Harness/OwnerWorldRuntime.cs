@@ -94,7 +94,11 @@ public sealed record OwnerInstructionOrder(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? TargetCartLotId { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? TalkConversationId { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? TalkOutcome { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? TargetKnowledgeArtifactId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public OwnerKnowledgeReadCompletion? KnowledgeReadCompletion { get; init; }
 }
+
+public sealed record OwnerKnowledgeReadCompletion(long WorldTick, IReadOnlyList<GridPoint> LearnedSites);
 
 public sealed record OwnerShelterBinding(
     string Kind,
