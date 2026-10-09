@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using ClankerWorld.Simulation.Cognition;
@@ -46,7 +47,7 @@ public sealed class MemoryUnicodeBoundaryTests
                 TravelCooldownTicks = 0,
             }).ToArray(),
         };
-        var observed = new List<InhabitantObservation>();
+        var observed = new ConcurrentQueue<InhabitantObservation>();
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             _ => new CapturingIdleProvider(observed, helper));
         for (var tick = 0; tick < 4 && !observed.Any(item => item.InhabitantId == owner); tick++)
@@ -83,18 +84,18 @@ public sealed class MemoryUnicodeBoundaryTests
 
     private static async Task<byte[]> CreateBaseline()
     {
-        using var world = NormalPathWorld.CreateGenerated("memory-unicode-audit-198c2830", _ => new CapturingIdleProvider([]));
+        using var world = NormalPathWorld.CreateGenerated("memory-unicode-audit-198c2830", _ => new CapturingIdleProvider(new()));
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         return PrivateWorldRuntimeCodec.Encode(world.ExportState());
     }
 
-    private sealed class CapturingIdleProvider(List<InhabitantObservation> observed, bool helper = false) : IDecisionProvider
+    private sealed class CapturingIdleProvider(ConcurrentQueue<InhabitantObservation> observed, bool helper = false) : IDecisionProvider
     {
         public DecisionProviderKind Kind => helper ? DecisionProviderKind.Jev : DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
-            observed.Add(request.Observation);
+            observed.Enqueue(request.Observation);
             var selected = request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle").Id;
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId, Kind, ProviderEpoch,
                 request.Observation.RunEpoch, request.Observation.DecisionGeneration, request.Observation.ObservationDigest,
