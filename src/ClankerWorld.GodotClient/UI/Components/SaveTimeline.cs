@@ -178,6 +178,10 @@ public static class SaveTimelineLayout
         return (palette.Name == "dark" ? dark : light)[(number - 1) % 4];
     }
 
+    // Old saves have no branch number; their faint line color is unsuitable behind text.
+    public static Color BranchLabelFill(UiPalette palette, int number) =>
+        number <= 0 ? palette.Paper : BranchColor(palette, number);
+
     public static Color SeasonColor(int season) => (season % 4) switch
     {
         0 => new Color("8DBA6A"),

@@ -413,13 +413,13 @@ public partial class Main
             var branchTag = new Label { Text = lane.Title.ToUpperInvariant(), ThemeTypeVariation = "TagLabel", SizeFlagsVertical = SizeFlags.ShrinkCenter };
             branchTag.AddThemeStyleboxOverride("normal", new StyleBoxFlat
             {
-                BgColor = color,
+                BgColor = SaveTimelineLayout.BranchLabelFill(UiTheme.Current, lane.ColorNumber),
                 ContentMarginLeft = 5,
                 ContentMarginRight = 5,
                 ContentMarginTop = 2,
                 ContentMarginBottom = 2,
             });
-            branchTag.AddThemeColorOverride("font_color", UiTheme.ReadableInk(UiTheme.Current, UiTheme.Current.Paper, color));
+            branchTag.AddThemeColorOverride("font_color", UiTheme.ReadableInk(UiTheme.Current, UiTheme.Current.Paper, SaveTimelineLayout.BranchLabelFill(UiTheme.Current, lane.ColorNumber)));
             titleRow.AddChild(branchTag);
             if (latest) titleRow.AddChild(new Label { Text = "LATEST", ThemeTypeVariation = "TagNoteLabel", SizeFlagsVertical = SizeFlags.ShrinkCenter });
             if (chosen.IsAutosave) titleRow.AddChild(new Label { Text = "AUTOMATIC", ThemeTypeVariation = "TagNoteLabel", SizeFlagsVertical = SizeFlags.ShrinkCenter });

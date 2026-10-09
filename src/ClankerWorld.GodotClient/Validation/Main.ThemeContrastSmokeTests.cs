@@ -96,7 +96,9 @@ public partial class Main
             for (var number = 0; number <= 4; number++)
             {
                 var branch = SaveTimelineLayout.BranchColor(palette, number);
-                CheckCustom($"saved branch {number} badge", UiTheme.ReadableInk(palette, palette.Paper, branch), branch);
+                var labelFill = SaveTimelineLayout.BranchLabelFill(palette, number);
+                CheckCustom($"saved branch {number} label", UiTheme.ReadableInk(palette, palette.Paper, labelFill), labelFill);
+                if (number > 0) CheckCustom($"branch {number} digit", UiTheme.ReadableInk(palette, palette.Paper, branch), branch);
                 CheckCustom($"unsaved branch {number} badge", UiTheme.ReadableInk(palette, branch, palette.Inset), palette.Inset);
             }
             foreach (var (context, surface) in textSurfaces)
