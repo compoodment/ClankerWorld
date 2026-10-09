@@ -58,8 +58,8 @@ public sealed partial class PrivateWorldRuntime
         if (!ReadyForBriefInteraction(actor)) return null;
         foreach (var lot in ReturnOrderGoods(instruction).OrderBy(lot => lot.Id, StringComparer.Ordinal))
         {
-            if (CustodyOrderHouse(instruction, lot.OwnerId) is not { } house || StorageRoom(house.InstanceId) <= 0 ||
-                !VesselFits(lot, StorageRoom(house.InstanceId)) ||
+            if (CustodyOrderHouse(instruction, lot.OwnerId) is not { } house || StorageRoomAfterInboundDeliveries(house.InstanceId) <= 0 ||
+                !VesselFits(lot, StorageRoomAfterInboundDeliveries(house.InstanceId)) ||
                 !IsWithinInteractionRange(person.Position, house.Position, 1) &&
                 FindUnoccupiedRoute(actor, person.Position, house.Position, 1).Count == 0) continue;
             return new("return_borrowed", "Carry borrowed goods back to their owning household's House without changing ownership.", 0, lot.Id);
@@ -103,8 +103,8 @@ public sealed partial class PrivateWorldRuntime
         var destinations = lots.Select(lot => (Lot: lot, House: CustodyOrderHouse(instruction, lot.OwnerId)))
             .Where(item => item.House is not null).ToArray();
         if (destinations.Length == 0) return "The goods' owning household has no House at the requested destination.";
-        if (destinations.All(item => StorageRoom(item.House!.InstanceId) <= 0 ||
-                !VesselFits(item.Lot, StorageRoom(item.House!.InstanceId))))
+        if (destinations.All(item => StorageRoomAfterInboundDeliveries(item.House!.InstanceId) <= 0 ||
+                !VesselFits(item.Lot, StorageRoomAfterInboundDeliveries(item.House!.InstanceId))))
             return "The owning House needs room for the returned goods, including each whole vessel and all its contents.";
         if (!ReadyForBriefInteraction(actor)) return "The agent needs warmth before returning borrowed goods.";
         return "No open walking route reaches the owning household's House right now.";

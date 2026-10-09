@@ -475,9 +475,14 @@ public partial class Main
             : new Vector2(Math.Max(14, (UiSize.X - size.X) / 2), Math.Max(HudTop, (UiSize.Y - size.Y) / 2));
     }
 
+    private Theme? renderedAgentCardTheme;
+
     /// <summary>Profile, Speak and card buttons carry pixel icons in the current theme.</summary>
     private void RefreshAgentCardIcons()
     {
+        // Camera and observation refreshes keep the same theme. The compact
+        // styles use logical margins and inherit the interface's scaling.
+        if (ReferenceEquals(renderedAgentCardTheme, UiTheme.Theme)) return;
         var palette = UiTheme.Current;
         var dark = palette.Name == "dark";
         var wood = dark ? new Color("C99A62") : new Color("9C6C42");
@@ -505,6 +510,7 @@ public partial class Main
             ContentMarginRight = 2,
             ContentMarginBottom = 2,
         });
+        renderedAgentCardTheme = UiTheme.Theme;
     }
 
     private void CenterOnSelectedAgent()
@@ -826,6 +832,8 @@ public partial class Main
         var task = order.Action switch
         {
             "consume_food" => "Eating food",
+            "read_knowledge" => "Reading " + (order.TargetItemKind is { } writtenKind
+                ? GameUiText.ItemName(writtenKind).ToLowerInvariant() : "a written item"),
             "harvest_food" => "Gathering food",
             "gather_material" => "Gathering " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "till_field" => "Tilling household fields",
@@ -848,9 +856,15 @@ public partial class Main
             "tend_fire" => order.TargetBuildingKind == "house" ? "Lighting a fire in their House" : "Lighting a fire",
             "produce_item" => "Making " + (order.TargetOutputKind is { } output
                 ? GameUiText.ItemName(output).ToLowerInvariant() : "goods"),
+            "write_knowledge" => "Writing " + OrderItemName(order.TargetKnowledgeKind),
+            "copy_knowledge" => "Copying " + OrderItemName(order.TargetKnowledgeKind),
             "seek_food" => "Going to a food site",
             "move_to" => "Going to a tile",
+            "travel_by_boat" => "Traveling to a Port by boat",
             "accept_guardianship" => "Becoming a guardian",
+            "talk_to" => "Talking with the named person",
+            "attach_handcart" => "Attaching a handcart",
+            "park_handcart" => "Parking a handcart",
             "animal_care" => "Caring for an animal",
             "animal_collect" => "Collecting animal products",
             "animal_tame" => "Taming an animal",
@@ -869,6 +883,24 @@ public partial class Main
         var reason = order.Status is "blocked" or "interrupted" or "cancelled" && !string.IsNullOrWhiteSpace(order.BlockedReason)
             ? $" · {order.BlockedReason}"
             : string.Empty;
+        var conversation = order.Action != "talk_to" ? string.Empty : " · " + (order.TalkOutcome switch
+        {
+            "agreed" => "Conversation completed",
+            "refused" => "Invitation refused",
+            "deadline" => "Invitation expired",
+            "daily_limit" => "Conversation allowance reached",
+            "disagreed" => "Conversation ended without agreement",
+            "withdrawn" => "Conversation ended",
+            "participant_unavailable" => "Person unavailable",
+            _ => order.TalkStatus switch
+            {
+                "proposed" => "Invitation awaiting their choice",
+                "ready" or "awaiting_speaker" => "Invitation accepted; talking",
+                "wrap_up" => "Waiting for both people's wrap-up choices",
+                "suspended" => "Stopped; both people must choose to resume",
+                _ => "Attempting an invitation",
+            },
+        });
         var heard = !includeHeard || instruction.ObservedTick is null ? string.Empty : " · Heard by their personal model";
         var state = order.Status switch
         {
@@ -885,7 +917,7 @@ public partial class Main
         // The game understood no task in an order it could not act on, so there is none to name.
         return order.Status == "not_understood" && order.Action == "unknown"
             ? $"{state}{heard}"
-            : $"{state} · {task}{units}{reason}{heard}";
+            : $"{state} · {task}{units}{conversation}{reason}{heard}";
     }
 
     private static string OrderItemName(string? kind) => kind switch
@@ -899,11 +931,15 @@ public partial class Main
     private static string ProgressUnitLabel(string unit) => unit switch
     {
         "food_items" => "food items",
+        "knowledge_reads" => "items read",
+        "conversations" => "talk attempts completed",
         "material_items" => "items",
         "equipment_items" => "equipment items",
         "goods_items" => "items",
         "output_items" => "items made",
         "production_batches" => "batches completed",
+        "artifacts" => "items written",
+        "copies" => "copies made",
         "repairs" => "items repaired",
         "fields" => "fields completed",
         "collection_loads" => "loads collected",
@@ -917,6 +953,7 @@ public partial class Main
         "arrivals" => "sites reached",
         "harvests" => "harvest batches",
         "guardianships" => "care assignments",
+        "cart_tasks" => "cart tasks completed",
         "animal_tasks" => "animal tasks completed",
         _ => unit,
     };
