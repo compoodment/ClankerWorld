@@ -64,6 +64,13 @@ retain intermediate work, carried deliveries and planting reserves. Fertility
 is derived from the seed and immutable map layers rather than saved per tile.
 Older alpha saves need not load; no field or orchard migration is provided.
 
+Town-wide farm planning derives its food shortage and each farm's field target
+from the current living resident roster, assigned Farmhouses and usable,
+unreserved resident or household food. These inputs already survive save/load;
+no cached target, additional record or schema change is introduced. Restored
+farms recalculate the same budget before choosing new work. Existing field
+work and planting reservations retain their ordinary validation and ownership.
+
 Schema 37 adds authoritative garment and carrying-aid lot IDs and timed repair
 work, with exact material reservations. Loading checks the selected goods are
 single, unreserved units physically carried by their recorded owner; repair
