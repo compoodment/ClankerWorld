@@ -1021,10 +1021,11 @@ one wrap-up. Responses must match the saved conversation revision, run epoch,
 request and speaker; stale or malformed replies are not admitted. Public turns
 carry a bounded list of agents who were actually close enough to hear. A
 separate memory extraction gives those listeners hearsay claims tied to the
-turn ID, with duplicate and owner checks. Listener and belief-owner references
+turn ID, with duplicate and owner checks. Participant, speaker, listener and belief-owner references
 retain complete native inhabitant IDs, including longer identities created by
-birth; they do not share the length bounds for caller-provided belief IDs and
-prose. Canonical identity and known-owner checks still apply.
+birth; they do not share the length bounds for caller-provided record IDs and
+prose. Personal conversation routing and requests use these same complete
+participant IDs. Canonical identity and known-owner checks still apply.
 Personal-model memory subjects use stable hash aliases for longer native IDs,
 as map-knowledge discoverers already do; saved social-memory and belief
 ownership and subjects keep their complete identities.

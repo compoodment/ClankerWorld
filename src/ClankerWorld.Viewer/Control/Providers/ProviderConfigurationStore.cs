@@ -1016,7 +1016,7 @@ public sealed partial class ConfigurableDecisionProvider(
 
     public bool CanSpeakAs(string agentId)
     {
-        if (string.IsNullOrWhiteSpace(agentId) || agentId.Length > 128 || agentId != agentId.Trim()) return false;
+        if (string.IsNullOrWhiteSpace(agentId) || agentId != agentId.Trim() || agentId.Any(char.IsControl)) return false;
         try
         {
             var route = ConversationRouteFor(configuration.CaptureRuntimeConfiguration(), agentId);

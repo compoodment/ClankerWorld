@@ -5,7 +5,7 @@ using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class GrownAgentHelperMemoryTests
+public sealed partial class GrownAgentHelperMemoryTests
 {
     private static readonly Lazy<Task<byte[]>> Born = new(CreateBornAsync);
 
