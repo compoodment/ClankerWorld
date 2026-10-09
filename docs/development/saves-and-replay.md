@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Saves and replay
@@ -574,6 +574,21 @@ reloads, halfway resumption and rejected invitation/completion ticks. The
 number is provisional until merge. Older alpha saves are refused and preserved
 without migration.
 
+Private-world schema 107 adds `propose_marriage` orders using the existing
+`TargetAgentId`, `TalkConversationId` and `TalkOutcome` fields. A selected partner
+stays bound; an order without a partner must have neither a conversation nor
+progress. Linked orders identify one actual ordinary invitation between their
+actor and target. Completion requires a deterministic `marriage-order:` receipt
+and the actual closed outcome: `refused`, `proposal_declined`, `not_proposed` or
+another native unsuccessful outcome. `married` additionally requires completed
+native marriage and surname records. Accepted consent without a finished surname
+leaves progress at zero. Existing marriage validation protects both consent and
+surname receipts. Reload stops accepted ordinary or surname conversations,
+clears one-sided resume choices and requires both personal models again.
+Cancellation and replay preserve actual consent without duplicating task or
+marriage effects; rejected ticks admit neither. The number is provisional until
+merge. Older alpha saves are refused and preserved without migration.
+
 Private-world schema 84 adds required marriage records and conversation kinds.
 Each marriage retains its accepted partnership snapshot and the ordinary
 conversation's separate mutual marriage consent. Its surname session admits
@@ -871,7 +886,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 106. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 107. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus

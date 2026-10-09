@@ -8,6 +8,8 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
+    private static bool IsConversationOrder(string action) => action is "talk_to" or "propose_marriage";
+
     private const string TalkOrderTask = "attempt to talk with the named person; agreement and resumption remain each participant's choice";
 
     private OwnerInstructionOrder? ParseTalkOrder(string text, string actor)
@@ -29,21 +31,23 @@ public sealed partial class PrivateWorldRuntime
         return null;
     }
 
-    private static bool IsLinkedTalkOrder(OwnerQueuedInstruction instruction) => instruction.Order is { Action: "talk_to", TalkConversationId: not null };
+    private static bool IsLinkedTalkOrder(OwnerQueuedInstruction instruction) => instruction.Order is { TalkConversationId: not null } order && IsConversationOrder(order.Action);
 
-    private bool TalkOrderHasConversation(OwnerQueuedInstruction instruction) => instruction.Order is { Action: "talk_to" } &&
+    private bool TalkOrderHasConversation(OwnerQueuedInstruction instruction) => instruction.Order is { } order && IsConversationOrder(order.Action) &&
         (IsLinkedTalkOrder(instruction) || ConversationFor(instruction.TargetInhabitantId) is not null);
 
     private CognitionCandidate? TalkOrderCandidateFor(OwnerQueuedInstruction instruction, PlaytestInhabitantState person) =>
         IsLinkedTalkOrder(instruction) || TalkOrderBlocker(instruction, person) is null
-            ? new("talk_to", IsLinkedTalkOrder(instruction) ? "Wait for the actual conversation's outcome, preserving each person's choices." :
-                "Reach the named person and attempt one face-to-face invitation.", 0, instruction.Order!.TargetAgentId)
+            ? new(instruction.Order!.Action, IsLinkedTalkOrder(instruction) ? "Wait for the actual conversation's outcome, preserving each person's choices." :
+                "Reach the named person and attempt one face-to-face invitation.", 0, instruction.Order!.TargetAgentId ?? CurrentMarriageOrderPartner(instruction.TargetInhabitantId))
             : null;
 
     private string? TalkOrderBlocker(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
         var actor = instruction.TargetInhabitantId;
-        var target = instruction.Order!.TargetAgentId!;
+        if (instruction.Order!.Action == "propose_marriage" && MarriageOrderBlocker(instruction) is { } marriageBlocker)
+            return marriageBlocker;
+        var target = instruction.Order.TargetAgentId ?? CurrentMarriageOrderPartner(actor)!;
         if (!inhabitants.TryGetValue(target, out var other) || society.Checkpoint.GetInhabitant(target).Status != SocietyInhabitantStatus.Active)
             return "The named person is no longer available.";
         if (society.Checkpoint.GetInhabitant(target).AgeBand == SocietyAgeBand.Infant)
@@ -70,8 +74,13 @@ public sealed partial class PrivateWorldRuntime
         if (IsLinkedTalkOrder(instruction))
         {
             CompleteClosedTalkOrders();
-            if (conversations.FirstOrDefault(item => item.Id == instruction.Order!.TalkConversationId)?.Status == AgentConversationStatus.Suspended)
+            if (UnacceptedMarriageOrderBlocker(instruction) is { } eligibilityBlocker)
+                SetOrderStatus(instruction, "blocked", eligibilityBlocker);
+            else if (ConversationForOrder(instruction)?.Status == AgentConversationStatus.Suspended)
                 SetOrderStatus(instruction, "blocked", "Conversation stopped; both people must choose to resume, or you may end it.");
+            else if (instruction.Order!.Action == "propose_marriage" && marriages.Any(item => item.Consent.Id == instruction.Order.TalkConversationId && item.CompletedTick is null) &&
+                ConversationForOrder(instruction)?.Outcome == "participant_unavailable")
+                SetOrderStatus(instruction, "blocked", "Marriage was accepted, but the shared surname remains unfinished because a participant is unavailable.");
             return;
         }
         if (TalkOrderBlocker(instruction, person) is { } blocker)
@@ -80,6 +89,12 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var actor = instruction.TargetInhabitantId;
+        if (instruction.Order!.TargetAgentId is null)
+        {
+            var bound = instructionsByIdempotency[instruction.IdempotencyKey];
+            instruction = bound with { Order = bound.Order! with { TargetAgentId = CurrentMarriageOrderPartner(actor) } };
+            instructionsByIdempotency[instruction.IdempotencyKey] = instruction;
+        }
         var target = instruction.Order!.TargetAgentId!;
         if (!IsWithinInteractionRange(person.Position, inhabitants[target].Position, ResourceInteractionRange))
         {
@@ -112,18 +127,19 @@ public sealed partial class PrivateWorldRuntime
                 ApplyCandidate(actor, person, candidate, reportIdle: true);
             return;
         }
-        var conversation = instruction.Order!.TalkConversationId is { } id
-            ? conversations.FirstOrDefault(item => item.Id == id) : ConversationFor(actor);
+        var conversation = IsLinkedTalkOrder(instruction) ? ConversationForOrder(instruction) : ConversationFor(actor);
         if (conversation is null) return;
         // An order requires the attempt, never affirmative wrap-up or resumption consent.
         if (!decision.Admission.FellBack && decision.Admission.Intention.Provider == DecisionProviderKind.LargeLanguageModel &&
             ConversationCandidates(actor).Any(item => item.Id == candidate))
             ApplyConversationCandidate(actor, candidate);
         CompleteClosedTalkOrders();
+        if (UnacceptedMarriageOrderBlocker(instruction) is { } eligibilityBlocker)
+            SetOrderStatus(instruction, "blocked", eligibilityBlocker);
     }
 
     private bool ActiveTalkOrderUses(string conversationId) => instructionsByIdempotency.Values.Any(instruction =>
-        instruction.Order is { Action: "talk_to" } order && IsActiveOrder(order.Status) && order.TalkConversationId == conversationId);
+        instruction.Order is { } order && IsConversationOrder(order.Action) && IsActiveOrder(order.Status) && order.TalkConversationId == conversationId);
 
     private void CompleteClosedTalkOrders()
     {
@@ -131,26 +147,34 @@ public sealed partial class PrivateWorldRuntime
         {
             var conversation = conversations.FirstOrDefault(item => item.Id == instruction.Order!.TalkConversationId);
             if (conversation?.Status != AgentConversationStatus.Closed) continue;
-            var current = instruction with { Order = instruction.Order! with { TalkOutcome = conversation.Outcome } };
+            var outcome = instruction.Order!.Action == "propose_marriage" ? MarriageOrderOutcome(conversation, marriages) : conversation.Outcome;
+            if (outcome is null) continue; // Accepted marriage still has its own unfinished surname session.
+            var current = instruction with { Order = instruction.Order! with { TalkOutcome = outcome } };
             instructionsByIdempotency[current.IdempotencyKey] = current;
             CreditOrderEffect(current, TalkOrderEffectId(current), 1);
         }
     }
 
-    private static string TalkOrderEffectId(OwnerQueuedInstruction instruction) => "talk-order:" +
+    private static string TalkOrderEffectId(OwnerQueuedInstruction instruction) =>
+        (instruction.Order!.Action == "propose_marriage" ? "marriage-order:" : "talk-order:") +
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
             $"{instruction.InstructionId}|{instruction.TargetInhabitantId}|{instruction.Order!.TargetAgentId}|{instruction.Order.TalkConversationId}|{instruction.Order.TalkOutcome}")));
 
     private static bool IsTalkOutcome(string? outcome) => outcome is "agreed" or "refused" or "deadline" or "daily_limit" or
         "disagreed" or "withdrawn" or "participant_unavailable";
 
-    private static void ValidateTalkOrderBindings(IEnumerable<OwnerQueuedInstruction> instructions, IEnumerable<AgentConversation> conversations)
+    private static void ValidateTalkOrderBindings(IEnumerable<OwnerQueuedInstruction> instructions, IEnumerable<AgentConversation> conversations, IEnumerable<AgentMarriage> marriageRecords)
     {
+        var marriages = marriageRecords.ToArray();
         var records = conversations.ToDictionary(item => item.Id, StringComparer.Ordinal);
         var linked = new HashSet<string>(StringComparer.Ordinal);
         foreach (var instruction in instructions)
         {
-            if (instruction.Order is not { Action: "talk_to", TalkConversationId: { } id } order) continue;
+            if (instruction.Order is not { TalkConversationId: { } id } order || !IsConversationOrder(order.Action)) continue;
+            if (order.Action == "propose_marriage" && order.TalkOutcome == "married" &&
+                !marriages.Any(marriage => marriage.Consent.Id == id && marriage.InitiatorId == instruction.TargetInhabitantId &&
+                    marriage.InviteeId == order.TargetAgentId && marriage.CompletedTick is not null))
+                throw new InvalidDataException("A finished marriage order lost its completed marriage record.");
             if (!linked.Add(id)) throw new InvalidDataException("Several talk orders share one invitation.");
             if (!records.TryGetValue(id, out var conversation))
             {
@@ -159,7 +183,7 @@ public sealed partial class PrivateWorldRuntime
             }
             if (conversation.Kind != AgentConversationKind.Ordinary || conversation.InitiatorId != instruction.TargetInhabitantId ||
                 conversation.InviteeId != order.TargetAgentId || conversation.CreatedTick < instruction.SubmittedTick ||
-                order.CompletedUnits == 1 && (conversation.Status != AgentConversationStatus.Closed || conversation.Outcome != order.TalkOutcome))
+                order.CompletedUnits == 1 && (conversation.Status != AgentConversationStatus.Closed || (order.Action == "propose_marriage" ? MarriageOrderOutcome(conversation, marriages) : conversation.Outcome) != order.TalkOutcome))
                 throw new InvalidDataException("A talk order does not match its actual invitation or outcome.");
         }
     }

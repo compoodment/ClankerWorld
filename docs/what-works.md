@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # What works today
@@ -265,9 +265,21 @@ acceptance, suspension and the actual outcome. Finishing means the talk
 attempt ended, including refusal; it does not mean an agreement was applied.
 Queued work waits for that outcome. An accepted unfinished conversation loads
 stopped and needs both people's fresh resume choices. Unavailable people,
-models, allowances and routes leave useful blockers. Marriage proposals are
-outside this talk adapter. [The Windows check](../playtest/1222-talk-order.md)
+models, allowances and routes leave useful blockers. Marriage uses a separate proposal order. [The Windows check](../playtest/1222-talk-order.md)
 is pending.
+
+"Propose marriage" and "Propose marriage to my partner" attempt the existing
+marriage conversation with the adult's eligible current partner. The order
+keeps the selected partner, normal travel and invitation rules, and each
+participant's own model choices. Only the addressed speaker receives the
+requested activity in their conversation context. Refusal and a conversation
+without a proposal finish an attempt with their actual outcome. Accepted
+marriage waits for the separate shared-surname conversation to finish. Pauses,
+failed calls and reload leave it unfinished, with two fresh resume choices
+required. Cancellation removes the task while preserving consent and surname
+progress; it never changes household admission. Missing or changed eligibility
+blocks rather than selecting another person. [The Windows checks](../playtest/1230-marriage-order.md)
+are pending.
 
 Orders currently cover eating carried food, collecting accessible household
 food to eat, going to a known food source or discovering one through ordinary

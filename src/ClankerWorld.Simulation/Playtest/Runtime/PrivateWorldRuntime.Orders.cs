@@ -27,7 +27,7 @@ public sealed partial class PrivateWorldRuntime
             return null;
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
-        if (order.Action == "talk_to") return TalkOrderCandidateFor(instruction, person);
+        if (IsConversationOrder(order.Action)) return TalkOrderCandidateFor(instruction, person);
         if (IsCartOrder(order.Action)) return CartOrderCandidateFor(instruction, person);
         if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
         if (IsTreePlantingOrder(order.Action)) return TreePlantingOrderCandidate(instruction, person);
@@ -243,6 +243,7 @@ public sealed partial class PrivateWorldRuntime
         switch (candidate.Id)
         {
             case "talk_to":
+            case "propose_marriage":
                 ExecuteTalkOrderStep(instruction, person);
                 return;
             case "write_knowledge":
@@ -434,7 +435,7 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
-        if (instruction.Order?.Action == "talk_to") return TalkOrderBlocker(instruction, person) ?? "Waiting for the conversation outcome.";
+        if (instruction.Order is { } conversationOrder && IsConversationOrder(conversationOrder.Action)) return TalkOrderBlocker(instruction, person) ?? "Waiting for the conversation outcome.";
         if (instruction.Order is { } treeOrder && IsTreePlantingOrder(treeOrder.Action))
             return TreePlantingOrderBlockedReason(instruction, person);
         if (instruction.Order is { } knowledgeOrder && IsKnowledgeOrder(knowledgeOrder.Action)) return KnowledgeOrderBlockedReason(instruction);

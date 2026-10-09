@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Playing the current game
@@ -226,7 +226,8 @@ alternating turns; if they still disagree, the game discloses a draw for the
 surname. A failed call, pause or cancellation keeps the completed turns and
 leaves marriage incomplete until the surname is settled. The agent's Profile
 shows their spouse and whether that choice is still pending. Marriage is not
-required to have a child.
+required to have a child. **Propose marriage** orders the selected adult to
+attempt this process with their current partner; it cannot make the partner agree.
 
 **Suggest** shares an idea with the agent's own planning model. **Order** gives
 it a task. A new suggestion or recognized order asks for one fresh planning
@@ -306,6 +307,18 @@ acceptance, stopped conversation or outcome; a finished talk attempt can have
 been refused. Queued work waits for the conversation to end. Loading an
 accepted unfinished conversation stops it until both people choose to resume.
 Cancelling the order removes the task; it does not make either person agree.
+
+Use **Propose marriage** or **Propose marriage to my partner** for an adult
+with an eligible current partner. They approach that partner and attempt the
+conversation using their own model. Their partner may refuse the invitation
+or marriage, and either person keeps their own wrap-up and surname choices.
+The card distinguishes refusal, a conversation without a proposal, and marriage
+completed with a shared surname. Accepted marriage waits for that surname
+choice before the order finishes and queued work proceeds. Saving an unfinished
+conversation stops it until both people choose to resume. Cancelling the order
+removes the task while keeping any consent and surname progress already made.
+If the selected person stops being their partner, the order explains the blocker
+and does not choose someone else.
 
 When a child needs a guardian, an adult can follow **Become guardian for Élodie Vale**,
 using the child's full name. Names with accents work when typed or pasted,

@@ -1,0 +1,1 @@
+- Agents can follow **Propose marriage** with their current partner, preserving each person’s consent and waiting for the shared surname before reporting marriage completion.

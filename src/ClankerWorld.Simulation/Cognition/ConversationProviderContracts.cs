@@ -123,6 +123,9 @@ public sealed record AgentConversationTurnRequest(
 
     public IReadOnlyList<string> AllowedSurnames { get; init; } = [];
 
+    /// <summary>The outside observer's requested activity for this speaker, separate from public speech and consent.</summary>
+    public string? RequestedActivity { get; init; }
+
     public void Validate()
     {
         ValidateText(RequestId, 128, nameof(RequestId));
@@ -139,7 +142,9 @@ public sealed record AgentConversationTurnRequest(
         ValidateOptionalText(SpeakerAspiration, 256, nameof(SpeakerAspiration));
         ArgumentNullException.ThrowIfNull(PublicHistory);
         ArgumentNullException.ThrowIfNull(AllowedEffects);
-        if (PublicHistory.Count > 7 || AllowedEffects.Count > 3 || AllowedSurnames is null ||
+        if (RequestedActivity is not (null or "propose_marriage") ||
+            Purpose == AgentConversationPurpose.SurnameChoice && RequestedActivity is not null ||
+            PublicHistory.Count > 7 || AllowedEffects.Count > 3 || AllowedSurnames is null ||
             (Purpose == AgentConversationPurpose.SurnameChoice
                 ? AllowedSurnames.Count is < 1 or > 2 || PublicHistory.Count >= 4 ||
                     AllowedEffects.Count != 1 || AllowedEffects[0] != AgentConversationEffect.None ||
