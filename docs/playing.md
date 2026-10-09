@@ -352,6 +352,8 @@ in their current or former household's storage, or where they were dropped.
 They keep ownership and use normal carrying space. A plain request collects
 one load; a quantity stops exactly at that number. Full hands or unavailable
 goods leave the task waiting. Add **from (12, 4)** to require that source tile.
+Routine recovery also skips belongings it cannot currently reach, so an item on
+disconnected land does not block pickup of nearby personal goods.
 You can also collect personal food or equipment without eating or equipping it.
 Named meals include **Collect two bread**, **Collect berry porridge** and
 **Collect restaurant meals**. These collect only the agent's own goods.
