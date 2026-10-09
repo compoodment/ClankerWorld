@@ -122,7 +122,8 @@ public sealed class WorldCatalogStore
         name = NormalizeName(name);
         lock (gate)
         {
-            if (index.Worlds.Concat(index.PendingDeletions ?? []).Any(world => world.WorldId == state.Society.Society.WorldId))
+            if (index.Worlds.Concat(index.PendingDeletions ?? []).Any(world =>
+                world.WorldId == state.Society.Society.WorldId || MatchesSeedIdentifiedGeneratedWorld(world, state)))
                 throw new InvalidOperationException("This world already exists.");
             var entry = new CatalogWorld(Guid.NewGuid().ToString("N"), name,
                 state.Society.Society.WorldId, state.WorldSeed, DateTimeOffset.UtcNow, [], null,
@@ -132,6 +133,26 @@ public sealed class WorldCatalogStore
             index = index with { Worlds = [.. index.Worlds, entry] };
             return entry;
         }
+    }
+
+    private bool MatchesSeedIdentifiedGeneratedWorld(CatalogWorld entry, PrivateWorldRuntimeState state)
+    {
+        if (state.Geography is null || entry.Seed != state.WorldSeed || entry.WorldId != entry.Seed) return false;
+        PrivateWorldRuntimeState existing;
+        try
+        {
+            existing = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(SnapshotPath(entry.Id)));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or
+            JsonException or ArgumentException or FormatException)
+        {
+            // Unrestorable archives stay untouched in their existing entries.
+            return false;
+        }
+        // Planting changes the current resource manifest, while the original
+        // generation choices still identify the world that was created.
+        return existing.Society.Society.WorldId == entry.WorldId && existing.WorldSeed == entry.Seed &&
+            existing.Geography == state.Geography;
     }
 
     public void ArchiveActive(PrivateWorldRuntimeState state,

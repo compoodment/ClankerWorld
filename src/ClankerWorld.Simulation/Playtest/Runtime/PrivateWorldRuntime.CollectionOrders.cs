@@ -16,13 +16,7 @@ public sealed partial class PrivateWorldRuntime
             .Where(item => VesselFits(item, FreeCarryCapacity(actor)))
             .OrderBy(item => map.FootDistance(person.Position, HouseholdStockPosition(item)))
             .ThenBy(item => item.Id, StringComparer.Ordinal)
-            .FirstOrDefault(item =>
-            {
-                var destination = HouseholdStockPosition(item);
-                var range = item.GroundPosition is not null ? ResourceInteractionRange : 1;
-                return IsWithinInteractionRange(person.Position, destination, range) ||
-                    FindUnoccupiedRoute(actor, person.Position, destination, range).Count > 0;
-            });
+            .FirstOrDefault(item => CanReachPersonalGoods(actor, item));
         return lot is null ? null : new(instruction.Order!.Action,
             $"Walk to your own stored or dropped {CollectionOrderGoodsName(instruction.Order)} and pick it up within your carrying limit.", 0, lot.Id);
     }

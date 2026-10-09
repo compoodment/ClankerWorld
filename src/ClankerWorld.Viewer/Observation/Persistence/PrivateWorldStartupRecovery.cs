@@ -42,7 +42,8 @@ public sealed partial class PrivateWorldStartupRecovery
         {
             damagedBytes = File.ReadAllBytes(stateFile.Path);
             reason = RefusalReason(damagedBytes);
-            identity = WorldCatalogStore.ReadActiveIdentity(stateFile.Path)?.WorldId
+            identity = ReadCheckpointIdentity(damagedBytes)
+                ?? WorldCatalogStore.ReadActiveIdentity(stateFile.Path)?.WorldId
                 ?? ReadAutosaveIdentity(stateFile.Path)
                 ?? (File.Exists(authorityPath)
                     ? JsonSerializer.Deserialize<OwnerAuthorityState>(File.ReadAllBytes(authorityPath))?.Authority.WorldId : null)
@@ -77,6 +78,7 @@ public sealed partial class PrivateWorldStartupRecovery
                     candidate.WorldTick != saved.Checkpoint.Society.Society.WorldTick ||
                     saved.AutosaveSettings is not { WorldId: var savedWorld } || savedWorld != identity ||
                     !providers.CanRestoreWorldAssignments(saved.Assignments)) continue;
+                WorldAutosaveStore.Validate(saved.AutosaveSettings.IntervalMinutes, saved.AutosaveSettings.RotationCount);
                 stateFile.VerifyRequiredHistory(saved.Checkpoint);
                 using var verified = PrivateWorldRuntime.Restore(saved.Checkpoint);
                 return candidate;
@@ -131,6 +133,20 @@ public sealed partial class PrivateWorldStartupRecovery
                 LogRecovery(logger, "refused", "storage_or_configuration_failed", -1);
                 throw;
             }
+        }
+    }
+
+    private static string? ReadCheckpointIdentity(byte[] bytes)
+    {
+        try
+        {
+            // An interrupted selection can publish the target checkpoint before
+            // its catalog entry becomes active. A valid current-format identity wins.
+            return PrivateWorldRuntimeCodec.Decode(bytes).Society.Society.WorldId;
+        }
+        catch (Exception exception) when (exception is InvalidDataException or JsonException or ArgumentException or FormatException)
+        {
+            return null;
         }
     }
 

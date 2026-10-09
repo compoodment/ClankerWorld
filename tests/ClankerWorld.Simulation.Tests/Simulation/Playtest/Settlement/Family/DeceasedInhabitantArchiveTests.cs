@@ -28,6 +28,9 @@ public sealed class DeceasedInhabitantArchiveTests
             Memories = society.Inhabitants.Select(person => new SocietySocialMemory(
                 $"last-memory:{person.Id}", person.Id, "founder-scout",
                 "I remember the first campfire.", "private", 0)).ToArray(),
+            Beliefs = society.Inhabitants.Select(person => new SocietyAgentBelief(
+                $"last-belief:{person.Id}", person.Id, person.Id + " saw the first campfire.",
+                SocietyBeliefProvenance.Firsthand, 7_000, 0)).ToArray(),
             Inhabitants = society.Inhabitants.Select(person => person with
             {
                 BirthTick = -75,
@@ -71,6 +74,9 @@ public sealed class DeceasedInhabitantArchiveTests
         Assert.Equal(deceased.LastPhysical.InhabitantId, deceased.InhabitantId);
         Assert.DoesNotContain(archived.Inhabitants, person => person.InhabitantId == deceased.InhabitantId);
 
+        Assert.DoesNotContain(archived.Society.Society.Memories, item => item.OwnerId == deceased.InhabitantId);
+        Assert.Contains(archived.Society.Society.ArchivedMemories, item => item.Memory.OwnerId == deceased.InhabitantId);
+        Assert.Contains(archived.Society.Society.ArchivedBeliefs, item => item.Belief.OwnerId == deceased.InhabitantId);
         var bytes = PrivateWorldRuntimeCodec.Encode(archived);
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
         var projected = new OwnerWorldObservationStore(restored).GetSnapshot();
@@ -82,6 +88,9 @@ public sealed class DeceasedInhabitantArchiveTests
         Assert.Null(historical.PublicIntention);
         Assert.Equal("I hope the camp lasts.", Assert.Single(historical.RecentPrivateThoughts).Text);
         Assert.Equal("I remember the first campfire.", Assert.Single(historical.RecentMemories).Summary);
+        var belief = Assert.Single(historical.RecentBeliefs);
+        Assert.Equal(deceased.InhabitantId + " saw the first campfire.", belief.Statement);
+        Assert.Equal(("firsthand", 7_000), (belief.Provenance, belief.ConfidenceBasisPoints));
         var remembered = Assert.Single(historical.Skills);
         var savedSkill = Assert.Single(deceased.LastPhysical.Skills!);
         Assert.Equal("building", remembered.Kind);

@@ -50,6 +50,31 @@ public sealed class TownLayoutTests
     }
 
     [Fact]
+    public void CustomFootprintsCheckCoveredTilesAndRoadExceptionsRetainProtection()
+    {
+        var map = MarketLayoutMeadowMap(4, 4);
+        var origin = new GridPoint(1, 1);
+        var covered = new GridPoint(2, 1);
+        var costs = map.Tiles.ToDictionary(tile => tile.Position, _ => 100);
+        var definition = new BuildingDefinition("sha256:" + new string('a', 64), "offset-house",
+            ContentVersion.Parse("1.0.0"), "Offset house", 1, 1, 1);
+        var offset = new[] { new GridPoint(1, 0) };
+        var custom = new TownLayoutContext(map, null, [origin], costs, [], [],
+            requiredLandTiles: [covered], requiredFootprintOffsets: offset);
+        Assert.True(TownLayoutService.TryEvaluateConstructionSite(custom, definition, origin, out _));
+        var blocked = new TownLayoutContext(map, null, [origin, covered], costs, [], [],
+            requiredLandTiles: [covered], requiredFootprintOffsets: offset);
+        Assert.False(TownLayoutService.TryEvaluateConstructionSite(blocked, definition, origin, out _));
+
+        var road = new TownLayoutContext(map, null, [origin], costs, [], [],
+            roadTiles: [origin], permittedRoadOffsets: [new GridPoint(0, 0)]);
+        Assert.True(TownLayoutService.TryEvaluateConstructionSite(road, definition, origin, out _));
+        var protectedRoad = new TownLayoutContext(map, null, [origin], costs, [], [],
+            roadTiles: [origin], permittedRoadOffsets: [new GridPoint(0, 0)], protectedTiles: [origin]);
+        Assert.False(TownLayoutService.TryEvaluateConstructionSite(protectedRoad, definition, origin, out _));
+    }
+
+    [Fact]
     public void FullMarketFootprintLegalityPrecedesRankedCandidateCap()
     {
         var map = MarketLayoutMeadowMap(40, 12);

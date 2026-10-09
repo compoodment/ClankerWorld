@@ -1,0 +1,1 @@
+- Generated worlds choose starter clay on a reachable freshwater bank that accepts the resource. Rocky mountain banks no longer cause the first checkpoint save to fail and pause the world; if no suitable bank exists, clay remains unavailable and the world keeps running.

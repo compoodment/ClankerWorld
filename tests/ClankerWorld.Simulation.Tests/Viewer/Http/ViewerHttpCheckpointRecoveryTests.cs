@@ -215,4 +215,119 @@ public sealed partial class ViewerHttpTests
         }
         finally { directory.Delete(recursive: true); }
     }
+
+    [Theory]
+    [InlineData(3, 3)]
+    [InlineData(1, 2)]
+    public async Task StartupRecoverySkipsInvalidAutosaveSchedulesAndRecoversTheOlderUsableSnapshot(int interval, int rotation)
+    {
+        var directory = Directory.CreateTempSubdirectory("checkpoint-recovery-schedule-");
+        try
+        {
+            string goodId;
+            var path = Path.Combine(directory.FullName, "runtime.json");
+            using (var original = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true))
+            using (original.CreateClient())
+            {
+                var runtime = original.Services.GetRequiredService<PrivateWorldRuntime>();
+                runtime.Pause();
+                var saves = original.Services.GetRequiredService<ManualWorldSaveStore>();
+                var settings = original.Services.GetRequiredService<WorldAutosaveStore>().Capture();
+                goodId = saves.CreateAutosave(runtime, [], settings).Id;
+                _ = saves.CreateAutosave(runtime, [], settings with { IntervalMinutes = interval, RotationCount = rotation });
+            }
+            var damaged = Encoding.UTF8.GetBytes("{damaged latest");
+            File.WriteAllBytes(path, damaged);
+            var files = Directory.GetFiles(path + ".manual").ToDictionary(file => file, File.ReadAllBytes);
+            using var restarted = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true);
+            using var client = restarted.CreateClient();
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var device = await StartAndActivateAsync(restarted, client, key);
+            using var status = await SendSignedAsync(restarted, client, key, device.DeviceId,
+                "/api/v1/owner/recovery/status", new OwnerControlAction("recovery-status"), OwnerHttpBinding.EmptyPayload("recovery-status"));
+            Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+            using var json = JsonDocument.Parse(await status.Content.ReadAsStringAsync());
+            Assert.Equal(goodId, json.RootElement.GetProperty("autosave").GetProperty("id").GetString());
+            Assert.Equal(damaged, File.ReadAllBytes(path));
+            var action = new OwnerManualSaveAction("recover", goodId);
+            using var receipt = await SendSignedAsync(restarted, client, key, device.DeviceId,
+                "/api/v1/owner/recovery/restore", action, OwnerHttpBinding.ManualSavePayload(action));
+            Assert.Equal(HttpStatusCode.OK, receipt.StatusCode);
+            var loaded = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
+            Assert.True(loaded.Society.IsPaused);
+            loaded.Validate();
+            Assert.Equal(damaged, File.ReadAllBytes(Assert.Single(Directory.GetFiles(directory.FullName, "runtime.json.damaged.*.json"))));
+            foreach (var file in files.Where(file => file.Key.EndsWith(".save", StringComparison.Ordinal) || file.Key.EndsWith(".meta.json", StringComparison.Ordinal)))
+                Assert.Equal(file.Value, File.ReadAllBytes(file.Key));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public async Task StartupRecoveryKeepsTheRefusedCheckpointWorldWhenTheCatalogLagsASelection()
+    {
+        var directory = Directory.CreateTempSubdirectory("checkpoint-recovery-selection-");
+        try
+        {
+            string selectedSaveId;
+            string selectedWorldId;
+            string selectedCatalogId;
+            byte[] priorCatalog;
+            var path = Path.Combine(directory.FullName, "runtime.json");
+            var catalogPath = Path.Combine(path + ".worlds", "catalog.json");
+            using (var original = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true))
+            using (original.CreateClient())
+            {
+                var runtime = original.Services.GetRequiredService<PrivateWorldRuntime>();
+                runtime.Pause();
+                var saves = original.Services.GetRequiredService<ManualWorldSaveStore>();
+                var settings = original.Services.GetRequiredService<WorldAutosaveStore>().Capture();
+                _ = saves.CreateAutosave(runtime, [], settings);
+                using var target = new PrivateWorldRuntime("interrupted-recovery-target");
+                target.Pause();
+                selectedWorldId = target.Society.WorldId;
+                var catalog = original.Services.GetRequiredService<WorldCatalogStore>();
+                var entry = catalog.Add("Recovery target", target.ExportState());
+                selectedCatalogId = entry.Id;
+                selectedSaveId = saves.CreateAutosave(target, [], settings with { WorldId = selectedWorldId }).Id;
+                priorCatalog = File.ReadAllBytes(catalogPath);
+                original.Services.GetRequiredService<WorldSelectionCoordinator>().Select(entry.Id);
+                Assert.Equal(selectedWorldId, runtime.Society.WorldId);
+                Assert.Equal(selectedCatalogId, catalog.Active().Id);
+            }
+            // Selection writes the target checkpoint before the catalog index.
+            // Retain those exact native checkpoint bytes with the prior index to model that crash boundary.
+            File.WriteAllBytes(catalogPath, priorCatalog);
+            var checkpoint = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(path));
+            Assert.Equal(selectedWorldId, checkpoint.Society.Society.WorldId);
+            var damaged = PrivateWorldRuntimeCodec.Encode(checkpoint with { HistoryArchiveHead = new string('a', 64) });
+            File.WriteAllBytes(path, damaged);
+            var files = Directory.GetFiles(path + ".manual").ToDictionary(file => file, File.ReadAllBytes);
+            using var restarted = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true);
+            using var client = restarted.CreateClient();
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var device = await StartAndActivateAsync(restarted, client, key);
+            using var status = await SendSignedAsync(restarted, client, key, device.DeviceId,
+                "/api/v1/owner/recovery/status", new OwnerControlAction("recovery-status"), OwnerHttpBinding.EmptyPayload("recovery-status"));
+            Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+            using var json = JsonDocument.Parse(await status.Content.ReadAsStringAsync());
+            Assert.Equal(selectedWorldId, json.RootElement.GetProperty("worldId").GetString());
+            Assert.Equal(selectedSaveId, json.RootElement.GetProperty("autosave").GetProperty("id").GetString());
+            Assert.Equal(damaged, File.ReadAllBytes(path));
+            var action = new OwnerManualSaveAction("recover", selectedSaveId);
+            using var recovered = await SendSignedAsync(restarted, client, key, device.DeviceId,
+                "/api/v1/owner/recovery/restore", action, OwnerHttpBinding.ManualSavePayload(action));
+            Assert.Equal(HttpStatusCode.OK, recovered.StatusCode);
+            var loaded = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
+            Assert.Equal(selectedWorldId, loaded.Society.WorldId);
+            Assert.True(loaded.Society.IsPaused);
+            loaded.Validate();
+            Assert.Equal(selectedCatalogId, restarted.Services.GetRequiredService<WorldCatalogStore>().Active().Id);
+            Assert.Equal(damaged, File.ReadAllBytes(Assert.Single(Directory.GetFiles(directory.FullName, "runtime.json.damaged.*.json"))));
+            foreach (var file in files.Where(file => file.Key.EndsWith(".save", StringComparison.Ordinal) || file.Key.EndsWith(".meta.json", StringComparison.Ordinal)))
+                Assert.Equal(file.Value, File.ReadAllBytes(file.Key));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
 }
