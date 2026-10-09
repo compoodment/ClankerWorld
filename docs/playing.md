@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Playing the current game
@@ -140,6 +140,12 @@ provider returned a reply the game can use; it does not show provider error
 details.
 
 ## Look around
+
+A death leaves a wooden cross or rounded headstone on a fresh earth mound at
+close and mid zoom. The marker stays for one game year, then fades over the
+following game day. Water, Roads, buildings and occupied ground move it to the
+nearest clear tile; building over a marker relocates it rather than destroying
+it. Graves are decoration and do not block movement.
 
 Use the mouse wheel to zoom, hold the middle mouse button to drag the camera,
 or use movement keys to pan. Opening the pause menu or switching to another

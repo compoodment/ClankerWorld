@@ -150,6 +150,9 @@ public partial class Main
         mapCanvas.AddChild(uiLayer);
 
         mapStage.AddChild(terrainLayer);
+        graveLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        graveLayer.Follow(terrainLayer);
+        mapStage.AddChild(graveLayer);
 
         // Night darkens the ground but not the labels, agents and weather above it.
         nightLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);

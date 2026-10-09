@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # What works today
@@ -783,6 +783,15 @@ by someone other than the caregiver, and food in a broken pot do not count.
 A parent in another household gets the resource blocker in their model
 guidance without the caregiver household's private quantities. Ordinary food
 acquisition and cooking priorities still apply.
+
+The map marks a recorded death with a wooden cross or rounded headstone on a
+fresh earth mound at close and mid zoom. It stays for the world's calendar year,
+then fades over the next calendar day; pausing holds that game time. The same
+person keeps the same marker after loading. Water, Roads, building footprints,
+construction and other occupied ground move it to the nearest clear tile.
+Building over a marker relocates it. Graves do not block movement or change
+moods, memories or estate handling. The [Windows grave checks](../playtest/1476-grave-markers.md)
+remain pending.
 
 When an agent with a personal model dies owning something, their model is
 asked once for a final will. It can leave everything to the household or name

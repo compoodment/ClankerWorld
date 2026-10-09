@@ -15,6 +15,7 @@ public partial class Main
 
     private void ResetDisplayedWorldContext()
     {
+        graveLayer.SetGraves([]);
         knownEvents.Clear();
         eventsWorldId = null;
         lastSeenEventId = long.MinValue;
@@ -182,6 +183,7 @@ public partial class Main
 
         if (!HasMap(snapshot))
         {
+            graveLayer.SetGraves([]);
             handcartFacings.Clear();
             animalFacings.Clear();
             boatFacings.Clear();
@@ -218,6 +220,7 @@ public partial class Main
         worldOverview.SetFields(snapshot.Fields);
         terrainLayer.SetMarkets(snapshot.Towns);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects, snapshot.Towns);
+        graveLayer.SetGraves(GraveMarkers(snapshot, terrainMap));
         nightLightsLayer.SetBuildings(BuildingLights(snapshot));
         nightLightsLayer.SetLanterns(StreetLanterns(snapshot), snapshot.WrapsEastWest);
         terrainLayer.SetConstructionSites(snapshot.ConstructionSites);

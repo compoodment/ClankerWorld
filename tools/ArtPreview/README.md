@@ -39,3 +39,7 @@ out.
 Proposals are mockups for computment's review. Approved art for content the
 game already has moves into `src/ClankerWorld.GodotClient/UI/`; art for
 content not built yet waits here until its feature lands.
+
+The `graves` baseline renders the client’s approved cross and headstone at
+16 and 32 px. `check` compares both sprites and complete scenes with the
+independent archive in `Approved/Graves.cs`.

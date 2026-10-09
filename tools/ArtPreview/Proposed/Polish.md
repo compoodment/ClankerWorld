@@ -116,11 +116,16 @@ zooms in one step.
 
 ## 12 · Moments (`moments`)
 
+The approved second-round cross and headstone are integrated by #1476.
+The independent sprites are archived in `../Approved/Graves.cs`; the `graves`
+baseline renders the live client art. The earlier sketches remain review
+history below. Building-completion integration is separate (#1468).
+
 - **Building finished A:** a ring of dust settling. **B:** dust, then a small
   flag on the roof for a moment. **C:** dust and a few twinkles.
 - **Grave A:** a small wooden cross. **B:** a rounded headstone. **C:** an
-  earth mound with flowers. How long a grave stays is a question for the
-  review: until something is built there, or fading after a year.
+  earth mound with flowers. The owner selected the second-round A and B,
+  fading after a year; rule A10 records that answer.
 
 ## 13 · Weather fading in and out (`weatherfade`)
 

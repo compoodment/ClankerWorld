@@ -21,7 +21,8 @@ public partial class Main
         if (nightLayer.ShownDarkness != 0 || nightLayer.CurrentWash.A != 0 || nightLayer.DrawnArea.HasArea())
             throw new InvalidOperationException("Daylight must leave the map untinted.");
         var layers = mapStage.GetChildren();
-        if (nightLayer.GetParent() != mapStage || layers.IndexOf(nightLayer) != layers.IndexOf(terrainLayer) + 1 ||
+        if (nightLayer.GetParent() != mapStage || layers.IndexOf(graveLayer) != layers.IndexOf(terrainLayer) + 1 ||
+            layers.IndexOf(nightLayer) != layers.IndexOf(graveLayer) + 1 ||
             layers.IndexOf(objectLayer) < layers.IndexOf(nightLayer) || layers.IndexOf(entityLayer) < layers.IndexOf(nightLayer) ||
             layers.IndexOf(weatherLayer) < layers.IndexOf(nightLayer) || nightLayer.GetChildCount() != 0 ||
             nightLayer.MouseFilter != Control.MouseFilterEnum.Ignore || mapCanvas.GetChildren().IndexOf(uiLayer) < mapCanvas.GetChildren().IndexOf(mapStage) ||

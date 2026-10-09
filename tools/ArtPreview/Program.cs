@@ -36,6 +36,9 @@ static class Baseline
         Directory.CreateDirectory(root);
         var families = new List<(string Family, List<Entry> Entries, Color? Backdrop, int Columns)>();
 
+        families.Add(("graves", new[] { 16, 32 }.SelectMany(size => new[] { false, true }.Select(headstone =>
+            new Entry("graves", $"{(headstone ? "b-headstone" : "a-cross")}-{size}", GraveClientPreview.Frame(headstone, size)))).ToList(), null, 2));
+
         // Ground tiles: both variants at 32 px and at the 16 px mid-zoom atlas.
         var terrain = new List<Entry>();
         foreach (var style in Enum.GetValues<TerrainStyle>())
