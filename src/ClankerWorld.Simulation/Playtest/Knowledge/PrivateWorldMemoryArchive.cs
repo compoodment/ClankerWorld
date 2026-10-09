@@ -15,7 +15,7 @@ public sealed partial class PrivateWorldRuntime
                 .Select(item => item.TargetInhabitantId))
             .Concat(inhabitants.Values.Where(person =>
                 person.Project is { Stage: not ("completed" or "cancelled") } || ActiveLesson(person.Lesson) ||
-                person.Parenthood is { Stage: not ("born" or "refused" or "cancelled") })
+                ActiveParenthood(person.Parenthood))
                 .Select(person => person.InhabitantId))
             .Concat(inhabitants.Values.Where(person => ActiveLesson(person.Lesson))
                 .Select(person => person.Lesson!.TeacherId))
