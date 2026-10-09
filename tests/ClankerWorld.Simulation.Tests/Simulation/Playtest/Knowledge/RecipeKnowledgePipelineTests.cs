@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Content;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
@@ -112,8 +113,16 @@ public sealed class RecipeKnowledgePipelineTests
     [InlineData(false)]
     [InlineData(true)]
     public async Task OwnerReadOrderCreditsActualRecipesAndSitesOnlyOnceAcrossRefusedTicksAndReload(bool includeSites)
+        => await CheckOwnerReadOrderAsync(includeSites);
+
+    [Fact]
+    public async Task OwnerReadOrderRetainsALongCanonicalRecipeAcrossReload()
+        => await CheckOwnerReadOrderAsync(includeSites: false, longRecipeId: true);
+
+    private static async Task CheckOwnerReadOrderAsync(bool includeSites, bool longRecipeId = false)
     {
-        var (state, author, recipeId) = await ProducedRecipe();
+        var (state, author, recipeId) = await ProducedRecipe(longRecipeId: longRecipeId);
+        if (longRecipeId) Assert.Equal(129, recipeId.Length);
         if (includeSites)
         {
             var scout = new SelectingProvider(author, ["explore"]);
@@ -291,11 +300,37 @@ public sealed class RecipeKnowledgePipelineTests
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
     }
 
-    internal static async Task<(PrivateWorldRuntimeState State, string Actor, string RecipeId)> ProducedRecipe(bool complete = true)
+    internal static async Task<(PrivateWorldRuntimeState State, string Actor, string RecipeId)> ProducedRecipe(bool complete = true, bool longRecipeId = false)
     {
         using var seed = NormalPathWorld.CreateGenerated("written-recipe-production", _ => new SelectingProvider("", []));
         var state = seed.ExportState();
         var recipe = state.WorldContent!.Recipes.Single(item => item.LocalId == "mill-grain");
+        if (longRecipeId)
+        {
+            var version = ContentVersion.Parse("1.0.0");
+            var digest = "sha256:" + new string('d', 64);
+            recipe = new RecipeDefinition(digest, new string('r', 44), version, "Long recipe identity",
+                recipe.Inputs, recipe.Outputs, recipe.DurationTicks, recipe.WorkstationBuildingId, recipe.Tags);
+            var payload = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                schema = "recipe/v1",
+                recipe.Inputs,
+                recipe.Outputs,
+                recipe.DurationTicks,
+                recipe.WorkstationBuildingId,
+                recipe.Tags,
+            }, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+            var package = new ContentPackageManifest("long-written-recipe", version, digest,
+                [new(FarmContent.PackageId, new(version, ContentVersion.Parse("2.0.0")))],
+                [new(RecipeDefinition.SchemaKind, recipe.LocalId, version, recipe.DisplayName, recipe.PayloadDigest, payload)], []);
+            seed.ProposeContent(package);
+            seed.ValidateContent(package.PackageId, seed.ResolveContent(package.PackageId));
+            seed.ApproveContent(package.PackageId);
+            seed.StageContent(package.PackageId);
+            Assert.True((await seed.AdvanceOneTickAsync()).Advanced);
+            Assert.Contains(seed.WorldContent.Recipes, item => item.CanonicalId == recipe.CanonicalId);
+            state = seed.ExportState();
+        }
         var building = state.WorldSimulation!.Buildings.First(item => item.DefinitionId == recipe.WorkstationBuildingId);
         var actor = state.Society.Society.Inhabitants.First(item => item.HouseholdId == building.HouseholdId).Id;
         var inventory = state.Society.Society.Inventory;

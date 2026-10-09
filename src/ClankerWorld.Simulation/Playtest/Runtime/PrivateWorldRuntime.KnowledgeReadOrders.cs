@@ -129,7 +129,7 @@ public sealed partial class PrivateWorldRuntime
             completion.LearnedSites is { Count: >= 0 and <= AgentKnowledgeRules.MaximumFactsPerArtifact } &&
             completion.LearnedRecipes is { Count: <= AgentKnowledgeRules.MaximumFactsPerArtifact } &&
             completion.LearnedSites.Count + completion.LearnedRecipes.Count > 0 &&
-            completion.LearnedRecipes.All(IsKnowledgeArtifactOrderId) &&
+            completion.LearnedRecipes.All(IsKnowledgeRecipeOrderId) &&
             completion.LearnedRecipes.Distinct(StringComparer.Ordinal).Count() == completion.LearnedRecipes.Count &&
             completion.LearnedRecipes.SequenceEqual(completion.LearnedRecipes.Order(StringComparer.Ordinal)) &&
             completion.LearnedSites.All(point => point is { X: >= -10_000_000 and <= 10_000_000, Y: >= -10_000_000 and <= 10_000_000 }) &&
@@ -138,6 +138,11 @@ public sealed partial class PrivateWorldRuntime
             order.LastEffectId == KnowledgeReadOrderEffectId(instruction));
 
     private static bool IsKnowledgeArtifactOrderId(string id) => !string.IsNullOrWhiteSpace(id) && id.Length <= 128 &&
+        id == id.Trim() && !id.Any(char.IsControl);
+
+    // Canonical recipe IDs follow active content definitions, whose local names have no length cap.
+    // ValidateRecipes and the read bindings below check the full definition and native provenance.
+    private static bool IsKnowledgeRecipeOrderId(string id) => !string.IsNullOrWhiteSpace(id) &&
         id == id.Trim() && !id.Any(char.IsControl);
 
     private static void ValidateKnowledgeReadOrderBindings(IEnumerable<OwnerQueuedInstruction> instructions, PrivateWorldKnowledgeState knowledge)
