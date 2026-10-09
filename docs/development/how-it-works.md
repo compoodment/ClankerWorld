@@ -2241,9 +2241,11 @@ adult members in the request, which expires after 120 ticks like other
 proposals. Adults who join the household or reach adulthood while it is pending
 must also answer; existing answers are retained and adults who die or leave no
 longer need to answer. Each current adult is offered `household_admit:{applicant}` and
-`household_refuse:{applicant}` and cannot continue a project or lesson until
-they answer. An ongoing lesson waits while either participant owes a housing
-answer, retaining its progress and already learned skills.
+`household_refuse:{applicant}`. During ordinary planning, an unanswered housing
+choice pauses project and lesson work. While that participant's personal-model
+reply is pending, an already chosen project or agreed lesson can continue under
+its normal physical and urgent-need checks. This records no housing answer and
+grants no membership; an ongoing lesson retains its progress and learned skills.
 One refusal by a living member ends the request; when every living
 member has agreed, `SocietyFixture.JoinHouseholdCareGroup` records the membership and
 `household_joined` is appended. A refusal or an unanswered request is remembered

@@ -57,6 +57,18 @@ public sealed class HouseholdJoinRequestTests
         provider.Choices[applicant] = "safe_idle";
         provider.Choices[teacher] = provider.Choices[learner] = "safe_idle";
         state = setup.ExportState();
+        GridPoint? travellingLearner = null;
+        if (memberIsTeacher)
+        {
+            travellingLearner = FreeTiles(setup).First(point => state.Map.FootDistance(point, camp) == 2);
+            state = state with
+            {
+                Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == learner
+                    ? person with { Position = travellingLearner.Value, TravelCooldownTicks = 0, LastDecisionContext = null }
+                    : person).ToArray(),
+            };
+            provider.Choices[learner] = "lesson_attend";
+        }
         var request = Housing(state, applicant)!.Request!;
         Assert.Contains(member, request.Members);
         Assert.DoesNotContain(member, request.Approvals);
@@ -67,6 +79,16 @@ public sealed class HouseholdJoinRequestTests
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         await held.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.Contains(Assert.Single(held.Requests).Candidates, candidate => candidate.Id == "household_admit:" + applicant);
+        if (travellingLearner is { } start)
+        {
+            for (var tick = 0; tick < 8 && state.Map.FootDistance(
+                world.Inhabitants.Single(person => person.InhabitantId == learner).Position, camp) > 1; tick++)
+                Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+            var arrival = world.Inhabitants.Single(person => person.InhabitantId == learner).Position;
+            Assert.NotEqual(start, arrival);
+            Assert.InRange(state.Map.FootDistance(arrival, camp), 0, 1);
+            Assert.Contains("lesson_attend", provider.Offered[learner].Keys);
+        }
         var before = world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!;
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         Assert.False((await world.AdvanceOneTickNonBlockingAsync(() => false)).Advanced);
