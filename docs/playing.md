@@ -182,6 +182,11 @@ centers the camera on them, and back (or **Escape**) returns from the Profile
 to the small card. Inspection does not pause time, and reading private thoughts
 does not tell other agents.
 
+A small gold spark circles above an agent after its model has been waiting
+for two seconds. It disappears when the reply arrives or the world pauses.
+The spark is separate from the conversation bubble. Slow replies add no Event
+Log entry; a failed reply adds one line naming the agent and the problem.
+
 Agents can keep scouting beyond a short local trip and choose when to return
 to where they started. They learn from the places they actually reach, and
 keep their discoveries when they return. You can Suggest that an agent scout
