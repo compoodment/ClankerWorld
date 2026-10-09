@@ -3048,6 +3048,17 @@ Repeal ends future permission; it does not abandon a passenger already aboard.
 A grant changes no membership, ownership or Warehouse access.
 
 Native personal decisions approach the Port and create a sequenced trip request.
+The complete owner grammar also accepts `Travel by boat to Port at (x, y)`.
+It resolves that existing Port's instance ID at submission and retains the
+requested tile; ambiguous or absent targets and mixed/repeated tasks are not
+understood. `boat_order` uses the same departure choices, approach movement and
+request creation as ordinary travel. Each ordered request retains its instruction
+ID, and the order binds its latest request. Queue admission, physical boats,
+permissions, reservations and recovery remain authoritative. Native destination
+arrival credits one receipt; a safe return or a cancelled order receives none.
+Cancellation/replacement settles only waiting requests, preserving underway
+journeys. A settled return or lost permission can retry through the normal queue
+when conditions permit, with a new request after the old one settles.
 Queue processing chooses the oldest currently usable request, atomically binds
 one idle boat and a free destination dock, and boards only that passenger with
 their actual carried goods. Blocked requests retain their sequence; cancellation
@@ -3178,6 +3189,13 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   `EcologyRules`: it ripens only in the tree's recorded season (autumn for new
   worlds) and falls when that season ends. New worlds start in spring, so
   orchards start without fruit.
+- **Ecology batches** validate the current configuration, resource bounds,
+  unique IDs and every resource before regeneration. They then share the
+  standalone regeneration calculation without repeating configuration checks
+  for each resource. No validation result is retained across batches: changed
+  profile lists and newly loaded inputs are checked again. Standalone
+  `EcologyRules.Regenerate` still validates its own configuration, and each
+  resource is checked again during regeneration as before.
 - **Owner orders** accept bounded tree counts, repeat-until-cancelled work,
   optional broadleaf/conifer/orchard species and an exact planting tile. The
   parser, observer guidance and strict saved-order validation use the same

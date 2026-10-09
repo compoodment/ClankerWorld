@@ -1683,6 +1683,7 @@ public sealed partial class OwnerWorldObservationStore
     {
         "seek_food" => "looking for food",
         "move_to" => "walking to the ordered tile",
+        "boat_order" => "traveling to the ordered Port by boat",
         "harvest_food" => "gathering food",
         "gather_material" => "gathering the ordered material",
         "work_field" => "working on a household field",
