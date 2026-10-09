@@ -204,6 +204,8 @@ public static partial class SocietyFixture
         var next = checkpoint with
         {
             Inhabitants = checkpoint.Inhabitants.Where(item => item.Id != founderId).ToArray(),
+            // Undo removes this not-yet-started person, including their personal setup history.
+            Memories = checkpoint.Memories.Where(item => item.OwnerId != founderId && item.SubjectId != founderId).ToArray(),
             Households = checkpoint.Households.Select(item => item.Id == householdId
                 ? item with { MemberIds = item.MemberIds.Where(id => id != founderId).ToArray() }
                 : item).ToArray(),
@@ -532,7 +534,9 @@ public static partial class SocietyFixture
     {
         Validate(checkpoint);
         ArgumentNullException.ThrowIfNull(memory);
-        EnsureActive(checkpoint, memory.OwnerId);
+        // A player can also rename a deceased person; their permanent history remains inspectable.
+        if (memory.Permanent) _ = checkpoint.GetInhabitant(memory.OwnerId);
+        else EnsureActive(checkpoint, memory.OwnerId);
         if (!checkpoint.Inhabitants.Any(item => item.Id == memory.SubjectId) ||
             checkpoint.Memories.Any(item => item.Id == memory.Id))
         {
@@ -1218,6 +1222,14 @@ public static partial class SocietyFixture
         EnsureCanonicalIds(checkpoint.Relationships.Select(item => item.Id), "relationships");
         EnsureCanonicalIds(checkpoint.Organizations.Select(item => item.Id), "organizations");
         EnsureCanonicalIds(checkpoint.Memories.Select(item => item.Id), "memories");
+        foreach (var memory in checkpoint.Memories.Where(item => item.Permanent || item.Id.StartsWith("player-rename:", StringComparison.Ordinal)))
+        {
+            if (!memory.Permanent || !checkpoint.Inhabitants.Any(person => person.Id == memory.OwnerId) || memory.SubjectId != memory.OwnerId ||
+                memory.Visibility != "private" || memory.TombstonedTick is not null ||
+                memory.SourceTick < 0 || memory.SourceTick > checkpoint.WorldTick ||
+                !IsCanonicalBoundedText(memory.Summary, 256))
+                throw new InvalidDataException("A permanent personal memory must retain its owner, source date and private contents.");
+        }
         ValidateAgentBeliefs(checkpoint);
         ValidateAgentMemoryCompactions(checkpoint);
         EnsureCanonicalIds(checkpoint.Estates.Select(item => item.Id), "estates");

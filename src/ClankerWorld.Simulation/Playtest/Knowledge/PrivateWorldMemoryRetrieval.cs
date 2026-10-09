@@ -44,7 +44,10 @@ internal static class PrivateWorldMemoryRetrieval
                     Score = overlap * 3_000 + (assessment?.ImportanceBasisPoints ?? 0) / 5,
                 };
             })
-            .OrderByDescending(item => item.Score)
+            .OrderByDescending(item => item.Source.Permanent)
+            .ThenByDescending(item => item.Source.Permanent ? item.Source.SourceTick : 0)
+            .ThenByDescending(item => item.Source.Permanent ? item.Source.Id : string.Empty, StringComparer.Ordinal)
+            .ThenByDescending(item => item.Score)
             .ThenByDescending(item => item.Importance)
             .ThenByDescending(item => item.Source.SourceTick)
             .ThenBy(item => item.Source.Kind, StringComparer.Ordinal)
@@ -79,6 +82,7 @@ internal static class PrivateWorldMemoryRetrieval
             .Select(item => $"{ToWireKind(item.Kind)}:{item.SourceId}")
             .ToHashSet(StringComparer.Ordinal);
         var batch = SourceRecords(socialMemories, beliefs, ownerId, worldTick)
+            .Where(source => !source.Permanent)
             // The persisted salience index is bounded to the latest 256
             // sources. Keep the candidate domain aligned with that retention
             // window so entries it cannot retain are not scored forever.
@@ -115,11 +119,12 @@ internal static class PrivateWorldMemoryRetrieval
         var experiences = socialMemories
             .Where(memory => string.Equals(memory.OwnerId, ownerId, StringComparison.Ordinal) &&
                 memory.TombstonedTick is null && memory.SourceTick >= 0 && memory.SourceTick <= worldTick &&
-                IsValidId(memory.Id) && IsValidId(memory.SubjectId) && !string.IsNullOrWhiteSpace(memory.Summary))
+                IsValidId(memory.Id) && (IsValidId(memory.SubjectId) || memory.Permanent && memory.SubjectId == ownerId) &&
+                !string.IsNullOrWhiteSpace(memory.Summary))
             .Select(memory => new SourceRecord(
                 memory.Id,
                 ownerId,
-                memory.SubjectId,
+                memory.Permanent ? CognitionSubjectId(memory.SubjectId) : memory.SubjectId,
                 Bounded(memory.Summary, MaximumSummaryLength),
                 memory.SourceTick,
                 "experience",
@@ -128,7 +133,8 @@ internal static class PrivateWorldMemoryRetrieval
                 null,
                 null,
                 null,
-                false));
+                false,
+                memory.Permanent));
 
         var privateBeliefs = beliefs
             .Where(belief => string.Equals(belief.OwnerId, ownerId, StringComparison.Ordinal) &&
@@ -150,7 +156,9 @@ internal static class PrivateWorldMemoryRetrieval
 
         return experiences.Concat(privateBeliefs)
             .Where(item => item.Summary.Length > 0)
-            .OrderByDescending(item => item.SourceTick)
+            .OrderByDescending(item => item.Permanent)
+            .ThenByDescending(item => item.SourceTick)
+            .ThenByDescending(item => item.Permanent ? item.Id : string.Empty, StringComparer.Ordinal)
             .ThenBy(item => KindOrder(item.Kind))
             .ThenBy(item => item.Id, StringComparer.Ordinal);
     }
@@ -211,5 +219,6 @@ internal static class PrivateWorldMemoryRetrieval
         int? ConfidenceBasisPoints,
         string? SourceAgentId,
         long? SourceEventId,
-        bool IsCorrected);
+        bool IsCorrected,
+        bool Permanent = false);
 }

@@ -77,7 +77,7 @@ public sealed partial class PrivateWorldRuntime
             marriages[index] = marriages[index] with { SurnameReceipt = session };
     }
 
-    private SocietyOperationResult RenameSpouses(AgentMarriage marriage, string agentId, string name)
+    private SocietyOperationResult RenameSpouses(AgentMarriage marriage, string agentId, string name, bool fromPlayer = false)
     {
         var otherId = agentId == marriage.InitiatorId ? marriage.InviteeId : marriage.InitiatorId;
         var surname = InhabitantNameRules.SurnameKey(name) ?? throw new ArgumentException("Choose a full name with a surname.", nameof(name));
@@ -85,8 +85,10 @@ public sealed partial class PrivateWorldRuntime
         // Society.Apply publishes only the final valid checkpoint. Either refusal leaves both people untouched.
         return society.Apply(checkpoint =>
         {
-            var first = SocietyFixture.RenameInhabitant(checkpoint, agentId, name);
-            var second = SocietyFixture.RenameInhabitant(first.Checkpoint, otherId, otherName);
+            var first = fromPlayer ? RenameFromPlayer(checkpoint, agentId, name)
+                : SocietyFixture.RenameInhabitant(checkpoint, agentId, name);
+            var second = fromPlayer ? RenameFromPlayer(first.Checkpoint, otherId, otherName)
+                : SocietyFixture.RenameInhabitant(first.Checkpoint, otherId, otherName);
             return new SocietyOperationResult(second.Checkpoint, NewEvents: [.. first.NewEvents ?? [], .. second.NewEvents ?? []]);
         });
     }

@@ -250,7 +250,8 @@ public sealed record SocietySocialMemory(
     string Summary,
     string Visibility,
     long SourceTick,
-    long? TombstonedTick = null);
+    long? TombstonedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Permanent = false);
 
 /// <summary>The evidence basis for an agent-owned account, not a world fact.</summary>
 public enum SocietyBeliefProvenance

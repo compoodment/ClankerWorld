@@ -265,8 +265,8 @@ public sealed partial class PrivateWorldRuntime
                 throw new ArgumentException("Choose a shorter first or middle name so the marriage's surname choices still fit.", nameof(name));
             var marriageIndex = marriages.FindIndex(item => item.CompletedTick is not null && AgentMarriageRules.HasParticipant(item, agentId));
             var result = marriageIndex < 0
-                ? society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, agentId, name))
-                : RenameSpouses(marriages[marriageIndex], agentId, name);
+                ? society.Apply(checkpoint => RenameFromPlayer(checkpoint, agentId, name))
+                : RenameSpouses(marriages[marriageIndex], agentId, name, fromPlayer: true);
             var changed = result.NewEvents is { Count: > 0 };
             if (changed)
             {
@@ -277,6 +277,7 @@ public sealed partial class PrivateWorldRuntime
                     if (surname != marriage.CurrentSurname)
                         marriages[marriageIndex] = marriage with { LatestPlayerRename = new AgentMarriageRename(agentId, surname, WorldTick) };
                 }
+                checkpointSchemaVersion = StateSchemaVersion;
                 AppendEvent("agent_renamed", agentId);
             }
             return changed;
