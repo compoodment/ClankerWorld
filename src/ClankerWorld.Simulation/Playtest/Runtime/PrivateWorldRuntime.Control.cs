@@ -493,9 +493,11 @@ public sealed partial class PrivateWorldRuntime
         ArgumentException.ThrowIfNullOrWhiteSpace(request.TargetInhabitantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OrderId);
         foreach (var value in new[] { request.IdempotencyKey, request.IssuerId, request.WorldId,
-                     request.TargetInhabitantId, request.OrderId })
+                     request.OrderId })
             if (value.Trim().Length > 128 || value.Any(char.IsControl))
                 throw new ArgumentOutOfRangeException(nameof(request), "Order cancellation identities must be bounded and contain no control characters.");
+        if (request.TargetInhabitantId.Any(char.IsControl))
+            throw new ArgumentOutOfRangeException(nameof(request), "Order cancellation target must contain no control characters.");
     }
 
     // Refuse everything a save would refuse before the request touches live
