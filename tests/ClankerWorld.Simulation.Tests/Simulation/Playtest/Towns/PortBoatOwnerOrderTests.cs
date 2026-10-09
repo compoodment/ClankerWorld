@@ -1,5 +1,6 @@
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
