@@ -1670,6 +1670,7 @@ public partial class Main
                 throw new InvalidOperationException("The Town panel must not show operator diagnostics such as revisions or digests.");
             RenderTownExtras(sample);
             await VerifyWorldInfoPagesAsync();
+            VerifyAgentCardStyleRetention();
             VerifySeasonalLandscape(sample);
             // Top-bar panels hug their contents, and short text leaves no empty space below it.
             foreach (var panel in new PanelContainer[] { rosterPanel, eventsPanel, worldInfoPanel, filtersPanel, worldOverviewPanel })

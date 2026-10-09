@@ -3347,7 +3347,9 @@ A trip isolates its selected feed quantity from
 the source, including an already carried stack, so delivery cannot donate the
 unselected remainder. Reusable jugs travel whole with their contents. One held
 product batch waits for local collection;
-milk enters a reusable household jug. Products then use ordinary stock hauling,
+milk enters a reusable household jug. Jug pickup and collection require cargo
+space for the jug's existing contents and the pending milk batch; an unsuitable
+first jug does not hide a fitting alternative. Products then use ordinary stock hauling,
 recipes and trade.
 
 When care is due, its native order candidate requires complete safe inputs, a current care
