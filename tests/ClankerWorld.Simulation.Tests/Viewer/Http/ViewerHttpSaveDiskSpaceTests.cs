@@ -121,6 +121,43 @@ public sealed partial class ViewerHttpTests
         finally { await monitor.StopAsync(default); }
     }
 
+    [Fact]
+    public async Task ADelayedLaterVolumeQueryCannotMakeAnEarlierSampleFreshAgain()
+    {
+        var clock = new SaveSpaceTestClock();
+        using var monitor = new SaveDiskSpaceMonitor(Path.Combine(Path.GetTempPath(), "space-age-test.json"),
+            new LaterDelayedSaveSpaceProbe(clock), timeProvider: clock);
+        await monitor.StartAsync(default);
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            while (monitor.Capture().CheckedUtc is null) await Task.Delay(10, timeout.Token);
+            var status = monitor.Capture();
+            Assert.Equal("unknown", status.State);
+            Assert.Null(status.AvailableBytes);
+            Assert.Equal(clock.StartedUtc, status.CheckedUtc);
+        }
+        finally { await monitor.StopAsync(default); }
+    }
+
+    private sealed class SaveSpaceTestClock : TimeProvider
+    {
+        public DateTimeOffset StartedUtc { get; } = DateTimeOffset.UtcNow;
+        private long elapsedTicks;
+        public override DateTimeOffset GetUtcNow() => StartedUtc.AddTicks(Interlocked.Read(ref elapsedTicks));
+        public void Advance(TimeSpan elapsed) => Interlocked.Add(ref elapsedTicks, elapsed.Ticks);
+    }
+
+    private sealed class LaterDelayedSaveSpaceProbe(SaveSpaceTestClock clock) : ISaveDiskSpaceProbe
+    {
+        private int reads;
+        public long? AvailableBytes(string directory)
+        {
+            if (++reads == 2) clock.Advance(TimeSpan.FromSeconds(31));
+            return 4 * SaveDiskSpaceMonitor.WarningBelowBytes;
+        }
+    }
+
     private sealed class SnapshotVolumeProbe(bool unavailable) : ISaveDiskSpaceProbe
     {
         public long? AvailableBytes(string directory) => directory.EndsWith(".manual", StringComparison.Ordinal)

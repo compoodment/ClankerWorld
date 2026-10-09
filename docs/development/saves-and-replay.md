@@ -17,7 +17,7 @@ The host samples available free space on the active checkpoint, manual/autosave,
 world-catalog and history-archive volumes every five seconds, resolving existing parent
 directories, symlinks and mounted volumes. The initial advisory level is below
 1 GiB. Any known low volume warns even if another cannot be read; space is
-unknown when a query fails or its result is at least thirty seconds old.
+unknown when a query fails or the sampling batch started at least thirty seconds ago.
 The authenticated `save-disk-status` read returns bounded status and byte
 counts, without filesystem paths. The client polls independently of world
 refreshes and reads again before a manual save or overwrite. A failed status

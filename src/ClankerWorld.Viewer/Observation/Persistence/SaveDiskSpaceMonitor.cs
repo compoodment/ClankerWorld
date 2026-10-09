@@ -50,8 +50,9 @@ public sealed class SaveDiskSpaceProbe : ISaveDiskSpaceProbe
 /// stalled volume query cannot hold up emergency checkpoints or host startup.
 /// </summary>
 public sealed partial class SaveDiskSpaceMonitor(string activeSavePath, ISaveDiskSpaceProbe probe,
-    ILogger<SaveDiskSpaceMonitor>? logger = null) : BackgroundService
+    ILogger<SaveDiskSpaceMonitor>? logger = null, TimeProvider? timeProvider = null) : BackgroundService
 {
+    private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
     // Provisional alpha level, to be tuned by playtesting.
     public const long WarningBelowBytes = 1024L * 1024 * 1024;
     private SaveDiskSpaceStatus status = new("unknown", null, WarningBelowBytes, null);
@@ -59,7 +60,7 @@ public sealed partial class SaveDiskSpaceMonitor(string activeSavePath, ISaveDis
     public SaveDiskSpaceStatus Capture()
     {
         var current = Volatile.Read(ref status);
-        return current.CheckedUtc is { } checkedUtc && DateTimeOffset.UtcNow - checkedUtc is { } age &&
+        return current.CheckedUtc is { } checkedUtc && clock.GetUtcNow() - checkedUtc is { } age &&
             age >= TimeSpan.Zero && age < TimeSpan.FromSeconds(30)
             ? current : new("unknown", null, WarningBelowBytes, current.CheckedUtc);
     }
@@ -75,6 +76,7 @@ public sealed partial class SaveDiskSpaceMonitor(string activeSavePath, ISaveDis
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
         do
         {
+            var sampledUtc = clock.GetUtcNow();
             long? Read(string directory)
             {
                 try { return probe.AvailableBytes(directory) is >= 0 and var bytes ? bytes : null; }
@@ -88,7 +90,7 @@ public sealed partial class SaveDiskSpaceMonitor(string activeSavePath, ISaveDis
             var minimum = samples.Min();
             var available = samples.All(item => item is not null) || minimum is < WarningBelowBytes ? minimum : null;
             var next = new SaveDiskSpaceStatus(available is null ? "unknown" : available < WarningBelowBytes ? "low" : "ok",
-                available, WarningBelowBytes, DateTimeOffset.UtcNow);
+                available, WarningBelowBytes, sampledUtc);
             var previous = Interlocked.Exchange(ref status, next);
             if (logger is not null && previous.State != next.State && next.State != "ok")
                 LogStatus(logger, next.State, next.AvailableBytes, next.WarningBelowBytes);
