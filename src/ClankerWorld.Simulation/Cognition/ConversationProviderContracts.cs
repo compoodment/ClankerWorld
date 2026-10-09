@@ -134,8 +134,8 @@ public sealed record AgentConversationTurnRequest(
             !Enum.IsDefined(Purpose) ||
             string.Equals(SpeakerId, OtherParticipantId, StringComparison.Ordinal))
             throw new ArgumentException("The conversation request identity is invalid.");
-        ValidateText(SpeakerId, 128, nameof(SpeakerId));
-        ValidateText(OtherParticipantId, 128, nameof(OtherParticipantId));
+        ValidateAgentId(SpeakerId, nameof(SpeakerId));
+        ValidateAgentId(OtherParticipantId, nameof(OtherParticipantId));
         ValidateText(SpeakerName, 128, nameof(SpeakerName));
         ValidateText(OtherParticipantName, 128, nameof(OtherParticipantName));
         ValidateOptionalText(SpeakerPersonality, 256, nameof(SpeakerPersonality));
@@ -155,6 +155,13 @@ public sealed record AgentConversationTurnRequest(
             AllowedEffects.Any(effect => !Enum.IsDefined(effect)) ||
             PublicHistory.Any(turn => !AgentConversationText.IsValidUtterance(turn.Text)))
             throw new ArgumentException("The conversation request exceeds its bounded context.");
+    }
+
+    private static void ValidateAgentId(string value, string parameterName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
+        if (value != value.Trim() || value.Any(char.IsControl))
+            throw new ArgumentException("The conversation request contains an invalid agent identity.", parameterName);
     }
 
     private static void ValidateText(string value, int maximumLength, string parameterName)
