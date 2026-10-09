@@ -148,7 +148,9 @@ public sealed partial class PrivateWorldRuntime
                     .OrderBy(item => item.EndReceipt is not null).ThenByDescending(item => item.AcceptedTick)
                     .ThenBy(item => item.Id, StringComparer.Ordinal).FirstOrDefault() is { } marriage
                     ? AgentMarriageRules.Note(marriage, inhabitant.Id, checkpoint) : null,
-                FamilyBackground: InitialChildFamilyBackground(inhabitant.Id, physical));
+                FamilyBackground: InitialChildFamilyBackground(inhabitant.Id, physical),
+                Skills: (physical.Skills ?? []).OrderBy(skill => skill.Kind)
+                    .Select(skill => skill.Kind.ToString().ToLowerInvariant()).ToArray());
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,

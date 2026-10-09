@@ -75,7 +75,7 @@ public sealed partial class PrivateWorldRuntime
         var sickleLotId = sickle is null ? null : IsolateFieldToolForWork(workerId, position, sickle.ToolLotId);
         SetFarmField(field with
         {
-            Work = new(workerId, kind, FarmFieldRules.WorkTicks(kind), WorldTick, reservationId, crop,
+            Work = new(workerId, kind, SkilledWorkTicks(workerId, SettlementSkillKind.Farming, FarmFieldRules.WorkTicks(kind)), WorldTick, reservationId, crop,
                 hoeLotId, sickleLotId, orderInstructionId),
             LastWorkedTick = WorldTick,
         });
