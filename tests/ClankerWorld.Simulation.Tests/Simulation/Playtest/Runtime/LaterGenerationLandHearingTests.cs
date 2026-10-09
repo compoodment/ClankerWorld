@@ -29,7 +29,7 @@ public sealed partial class GrownAgentHelperMemoryTests
             Filer = NativeHearingJudge,
             Judge = actor,
             CaseCandidates = candidates,
-            CaseVote = voter => voter == actor ? actorName : voter == other ? otherName : null,
+            Consent = true,
         };
         using var world = PrivateWorldRuntime.Restore(state, _ => choices);
         Assert.True(world.DisplaceAdult(actor));
@@ -38,8 +38,14 @@ public sealed partial class GrownAgentHelperMemoryTests
             Assert.True(world.DisplaceAdult(member));
         await NativeHearingUntil(world, () => world.Towns[0].LandHearings.Cases.Count == 1, 20);
         choices.Request = false;
+        // A running round retains its opening candidate list. Let an early
+        // one-candidate round fail without a ballot; both adults must personally
+        // register before the next real round can offer both choices.
+        await NativeHearingUntil(world, () => world.Towns[0].LandHearings.Cases[0].Contest is { Stage: "voting" } contest &&
+            contest.Candidates.SequenceEqual(candidates.Order(StringComparer.Ordinal)), NativeHearingDay * 3);
+        choices.CaseVote = voter => voter == actor ? actorName : voter == other ? otherName : null;
         await NativeHearingUntil(world, () => world.Towns[0].LandHearings.Cases[0].Contest is { } contest &&
-            contest.TiedCandidates.Contains(actor) && contest.Rounds.Any(round => round.Result == "tie"), NativeHearingDay * 4);
+            contest.TiedCandidates.Contains(actor) && contest.Rounds.Any(round => round.Result == "tie"), NativeHearingDay * 2);
         var tied = world.Towns[0].LandHearings.Cases[0].Contest!;
         Assert.Contains(actor, tied.Voters);
         Assert.Contains(actor, tied.Candidates);
@@ -51,7 +57,7 @@ public sealed partial class GrownAgentHelperMemoryTests
         var pending = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         AssertInvalidLaterElectionRosters(world.ExportState(), world.Towns[0].LandHearings.Cases[0], tied, actor, other);
         using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(pending), _ => new NativeLandHearingChoices
-        { Judge = actor, CaseCandidates = candidates, CaseVote = _ => actorName, Rule = true });
+        { Judge = actor, CaseCandidates = candidates, CaseVote = _ => actorName, Consent = true, Rule = true });
         Assert.Equal(pending, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
         Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
         Assert.Equal(pending, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
