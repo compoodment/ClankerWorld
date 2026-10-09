@@ -9,7 +9,7 @@ using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class PurposefulExplorationTests
+public sealed partial class PurposefulExplorationTests
 {
     [Fact]
     public async Task UntargetedMaterialOrderKeepsItsPurposePastEightStepsAndHandsOffOnlyAfterDiscoveryAcrossReplay()
