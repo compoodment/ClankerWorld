@@ -16,6 +16,17 @@ This page owns save implementation and recovery requirements. The
 
 World state includes its seed and generation options, clock, agents, accepted
 events, Towns, content locks, model/slot assignments and autosave choices.
+New generated worlds have a deterministic identity derived from their seed,
+selected generation options and accepted map digests. Different maps can reuse
+a seed while keeping separate checkpoints, save timelines and owner-action
+contexts. A world name is not part of this identity, so renaming the same
+generation choices does not permit a duplicate. Loading keeps the saved
+identity, including existing generated worlds whose identity was their seed.
+Duplicate checks use those older worlds' saved generation choices even after
+planting changes their current resource manifest.
+Loading a named save requires both its seed and saved world identity to match
+the selected world. A save from a different same-seed map is refused before
+creating a backup or changing its timeline, runtime or settings.
 Installation state includes device authority, provider credentials and usage
 accounting. Saves store slot IDs and model choices, never API-key bytes.
 

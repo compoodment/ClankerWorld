@@ -671,7 +671,7 @@ public sealed record CognitionDecisionResponse(
         {
             ArgumentNullException.ThrowIfNull(score);
             if (string.IsNullOrWhiteSpace(score.Id) || score.Id.Length > 128 ||
-                string.IsNullOrWhiteSpace(score.OwnerId) || score.OwnerId.Length > 128 ||
+                string.IsNullOrWhiteSpace(score.OwnerId) ||
                 score.Kind is not ("experience" or "belief") || score.SourceTick < 0 ||
                 score.ImportanceBasisPoints is < 0 or > 10_000 ||
                 score.ConfidenceBasisPoints is < 0 or > 10_000 ||
