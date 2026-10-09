@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Playing the current game
@@ -956,7 +956,9 @@ the world's date, so **Save** works straight away; type another name first if
 you like. The card under the timeline says whether the new save continues a
 branch or starts a new one. To overwrite a save, choose it, then **Overwrite**,
 and confirm; typing the same name does not overwrite it. Autosaves can't be
-overwritten. World Settings offers rotating
+overwritten. When a long name makes the recovery copy's name reach the
+save-name limit, it is shortened between whole characters, including emoji.
+World Settings offers rotating
 autosaves as well as automatic recovery. If the host's clock moves backwards,
 the next rotating save waits one configured interval from the corrected time.
 **Load World** shows each world as a
