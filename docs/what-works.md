@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # What works today
@@ -1170,7 +1170,11 @@ beside a House grants nothing, and a pending request grants no access to the
 household's food, stock or shelter. Once every adult agrees, the newcomer is a
 member of that household. The agent's profile and its own model request say
 the real blocker: no household, a House still to plan, missing materials, no
-legal site or an overcrowded House. Adults may leave without a vote and keep personal ownership of goods stored
+legal site or an overcrowded House. When a material-ready household building
+has no legal site, available household land requests and Council land claims
+explain that building need. The House blocker also points to those routes;
+no eligible plot still means waiting, and filing grants no land or household
+acceptance. Adults may leave without a vote and keep personal ownership of goods stored
 at the old House. Collection and returning borrowed work tools require travel
 and carrying space. A departure allocates up to two available, unreserved
 ready-to-eat portions once; collection and reload do not repeat that allowance.

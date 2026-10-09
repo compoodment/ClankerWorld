@@ -149,10 +149,14 @@ public sealed partial class PrivateWorldRuntime
     private static string CivicRoundToken(TownElection election) =>
         $"{election.Id}:{election.Stage}:{election.OpenedTick.ToString(CultureInfo.InvariantCulture)}";
 
-    private void AddTownCivicCandidates(List<CognitionCandidate> candidates, string actor)
+    private void AddTownCivicCandidates(List<CognitionCandidate> candidates, string actor,
+        IReadOnlyList<string>? buildingsWithoutSites = null)
     {
         // Civic agreement and votes are explicit personal choices, never a built-in idle alternative.
         if (NeedsUrgentWarmth(inhabitants[actor])) return;
+        var siteRecovery = buildingsWithoutSites is { Count: > 0 }
+            ? $"No legal building site is available for {string.Join(", ", buildingsWithoutSites)}. "
+            : string.Empty;
         foreach (var town in towns.Where(t => t.Governance is not null))
         {
             if (MayResettleTown(actor, town))
@@ -196,11 +200,11 @@ public sealed partial class PrivateWorldRuntime
                 var here = inhabitants[actor].Position;
                 // The model sees no map grid, so name real claimable tiles it can choose from.
                 if (TownLandClaimRules.ClaimableNear(map, town, townLandTitles, here, 6) is { Length: > 0 } nearest)
-                    candidates.Add(new(CivicAction(town.Id, "claim_land"), $"Ask {town.Name}'s council to claim a connected plot of adjoining unclaimed land; include its exact coordinates in civic_land_tiles. " +
+                    candidates.Add(new(CivicAction(town.Id, "claim_land"), siteRecovery + $"Ask {town.Name}'s council to claim a connected plot of adjoining unclaimed land; include its exact coordinates in civic_land_tiles. " +
                         FormattableString.Invariant($"You stand at ({here.X}, {here.Y}); unclaimed tiles beside the Town's land nearest you: {string.Join("; ", nearest.Select(tile => FormattableString.Invariant($"({tile.X}, {tile.Y})")))}. ") +
                         "Existing titles, household rights, buildings and goods stay with their holders.", 190));
                 if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not null && RequestableLandNear(town, here, 6) is { Length: > 0 } free)
-                    candidates.Add(new(CivicAction(town.Id, "request_land_use"), $"Ask {town.Name}'s council for household use of a connected plot of Town-titled land; include exact coordinates in civic_land_tiles. " +
+                    candidates.Add(new(CivicAction(town.Id, "request_land_use"), siteRecovery + $"Ask {town.Name}'s council for household use of a connected plot of Town-titled land; include exact coordinates in civic_land_tiles. " +
                         FormattableString.Invariant($"You stand at ({here.X}, {here.Y}); free Town land nearest you: {string.Join("; ", free.Select(tile => FormattableString.Invariant($"({tile.X}, {tile.Y})")))}. ") +
                         "Filing grants nothing and supplies no household acceptance.", 190));
             }

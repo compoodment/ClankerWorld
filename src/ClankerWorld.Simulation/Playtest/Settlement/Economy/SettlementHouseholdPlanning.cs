@@ -17,7 +17,7 @@ public sealed partial class PrivateWorldRuntime
     private const string GatherBuildingMaterialPrefix = "gather_building_material:";
 
     private void AddHouseholdBuildingPlans(List<CognitionCandidate> candidates, SocietyInhabitant inhabitant,
-        PlaytestInhabitantState state, string householdId)
+        PlaytestInhabitantState state, string householdId, List<string> buildingsWithoutSites)
     {
         TownLayoutContext? sharedLayout = null;
         foreach (var definition in PlannableHouseholdBuildings(householdId, inhabitant.Id))
@@ -35,6 +35,7 @@ public sealed partial class PrivateWorldRuntime
                 ? CreateTownLayoutContext(inhabitant.Id, building: definition)
                 : sharedLayout ??= CreateTownLayoutContext(inhabitant.Id);
             var sites = TownLayoutService.RankConstructionSites(layout, definition);
+            if (sites.Count == 0) buildingsWithoutSites.Add(definition.DisplayName);
             for (var rank = 0; rank < sites.Count; rank++)
             {
                 var site = sites[rank];

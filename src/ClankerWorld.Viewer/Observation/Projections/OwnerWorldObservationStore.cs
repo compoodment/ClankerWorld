@@ -1404,7 +1404,8 @@ public sealed partial class OwnerWorldObservationStore
             HousingBlockers.NoHousehold => "No home. Seek an accepting household with room for the complete care group first; otherwise start a household and build a House.",
             HousingBlockers.NoAuthorizedHome => "No home. The household holds no House yet and can plan one.",
             HousingBlockers.MissingMaterials => "No home. The household holds no House and lacks the materials to build one.",
-            HousingBlockers.NoLegalSite => "No home. The household has the materials for a House but no legal site to build it.",
+            HousingBlockers.NoLegalSite => "No home. The household has the materials for a House but no legal site to build it. " +
+                HousingBlockers.LandRecoveryGuidance,
             _ => null,
         };
     }

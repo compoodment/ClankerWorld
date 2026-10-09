@@ -1291,7 +1291,8 @@ public sealed partial class PrivateWorldRuntime
             var reachableToolCache = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
             var accessibleWarehouses = new Lazy<PlacedBuilding[]>(() => WarehousesAccessibleTo(inhabitantId).ToArray(),
                 LazyThreadSafetyMode.None);
-            AddBuildCandidates(candidates, inhabitant, state, reachableToolCache, accessibleWarehouses);
+            var buildingsWithoutSites = new List<string>();
+            AddBuildCandidates(candidates, inhabitant, state, reachableToolCache, accessibleWarehouses, buildingsWithoutSites);
             AddBuildingExpansionCandidates(candidates, inhabitantId, reachableToolCache, accessibleWarehouses);
             AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
@@ -1309,7 +1310,7 @@ public sealed partial class PrivateWorldRuntime
             AddForestryCandidates(candidates, inhabitantId, state);
             AddTradeCandidates(candidates, inhabitantId);
             AddCouncilCandidates(candidates, inhabitantId);
-            AddTownCivicCandidates(candidates, inhabitantId);
+            AddTownCivicCandidates(candidates, inhabitantId, buildingsWithoutSites);
             AddTownProjectDonationCandidates(candidates, inhabitantId);
             AddMarketCandidates(candidates, inhabitantId);
             AddBoatCandidates(candidates, inhabitantId);
@@ -1367,10 +1368,11 @@ public sealed partial class PrivateWorldRuntime
         SocietyInhabitant inhabitant,
         PlaytestInhabitantState state,
         Dictionary<(ToolFamily Family, int Tier), ToolDefinition?> reachableToolCache,
-        Lazy<PlacedBuilding[]> accessibleWarehouses)
+        Lazy<PlacedBuilding[]> accessibleWarehouses,
+        List<string> buildingsWithoutSites)
     {
         if (inhabitant.HouseholdId is { } planningHousehold)
-            AddHouseholdBuildingPlans(candidates, inhabitant, state, planningHousehold);
+            AddHouseholdBuildingPlans(candidates, inhabitant, state, planningHousehold, buildingsWithoutSites);
 
         // Work follows what the household holds, not a role: crops need the
         // household's Farmhouse, and workstation recipes need a building the

@@ -644,8 +644,19 @@ public sealed class HouseholdJoinRequestTests
         Assert.Contains(crowded.ExportState().Events, item => item.Kind == "housing_blocked" && item.Detail == $"{agent}:no_legal_site");
         Assert.True((await crowded.AdvanceOneTickAsync()).Advanced);
         Assert.DoesNotContain(provider.Offered[agent].Keys, id => id.StartsWith("build:building:", StringComparison.Ordinal));
-        Assert.Contains("no legal site", new OwnerWorldObservationStore(crowded).GetSnapshot().Inhabitants
-            .Single(person => person.Id == agent).DecisionFactors.Single(factor => factor.Key == "housing").Detail, StringComparison.Ordinal);
+        var ownerHousing = new OwnerWorldObservationStore(crowded).GetSnapshot().Inhabitants
+            .Single(person => person.Id == agent).DecisionFactors.Single(factor => factor.Key == "housing").Detail;
+        Assert.Contains("no legal site", ownerHousing, StringComparison.Ordinal);
+        Assert.Contains(HousingBlockers.LandRecoveryGuidance, ownerHousing, StringComparison.Ordinal);
+        crowded.SubmitInstruction(new OwnerInstructionRequest("no-site-land-guidance", "owner:test", agent,
+            OwnerInstructionKind.Suggestive, "Consider how to get land for the House that has no legal site."));
+        await AdvanceUntil(crowded, () => provider.HousingNotes.GetValueOrDefault(agent)?.Contains("no legal site", StringComparison.Ordinal) == true, 5);
+        Assert.True(provider.HousingNotes[agent]?.Contains("land", StringComparison.Ordinal) == true &&
+            provider.HousingNotes[agent]?.Contains("Council", StringComparison.Ordinal) == true,
+            provider.HousingNotes[agent] + "\n" + string.Join("\n", provider.Offered[agent].Where(item => item.Key.StartsWith("civic|", StringComparison.Ordinal))));
+        Assert.Contains(HousingBlockers.LandRecoveryGuidance, provider.HousingNotes[agent], StringComparison.Ordinal);
+        Assert.DoesNotContain(provider.Offered[agent].Keys, id => id.Contains("|request_land_use|", StringComparison.Ordinal) ||
+            id.Contains("|claim_land|", StringComparison.Ordinal));
         crowded.Validate();
         using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(crowded.ExportState())));
         Assert.Equal(HousingBlockers.NoLegalSite, Housing(reloaded, agent)?.Blocker);
