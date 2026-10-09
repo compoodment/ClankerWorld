@@ -380,8 +380,11 @@ refused and preserved without migration.
 
 Private-world schema 90 adds shelter target bindings and completion records.
 Building targets pin identity, definition, owner, anchor and placement time;
-natural cover pins its actual destination. Shelter completion records the
-arrival time and position. Fire completion also references the unique actual
+natural cover pins its actual destination. The same building binding can name
+a Town Hall for a homeless own-Town resident's storm refuge; its fields and
+the current schema are unchanged. Live refuge permission is checked when
+work continues, while a completed arrival remains historical. Shelter completion
+records the arrival time and position. Fire completion also references the unique actual
 completed one-wood fuel reservation. Validation checks action-specific shapes
 and payment evidence without requiring historical cover, permission or a fire
 to remain available forever. Unfinished targets are revalidated when work
@@ -804,6 +807,13 @@ private-world map does not match deterministic regeneration." Its file is kept.
 The save format and schema number do not change. As with any unloadable active
 world, the host will not start until that save is moved aside. Hills are drawn
 from the saved elevation and water layers, so nothing extra is saved for them.
+
+The polar sea rows at the north and south edges
+([#1317](https://github.com/compoodment/ClankerWorld/issues/1317)) also change
+generated maps in the same way: there is no generator switch or migration.
+A saved map that differs from deterministic regeneration fails the check
+with the same message, and its file is kept. The save format and schema number
+do not change for the polar rows.
 
 Mountain massifs ([#683](https://github.com/compoodment/ClankerWorld/issues/683))
 change elevation, rivers, climate and resources for every generated world, so
