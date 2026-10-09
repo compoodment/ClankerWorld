@@ -745,6 +745,15 @@ existing access permissions, routes and fuel use still apply.
 The lit destination must be a heating building the agent can use; a
 storm-shelter guest invitation alone does not grant use of a household hearth.
 
+During a storm, an agent with no House can shelter in their own Town's completed
+Town Hall. The full Hall footprint gives the same 45 protection points as an
+invited House. Warmth travel and generic shelter orders choose a reachable
+footprint tile, so an occupied anchor does not hide the rest of the Hall.
+Permission rechecks Town membership, absence of a House and weather at the Hall.
+It grants no hearth or stock access and does not satisfy the family housing gate
+or change birth placement. Unfinished orders recheck permission; completed
+arrivals remain historical after the storm or Hall disappears.
+
 The owner snapshot carries `darknessBasisPoints`, decided by the host from the
 same rule. The Godot client's `NightLayer` draws a deep blue wash, at most 40%
 opaque, over the visible map just above the ground, roads, buildings and trees,
@@ -2733,7 +2742,17 @@ advances progress and wears the selected tool. A new planting input claim
 lasts until actual completion or interruption, so illness does not make it
 expire while the worker is still planting.
 Completed harvests remain intact. Fertility and weather affect crop growth
-or yield. Harvesting creates grain, potatoes or cultivated greens on the
+or yield. Each field also saves the tick it was last worked: starting work and
+every successful work stroke update it. A field with no work in progress and
+no work for a full season (a quarter of the world's year,
+`FarmFieldRules.IdleTicksBeforeGrass`) goes back to grass during field
+upkeep. Any crop still on it is lost, its replanting reserve is released, and
+`field_returned_to_grass` names the field and household. Harvest lots already
+on the ground stay, and the land keeps its derived fertility. Retilling the
+same tile skips harvest identities retained in inventory or reservation
+history, so it cannot replace earlier stock or reuse a released reserve.
+Current saves require the worked tick and reject an active-work clock that
+disagrees with it. Harvesting creates grain, potatoes or cultivated greens on the
 field, and grain and greens also yield two replacement seeds. One usable
 planting item is reserved before surplus can be traded. Picking it up for
 the next planting releases the reserve and physically carries that item.
