@@ -247,13 +247,15 @@ public static class TownLayoutService
         var map = context.Map;
         if (!map.Contains(position))
             return false;
+        // Every rectangular footprint contains its origin. Refuse a blocked
+        // origin before allocating the other tiles; custom shapes may omit it.
+        if ((context.RequiredFootprintOffsets is null || context.RequiredFootprintOffsets.Contains(default)) &&
+            !IsClearFootprintTile(context, position, position))
+            return false;
         var footprint = context.RequiredFootprintOffsets is { } offsets
             ? offsets.Select(offset => new GridPoint(position.X + offset.X, position.Y + offset.Y)).ToArray()
             : Footprint(definition, position).ToArray();
-        if (footprint.Any(point => !map.Contains(point) || !map.IsBuildable(point) ||
-                context.OccupiedTiles.Contains(point) && !(context.RoadTiles.Contains(point) &&
-                    !context.ProtectedTiles.Contains(point) &&
-                    context.PermittedRoadOffsets.Contains(new GridPoint(point.X - position.X, point.Y - position.Y)))))
+        if (footprint.Any(point => !IsClearFootprintTile(context, point, position)))
             return false;
         if (context.RequiredLandTiles is { } titled && footprint.Any(point => !titled.Contains(point)))
             return false;
@@ -330,6 +332,12 @@ public static class TownLayoutService
         candidate = new TownConstructionSiteCandidate(position, score, routeCost, expansion, reasons.ToArray());
         return true;
     }
+
+    private static bool IsClearFootprintTile(TownLayoutContext context, GridPoint point, GridPoint origin) =>
+        context.Map.Contains(point) && context.Map.IsBuildable(point) &&
+        (!context.OccupiedTiles.Contains(point) || context.RoadTiles.Contains(point) &&
+            !context.ProtectedTiles.Contains(point) &&
+            context.PermittedRoadOffsets.Contains(new GridPoint(point.X - origin.X, point.Y - origin.Y)));
 
     private static void AddMaterialReasons(
         TownLayoutContext context,

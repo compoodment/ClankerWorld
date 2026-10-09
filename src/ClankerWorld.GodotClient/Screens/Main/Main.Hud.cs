@@ -341,7 +341,7 @@ public partial class Main
     /// </summary>
     private void UpdateUnreadEvents(string? worldId)
     {
-        var ids = knownEvents.Values.Where(worldEvent => GameUiText.IsPlayerFacingEvent(worldEvent.Kind))
+        var ids = GameUiText.PlayerEvents(knownEvents.Values)
             .Select(worldEvent => worldEvent.EventId).ToArray();
         var newest = ids.Length == 0 ? long.MinValue : ids.Max();
         if (!string.Equals(eventsWorldId, worldId, StringComparison.Ordinal))

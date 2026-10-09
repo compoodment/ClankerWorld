@@ -179,6 +179,7 @@ public sealed partial class PrivateWorldRuntime
                     completedConversationTurns,
                     proposed.WorldTick,
                     IsConversationTurnProviderCurrent);
+                proposed.CompleteClosedTalkOrders();
                 proposed.CompleteIdentityMoments(completedIdentityMoments, IsIdentityMomentProviderCurrent);
                 if (deferHosted)
                     proposed.ProcessWillDecisions(completedWills, activeWillIds, inactiveWillReasons,
@@ -286,6 +287,17 @@ public sealed partial class PrivateWorldRuntime
         string.Equals(observation.ConversationChoiceContext,
             ConversationChoiceContextFor(observation.InhabitantId), StringComparison.Ordinal);
 
+    /// <summary>
+    /// For tests: whether each named agent's model call has finished, so the
+    /// next tick admits all of them together.
+    /// </summary>
+    internal bool HostedDecisionsFinished(params string[] inhabitantIds)
+    {
+        gate.Wait();
+        try { return inhabitantIds.All(id => pendingHosted.TryGetValue(id, out var pending) && pending.Task.IsCompleted); }
+        finally { gate.Release(); }
+    }
+
     private void CancelPendingHosted(string inhabitantId, bool underRuntimeGate = true)
     {
         if (!pendingHosted.Remove(inhabitantId, out var pending)) return;
@@ -366,14 +378,15 @@ public sealed partial class PrivateWorldRuntime
     public void LoadPausedCheckpoint(PrivateWorldRuntimeState checkpoint)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
-        if (!string.Equals(checkpoint.WorldSeed, worldSeed, StringComparison.Ordinal))
-            throw new InvalidDataException("A checkpoint belongs to a different world.");
         tickGate.Wait();
         try
         {
             gate.Wait();
             try
             {
+                if (!string.Equals(checkpoint.WorldSeed, worldSeed, StringComparison.Ordinal) ||
+                    !string.Equals(checkpoint.Society.Society.WorldId, society.Checkpoint.WorldId, StringComparison.Ordinal))
+                    throw new InvalidDataException("A checkpoint belongs to a different world.");
                 if (!society.Checkpoint.IsPaused)
                     throw new InvalidOperationException("Pause the world before loading a checkpoint.");
                 using var restored = Restore(checkpoint, providerFactory,
@@ -555,6 +568,7 @@ public sealed partial class PrivateWorldRuntime
             DrainNeeds();
             AdvanceMedicalTreatments();
             RemoveDeadPhysicalState();
+            MaintainMarriages();
             ReconcileMedicalSupplyTrips();
             ProcessBoatTransport(targetTick);
             ReconcileHandcartHitches();
@@ -673,6 +687,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainKnowledgeWriting();
             ProcessBoatQueue();
             ReconcileAnimalCustody();
+            CompleteClosedTalkOrders();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();

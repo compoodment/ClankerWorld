@@ -1,0 +1,2 @@
+- Let a household prepare or harvest a field, then let the world run a full season without anyone working it. The field should turn back into plain grass, the Event Log should say "A field nobody worked for a season went back to grass.", and inspecting the tile should show the same fertility as before. [#1316](https://github.com/compoodment/ClankerWorld/issues/1316)
+- Keep working another field at least once a season. It should stay a field. [#1316](https://github.com/compoodment/ClankerWorld/issues/1316)

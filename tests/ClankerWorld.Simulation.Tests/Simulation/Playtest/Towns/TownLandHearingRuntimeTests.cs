@@ -9,7 +9,7 @@ using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class TownLandHearingRuntimeTests
+public sealed partial class TownLandHearingRuntimeTests
 {
     private const string Judge = "founder:00000000000000000000000000000001";
     private const string Filer = "founder:00000000000000000000000000000003";

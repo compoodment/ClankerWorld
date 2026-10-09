@@ -22,7 +22,8 @@ public sealed class OrchardSeedCargoFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var state = GeographyGeneratorTests.StartedGeneratedWorld(new GeographyOptions("orchard-reserve-deadlock", WorldSizePreset.Small));
+        // This seed has food on land cut off from the first Town, which the unreachable-House test needs.
+        var state = GeographyGeneratorTests.StartedGeneratedWorld(new GeographyOptions("orchard-reserve-deadlock-4", WorldSizePreset.Small));
         var actor = state.Inhabitants[0].InhabitantId;
         var household = state.Society.Society.GetInhabitant(actor).HouseholdId!;
         using var probe = PrivateWorldRuntime.Restore(state);
