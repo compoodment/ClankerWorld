@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
@@ -294,6 +296,11 @@ public sealed class PrivateWorldMarriageOrderTests
         };
         using var trimmedReload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(trimmed)), id => new PersonalProvider(id));
         Assert.Equal(finished.Order, Assert.Single(trimmedReload.ExportState().Instructions!).Order);
+        var changedOutcome = finished with { Order = finished.Order! with { TalkOutcome = "proposal_declined" } };
+        var forgedReceipt = "marriage-order:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{changedOutcome.InstructionId}|{changedOutcome.TargetInhabitantId}|{changedOutcome.Order!.TargetAgentId}|{changedOutcome.Order.TalkConversationId}|{changedOutcome.Order.TalkOutcome}")));
+        changedOutcome = changedOutcome with { Order = changedOutcome.Order! with { LastEffectId = forgedReceipt } };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(trimmed with { Instructions = [changedOutcome] }));
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(trimmed with { Marriages = [] }));
     }
 

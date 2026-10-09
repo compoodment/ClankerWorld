@@ -185,7 +185,9 @@ public sealed partial class PrivateWorldRuntime
             if (!records.TryGetValue(id, out var conversation))
             {
                 if (IsActiveOrder(order.Status)) throw new InvalidDataException("An active talk order lost its conversation.");
-                continue; // Completed/cancelled tasks may outlive bounded closed conversation history.
+                if (order.Action != "propose_marriage" || marriages.FirstOrDefault(item => item.Consent.Id == id) is not { } marriage)
+                    continue; // Completed/cancelled tasks may outlive bounded closed conversation history.
+                conversation = marriage.Consent; // Marriage keeps the actual consent after ordinary history is trimmed.
             }
             if (conversation.Kind != AgentConversationKind.Ordinary || conversation.InitiatorId != instruction.TargetInhabitantId ||
                 conversation.InviteeId != order.TargetAgentId || conversation.CreatedTick < instruction.SubmittedTick ||

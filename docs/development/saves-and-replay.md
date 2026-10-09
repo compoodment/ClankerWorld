@@ -581,7 +581,8 @@ progress. Linked orders identify one actual ordinary invitation between their
 actor and target. Completion requires a deterministic `marriage-order:` receipt
 and the actual closed outcome: `refused`, `proposal_declined`, `not_proposed` or
 another native unsuccessful outcome. `married` additionally requires completed
-native marriage and surname records. Accepted consent without a finished surname
+native marriage and surname records. Retained marriage consent also verifies
+closed order outcomes after ordinary history is trimmed. Accepted consent without a finished surname
 leaves progress at zero. Existing marriage validation protects both consent and
 surname receipts. Reload stops accepted ordinary or surname conversations,
 clears one-sided resume choices and requires both personal models again.
