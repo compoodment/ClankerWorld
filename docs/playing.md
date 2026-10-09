@@ -907,6 +907,13 @@ server's displayed information and unfinished edit.
 
 ## Save and return
 
+If the server's save disk is low on space, a warning stays visible while you
+play and appears in Save World before saving or overwriting. Make room soon;
+saves can fail when the disk fills. The warning is advisory: manual saves,
+autosaves and automatic recovery still try to save. If free space cannot be
+checked, the game says so. The initial warning level is below 1 GiB and may
+change after playtesting.
+
 If the host restarts with a saved state it cannot open, **Recover world**
 appears before you enter the world. It offers the last usable autosave from
 that world's current history and says when it was saved. Choose **Recover

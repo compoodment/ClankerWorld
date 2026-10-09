@@ -75,6 +75,8 @@ public partial class Main
         FitMenuScrolls(viewport.Y);
 
         var toastSize = statusToast.GetCombinedMinimumSize();
+        saveDiskWarningPanel.Position = new Vector2(
+            Math.Max(14, (viewport.X - saveDiskWarningPanel.GetCombinedMinimumSize().X) / 2), 58);
         statusToast.Position = new Vector2(
             Math.Max(14, (viewport.X - toastSize.X) / 2),
             Math.Max(14, viewport.Y - toastSize.Y - 18));

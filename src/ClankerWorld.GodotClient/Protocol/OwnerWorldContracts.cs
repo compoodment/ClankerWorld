@@ -776,6 +776,8 @@ public sealed record SaveBranch(string Id, int Number, string? StartedFromId = n
 public sealed record SaveTimelinePosition(string? ContinuedFromId, string? BranchId, bool StartsNewBranch,
     int? NextBranchNumber = null, long? ContinuedFromTick = null);
 public sealed record ManualSaveLoadReceipt(string LoadedId, string BackupId, long WorldTick);
+public sealed record SaveDiskSpaceStatus(string State, long? AvailableBytes, long WarningBelowBytes,
+    DateTimeOffset? CheckedUtc);
 public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string BackupId);
 public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount, string WorldId);
 public sealed record WorldAutosaveSettings(string WorldId, bool Enabled, int IntervalMinutes,
