@@ -28,7 +28,10 @@ Loading a named save requires both its seed and saved world identity to match
 the selected world. A save from a different same-seed map is refused before
 creating a backup or changing its timeline, runtime or settings.
 Installation state includes device authority, provider credentials and usage
-accounting. Saves store slot IDs and model choices, never API-key bytes.
+accounting. Saves store slot IDs and model choices, never API-key bytes. An
+agent's model choice can carry a thinking level, written only when one is
+chosen. Provider files from before Anthropic was added load with an empty
+Anthropic record; the provider file's schema stays 3.
 
 The October 1 terrain tuning changes deterministic generation for new worlds.
 Loading retains the saved map and current weather episode; it does not replace
@@ -438,6 +441,9 @@ Earlier alpha checkpoints are refused and preserved without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
+An Anthropic birth choice uses the endpoint identity `anthropic-messages-v1`
+in the same record, with no schema change. The birth record has no thinking
+level, so the child's model starts at its default.
 Matching parent assignments are disclosed as agreement; when they differ, the
 parent who began the family plan is the tie-break. The provider store preserves that
 choice if its key is unavailable after moving a save or deleting a key, so the

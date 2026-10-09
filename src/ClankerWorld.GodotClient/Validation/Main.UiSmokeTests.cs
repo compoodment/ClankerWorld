@@ -1896,7 +1896,7 @@ public partial class Main
             for (var frame = 0; frame < 3; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var placementFields = new Control[] { founderProviderChoice, founderCredentialChoice,
-                founderKeyLabelInput, founderApiKeyInput, founderModelPicker };
+                founderKeyLabelInput, founderApiKeyInput, founderModelPicker, founderThinkingChoice };
             var placementFieldRects = placementFields.Select(field => field.GetGlobalRect()).ToArray();
             void HoverPlacementTile(int x, int y)
             {

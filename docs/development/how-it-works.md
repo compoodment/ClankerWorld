@@ -1024,13 +1024,47 @@ fallback does not erase the previous accepted choice. Pause/disconnect records
 cancellation; refreshed views and current-format reload preserve it. Exception
 messages, provider bodies and keys do not enter these fields.
 
-The personal adapter sends JSON-object response mode and omits temperature and
-output-token limits. The owner's 16-call sample in
+For OpenAI and Ollama Cloud, the personal adapter sends JSON-object response
+mode and omits temperature and output-token limits. The owner's 16-call sample in
 [#457](https://github.com/compoodment/ClankerWorld/issues/457) used 44,285 output
 tokens (about 2,768 per call), nearly its 43,576 input tokens. This does not
 establish a safe universal output cap, so the cap stays unset; output billing
 and truncation remain model-dependent. There is no smaller candidate list or
 wider Jev role in this change.
+
+**Claude models.** An agent whose provider is Anthropic gets the same prompts
+and the same reply validation. `AnthropicModelClient` in the host sends them to
+Anthropic's Messages API through Anthropic's official C# client
+(`IHostedModelClient` is the seam in the simulation). The game's instructions
+are the system prompt, marked for prompt caching so calls that repeat them cost
+less, and the observation is the one user message. The Messages API requires an
+output limit, so the client allows 16,000 tokens, room for the model's thinking
+as well as the short JSON reply. There is no JSON response mode in these
+requests: the prompt's "Return JSON only" asks for JSON, and one surrounding
+Markdown code fence is removed before the game reads the text.
+- Only text blocks come back. Thinking blocks are dropped and never logged or
+  saved.
+- A refusal, or a reply cut off at the limit, is an unusable reply. An HTTP
+  error keeps its status, so a 400 is an unsupported request, as on the
+  chat-completions path.
+- The client never retries, because a retry is another paid call.
+- Usage counts every input token the model read, cached ones included, and the
+  output tokens, which include thinking.
+- The short list is `claude-opus-5-5`, `claude-sonnet-5-5` and the default
+  `claude-haiku-5-5`. Conversations use the same client and the same strict
+  turn validation. Claude is not a routine helper.
+
+**Thinking.** Each hosted agent assignment can carry a thinking level: `low`,
+`medium` or `high` (`ModelThinking`), or none for the model's own default.
+OpenAI and Ollama Cloud receive it as `reasoning_effort`, and Anthropic as
+`output_config.effort`. With no level nothing is sent, so those requests are
+unchanged. The game offers only the levels every hosted provider accepts:
+`none`, `xhigh` and `max` are refused by some current models, so there is no
+Off. A model that refuses the setting fails the call like any other
+unsupported request, and Test model then suggests Model default. The level is
+set per agent with its model; world defaults have none. A personal choice's
+routine and planning rows share it, and a child born in the world starts with
+the model default.
 
 Each agent retains up to eight private thoughts and exposes up to sixteen recent
 non-forgotten social memories to owner inspection, including deceased profiles.
@@ -1280,7 +1314,8 @@ The owner's model picker shows the game's own list for each provider,
 `ProviderModelCatalog.Curated`: newest generation first and, within a generation,
 larger models first. Add new models there in their place. When a key is known,
 the host checks it against the provider's model-list route (OpenAI
-`/v1/models`; Ollama Cloud `/api/tags`, then `/v1/models`) using
+`/v1/models`; Ollama Cloud `/api/tags`, then `/v1/models`; Anthropic
+`/v1/models` through its official client, with its own key header) using
 the saved key, a named key slot, or a key pasted for that check only, which is
 not stored. Keys never return to the client. Listed models the key's route
 doesn't include are marked unavailable; names are compared without Ollama's
@@ -1298,9 +1333,11 @@ Checks are cached per key for ten minutes, time out after eight seconds and are
 not model calls, so they do not count toward the usage cap below.
 
 **Test model** is a separate owner action in Add Agent and an agent's Model
-panel. It sends one request through the same OpenAI-compatible personal
-decision adapter used in play, including the required JSON response format.
-It sends no temperature or output-token limit. The host durably reserves a
+panel. It sends one request through the same personal decision adapter used in
+play, at the chosen thinking level: chat completions with the required JSON
+response format for OpenAI and Ollama Cloud, and the Messages API for
+Anthropic. It sends no temperature, and an output-token limit only to
+Anthropic, which requires one. The host durably reserves a
 paid-call allowance before sending; every result after that point, including a
 timeout or rejected format, counts as one attempt. The check never tries an
 alternate request format, changes provider settings, or saves a pasted key.
