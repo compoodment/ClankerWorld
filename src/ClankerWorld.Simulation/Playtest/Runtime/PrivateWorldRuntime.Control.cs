@@ -127,6 +127,7 @@ public sealed partial class PrivateWorldRuntime
                 CancelConstructionForOrder(instruction);
                 CancelExpansionForOrder(instruction);
                 CancelAnimalSupplyForOrder(instruction);
+                CancelBoatTravelForOrder(instruction);
                 CancelKnowledgeWritingForOrder(instruction);
                 status = "cancelled";
                 AppendEvent("instruction_order_cancelled", $"{instruction.TargetInhabitantId}:{instruction.InstructionId}:owner");
@@ -344,6 +345,7 @@ public sealed partial class PrivateWorldRuntime
             CancelConstructionForOrder(instruction);
             CancelExpansionForOrder(instruction);
             CancelAnimalSupplyForOrder(instruction);
+            CancelBoatTravelForOrder(instruction);
             CancelKnowledgeWritingForOrder(instruction);
             AppendEvent("instruction_order_cancelled", $"{inhabitantId}:{instruction.InstructionId}:replaced");
         }
@@ -396,6 +398,8 @@ public sealed partial class PrivateWorldRuntime
 
     private static string? UnderstoodTaskFor(string? candidate) => candidate switch
     {
+        "load_handcart" => "load the requested loose goods into the selected owned handcart",
+        "unload_handcart" or "unload_handcart_ground" => "unload the requested cargo from the selected owned handcart",
         "talk_to" => TalkOrderTask,
         "attach_handcart" => "reach and attach the selected owned handcart",
         "park_handcart" => "park the selected attached handcart here with its cargo intact",
@@ -408,8 +412,10 @@ public sealed partial class PrivateWorldRuntime
         "animal_dismount" => "dismount the named horse and leave excess cargo here",
         "seek_shelter" => "reach the requested permitted shelter",
         "tend_fire" => "light one permitted hearth using your own wood",
+        "read_knowledge" => KnowledgeReadOrderTask,
         "consume_food" => "eat one carried food item",
         "move_to" => "travel to the exact tile named in this order",
+        "travel_by_boat" => "travel by communal boat to the exact Port named in this order",
         "seek_food" => "travel within gathering range of an available food source",
         "harvest_food" => "gather several food servings from a nearby food source",
         "gather_material" => "gather the requested material from a natural source",
@@ -440,9 +446,10 @@ public sealed partial class PrivateWorldRuntime
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
-        return ParseTalkOrder(text, actor) ?? ParseCartOrder(text, actor) ?? ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
+        return ParseKnowledgeReadOrder(text) ?? ParseTalkOrder(text, actor) ?? ParseCartCargoOrder(text, actor) ?? ParseCartOrder(text, actor) ?? ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
             PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent),
-            PrivateWorldBuildingOrderCatalog.Available(worldContent));
+            PrivateWorldBuildingOrderCatalog.Available(worldContent),
+            worldSimulation.Buildings.Where(port => Port(port.InstanceId) is not null).ToArray());
     }
 
     // A direct order that names no action the game can carry out is closed
@@ -488,9 +495,11 @@ public sealed partial class PrivateWorldRuntime
         ArgumentException.ThrowIfNullOrWhiteSpace(request.TargetInhabitantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OrderId);
         foreach (var value in new[] { request.IdempotencyKey, request.IssuerId, request.WorldId,
-                     request.TargetInhabitantId, request.OrderId })
+                     request.OrderId })
             if (value.Trim().Length > 128 || value.Any(char.IsControl))
                 throw new ArgumentOutOfRangeException(nameof(request), "Order cancellation identities must be bounded and contain no control characters.");
+        if (request.TargetInhabitantId.Any(char.IsControl))
+            throw new ArgumentOutOfRangeException(nameof(request), "Order cancellation target must contain no control characters.");
     }
 
     // Refuse everything a save would refuse before the request touches live

@@ -347,7 +347,12 @@ color-blind modes are outside it.
   ramps: spring toward Grass highlight, summer base, autumn 20% toward Fruit
   base, winter 30% desaturated with snow cover where the world says so.
 - E2 Night is one multiply tint, 3C4C6E at 45%, with no visibility change.
-- E3 Weather stays an animated, sparse overlay; no opaque shapes.
+- E3 Weather stays an animated, sparse overlay; no opaque shapes. It uses
+  look B from the October 8 weather review
+  ([Weather](../../tools/ArtPreview/Proposed/Weather.md)): one-pixel rain
+  streaks lighter at the top, landing as a three-pixel burst; storm streaks
+  stepping two pixels down for every one across, in gusts sweeping east; and
+  small snowflake crosses blown sideways. No cloud shadows.
 
 ## 15. Critic's checklist
 

@@ -475,9 +475,14 @@ public partial class Main
             : new Vector2(Math.Max(14, (UiSize.X - size.X) / 2), Math.Max(HudTop, (UiSize.Y - size.Y) / 2));
     }
 
+    private Theme? renderedAgentCardTheme;
+
     /// <summary>Profile, Speak and card buttons carry pixel icons in the current theme.</summary>
     private void RefreshAgentCardIcons()
     {
+        // Camera and observation refreshes keep the same theme. The compact
+        // styles use logical margins and inherit the interface's scaling.
+        if (ReferenceEquals(renderedAgentCardTheme, UiTheme.Theme)) return;
         var palette = UiTheme.Current;
         var dark = palette.Name == "dark";
         var wood = dark ? new Color("C99A62") : new Color("9C6C42");
@@ -505,6 +510,7 @@ public partial class Main
             ContentMarginRight = 2,
             ContentMarginBottom = 2,
         });
+        renderedAgentCardTheme = UiTheme.Theme;
     }
 
     private void CenterOnSelectedAgent()
@@ -826,6 +832,8 @@ public partial class Main
         var task = order.Action switch
         {
             "consume_food" => "Eating food",
+            "read_knowledge" => "Reading " + (order.TargetItemKind is { } writtenKind
+                ? GameUiText.ItemName(writtenKind).ToLowerInvariant() : "a written item"),
             "harvest_food" => "Gathering food",
             "gather_material" => "Gathering " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "till_field" => "Tilling household fields",
@@ -852,7 +860,10 @@ public partial class Main
             "copy_knowledge" => "Copying " + OrderItemName(order.TargetKnowledgeKind),
             "seek_food" => "Going to a food site",
             "move_to" => "Going to a tile",
+            "travel_by_boat" => "Traveling to a Port by boat",
             "accept_guardianship" => "Becoming a guardian",
+            "load_handcart" => "Loading " + OrderItemName(order.TargetItemKind),
+            "unload_handcart" or "unload_handcart_ground" => "Unloading " + OrderItemName(order.TargetItemKind),
             "talk_to" => "Talking with the named person",
             "attach_handcart" => "Attaching a handcart",
             "park_handcart" => "Parking a handcart",
@@ -922,6 +933,7 @@ public partial class Main
     private static string ProgressUnitLabel(string unit) => unit switch
     {
         "food_items" => "food items",
+        "knowledge_reads" => "items read",
         "conversations" => "talk attempts completed",
         "material_items" => "items",
         "equipment_items" => "equipment items",
