@@ -1798,6 +1798,11 @@ representation from the same captured rights, request masks, inhabitants, civic
 authority and clock used by the runtime. Death, departure and succession update
 current standing without rewriting the original notice. Owner views label these
 roles separately, and each ruling projects its actual closure party roster.
+A property case whose building or ownership can no longer be captured keeps
+its last valid notice and asset snapshot. It cannot transfer stale assets or
+publish a new notice without a matching snapshot; current standing and judge
+conflicts still apply. Malformed saved notice numbering is refused before
+property evidence lookups.
 
 Hearing actions enter through admitted personal-model civic choices. Public
 statements remain allegations; actual nearby observations and inspected rights,

@@ -111,6 +111,9 @@ public static class TownLandHearingValidation
             Check(revision.Tiles is { Count: > 0 } && revision.Parties is { Count: > 0 } && revision.Parties.All(p => p is not null) &&
                 revision.RightVersions is not null && revision.RightVersions.All(r => r is not null && r.Right is not null),
                 "A saved land revision cannot omit its plot, parties or prior rights.");
+        Check(item.Revisions.Select(r => r.Number).SequenceEqual(Enumerable.Range(1, item.Revisions.Count)) &&
+            item.Revisions.Select(r => r.PublishedTick).SequenceEqual(item.Revisions.Select(r => r.PublishedTick).Order()) &&
+            item.Key == TownLandHearingRules.CaseKey(townId, item.Kind, item.Revisions[0].Tiles), "Saved land notice revisions and case identity must be canonical.");
     }
 
     private static void ValidateCase(SeededMap map, long tick, string townId, TownLandCase item,
@@ -118,9 +121,6 @@ public static class TownLandHearingValidation
         TownGovernanceState? council, int day, TownGovernmentState? government, TownLandHearingState state,
         IReadOnlyList<HouseholdLandUseRight> currentRights)
     {
-        Check(item.Revisions.Select(r => r.Number).SequenceEqual(Enumerable.Range(1, item.Revisions.Count)) &&
-            item.Revisions.Select(r => r.PublishedTick).SequenceEqual(item.Revisions.Select(r => r.PublishedTick).Order()) &&
-            item.Key == TownLandHearingRules.CaseKey(townId, item.Kind, item.Revisions[0].Tiles), "Saved land notice revisions and case identity must be canonical.");
         foreach (var revision in item.Revisions)
         {
             Check(TownLandRightsRules.IsValidPlot(map, revision.Tiles, tick, revision.PublishedTick) && revision.PublishedTick >= item.FiledTick &&

@@ -212,11 +212,55 @@ public sealed partial class TownLandHearingRuntimeTests
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
+    [Fact]
+    public async Task RemovingTheNoticedHouseAndAddingALandClaimKeepsThePropertyFileValid()
+    {
+        var state = PrivateWorldRuntimeCodec.Decode(await PendingPropertyCase.Value);
+        var item = state.Towns![0].LandHearings.Cases[0];
+        var plot = item.Revisions[0].Tiles;
+        var ground = state.Map.Tiles.First(tile => state.Map.IsBuildable(tile.Position) && !plot.Contains(tile.Position)).Position;
+        var inventory = state.Society.Society.Inventory;
+        foreach (var lot in inventory.Lots.Where(lot => lot.ContainerLotId is null &&
+            (lot.StorageBuildingId == PropertyHouse || lot.DeliveryBuildingId == PropertyHouse)).ToArray())
+            inventory = InventoryFixture.Relocate(inventory, "empty-noticed-house-" + inventory.Events.Count,
+                lot.Id, lot.OwnerId, lot.Quantity, groundPosition: new InventoryGroundPosition(ground.X, ground.Y));
+        using var world = PrivateWorldRuntime.Restore(state with
+        { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } }, _ => new PropertyProvider());
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(2, world.Towns[0].LandHearings.Cases[0].Revisions.Count);
+        Assert.True(world.RemoveBuilding(PropertyHouse, state.Towns[0].Id, item.Property!.Request.SourceHouseholdId).Applied);
+        Assert.True(world.RequestHouseholdLandUse("removed-property-new-party", Judge, state.Towns[0].Id, [plot[0]]).Applied);
+        var current = world.Towns[0].LandHearings.Cases[0];
+        Assert.Equal(2, current.Revisions.Count);
+        Assert.Equal(2, current.Property!.Snapshots.Count);
+        Assert.Null(current.Judge); // The new claimant cannot remain this case's judge.
+        Assert.Equal("pending", current.Status);
+        Assert.Null(current.Property.Transfer);
+        Assert.Empty(current.Rulings);
+        Assert.Equal(inventory.Lots.Where(lot => lot.Quantity > 0).Select(lot => (lot.Id, lot.OwnerId, lot.Quantity)),
+            world.ExportState().Society.Society.Inventory.Lots.Where(lot => lot.Quantity > 0).Select(lot => (lot.Id, lot.OwnerId, lot.Quantity)));
+        world.Validate();
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new PropertyProvider());
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        Assert.Null(restored.Towns[0].LandHearings.Cases[0].Property!.Transfer);
+    }
+
     private static void AssertDamagedPropertyFilesRefused(PrivateWorldRuntimeState state)
     {
         var town = state.Towns![0];
         var item = town.LandHearings.Cases[0];
         var property = item.Property!;
+        var duplicateRevision = item with { Revisions = [item.Revisions[0], item.Revisions[0]] };
+        var duplicateState = state with { Towns = [town with { LandHearings = town.LandHearings with { Cases = [duplicateRevision] } }] };
+        Assert.Throws<InvalidDataException>(() =>
+        {
+            using var invalid = PrivateWorldRuntime.Restore(duplicateState, _ => new PropertyProvider());
+        });
+        var duplicateDocument = JsonNode.Parse(PrivateWorldRuntimeCodec.Encode(state))!;
+        var revisions = duplicateDocument["state"]!["towns"]![0]!["landHearings"]!["cases"]![0]!["revisions"]!.AsArray();
+        revisions.Add(revisions[0]!.DeepClone());
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(System.Text.Encoding.UTF8.GetBytes(duplicateDocument.ToJsonString())));
         TownPropertyCase?[] damages = [null, property with { Consents = [] }, property with { Transfer = null },
             property with { Snapshots = [property.Snapshots[0] with { LivingFormerMemberIds = [Filer] }] },
             property with { Transfer = property.Transfer! with { ResultBuilding = property.Transfer.ResultBuilding with { HouseholdId = property.Request.SourceHouseholdId } } },

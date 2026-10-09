@@ -53,7 +53,13 @@ public sealed partial class PrivateWorldRuntime
                     snapshot = CaptureProperty(town, property.Request, revision.Number + 1);
                     partiesItem = item with { Property = property with { Snapshots = property.Snapshots.Append(snapshot).ToArray() } };
                 }
-                catch (InvalidOperationException) { /* A stale asset can be rejected, never transferred. */ }
+                catch (InvalidOperationException)
+                {
+                    // Keep the last valid notice when its asset can no longer be captured.
+                    // Current parties and conflicts still govern the judge below; a missing
+                    // asset must never produce a notice without its matching property file.
+                    continue;
+                }
             }
             var revised = TownLandHearingRules.Revise(hearings, item.Id, householdLandUseRights,
                 LandHearingParties(town with { Governance = council, Government = government }, revision.Tiles, partiesItem),
