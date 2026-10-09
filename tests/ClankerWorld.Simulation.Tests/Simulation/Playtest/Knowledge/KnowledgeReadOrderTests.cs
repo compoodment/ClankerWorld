@@ -201,8 +201,18 @@ public sealed partial class PhysicalKnowledgePipelineTests
             Inhabitants = initial.Inhabitants.Select(person => person with
             { HungerBasisPoints = 9_500 }).ToArray()
         };
-        using var exploring = PrivateWorldRuntime.Restore(initial, _ => new ChoosingProvider(author, "explore"));
+        var scout = new ChoosingProvider(author, "explore");
+        using var exploring = PrivateWorldRuntime.Restore(initial, _ => scout);
         await AdvanceUntil(exploring, () => exploring.Knowledge.Facts.Count(fact => fact.OwnerId == author) >= 2, 20);
+        // This boundary needs two actual discoveries, not a long outing. Ask for
+        // the native return before writing so current scouting does not consume
+        // the writing budget or add unrelated facts to the capacity fixture.
+        scout.Prefixes = ["explore_return"];
+        exploring.SubmitInstruction(new("return-before-capacity-map", "owner:test", author,
+            OwnerInstructionKind.Suggestive, "Return from scouting before writing the map."));
+        await AdvanceUntil(exploring, () => exploring.ExportState().Inhabitants.Single(person =>
+            person.InhabitantId == author).Exploration is { OutingPath.Count: 0 }, 12);
+        Assert.Contains(exploring.ExportState().Events, item => item.Kind == "exploration_completed");
         var explored = exploring.ExportState();
         using var writing = PrivateWorldRuntime.Restore(WithInventory(explored, AddWritingSupplies(explored, author, 1, 0)), _ =>
             new ChoosingProvider(author, "knowledge_write:field_map", "knowledge_continue"));
