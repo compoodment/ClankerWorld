@@ -125,6 +125,38 @@ The sampler attaches after setup and warmup at a ready/go gate and samples only 
 waits or GC; they cannot be added or read as exact CPU costs. Candidate creation
 still spans about 96.6% of sampled tick time. The wider workload remains in #998.
 
+## Tested-main integration
+
+After the initial measurements, main advanced to
+`33e6429ddabe6065b38971e937d1f3def0d78394` with the Restaurant borrowed-stock fix
+in #1401. Its exact-main Verify 37901467122 passed all 14 jobs before it was
+merged into this branch. The initial optimized measurements remain tied to
+`e2f1e4ec8dd9321eaf856055171f5c7cd9bd7df5`; their source hashes describe that
+measured tree rather than the later integration.
+
+A new sequential six-pair ordinary replay uses that tested main and the merged
+repair with the same schema-110 checkpoints: 768 additional native ticks, zero
+fallbacks and all 18 full candidate/admission/final captures identical. The report
+records both sets of samples and 308 fresh integration input hashes, with only the
+same four production files differing. All updated-main capture files also match the original-main captures; this
+Restaurant fix leaves the recorded fixture workload unchanged.
+Together with the initial evidence, 99 complete before/after capture files agree.
+The integration captures remain under `.evidence/keep/973eb221/998-integration/`
+on the tested-main worktree and `.evidence/keep/973eb221/998-after/` on the repair.
+
+| Fixture | Provider | Updated main median / p95 | Merged repair median / p95 |
+| --- | --- | ---: | ---: |
+| 4-96 | Built-in | 81.5 / 257.3 | 80.7 / 149.3 |
+| 4-96 | Local personal | 80.9 / 97.6 | 70.8 / 83.7 |
+| 16-96 | Built-in | 459.7 / 588.6 | 423.6 / 511.0 |
+| 16-96 | Local personal | 456.3 / 519.0 | 459.4 / 535.0 |
+| 16-384 | Built-in | 602.3 / 658.3 | 605.3 / 686.4 |
+| 16-384 | Local personal | 626.0 / 712.4 | 564.0 / 623.7 |
+
+Updated-main results are mixed. Dense built-in median is effectively flat and
+p95 rises; dense personal timings improve. All samples remain in the report,
+and the repair establishes no uniform native latency or Windows speed guarantee.
+
 ## Reproduce
 
 Use the pinned SDK and a Release `net10.0` console project referencing each
