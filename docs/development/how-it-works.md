@@ -1095,9 +1095,12 @@ Archive entries retain the complete original record and archive tick; ordinary
 recall and memory-scoring candidates read only the active ledger. Typed life,
 relationship, skill and commitment records, durable cooperation/final-word
 receipts and world-event-backed beliefs stay active. Active orders, projects,
-lessons (including their teachers), parenthood, relationship proposals, barter,
+lessons (including their teachers), requested or preparing parenthood plans,
+relationship proposals, barter,
 conversations and outstanding hosted calls protect their owners; surname
-conversation turns stay protected after closing. Correction links and source
+conversation turns stay protected after closing. A completed, postponed or
+cancelled parenthood plan does not protect its owner's ordinary old records;
+other open work and protected kinds still do. Correction links and source
 validation include both ledgers, while trimming old dialogue clears obsolete
 turn references in both. The daily rule makes no provider call, runs with Jev
 and the routine helper off, and commits or rolls back with the native tick.
