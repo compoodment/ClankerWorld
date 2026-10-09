@@ -414,7 +414,14 @@ public partial class Main
             titleRow.AddThemeConstantOverride("separation", 8);
             var title = new Label { ThemeTypeVariation = "HeadingLabel" };
             titleRow.AddChild(title);
-            var branchTag = new Label { Text = lane.Title.ToUpperInvariant(), ThemeTypeVariation = "TagLabel", SizeFlagsVertical = SizeFlags.ShrinkCenter };
+            var branchTag = new Label
+            {
+                Text = ShortBranchTag(lane.Title),
+                TooltipText = lane.Title,
+                ThemeTypeVariation = "TagLabel",
+                SizeFlagsVertical = SizeFlags.ShrinkCenter,
+                MouseFilter = MouseFilterEnum.Pass,
+            };
             branchTag.AddThemeStyleboxOverride("normal", new StyleBoxFlat
             {
                 BgColor = SaveTimelineLayout.BranchLabelFill(UiTheme.Current, lane.ColorNumber),
@@ -434,7 +441,7 @@ public partial class Main
             title.Text = SaveTimelineLayout.Shorten(name, Math.Max(120, manualSaveCard.CustomMinimumSize.X - 300),
                 value => font.GetStringSize(value, HorizontalAlignment.Left, -1, size).X);
             if (title.Text != name) title.TooltipText = name;
-            var began = lane.ForkSave?.Name ?? lane.Branch?.StartedFromName;
+            var began = lane.Branch?.StartedFromName ?? lane.ForkSave?.Name;
             var origin = began is null ? string.Empty : $" · {lane.Title} began at \"{began}\"";
             text.AddChild(Line($"{DisplayWorldClock(chosen.WorldTick)} · Saved {GameUiText.SavedAgo(chosen.CreatedUtc, DateTimeOffset.Now)}{origin}", "DimLabel"));
             var grown = SaveTimelineLayout.BranchesFrom(manualSaveTimeline.Lanes, chosen);
@@ -462,7 +469,7 @@ public partial class Main
         var from = position.ContinuedFromId is { } id ? allListedManualSaves.FirstOrDefault(save => save.Id == id) : null;
         var playing = from is null ? string.Empty : $"Playing on from \"{(from.IsAutosave ? "Autosave" : from.Name)}\". ";
         var next = manualSaveLoadMode ? "Your next save" : "Your new save";
-        var newBranch = position.NextBranchNumber is > 0
+        var newBranch = from is not null ? $"\"From {from.Name}\"" : position.NextBranchNumber is > 0
             ? $"Branch {position.NextBranchNumber.Value.ToString(CultureInfo.InvariantCulture)}"
             : "a new branch";
         return lane.IsUnsaved
@@ -644,7 +651,8 @@ public partial class Main
             List<SlotTag> tags = [];
             if (showBranches)
             {
-                tags.Add(new SlotTag(BranchLabel(save.Branch)));
+                var branch = BranchLabel(save.Branch);
+                tags.Add(new SlotTag(ShortBranchTag(branch), Tooltip: branch));
                 if (IsLatestInBranch(save, allListedManualSaves)) tags.Add(new SlotTag("Latest"));
                 // The first card of each branch says where that branch began.
                 if (BranchKey(save) != previousBranch && save.Branch?.StartedFromName is { } from)
@@ -660,7 +668,15 @@ public partial class Main
     private static string BranchKey(ManualWorldSave save) => save.Branch?.Id ?? string.Empty;
 
     internal static string BranchLabel(SaveBranch? branch) =>
-        branch is null ? "Earlier saves" : $"Branch {branch.Number.ToString(CultureInfo.InvariantCulture)}";
+        SaveTimelineLayout.BranchLabel(branch);
+
+    private string ShortBranchTag(string label)
+    {
+        var font = manualSaveCard.GetThemeFont("font", "TagLabel");
+        var size = manualSaveCard.GetThemeFontSize("font_size", "TagLabel");
+        return SaveTimelineLayout.Shorten(label.ToUpperInvariant(), 160,
+            value => font.GetStringSize(value, HorizontalAlignment.Left, -1, size).X);
+    }
 
     /// <summary>
     /// Saves grouped by branch: the branch with the most recent save first, and
