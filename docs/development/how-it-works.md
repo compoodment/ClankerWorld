@@ -834,6 +834,10 @@ memories and unrelated identities are excluded. Household and Town keep their
 existing recorded-name fields. This bounded snapshot is part of the ordinary
 personal-model request and its digest, in both numeric and word-based need
 formats; it creates no separate request or inherited traits.
+Household IDs longer than the self-context limit use stable SHA-256 aliases
+in ordinary decisions and post-death will requests. Short IDs stay unchanged.
+Saved membership, property and other household references retain the complete
+household identity, including one founded by a native-born adult.
 
 Native births use the existing `IdentityChoicePending` marker and the
 `undecided`/`find a purpose` placeholders. Infants still receive no cognition.
