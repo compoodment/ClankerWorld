@@ -16,12 +16,12 @@ public sealed partial class PrivateWorldRuntime
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Owners);
         ArgumentNullException.ThrowIfNull(request.Kinds);
-        if (request.Use is not (GoodsUse.Holdings or GoodsUse.ConsumeAt or GoodsUse.Collect) ||
+        if (request.Use is not (GoodsUse.Holdings or GoodsUse.ConsumeAt or GoodsUse.Collect or GoodsUse.ReachableHoldings) ||
             request.Owners.Ids is not { Count: > 0 } || request.Kinds.Ids is not { Count: > 0 } ||
             request.Owners.Ids.Any(string.IsNullOrWhiteSpace) || request.Kinds.Ids.Any(string.IsNullOrWhiteSpace) ||
             request.Near is not null || request.Destination is not null || request.ExtraUnits != 0 ||
-            request.Use == GoodsUse.Collect && string.IsNullOrWhiteSpace(request.Actor))
-            throw new ArgumentException("This goods query supports exact owners and kinds for Holdings, ConsumeAt or actor-bound Collect; destination uses are separate steps.", nameof(request));
+            request.Use is (GoodsUse.Collect or GoodsUse.ReachableHoldings) && string.IsNullOrWhiteSpace(request.Actor))
+            throw new ArgumentException("This goods query supports exact owners and kinds for Holdings, ConsumeAt, or actor-bound ReachableHoldings and Collect; destination uses are separate steps.", nameof(request));
     }
 
     private GoodsMatch? RecheckGoods(InventoryCheckpoint inventory, GoodsRequest request, string lotId)
@@ -38,7 +38,8 @@ public sealed partial class PrivateWorldRuntime
         var index = InventoryIndex.For(inventory);
         var matches = new List<GoodsMatch>();
         var excluded = new List<(string LotId, GoodsReason Reason)>();
-        var routes = request.Use == GoodsUse.Collect ? new Dictionary<(GridPoint Position, int Range), bool>() : null;
+        var routes = request.Use is GoodsUse.Collect or GoodsUse.ReachableHoldings
+            ? new Dictionary<(GridPoint Position, int Range), bool>() : null;
         IEnumerable<InventoryLot> candidates = request.Explain ? index.Lots : request.AtBuilding is { } building
             ? index.StoredAt(building) : request.Owners.Ids.Distinct(StringComparer.Ordinal)
                 .SelectMany(index.OwnedBy).OrderBy(lot => lot.Id, StringComparer.Ordinal);
@@ -78,13 +79,14 @@ public sealed partial class PrivateWorldRuntime
         if (lot.Quantity == 0) return GoodsReason.Empty;
         if ((request.Use == GoodsUse.ConsumeAt ? InventoryRules.ReservableQuantity(index, lot) :
                 InventoryRules.UsableQuantity(index, lot)) <= 0) return GoodsReason.Reservation;
-        if (request.Use is GoodsUse.Holdings or GoodsUse.Collect)
+        if (request.Use is GoodsUse.Holdings or GoodsUse.Collect or GoodsUse.ReachableHoldings)
         {
             var root = index.Root(lot);
             if (root.DeliveryBuildingId is not null) return GoodsReason.Delivery;
             if (OnBorrowedMarketStall(root)) return GoodsReason.MarketStall;
         }
         if (request.Use == GoodsUse.Collect) return CollectGoodsExclusion(request.Actor!, index, lot, routes);
+        if (request.Use == GoodsUse.ReachableHoldings) return GoodsRouteExclusion(request.Actor!, index.Root(lot), routes);
         return null;
     }
 

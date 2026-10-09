@@ -49,6 +49,10 @@ public sealed class GoodsCollectionTests
         Assert.Contains(("collect-reserved-water", GoodsReason.Reservation), answer.Excluded);
         Assert.Contains(("collect-oversize-jug", GoodsReason.CarryRoom), answer.Excluded);
         Assert.Contains(("collect-oversize-water", GoodsReason.CarryRoom), answer.Excluded);
+        var preparation = world.FindGoods(request with { Use = GoodsUse.ReachableHoldings });
+        Assert.Contains(preparation.Matches, match => match.Lot.Id == "collect-oversize-water" && match.Quantity == 3);
+        Assert.DoesNotContain(preparation.Matches, match => match.Lot.Id == "collect-broken-water");
+        Assert.Equal(preparation.Matches, world.FindGoods(request with { Use = GoodsUse.ReachableHoldings, Explain = false }).Matches);
         Assert.Equal(answer.Matches, world.FindGoods(request with { Explain = false }).Matches);
         Assert.Equal(5, answer.Total);
         foreach (var match in answer.Matches)

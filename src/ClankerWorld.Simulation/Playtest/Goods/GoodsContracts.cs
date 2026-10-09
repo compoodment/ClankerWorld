@@ -3,7 +3,7 @@ using ClankerWorld.Simulation.Kernel;
 
 namespace ClankerWorld.Simulation.Playtest;
 
-public enum GoodsUse { Holdings, ConsumeAt, Collect }
+public enum GoodsUse { Holdings, ConsumeAt, Collect, ReachableHoldings }
 
 public sealed record GoodsOwners(IReadOnlyList<string> Ids)
 {

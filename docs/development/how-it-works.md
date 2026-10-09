@@ -133,7 +133,7 @@ Physical movement may preserve damaged or spoiled property. Consumption still
 requires usable inputs. `InventoryFixture` remains the authority for an actual
 reservation, transfer, container operation or consumption.
 
-`Playtest/Goods/` currently supplies three query uses. `Holdings` excludes unusable
+`Playtest/Goods/` currently supplies four query uses. `Holdings` excludes unusable
 lots or parent vessels, reserved quantities, delivery promises and goods held
 for sale at a borrowed Market stall. `ConsumeAt` matches the inventory
 reservation boundary, including usable contained ingredients and partially
@@ -153,6 +153,12 @@ room. The route runs last and is reused for lots at the same position and
 interaction range within one answer; native route rules still account for
 occupants, shared destinations and an attached cart.
 
+`ReachableHoldings` adds the same walking route to Holdings without requiring
+empty carrying space. Preparation uses it to find usable supplies before
+putting aside spare cargo; actual pickup still uses Collect. This keeps a full
+load from hiding shared repair inputs, gathering tools, planting seeds or
+medical supplies from preparation and demand checks.
+
 `SharedItem` uses Collect for household equipment, repair inputs and planting
 seeds, with the existing Warehouse fallback rechecked through the same use.
 `CollectEquipment` rechecks the selected lot immediately before its transfer.
@@ -167,6 +173,7 @@ With `Explain`, exclusions retain their first failure in this fixed order:
 owner, kind, building, damage, spoilage, vessel, empty stock, reservation,
 delivery and Market sale promise. Collect then checks custody/place, family
 reservations, equipped or hitched goods, carry room and finally reach.
+ReachableHoldings checks reach after the Holdings rules.
 Diagnostics are derived, never saved or
 logged every tick. Normal queries use the owner/building index; explanations
 scan all lots so they can also explain an owner or place mismatch.

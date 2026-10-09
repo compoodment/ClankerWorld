@@ -138,17 +138,23 @@ public sealed partial class PrivateWorldRuntime
     private static GoodsRequest SharedCollectionRequest(string actor, string owner, string kind) =>
         new(GoodsUse.Collect, actor, GoodsOwners.One(owner), GoodsKinds.One(kind));
 
-    private InventoryLot? SharedItem(string kind, string actor)
+    private InventoryLot? SharedItem(string kind, string actor) => SharedStockItem(kind, actor, GoodsUse.Collect);
+
+    // Preparation may free cargo space before pickup; it must still find reachable usable stock.
+    private InventoryLot? SharedPreparationItem(string kind, string actor) =>
+        SharedStockItem(kind, actor, GoodsUse.ReachableHoldings);
+
+    private InventoryLot? SharedStockItem(string kind, string actor, GoodsUse use)
     {
         if (HouseholdFor(actor) is { } household)
         {
-            var request = SharedCollectionRequest(actor, household, kind);
+            var request = new GoodsRequest(use, actor, GoodsOwners.One(household), GoodsKinds.One(kind));
             var source = FindGoods(request).Matches.FirstOrDefault(match => match.Lot.ContainerLotId is null && match.Lot.CarrierId is null);
             if (source is not null) return source.Lot;
         }
         if (kind == "food") return null;
         foreach (var lot in AvailableWarehouseStock(actor, kind))
-            if (RecheckGoods(SharedCollectionRequest(actor, lot.OwnerId, kind), lot.Id) is { } match) return match.Lot;
+            if (RecheckGoods(new(use, actor, GoodsOwners.One(lot.OwnerId), GoodsKinds.One(kind)), lot.Id) is { } match) return match.Lot;
         return null;
     }
 
@@ -341,7 +347,7 @@ public sealed partial class PrivateWorldRuntime
             return null;
         if (!HasCarriedOwnItem(actor, "wood"))
         {
-            if (SharedItem("wood", actor) is not null)
+            if (SharedPreparationItem("wood", actor) is not null)
                 CollectEquipment(actor, person, "wood");
             else if (MaterialSource("wood", actor) is { } source)
                 GatherProjectMaterial(actor, person, "wood", source);

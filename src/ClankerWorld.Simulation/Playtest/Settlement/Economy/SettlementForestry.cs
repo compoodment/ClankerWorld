@@ -34,7 +34,7 @@ public sealed partial class PrivateWorldRuntime
             PlantingSite(actor, state.Position) is not null)
             candidates.Add(new CognitionCandidate("plant_orchard", "Plant an orchard seed on open ground.", 31));
         if (!HasCarriedOwnItem(actor, TreeGrowthRules.TreeSeedItem) &&
-            SharedItem(TreeGrowthRules.TreeSeedItem, actor) is null)
+            SharedPreparationItem(TreeGrowthRules.TreeSeedItem, actor) is null)
             return;
         if (ReplantableTree(actor, state.Position) is { } tree)
             candidates.Add(new CognitionCandidate("replant_tree",

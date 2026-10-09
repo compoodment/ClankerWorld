@@ -32,6 +32,13 @@ public sealed partial class PrivateWorldRuntime
         var room = FreeCarryCapacity(actor);
         if (room <= 0 || InventoryContainerRules.IsContainer(root.ItemKind) && index.FamilyQuantity(root.Id) > room)
             return GoodsReason.CarryRoom;
+        return GoodsRouteExclusion(actor, root, routes);
+    }
+
+    private GoodsReason? GoodsRouteExclusion(string actor, InventoryLot root,
+        Dictionary<(GridPoint Position, int Range), bool>? routes)
+    {
+        if (!inhabitants.TryGetValue(actor, out var person)) return GoodsReason.Custody;
         var key = (HouseholdStockPosition(root), HouseholdStockInteractionRange(root));
         if (routes is not null && routes.TryGetValue(key, out var reachable)) return reachable ? null : GoodsReason.Route;
         reachable = FindUnoccupiedRoute(actor, person.Position, key.Item1, key.Item2).Count > 0;
