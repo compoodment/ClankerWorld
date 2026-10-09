@@ -799,7 +799,27 @@ personality, aspiration, household, available warmth/illness and the latest
 private thought. Absent fields remain unknown. Need scales are explained;
 `hunger_basis_points` measures fullness (0 starving, 10,000 full).
 Self context is included in the queued-observation digest. Nearby relationships,
-carried inventory and current activity are not provided. Jev's routine request
+carried inventory and current activity are not provided. During a world-born
+child's pending first identity choice, self context also contains at most two
+biological parents' recorded names and chosen personalities/aspirations as
+`family_background`. An unchosen parental identity remains unknown; a deceased
+parent's last recorded identity may supply the background. Private thoughts,
+memories and unrelated identities are excluded. Household and Town keep their
+existing recorded-name fields. This bounded snapshot is part of the ordinary
+personal-model request and its digest, in both numeric and word-based need
+formats; it creates no separate request or inherited traits.
+
+Native births use the existing `IdentityChoicePending` marker and the
+`undecided`/`find a purpose` placeholders. Infants still receive no cognition.
+At the first ordinary decision after infancy (currently day 3), both chosen
+identity fields must be usable before the opportunity completes. A missing,
+invalid, partial, failed or cancelled reply leaves it pending for the next
+ordinary decision; the existing idle and action cadences still apply. Accepted
+identity completes retained queued observations and removes their initial
+family background. Later ordinary replies cannot overwrite the chosen fields;
+the existing bounded life-moment opportunities remain separate.
+
+Jev's routine request
 sends the same three needs as flat fields after `hunger_basis_points`:
 `warmth_basis_points` and `illness_basis_points`, `null` when unknown, with
 their scales explained in its instructions.
@@ -836,8 +856,9 @@ stays without an additional model attempt. Routine replies cannot overwrite it.
 The pending opportunity is checkpointed, so pause/reload discards late replies
 and preserves an unconsumed choice. It selects the personal planner rather than
 Jev's routine router. Choice events contain only the agent ID; chosen text stays
-in that agent's saved state and later self context, not runtime logs. Children's
-initial identity remains separate work.
+in that agent's saved state and later self context, not runtime logs. World-born
+children use the ordinary first-choice path described above and require both
+usable identity fields before completing it.
 
 The runtime records five named identity opportunities: midlife (half the
 configured maximum life, day 30 by default), parenthood, loss of a partner,
