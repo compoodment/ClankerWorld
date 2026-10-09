@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Saves and replay
@@ -18,6 +18,12 @@ World state includes its seed and generation options, clock, agents, accepted
 events, Towns, content locks, model/slot assignments and autosave choices.
 Installation state includes device authority, provider credentials and usage
 accounting. Saves store slot IDs and model choices, never API-key bytes.
+
+New-world genesis no longer seeds Copper, a 100-unit household wallet or the
+legacy `camp-no-theft` fine. Currency and faction-law collections start empty.
+This changes initial world state without adding checkpoint fields or changing
+the schema. Restore uses saved world systems through the existing path; no
+migration or extra compatibility logic is added.
 
 The October 1 terrain tuning changes deterministic generation for new worlds.
 Loading retains the saved map and current weather episode; it does not replace

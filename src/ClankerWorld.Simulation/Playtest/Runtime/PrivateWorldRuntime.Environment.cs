@@ -62,12 +62,9 @@ public sealed partial class PrivateWorldRuntime
                 new FactionStanding("founder-rowan", "camp-alpha", 0),
                 new FactionStanding("founder-ilya", "camp-alpha", 0),
             ],
-            [new LawRule("camp-no-theft", "camp-alpha", LawActionKind.Theft, LawSeverity.Major, 500, 25)],
+            [],
             []);
-        var currency = new CurrencyState(
-            [new CurrencyDefinition("copper", "Copper", "cp")],
-            [new CurrencyAccount("camp-wallet", HouseholdId, "copper", 100)],
-            []);
+        var currency = new CurrencyState([], [], []);
         var chunkSize = map.Width > ChunkRules.DefaultChunkSize || map.Height > ChunkRules.DefaultChunkSize
             ? GeographyGenerator.ChunkSize : ChunkRules.DefaultChunkSize;
         var chunks = new List<ChunkManifest>();
