@@ -1237,6 +1237,11 @@ saves the bounded purpose and, for untargeted food/material orders, the exact
 instruction ID. Strict loading checks supported targets and the matching
 owner, action and requested kind; an explicit resource or coordinate keeps
 its existing precedence and never gains a substitute.
+An already chosen ordinary outward purpose can keep moving while its next
+personal model reply is pending; the saved purpose identity, live offered
+candidate and ordinary survival/movement checks still apply. Owner activity
+summaries name an untargeted order's current purpose while retaining its task ID;
+returning, cancelled and replaced goals do not label a current search.
 
 An order search hands back only when its normal task candidate is usable,
 including actual observation or personal knowledge, source availability,

@@ -1279,7 +1279,8 @@ public sealed partial class OwnerWorldObservationStore
             IsDraft: false)
         {
             PublicIntention = runtime?.CurrentIntention is { } publicIntention
-                ? ToPublicIntention(publicIntention.CandidateId, publicIntention.Provider.ToString().ToLowerInvariant(), publicIntention.WorldTick)
+                ? ToPublicIntention(publicIntention.CandidateId, publicIntention.Provider.ToString().ToLowerInvariant(), publicIntention.WorldTick,
+                    OrderExplorationPurpose(state, physical, publicIntention.CandidateId, publicIntention.OperativeOrderInstructionId))
                 : null,
             Relationships = RelationshipsFor(state, inhabitant.Id),
             RecentPrivateThoughts = (physical.RecentThoughts ?? [])
@@ -1704,12 +1705,33 @@ public sealed partial class OwnerWorldObservationStore
         state.Marriages.Where(marriage => AgentMarriageRules.HasParticipant(marriage, agentId))
             .Select(marriage => AgentMarriageRules.Note(marriage, agentId, state.Society.Society));
 
+    private static string? OrderExplorationPurpose(PrivateWorldRuntimeState state,
+        PlaytestInhabitantState physical, string candidateId, string? operativeOrderId)
+    {
+        if (candidateId != "explore" || physical.Exploration is not
+            { Returning: false, OutingPath.Count: > 0, Goal: { Kind: "resource", OrderInstructionId: { } id } goal } ||
+            operativeOrderId != id)
+            return null;
+        var instruction = (state.Instructions ?? []).Where(item =>
+                item.TargetInhabitantId == physical.InhabitantId && item.Kind == OwnerInstructionKind.MustDo &&
+                item.Order is { Status: "queued" or "waiting" or "doing" or "interrupted" or "blocked" } &&
+                !(state.CompletedInstructionIds ?? []).Contains(item.InstructionId, StringComparer.Ordinal))
+            .OrderBy(item => item.SubmissionSequence).FirstOrDefault();
+        if (instruction is null || instruction.InstructionId != id || instruction.Order is not
+            { TargetResourceId: null, TargetPosition: null } order)
+            return null;
+        var target = order.Action == "gather_material" ? order.TargetMaterialKind
+            : order.Action is "seek_food" or "harvest_food" ? order.TargetFoodKind ?? "food" : null;
+        return goal.Target == target ? "looking for " + goal.Target.Replace('_', ' ') : null;
+    }
+
     private static ViewerPublicIntention ToPublicIntention(
         string candidateId,
         string provider,
-        long worldTick) => new(
+        long worldTick,
+        string? purposeSummary = null) => new(
         candidateId,
-        PublicIntentionSummary(candidateId),
+        purposeSummary ?? PublicIntentionSummary(candidateId),
         provider,
         worldTick);
 
