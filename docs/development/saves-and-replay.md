@@ -1172,6 +1172,23 @@ restore/replay, discarded prepared ticks, stale votes, retained removal and
 coherently altered receipt/source references. Earlier
 alpha schemas, including 53, are refused visibly and preserved without migration.
 
+## Founding another Town
+
+The personal `found` choice records an additional `TownRuntimeState`, its first
+layout title, retained household footprint use rights and the founder's Town
+care group using existing saved fields. The schema is unchanged. Existing
+buildings keep their household owner and gain the new Town assignment; stock,
+bodies and care do not move. Council and government initialize from the new
+adult roster. The `town_founded` event uses a pipe-separated Town ID, founder,
+previous Town and care-group count; initial First Town events keep their format.
+
+The choice binds the current physical site and is rechecked when applied.
+Competing or delayed replies cannot claim another Town's land, move membership
+twice or supply free property. `TownFoundingTests` covers generated-world
+founding, care-group membership, existing owned and foreign Houses and fields, claimed
+land, competing and delayed hosted choices, exact replay/reload and discarded
+prepared ticks. Routine Windows playtesting remains pending.
+
 ## Abandoned Towns and physical salvage
 
 Abandonment is derived from a founded Town's empty recorded living-resident
