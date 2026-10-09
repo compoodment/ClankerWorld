@@ -171,6 +171,7 @@ public partial class Main
         manualSaveOverlay.VisibilityChanged += () =>
         {
             if (!manualSaveOverlay.Visible) CancelManualSaveListRead();
+            else ApplyManualSaveView();
             saveDiskWarningPanel.Visible = !manualSaveOverlay.Visible && saveDiskWarningLabel.Text.Length > 0;
         };
         manualSaveOverlay.ZIndex = 220;
@@ -247,6 +248,7 @@ public partial class Main
         manualSaveLoadButton.Pressed += ConfirmManualSaveLoad;
         actions.AddChild(manualSaveLoadButton);
         body.AddChild(actions);
+        BuildRecoveryCleanup(body);
         StyleConfirmation(deletionConfirmation, "Permanently delete?", "Delete permanently");
         deletionConfirmation.GetOkButton().ThemeTypeVariation = "DangerButton";
         deletionConfirmation.Confirmed += () => _ = DeleteConfirmedAsync();
@@ -340,6 +342,14 @@ public partial class Main
         manualSaveList.Visible = !timeline;
         manualSaveCard.CustomMinimumSize = new Vector2(ManualSaveTimelineWidth(), 0);
         if (timeline) Callable.From(FitManualSaveTimeline).CallDeferred();
+        else Callable.From(FitManualSaveList).CallDeferred();
+    }
+
+    private void FitManualSaveList()
+    {
+        if (!manualSaveList.IsVisibleInTree()) return;
+        var others = manualSaveCard.GetCombinedMinimumSize().Y - manualSaveList.GetCombinedMinimumSize().Y;
+        manualSaveList.CustomMinimumSize = new Vector2(0, Math.Clamp(manualSaveOverlay.Size.Y - 16 - others, 80, 250));
     }
 
     private float ManualSaveTimelineWidth() => MathF.Floor(Math.Clamp(manualSaveOverlay.Size.X - 40, 520, 900));
@@ -517,6 +527,9 @@ public partial class Main
         manualSaveOverwriteButton.Disabled = manualSaveLoadMode || !valid || listedManualSaves[selected[0]].IsAutosave;
         manualSaveDeleteButton.Disabled = !valid || listedSaveWorldId is null;
         manualSaveCreateButton.Disabled = isOwnerAction || manualSaveLoadMode || observationSession.AwaitingFreshBaseline;
+        recoveryCleanupButton.Disabled = isOwnerAction || observationSession.AwaitingFreshBaseline ||
+            listedSaveWorldId is null || observationSession.Current?.Baseline.Snapshot.Authoring?.IsPaused != true;
+        recoveryCleanupConfirmation.GetOkButton().Disabled = pendingRecoveryCleanup is null || isOwnerAction;
     }
 
     private string? CurrentManualSaveWorldId()

@@ -11,6 +11,10 @@ namespace ClankerWorld.GodotClient.UI;
 // the authoritative server or simulation assemblies.
 public sealed record OwnerDeletionAction(string Kind, string Id, string WorldId, DateTimeOffset? ExpectedCreatedUtc = null);
 public sealed record OwnerDeletionReceipt(string Id, bool CleanupComplete);
+public sealed record OwnerRecoveryCleanupAction(string Operation, string WorldId, int KeepCount, string? ExpectedDigest = null);
+public sealed record OwnerRecoveryCleanupReceipt(IReadOnlyList<string> RemovedIds, bool CleanupComplete);
+public sealed record RecoveryCleanupPreview(string WorldId, int KeepCount, string Digest,
+    IReadOnlyList<ManualWorldSave> Remove, IReadOnlyList<ManualWorldSave> Keep);
 
 public sealed record OwnerWorldProtocolVersion(int Major, int Minor);
 

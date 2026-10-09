@@ -11,6 +11,8 @@ namespace ClankerWorld.Viewer.Control;
 /// </summary>
 public sealed record OwnerDeletionAction(string Kind, string Id, string WorldId, DateTimeOffset? ExpectedCreatedUtc = null);
 public sealed record OwnerDeletionReceipt(string Id, bool CleanupComplete);
+public sealed record OwnerRecoveryCleanupAction(string Operation, string WorldId, int KeepCount, string? ExpectedDigest = null);
+public sealed record OwnerRecoveryCleanupReceipt(IReadOnlyList<string> RemovedIds, bool CleanupComplete);
 
 public sealed record StartOwnerPairingHttpRequest(string PublicKeySpkiBase64);
 
@@ -254,6 +256,13 @@ public static class OwnerHttpBinding
         $"id={EncodeRequired(action.Id, nameof(action.Id))}",
         $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"created-utc={action.ExpectedCreatedUtc?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture) ?? "-"}");
+
+    public static string RecoveryCleanup(OwnerRecoveryCleanupAction action) => string.Join(
+        '\n', "clankerworld.owner-recovery-cleanup.v1",
+        $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"keep-count={action.KeepCount.ToString(CultureInfo.InvariantCulture)}",
+        $"expected-digest={EncodeOptional(action.ExpectedDigest)}");
 
     public static string ManualSavePayload(OwnerManualSaveAction action) => string.Join(
         '\n',
