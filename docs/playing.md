@@ -399,7 +399,9 @@ suitable fields, stock and tools. Counts mean completed fields, so include
 **fields** when giving a number; **Harvest five potatoes** is not understood.
 A named crop is never replaced with another. Planting orders can use another
 usable seed when someone blocks the pickup route to an earlier seed lot.
-Harvests remain on the field until carried. Cancel or replace the order to stop the current work and release
+Harvests remain on the field until carried. A field nobody works for a full
+season goes back to grass, with any crop still on it, and the Event Log says
+so; the land stays just as fertile. Cancel or replace the order to stop the current work and release
 unused planting stock. Add **at (12, 4)** to keep the task on that field tile.
 Ordinary crop and seed hauling tries another permitted farm store when the
 preferred one cannot fit the load. For example, a filled pot goes to the

@@ -113,6 +113,7 @@ public static class WorldEventText
             "field_harvested" => $"{LeadingName(snapshot, worldEvent.Detail)} harvested {ThingAt(parts.Length - 1).ToLowerInvariant()}.",
             "field_ready" => "A field is ready to harvest.",
             "field_work_interrupted" => "Work on a field stopped.",
+            "field_returned_to_grass" => "A field nobody worked for a season went back to grass.",
             "crop_weather_loss" => $"{ThingAt(parts.Length - 1)} reduced a crop harvest.",
             "crop_moisture_effect" when parts.Length >= 3 => parts[^2] == "wet"
                 ? "Moist soil improved a crop harvest."
