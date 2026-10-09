@@ -55,7 +55,9 @@ everything that is available in the current build. See [what works today](../wha
   share one starting household, and the next two share the other.
 - Each agent independently has a chosen provider/model, private memory and
   context, goals/personality, call schedule, usage, and failure state. Different
-  agents may use the same stored key.
+  agents may use the same stored key. Agents choose their own personality,
+  aspirations and initial identity. Agents start with no skills; an agent first
+  gains a skill by finishing that kind of work. The player can add adults freely.
 - **Agreed on October 9 (the owner in chat):** Anthropic's Claude models are a
   hosted provider for agents' personal models, next to OpenAI and Ollama Cloud.
   Its short list is Claude Opus 5.5, Claude Sonnet 5.5 and Claude Haiku 5.5,
@@ -65,9 +67,7 @@ everything that is available in the current build. See [what works today](../wha
   **Thinking** setting, chosen with its model for every hosted provider:
   **Model default**, **Low**, **Medium** or **High**. Model default leaves the
   provider's own setting. There is no Off, because several current models
-  refuse it. A child born in the world starts with the model default. Agents choose their own personality,
-  aspirations and initial identity. Agents start with no skills; an agent first
-  gains a skill by finishing that kind of work. The player can add adults freely.
+  refuse it. A child born in the world starts with the model default.
 - An agent chooses its personality and aspiration **once, at its first
   decision**. **Agreed, with provisional timing and limits for playtesting:**
   it can change them later only at moments the game names: a

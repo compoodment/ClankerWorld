@@ -1140,9 +1140,19 @@ public sealed partial class ConfigurableDecisionProvider(
             AgentConversationTurnResponse turn;
             if (route.Provider == PlayerDecisionProviders.Anthropic)
             {
-                var reply = await new AnthropicModelClient(httpClientFactory.CreateClient("model"), route.Credential.ApiKey!)
-                    .CompleteAsync(new HostedModelCall(route.Credential.Model, instructions, input, route.Thinking, ConversationTimeout),
-                        timeout.Token).ConfigureAwait(false);
+                HostedModelReply reply;
+                try
+                {
+                    reply = await new AnthropicModelClient(httpClientFactory.CreateClient("model"), route.Credential.ApiKey!)
+                        .CompleteAsync(new HostedModelCall(route.Credential.Model, instructions, input, route.Thinking, ConversationTimeout),
+                            timeout.Token).ConfigureAwait(false);
+                }
+                catch (InvalidDataException rejected) when (
+                    HostedModelUnusableReply.TryGetTokens(rejected, out inputTokens, out outputTokens))
+                {
+                    // A refused or cut-off turn was still charged; its counts stay for failure accounting.
+                    throw;
+                }
                 inputTokens = reply.InputTokens;
                 outputTokens = reply.OutputTokens;
                 turn = ParseConversationFields(request, reply.Text, route.Credential.Model, inputTokens, outputTokens);

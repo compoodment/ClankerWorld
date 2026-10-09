@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Anthropic;
 using Anthropic.Exceptions;
 using Anthropic.Models.Models;
 
@@ -163,14 +162,8 @@ public sealed class ProviderModelCatalog(
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(RequestTimeout);
-        var client = new AnthropicClient
-        {
-            ApiKey = apiKey,
-            HttpClient = httpClientFactory.CreateClient("model"),
-            BaseUrl = PlayerDecisionProviders.AnthropicEndpoint.AbsoluteUri.TrimEnd('/'),
-            MaxRetries = 0,
-            Timeout = RequestTimeout,
-        };
+        var client = AnthropicModelClient.Create(
+            httpClientFactory.CreateClient("model"), apiKey, PlayerDecisionProviders.AnthropicEndpoint, RequestTimeout);
         try
         {
             var page = await client.Models.List(new ModelListParams { Limit = 1000 }, timeout.Token).ConfigureAwait(false);

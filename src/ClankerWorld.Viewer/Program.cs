@@ -39,7 +39,8 @@ var configuredOpenAiModel = builder.Configuration["ClankerWorld:Runtime:OpenAiMo
 var configuredOllamaCloudModel = builder.Configuration["ClankerWorld:Runtime:OllamaCloudModel"] ??
     (configuredDecisionProvider.StartsWith("ollama", StringComparison.OrdinalIgnoreCase) ? configuredModel : null);
 var configuredAnthropicModel = builder.Configuration["ClankerWorld:Runtime:AnthropicModel"] ??
-    (configuredDecisionProvider is "anthropic" or "claude" ? configuredModel : null);
+    (configuredDecisionProvider.StartsWith("anthropic", StringComparison.OrdinalIgnoreCase) ||
+     configuredDecisionProvider.StartsWith("claude", StringComparison.OrdinalIgnoreCase) ? configuredModel : null);
 var publicPort = builder.Configuration.GetValue("ClankerWorld:Http:Port", 5188);
 var localApprovalPort = builder.Configuration.GetValue<int?>("ClankerWorld:Pairing:LocalApprovalPort") ?? 0;
 if (publicPort is <= 0 or > 65535 || localApprovalPort is < 0 or > 65535 || localApprovalPort == publicPort)

@@ -42,3 +42,34 @@ public interface IHostedModelClient
 {
     Task<HostedModelReply> CompleteAsync(HostedModelCall request, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// A charged reply the game can't use, such as a refusal or an answer cut off
+/// at the output limit, is an <see cref="InvalidDataException"/> that keeps the
+/// reported token counts, so a failed conversation turn is still metered.
+/// </summary>
+public static class HostedModelUnusableReply
+{
+    private const string InputTokensKey = "hosted_model_input_tokens";
+    private const string OutputTokensKey = "hosted_model_output_tokens";
+
+    public static InvalidDataException Create(string message, int inputTokens, int outputTokens)
+    {
+        var failure = new InvalidDataException(message);
+        failure.Data[InputTokensKey] = inputTokens;
+        failure.Data[OutputTokensKey] = outputTokens;
+        return failure;
+    }
+
+    public static bool TryGetTokens(Exception exception, out int inputTokens, out int outputTokens)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        if (exception.Data[InputTokensKey] is int input && exception.Data[OutputTokensKey] is int output)
+        {
+            (inputTokens, outputTokens) = (input, output);
+            return true;
+        }
+        (inputTokens, outputTokens) = (0, 0);
+        return false;
+    }
+}

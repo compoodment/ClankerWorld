@@ -1308,7 +1308,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
             var reply = await modelClient.CompleteAsync(
                 new HostedModelCall(model, prompt.Instructions, prompt.Input, thinking, requestTimeout),
                 timeout.Token).ConfigureAwait(false);
-            return ParseAnswer(request, reply.Text, new CognitionUsage(reply.Model ?? model, reply.InputTokens, reply.OutputTokens));
+            return ParseAnswer(request, reply.Text, () => new CognitionUsage(reply.Model ?? model, reply.InputTokens, reply.OutputTokens));
         }
 
         // Chat completions: OpenAI and Ollama Cloud read reasoning_effort, and
@@ -1435,8 +1435,6 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         CognitionDecisionRequest request,
         string responseBody)
     {
-        string? content;
-        CognitionUsage? usage;
         try
         {
             using var document = JsonDocument.Parse(responseBody);
@@ -1444,11 +1442,12 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
             var modelId = root.TryGetProperty("model", out var modelProperty)
                 ? modelProperty.GetString()
                 : null;
-            content = root.GetProperty("choices")[0]
+            var content = root.GetProperty("choices")[0]
                 .GetProperty("message")
                 .GetProperty("content")
                 .GetString();
-            usage = TryParseUsage(root, modelId);
+            // Usage is still read after the answer, so a malformed answer is the reported failure.
+            return ParseAnswer(request, content, () => TryParseUsage(root, modelId));
         }
         catch (JsonException exception)
         {
@@ -1462,15 +1461,13 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         {
             throw new InvalidDataException("The OpenAI-compatible provider returned no choices.", exception);
         }
-
-        return ParseAnswer(request, content, usage);
     }
 
     /// <summary>Validates the model's JSON answer, whichever wire format carried it.</summary>
     private static CognitionDecisionResponse ParseAnswer(
         CognitionDecisionRequest request,
         string? content,
-        CognitionUsage? usage)
+        Func<CognitionUsage?> readUsage)
     {
         try
         {
@@ -1537,6 +1534,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
             var civicProposal = answerRoot.TryGetProperty("civic_proposal", out var civicText) && civicText.ValueKind == JsonValueKind.String
                 ? CognitionDecisionResponse.NormalizeIdentityText(civicText.GetString()) : null;
             var civicBallot = ParseCivicBallot(answerRoot);
+            var usage = readUsage();
             return new CognitionDecisionResponse(
                 request.RequestId,
                 request.Observation.InhabitantId,

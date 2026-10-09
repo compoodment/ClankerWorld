@@ -1036,10 +1036,12 @@ wider Jev role in this change.
 and the same reply validation. `AnthropicModelClient` in the host sends them to
 Anthropic's Messages API through Anthropic's official C# client
 (`IHostedModelClient` is the seam in the simulation). The game's instructions
-are the system prompt, marked for prompt caching so calls that repeat them cost
-less, and the observation is the one user message. The Messages API requires an
-output limit, so the client allows 16,000 tokens, room for the model's thinking
-as well as the short JSON reply. There is no JSON response mode in these
+are the system prompt, marked for prompt caching: calls that repeat them cost
+less once they are long enough for the model to cache, and a shorter prompt is
+simply not cached. The observation is the one user message. The Messages API
+requires an output limit, so the client allows 16,000 tokens, room for the
+model's thinking as well as the short JSON reply; an older model typed by name
+with a smaller output limit refuses the request. There is no JSON response mode in these
 requests: the prompt's "Return JSON only" asks for JSON, and one surrounding
 Markdown code fence is removed before the game reads the text.
 - Only text blocks come back. Thinking blocks are dropped and never logged or
@@ -1047,7 +1049,11 @@ Markdown code fence is removed before the game reads the text.
 - A refusal, or a reply cut off at the limit, is an unusable reply. An HTTP
   error keeps its status, so a 400 is an unsupported request, as on the
   chat-completions path.
-- The client never retries, because a retry is another paid call.
+- The client never retries, because a retry is another paid call. It sends
+  only the owner's key: it never falls back to the host's own Anthropic token
+  or login profile.
+- A refused or cut-off conversation turn still records its token counts as a
+  failed call.
 - Usage counts every input token the model read, cached ones included, and the
   output tokens, which include thinking.
 - The short list is `claude-opus-5-5`, `claude-sonnet-5-5` and the default

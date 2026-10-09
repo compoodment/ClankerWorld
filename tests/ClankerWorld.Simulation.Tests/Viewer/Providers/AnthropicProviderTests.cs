@@ -97,6 +97,65 @@ public sealed class AnthropicProviderTests
     }
 
     [Fact]
+    public async Task TheOwnersKeyIsTheOnlyCredentialEvenWhenTheHostHasItsOwnAnthropicLogin()
+    {
+        var savedToken = Environment.GetEnvironmentVariable("ANTHROPIC_AUTH_TOKEN");
+        var savedProfile = Environment.GetEnvironmentVariable("ANTHROPIC_PROFILE");
+        try
+        {
+            Environment.SetEnvironmentVariable("ANTHROPIC_AUTH_TOKEN", "host-environment-token");
+            Environment.SetEnvironmentVariable("ANTHROPIC_PROFILE", "missing-host-profile");
+            var handler = new AnthropicHandler(MessageReply(Answer));
+            var client = new AnthropicModelClient(new HttpClient(handler), "sk-ant-owner-key");
+
+            _ = await client.CompleteAsync(Call(null), CancellationToken.None);
+
+            var request = Assert.Single(handler.Requests);
+            Assert.Equal("sk-ant-owner-key", request.ApiKey);
+            Assert.Null(request.Authorization);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ANTHROPIC_AUTH_TOKEN", savedToken);
+            Environment.SetEnvironmentVariable("ANTHROPIC_PROFILE", savedProfile);
+        }
+    }
+
+    [Fact]
+    public async Task AMalformedReplyIsUnusableRatherThanUnavailable()
+    {
+        // No model field: the official client rejects the reply shape.
+        var client = new AnthropicModelClient(new HttpClient(new AnthropicHandler(
+            """{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"text","text":"{}"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":5,"output_tokens":9}}""")),
+            "sk-ant-test-key");
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.CompleteAsync(Call(null), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ARefusedConversationTurnIsStillMeteredForWhatItCost()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-anthropic-refused-turn-");
+        try
+        {
+            var store = Store(directory);
+            _ = store.Configure(new OwnerProviderConfigurationAction(
+                "personal", "anthropic", null, "sk-ant-speaker-key", false, "agent-a", Guid.NewGuid().ToString("N"), "Claude key"));
+            var usage = new ProviderUsageStore(Path.Combine(directory.FullName, "usage.json"));
+            var router = new ConfigurableDecisionProvider(store,
+                new FixedHttpClientFactory(new AnthropicHandler(MessageReply("{}", stopReason: "refusal"))), usageStore: usage);
+            IAgentConversationProvider conversations = router;
+
+            await Assert.ThrowsAsync<InvalidDataException>(() => conversations.SpeakAsync(
+                ConversationRequest() with { ExpectedProviderEpoch = conversations.ProviderEpoch }).AsTask());
+
+            var row = Assert.Single(usage.Capture().Rows);
+            Assert.Equal((1, 1_007L, 42L), (row.Failed, row.InputTokens, row.OutputTokens));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
     public async Task AnAnthropicAgentDecidesThroughClaudeWithItsOwnKeyThinkingAndMeteredUsage()
     {
         var directory = Directory.CreateTempSubdirectory("clankerworld-anthropic-route-");
