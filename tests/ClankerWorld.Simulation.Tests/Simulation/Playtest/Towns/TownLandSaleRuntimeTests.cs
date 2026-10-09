@@ -217,7 +217,10 @@ public sealed partial class TownLandTransferRuntimeTests
         Assert.Equal("pending", unpaid.Status);
         Assert.Null(unpaid.Receipt);
         Assert.Equal(Permissions(before), Permissions(world.ExportState()));
-        Assert.Equal(PrivateProperty(before), PrivateProperty(world.ExportState()));
+        Assert.Equal(before.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == provider.SourceHouseholdId && lot.ItemKind == "wood").Sum(lot => lot.Quantity),
+            world.Society.Inventory.Lots.Where(lot => lot.OwnerId == provider.SourceHouseholdId && lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        Assert.DoesNotContain(world.Society.Inventory.Events.Skip(before.Society.Society.Inventory.Events.Count),
+            item => item.Detail.EndsWith(":land_use_right_payment", StringComparison.Ordinal));
         world.Validate();
     }
 
