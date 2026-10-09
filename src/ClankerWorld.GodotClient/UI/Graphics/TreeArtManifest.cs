@@ -39,6 +39,9 @@ public static class TreeArtManifest
         new(7, "orchard", "fruiting", "tree.orchard.fruiting", NatureSprite.OrchardFruiting, CodeDrawn, RepositoryLicence, Approved),
         new(8, "orchard", "picked", "tree.orchard.picked", NatureSprite.OrchardPicked, CodeDrawn, RepositoryLicence, Approved),
         new(9, "orchard", "growing", "tree.orchard.growing", NatureSprite.OrchardGrowing, CodeDrawn, RepositoryLicence, Approved),
+        // A planted orchard keeps its saved sapling stage while using the
+        // existing approved fruitless orchard art.
+        new(10, "orchard", "sapling", "tree.orchard.growing", NatureSprite.OrchardGrowing, CodeDrawn, RepositoryLicence, Approved),
         // One tree-seed item serves broadleaf and conifer. It lives in
         // inventories only, which list items by name.
         new(0, "broadleaf", "seed", "item.tree_seed", null, "None", "None", Missing),
