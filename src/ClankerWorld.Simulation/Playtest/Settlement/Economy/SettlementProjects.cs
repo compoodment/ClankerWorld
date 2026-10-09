@@ -332,7 +332,7 @@ public sealed partial class PrivateWorldRuntime
             foreach (var (dx, dy) in ClayBankOffsets)
             {
                 var bank = map.WrapColumn(new GridPoint(point.X + dx, point.Y + dy));
-                if (map.Contains(bank) && map.HydrologyAt(bank) == WaterKind.Land && map.IsPassable(bank) &&
+                if (map.Contains(bank) && map.HydrologyAt(bank) == WaterKind.Land && map.IsBuildable(bank) &&
                     !occupied.Contains(bank) && map.IsReachableFromCampOnFoot(bank))
                     banks.Add(bank);
             }
@@ -360,21 +360,21 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private bool CanContinueProject(PlaytestInhabitantState state) =>
+    private bool CanContinueProject(PlaytestInhabitantState state, bool waitingForModel = false) =>
         AdultResident(state.InhabitantId) &&
         state.Project is { Stage: not ("completed" or "cancelled") } project &&
         project.OrderInstructionId is null &&
         !project.RequiresFreshChoice &&
         (project.Stage != "blocked" || WorldTick - project.LastTransitionTick < BlockedProjectRetryDelayTicks) &&
         !NeedsUrgentFood(state) &&
-        !HasTradeResponse(state.InhabitantId) &&
+        (waitingForModel || !HasTradeResponse(state.InhabitantId) &&
         !HasCouncilDecision(state.InhabitantId) &&
         !HasHousingDecision(state.InhabitantId) &&
         !HasFamilyDecision(state.InhabitantId) &&
         !HasParenthoodDecision(state.InhabitantId) &&
         !HasDependentCareDecision(state.InhabitantId) &&
         !HasLearningDecision(state.InhabitantId) &&
-        !inhabitants.Keys.Any(other => TradeOpportunity(state.InhabitantId, other) is not null) &&
+        !inhabitants.Keys.Any(other => TradeOpportunity(state.InhabitantId, other) is not null)) &&
         (!NeedsUrgentWarmth(state) || IsProtectiveProject(state.Project)) &&
         PendingInstructionFor(state.InhabitantId) is null;
 
@@ -703,7 +703,9 @@ public sealed partial class PrivateWorldRuntime
             var work = (hammer?.WorkUnits ?? 1) + ProjectPracticeBonus(state, project);
             if (hammer is not null)
                 ApplyToolWork(inhabitantId, hammer);
-            SetProject(inhabitantId, project with { Stage = "working", WorkDone = Math.Min(ProjectWorkTicks, project.WorkDone + work), Blocker = null });
+            var done = SkilledWorkProgress(inhabitantId,
+                building is not null ? SettlementSkillKind.Building : SkillForRecipe(recipe!), project.WorkDone, work);
+            SetProject(inhabitantId, project with { Stage = "working", WorkDone = Math.Min(ProjectWorkTicks, done), Blocker = null });
             return;
         }
         ApplyBuildDecision(inhabitantId, state, project.CandidateId);
@@ -1109,7 +1111,8 @@ public sealed partial class PrivateWorldRuntime
         {
             society.Apply(checkpoint => SocietyFixture.RecordSocialMemory(checkpoint, new SocietySocialMemory(
                 memoryId, request.Requester, helperId,
-                $"Grateful for {society.Checkpoint.GetInhabitant(helperId).Name}'s help with project materials.", "public", WorldTick)));
+                $"Grateful for {society.Checkpoint.GetInhabitant(helperId).Name}'s help with project materials.", "public", WorldTick)
+            { Kind = SocietyMemoryKind.Relationship }));
         }
         AppendEvent("project_request_fulfilled", $"{helperId}:{request.Requester}:{itemKind}:{quantity}");
     }

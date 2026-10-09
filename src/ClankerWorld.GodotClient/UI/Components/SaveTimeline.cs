@@ -196,14 +196,16 @@ public static class SaveTimelineLayout
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(measure);
         if (measure(text) <= width) return text;
-        int low = 0, high = text.Length;
+        var boundaries = StringInfo.ParseCombiningCharacters(text);
+        int CutAfter(int count) => count == boundaries.Length ? text.Length : boundaries[count];
+        int low = 0, high = boundaries.Length;
         while (low < high)
         {
             var middle = (low + high + 1) / 2;
-            if (measure(text[..middle].TrimEnd() + "...") <= width) low = middle;
+            if (measure(text[..CutAfter(middle)].TrimEnd() + "...") <= width) low = middle;
             else high = middle - 1;
         }
-        return text[..low].TrimEnd() + "...";
+        return text[..CutAfter(low)].TrimEnd() + "...";
     }
 }
 

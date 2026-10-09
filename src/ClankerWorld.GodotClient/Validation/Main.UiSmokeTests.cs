@@ -199,6 +199,7 @@ public partial class Main
                 choiceBounds.End.X > settingsViewport.End.X + 1)
                 throw new InvalidOperationException("Game Settings escaped its usable bounds at 1440p and 200%.");
             await VerifyAgentConversationReaderAt200PercentAsync();
+            VerifyResourceAppearanceReuse(smokeMap);
 
             var emptyLayer = Convert.ToBase64String(new byte[16]);
             var fieldMap = smokeMap with
@@ -1182,6 +1183,7 @@ public partial class Main
                 await VerifySameWorldTimelineUiRecoveryAsync();
                 VerifySaveBranchList();
                 await VerifySaveTimelineAsync();
+                await VerifyStartupRecoveryAsync();
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1254,6 +1256,33 @@ public partial class Main
                 cognitionSettingsPanel.GetParent() != worldSettingsContent ||
                 cognitionSettingsPanel.GetIndex() != worldSettingsContent.GetChildCount() - 1)
                 throw new InvalidOperationException($"World Settings must open at the top, keep the Game page's width, end with Agent model and leave Model calls to Game Settings: {gameMenuPanel.Size.X} vs {gamePageWidth}.");
+            // Values come from the observed world's saved choices, never the New World form.
+            var generationSample = new OwnerWorldSnapshot("generation-world", 0, "generation-map",
+                [new(0, 0, "meadow")], [], [], null, 0)
+            {
+                Generation = new OwnerWorldGeneration("settings-seed", "Small", "Uniform", "Dry", false, true),
+            };
+            Render(generationSample, []);
+            if (!generationSettingsRows.IsVisibleInTree() || generationSize.Text != "Small" ||
+                generationClimate.Text != "Uniform · Dry · Latitude cooling off" ||
+                generationWrapping.Text != "East/west only" || generationSeed.Text != "settings-seed" ||
+                generationSettingsRows.FindChildren("*", "", recursive: true, owned: false)
+                    .Any(control => control is BaseButton or LineEdit or TextEdit or Godot.Range))
+                throw new InvalidOperationException("World generation must display saved choices as read-only text.");
+            Render(generationSample with
+            {
+                WorldId = "other-generation-world",
+                Generation = new OwnerWorldGeneration(new string('s', 120), "Medium", "Balanced", "Temperate", true, false),
+            }, []);
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (generationSize.Text != "Medium" || generationSeed.Text != new string('s', 120) ||
+                generationClimate.Text != "Balanced · Colder toward the poles" || generationWrapping.Text != "Off" ||
+                !Mathf.IsEqualApprox(gameMenuPanel.Size.X, gamePageWidth))
+                throw new InvalidOperationException("Loading another world must replace its generation choices and wrap long seeds within the Settings width.");
+            Render(generationSample with { Generation = null }, []);
+            if (generationSettingsRows.Visible || generationSeed.Text.Length != 0 ||
+                !generationSettingsHint.Text.Contains("not available", StringComparison.Ordinal))
+                throw new InvalidOperationException("A host without generation choices must clear the previous world's values and explain their absence.");
             ShowPauseMenuButtons();
             menuQuitToMainButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!quitToMenuConfirmation.Visible)
@@ -1643,6 +1672,7 @@ public partial class Main
                 throw new InvalidOperationException("The Town panel must not show operator diagnostics such as revisions or digests.");
             RenderTownExtras(sample);
             await VerifyWorldInfoPagesAsync();
+            VerifyAgentCardStyleRetention();
             VerifySeasonalLandscape(sample);
             // Top-bar panels hug their contents, and short text leaves no empty space below it.
             foreach (var panel in new PanelContainer[] { rosterPanel, eventsPanel, worldInfoPanel, filtersPanel, worldOverviewPanel })
@@ -3029,6 +3059,7 @@ public partial class Main
             if (mapObjectVisuals.ContainsKey("building:test-hall")) throw new InvalidOperationException("Removed building marker was retained.");
             await VerifyAgentPosesAsync(sample, founder);
             await VerifyMountainReliefAsync();
+            await VerifyTerrainCacheRefreshAsync();
             await VerifyDesertAndSnowArtAsync();
             VerifyOrchardSaplingAppearance(sample);
             var crowded = sample with
@@ -3744,6 +3775,7 @@ public partial class Main
                     "I hid the garden tools where Rowan cannot see them.", "private")],
                 RecentKnowledgeFacts = [new OwnerWorldKnowledgeFact(2, 7, 9, "Forest", ["wood"],
                     "Mira", "firsthand", null)],
+                KnownRecipes = [new OwnerWorldRecipe(3, "Mill grain", "read", "Rowan")],
                 KnowledgeArtifacts =
                 [
                     new OwnerWorldKnowledgeArtifact("knowledge-artifact-000001", "field_map",
@@ -3752,7 +3784,7 @@ public partial class Main
                          new OwnerWorldKnowledgeSite(8, 9, "River", [], "Mira")]),
                     new OwnerWorldKnowledgeArtifact("knowledge-artifact-000002", "book",
                         "Book · 1 site", 3, "Mira",
-                        [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira")]),
+                        [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira")]) { RecipeNames = ["Mill grain"] },
                 ],
             };
             var historicalSnapshot = sample with
@@ -3800,6 +3832,8 @@ public partial class Main
                 !MemoryCardsText().Contains("I hid the garden tools", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Field map", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Book written by Mira", StringComparison.Ordinal) ||
+                !MemoryCardsText().Contains("Recipe: Mill grain", StringComparison.Ordinal) ||
+                !MemoryCardsText().Contains("Read from Rowan", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Forest at 7, 9", StringComparison.Ordinal) ||
                 ProfilePeopleText().Contains("I hid the garden tools", StringComparison.Ordinal))
                 throw new InvalidOperationException("Historical memories and bounded agent-owned map records must be inspectable separately from public social notes.");
@@ -3822,9 +3856,9 @@ public partial class Main
                     .Any(label => label.Text.Contains("event pop-ups", StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException("Deaths must remain in the Event Log without an event pop-up setting.");
             if (!eventLog.GetParsedText().Contains("finished writing a book.", StringComparison.Ordinal) ||
-                !eventLog.GetParsedText().Contains("learned about places from a written work.", StringComparison.Ordinal) ||
+                !eventLog.GetParsedText().Contains("learned from a written work.", StringComparison.Ordinal) ||
                 DescribeWorldEvent(knownEvents[102], historicalSnapshot) != "Mira finished writing a book." ||
-                DescribeWorldEvent(knownEvents[103], historicalSnapshot) != "Mira learned about places from a written work." ||
+                DescribeWorldEvent(knownEvents[103], historicalSnapshot) != "Mira learned from a written work." ||
                 eventLog.GetParsedText().Contains("knowledge-artifact-", StringComparison.Ordinal))
                 throw new InvalidOperationException("Written-knowledge events must name the writer or actual reader without displaying artifact identifiers.");
             ToggleEvents();

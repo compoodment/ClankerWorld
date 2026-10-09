@@ -469,7 +469,7 @@ public sealed partial class PrivateWorldRuntime
         if (!HasExpansionMaterials(actor, building, costs))
             return ProductionStartResult.Rejected(buildingId, "Bring the expansion materials to the building or carry them to the site.");
         var jobId = $"expansion-{worldSimulation.NextProductionJobSequence:D8}";
-        var completion = WorldTick + BuildingExpansionTicks;
+        var completion = WorldTick + SkilledWorkTicks(actor, SettlementSkillKind.Building, BuildingExpansionTicks);
         IReadOnlyList<string> reservations = [];
         ApplyInventoryTransition(inventory => ReserveExpansionMaterials(inventory, actor, building, costs, jobId, completion, out reservations));
         var job = new BuildingExpansionJob(jobId, buildingId, actor, owner, building.Footprint?.Revision ?? 0,

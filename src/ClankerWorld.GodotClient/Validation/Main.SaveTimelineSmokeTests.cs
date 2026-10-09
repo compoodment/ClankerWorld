@@ -321,20 +321,53 @@ public partial class Main
             if (longLane.Title != longLabel || names.MouseFilter == MouseFilterEnum.Ignore ||
                 names._GetTooltip(new Vector2(40, SaveTimelineRows.LaneY(longLane.Index) - names.ViewTop)) != longLabel)
                 throw new InvalidOperationException("A shortened timeline branch must retain its full recorded name on hover.");
-            void CheckLongTag(Control container)
+            void CheckLongTag(Control container, string expectedLabel)
             {
                 var tag = container.FindChildren("*", nameof(Label), true, false).OfType<Label>()
-                    .Single(label => label.TooltipText == longLabel);
+                    .Single(label => label.TooltipText == expectedLabel);
                 if (!tag.Text.EndsWith("...", StringComparison.Ordinal) || tag.GetCombinedMinimumSize().X > 172 ||
                     tag.MouseFilter == MouseFilterEnum.Ignore || !GetViewportRect().Grow(1).Encloses(manualSaveCard.GetGlobalRect()))
-                    throw new InvalidOperationException($"A long branch tag must fit its card and expose the complete name on hover: tag={tag.GetCombinedMinimumSize()} card={manualSaveCard.GetGlobalRect()} text={tag.Text}.");
+                    throw new InvalidOperationException($"A long branch tag must fit its card and expose the complete name on hover: tag={tag.GetCombinedMinimumSize()} card={manualSaveCard.GetGlobalRect()} view={GetViewportRect()} mouse={tag.MouseFilter} text={tag.Text}.");
+                var visiblePrefix = tag.Text[..^3];
+                var complete = expectedLabel.ToUpperInvariant();
+                var boundaries = System.Globalization.StringInfo.ParseCombiningCharacters(complete);
+                if (!complete.StartsWith(visiblePrefix, StringComparison.Ordinal) ||
+                    !boundaries.Contains(visiblePrefix.Length))
+                    throw new InvalidOperationException("A shortened branch tag must end between complete visible characters.");
             }
-            CheckLongTag(manualSaveDetails);
+            CheckLongTag(manualSaveDetails, longLabel);
             manualSaveViewChoice.Select(1);
             manualSaveViewChoice.EmitSignal(SegmentedChoice.SignalName.ItemSelected, 1L);
             for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            CheckLongTag(manualSaveList);
+            CheckLongTag(manualSaveList, longLabel);
             manualSaveOverlay.Hide();
+
+            // Every origin is a valid eighty-unit name. Render real cards for
+            // supplementary characters, combining marks, flags and joined emoji.
+            foreach (var unicodeName in new[]
+            {
+                string.Concat(Enumerable.Repeat("😀", 40)),
+                string.Concat(Enumerable.Repeat("e\u0301", 40)),
+                string.Concat(Enumerable.Repeat("🇬🇧", 20)),
+                string.Concat(Enumerable.Repeat("👩‍🌾", 16)),
+            })
+            {
+                manualSaveShowsList = false;
+                var unicodeOrigin = flood with { Name = unicodeName };
+                var unicodeWinter = winter with { Branch = second with { StartedFromName = unicodeOrigin.Name } };
+                var unicodeLabel = "From " + unicodeOrigin.Name;
+                await OpenManualSavesAsync(true, _ => Task.FromResult<ManualWorldSave[]>([unicodeOrigin, harvest, unicodeWinter]),
+                    _ => Task.FromResult<SaveTimelinePosition?>(new(winter.Id, second.Id, false)));
+                for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                Click(winter.Id);
+                for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                CheckLongTag(manualSaveDetails, unicodeLabel);
+                manualSaveViewChoice.Select(1);
+                manualSaveViewChoice.EmitSignal(SegmentedChoice.SignalName.ItemSelected, 1L);
+                for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                CheckLongTag(manualSaveList, unicodeLabel);
+                manualSaveOverlay.Hide();
+            }
 
             // Load Save without saves shows only the list's placeholder.
             await OpenManualSavesAsync(true, _ => Task.FromResult<ManualWorldSave[]>([]));

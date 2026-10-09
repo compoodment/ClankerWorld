@@ -19,7 +19,14 @@ public static class PrivateWorldHistory
         ArgumentNullException.ThrowIfNull(state);
         var transport = state.BoatTransport;
         var closed = transport.Requests.Where(request => request.SettledTick is not null).ToArray();
-        var retired = closed.Take(Math.Max(0, closed.Length - RecentBoatRequestLimit)).ToArray();
+        // An order's latest native request remains authority for arrival or
+        // recovery. Older retries and ordinary requests can still be archived.
+        var boundRequests = (state.Instructions ?? [])
+            .Where(instruction => instruction.Order?.Action == "travel_by_boat")
+            .Select(instruction => instruction.Order!.BoatTravel?.RequestId)
+            .OfType<string>().ToHashSet(StringComparer.Ordinal);
+        var retired = closed.Take(Math.Max(0, closed.Length - RecentBoatRequestLimit))
+            .Where(request => !boundRequests.Contains(request.Id)).ToArray();
         if (retired.Length > 0)
         {
             var retiredIds = retired.Select(request => request.Id).ToHashSet(StringComparer.Ordinal);
