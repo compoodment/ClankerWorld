@@ -166,8 +166,8 @@ public sealed partial class PrivateWorldRuntime
                 if (rule is null)
                     candidates.Add(new("parent_decline:" + person.InhabitantId, "Decline the parenthood request.", 70));
                 else if (mayPostpone)
-                    candidates.Add(new("parent_postpone:" + person.InhabitantId, "Say not yet to having a child. While fewer than eight " +
-                        "non-elders are alive you may not refuse; the plan goes ahead when your two days are up.", 70));
+                    candidates.Add(new("parent_postpone:" + person.InhabitantId, $"Say not yet to having a child. While fewer than {ContinuityEligibleCoupleThreshold} eligible adult couples " +
+                        "who are not close relatives are available you may not refuse; the plan goes ahead when your two days are up.", 70));
             }
             else if (rule is null)
             {
@@ -175,8 +175,8 @@ public sealed partial class PrivateWorldRuntime
             }
             else if (mayPostpone)
             {
-                candidates.Add(new("parent_postpone:" + person.InhabitantId, "Put off the child plan for now. While fewer than eight " +
-                    "non-elders are alive you may not refuse; the plan goes ahead when your two days are up.", 110));
+                candidates.Add(new("parent_postpone:" + person.InhabitantId, $"Put off the child plan for now. While fewer than {ContinuityEligibleCoupleThreshold} eligible adult couples " +
+                    "who are not close relatives are available you may not refuse; the plan goes ahead when your two days are up.", 110));
             }
         }
         // A couple held by the continuity rule may start sooner even with an older child, as long as no infant.
@@ -199,7 +199,8 @@ public sealed partial class PrivateWorldRuntime
         {
             candidates.Add(new("parent_propose:" + partner, continuityCouple is null
                 ? "Ask your partner whether to raise a child together. If they agree, they may choose either parent as the primary caregiver and that parent's household as the intended home. Their independent consent is required."
-                : "Ask your partner to start raising a child together now. While fewer than eight non-elders are alive " +
+                : $"Ask your partner to start raising a child together now. While fewer than {ContinuityEligibleCoupleThreshold} eligible adult couples " +
+                    "who are not close relatives are available " +
                     "they may say not yet but not refuse; the plan goes ahead when your two days are up. " +
                     "They may choose either parent as the primary caregiver and that parent's household as the intended home.", 75));
         }
