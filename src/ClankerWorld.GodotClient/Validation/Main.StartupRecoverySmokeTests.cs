@@ -35,9 +35,12 @@ public partial class Main
             ShowMainMenu();
             resumeWorldOnContinue = true;
             host.StartupRecovery = new(true, snapshot.WorldId, save);
+            host.DiskSpace = new("low", 0, 1024L * 1024 * 1024, DateTimeOffset.UtcNow);
             await EnterWorldAsync();
             for (var frame = 0; frame < 3; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            await RefreshSaveDiskSpaceAsync(force: true);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!startupRecoveryCard.IsVisibleInTree() || mainMenuCard.Visible || mainMenuLogo.Visible || isInWorld ||
                 resumeWorldOnContinue || startupRecoveryButton.Disabled ||
                 !startupRecoveryExplanation.Text.Contains("other saves are unchanged", StringComparison.Ordinal) ||
@@ -45,6 +48,9 @@ public partial class Main
                 !startupRecoverySave.Text.Contains("Progress since this autosave", StringComparison.Ordinal) ||
                 Requests(OwnerPairingEndpoints.OwnerReconnect) != 0 || Requests(OwnerPairingEndpoints.OwnerResume) != 0)
                 throw new InvalidOperationException("Recovery must precede world entry, explain the retained files and lost later progress, and offer an explicit autosave choice.");
+            if (!startupRecoveryDiskWarning.IsVisibleInTree() ||
+                !startupRecoveryDiskWarning.Text.Contains("Make room soon", StringComparison.Ordinal))
+                throw new InvalidOperationException("The recovery card must show the installation disk advisory before recovery writes.");
             var bounds = startupRecoveryCard.GetGlobalRect();
             if (!GetViewportRect().Encloses(bounds))
                 throw new InvalidOperationException($"The recovery card must fit the viewport: {bounds}.");
@@ -76,6 +82,7 @@ public partial class Main
             host.StartupRecovery = new(true, snapshot.WorldId, save);
             await CheckStartupRecoveryAsync();
             host.LoseRecoveryReply = true;
+            host.FailDiskSpace = true;
             await RecoverStartupAutosaveAsync();
             if (!startupRecoveryCard.Visible || !startupRecoveryButton.Disabled ||
                 !startupRecoverySave.Text.Contains("Could not confirm recovery", StringComparison.Ordinal))

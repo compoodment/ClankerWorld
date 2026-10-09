@@ -472,8 +472,33 @@ owned cart on that tile. The order keeps that cart even if its location changes;
 an ambiguous tile is not understood. Exact cart identities are also accepted.
 Queue, replacement, cancellation, urgent interruptions and saves retain the
 task. Broken or reserved carts, another attached cart, riding or leading an
-animal, and blocked routes give a reason. Loading, unloading and cart repair
-orders are not supported yet. Once attached, the cart follows normal movement.
+animal, and blocked routes give a reason. Once attached, the cart follows normal movement.
+
+Use **Repair my cart**, **Repair cart at (12, 4)** or **Repair handcart** followed
+by its exact identity to repair one owned worn or broken cart. The agent keeps
+that cart, collects one wood, iron fitting and rope from permitted household
+or Town stock if needed, reaches it and spends the actual carried supplies.
+The repair restores the cart where it stands and preserves its ownership and
+cargo, including damaged cargo.
+Missing supplies, carrying space, reservations, another owner's cart and blocked
+routes explain why the order waits. A healthy cart needs no repair and does not
+finish the task. Queue, cancellation, replacement, urgent interruptions and
+saves keep the target and real progress; cancelling leaves collected supplies
+in the agent's hands.
+
+Use **Load 3 wood into my cart** to put a specific quantity of loose goods into
+an owned cart, or **Unload 2 wood from my cart** to take cargo into personal
+carrying space. Add **onto the ground** to unload onto the cart's tile instead,
+including from a broken cart or for damaged cargo. Each form accepts an exact
+cart identity or **cart at (12, 4)** like attach orders. The agent reaches the
+selected cart; loading uses only authorized goods already accessible there.
+Personally stored goods must be collected first. Filled pots and jugs, goods
+carried by another agent, reserved cargo and
+protected household food cannot bypass their normal rules. Missing goods or
+space show a blocker. Partial progress counts actual items moved, keeps its
+cart and current cargo stack across interruptions and saves, and can continue
+with another eligible stack of the same good once that stack is fully moved.
+Cancelling or replacing an order leaves all transferred cargo where it is.
 
 To mend worn personal equipment, use **Repair my basket**, **Repair two padded
 coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
@@ -906,6 +931,13 @@ after you leave the field. Changing to another server clears the previous
 server's displayed information and unfinished edit.
 
 ## Save and return
+
+If the server's save disk is low on space, a warning stays visible while you
+play and appears in Save World before saving or overwriting. Make room soon;
+saves can fail when the disk fills. The warning is advisory: manual saves,
+autosaves and automatic recovery still try to save. If free space cannot be
+checked, the game says so. The initial warning level is below 1 GiB and may
+change after playtesting.
 
 If the host restarts with a saved state it cannot open, **Recover world**
 appears before you enter the world. It offers the last usable autosave from

@@ -10,6 +10,27 @@ updated: 2026-10-08
 This page owns save implementation and recovery requirements. The
 [player guide](../playing.md#save-and-return) explains the controls;
 [game design](../game-design/saves.md) owns the intended experience.
+
+## Save-space warning
+
+The host samples available free space on the active checkpoint, manual/autosave,
+world-catalog and history-archive volumes every five seconds, resolving existing parent
+directories, symlinks and mounted volumes. The initial advisory level is below
+1 GiB. Any known low volume warns even if another cannot be read; space is
+unknown when a query fails or the sampling batch started at least thirty seconds ago.
+The authenticated `save-disk-status` read returns bounded status and byte
+counts, without filesystem paths. The client polls independently of world
+refreshes and reads again before a manual save or overwrite. A failed status
+read cannot prevent submission. This installation read remains available while a
+world baseline or startup recovery is pending; world mutation controls keep their
+normal readiness guards. The recovery card also reads the advisory before its
+explicit autosave restore.
+
+The monitor owns no world or save lock. No free-space query runs on the
+checkpoint path, and even a stalled query cannot hold up emergency recovery.
+Space is advisory rather than a reservation: a later write can still fail.
+Warnings do not authorize cleanup or deletion, and no warning state enters
+checkpoints, replay events or save metadata. The world schema is unchanged.
 [Releasing](releasing.md) owns version selection and rollback gates.
 
 ## Separate state by ownership
@@ -56,6 +77,15 @@ crafting and repair inputs use the normal exact inventory reservations. Current
 roundtrips retain loaded parked carts and mid-journey hitches; rollback retains
 the previous physical position and every cargo quantity. Earlier alpha saves
 are refused and preserved; no migration is added.
+
+Current cart repair orders retain their stable target and a completion receipt
+in the existing order fields. The receipt binds the instruction, actor, cart
+and native repair tick; reload requires that tick's three exact consumed wood,
+iron-fitting and rope reservations. Real carried supplies, the broken cart's
+cargo and pending order survive reload and refused-tick rollback. Cancellation
+keeps collected goods and creates no unfinished repair reservation. The schema
+version stays unchanged; a build without cart repair orders refuses saves
+containing that action and keeps the original file.
 
 Private-world schema 31 records an agent's learned skills and each lesson's
 skill instead of a work role. Skills retain their first learning time and
@@ -926,7 +956,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 115. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 116. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -1073,6 +1103,7 @@ current alpha cutoff.
 | Schema 98 | Existing inventory events retain exact physical storage additions/removals by building and item kind, with signed quantities. Event identities, trade receipts, rollback and bounded archival remain intact. Malformed changes and earlier alpha schemas are refused; no migration or history reconstruction is added. |
 | Schema 99 | Towns retain the latest abandonment tick independently of bounded events. Revival clears it; missing markers, future or pre-founding ticks, and markers on lived-in Towns are refused. Earlier alpha saves are refused and preserved without migration. |
 | Schema 100 | Actual observations refresh current personal map facts. The required bounded `EarlierFacts` ledger backs unchanged artifacts and writing snapshots; duplicate, orphaned, future and mismatched versions are refused. Native writing, copying, planting, cancellation and current-format continuation retain exact contents and paid materials. Earlier alpha saves are refused and preserved without migration. |
+| Schema 116 | Load/unload cart orders reuse stable cart identities, save the current source lot and specific good, and retain explicit requested/actual item quantities. Native physical transfers enforce access, reservations and space, including broken-cart recovery. Receipts bind cumulative progress to the instruction, actor, cart, good and destination action; strict validation rejects malformed task shapes and receipts. Rollback, partial progress, urgent interruption, cancellation/replacement and paired replay/reload preserve cargo. Earlier alpha saves are refused and preserved without migration. |
 | Schema 114 | Required person-owned recipe accounts and recipe lists on written goods and writing projects retain completed-production evidence, actual read/shared sources and copied provenance. Reading grants no skill. Owner read completions retain sorted actual learned site and recipe identities, bound to their source and effect. Earlier alpha saves are refused and preserved without migration. |
 | Schema 108 | Owner Port-travel orders bind the exact destination Port and latest native boat request. Requests retain their originating instruction; sequential retry and actual destination-arrival receipts are validated. Cancellation preserves underway recovery, and return to departure supplies no completion. Earlier alpha saves are refused and preserved without migration. |
 | Schema 115 | Scouting requires an explicit nullable bounded resource or terrain purpose and optional gathering-order link. Loading checks supported targets and the instruction's owner, action and requested kind. Native discovery hands back only to a usable task without awarding harvest credit; return, abort and cancellation retain their existing rules. Purpose, knowledge, orders and actual movement continue across strict reload and replay. Earlier alpha saves are refused and preserved without migration. |
