@@ -786,10 +786,17 @@ questions together. Reply bodies are bounded; timeout, cancellation and sanitize
 call telemetry use the existing provider boundary. Changing the helper or model
 while paused advances its routing revision and cancels pending work. Late replies
 cannot alter actions or memory scores. An explicitly selected helper handles
-eligible adult routine choices; personal assignments stay available for planning,
-guidance and identity. Children still require their own explicit personal model.
-Before the first explicit helper selection, existing installation routing and
-its configured Jev model remain effective. Applying the displayed default Jev
+adult and elder routine choices, including those of world-born residents, and
+scores only that actor's own memories. Infant, child and adolescent observations
+never route to a helper. Personal assignments still handle planning, guidance,
+naming, identity, conversations and wills. Birth provenance continues to forbid
+paid world-default inheritance for personal requests throughout life; helper-off
+routine requests use the saved personal assignment or local rules. The runtime
+uses the current society age band for memory eligibility, and observations
+already include the life stage in their admission digest. No save fields change.
+Before the first explicit helper selection, existing founder installation
+routing and its configured Jev model remain effective; known world-born adults
+can also use the enabled helper. Applying the displayed default Jev
 choice also activates explicit helper routing; repeating it afterward is a no-op.
 
 The Decisions picker starts with `gpt-6-luna` and permits typed model names.
@@ -2301,6 +2308,10 @@ and the source-to-shop route before selecting household or permitted Town
 Warehouse stock. An occupied earlier lot does not hide later reachable stock.
 The same selection is repeated when hauling or planning a supply order; exact
 lot/item targets, carrying limits and receiving-space checks still apply.
+Stock suppresses Blacksmith gathering only when the current delivery selector
+can use it with cargo room, receiving space and the required routes. This also
+applies to ore mining, harvest preparation and supply orders. Disconnected stock
+keeps its owner and position while the adult gathers reachable local inputs.
 
 If an unpaid household recipe remains blocked for 60 ticks and no household
 member has an actionable way to supply its missing ingredients, the runtime

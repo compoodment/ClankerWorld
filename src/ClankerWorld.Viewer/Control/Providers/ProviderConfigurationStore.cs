@@ -1480,6 +1480,13 @@ public sealed partial class ConfigurableDecisionProvider(
     {
         var helper = policy.Helper;
         var routine = IsRoutine(observation);
+        var helperEligible = observation.Self?.LifeStage is "Adult" or "Elder" ||
+            (observation.Self is null && !observation.RequiresPersonalProvider);
+        // Birth provenance protects personal requests throughout life. It does
+        // not exclude a grown resident from the shared routine helper.
+        if (routine && helperEligible && helper.Provider != "off" &&
+            (helper.Provider == "decisions" || policy.Revision > 0 || observation.RequiresPersonalProvider))
+            return (helper.Provider, null);
         var role = routine ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole;
         var assigned = AssignmentFor(configuration, observation.InhabitantId, role);
         if (assigned?.Provider == PlayerDecisionProviders.Inherit)
@@ -1488,25 +1495,20 @@ public sealed partial class ConfigurableDecisionProvider(
                 return (PlayerDecisionProviders.Deterministic, assigned);
             assigned = null;
         }
-        // Children born in this world never inherit a potentially billable
-        // world default. Their own explicit assignment is the only route to a
-        // personal model after infancy; until then they use local safe choices.
+        // World-born residents never inherit a potentially billable world
+        // default for personal requests. Their explicit assignment remains
+        // the route to their own model, including after they grow up.
         if (observation.RequiresPersonalProvider && assigned is null)
             return (PlayerDecisionProviders.Deterministic, null);
         if (observation.RequiresPersonalProvider && assigned?.SelectionReason is not null &&
             !HasUsableCredential(configuration, assigned))
             return (PlayerDecisionProviders.Deterministic, null);
-        // An explicit world helper handles eligible adult routine choices while
-        // personal assignments remain available for planning, guidance and identity.
-        // The initial policy retains the installation's existing Jev routing.
-        if (routine && !observation.RequiresPersonalProvider && helper.Provider != "off" &&
-            (helper.Provider == "decisions" || policy.Revision > 0)) return (helper.Provider, null);
         var provider = assigned?.Provider ?? (routine ? configuration.RoutineProvider : configuration.PlanningProvider);
         if (observation.RequiresPersonalProvider && provider == PlayerDecisionProviders.Jev)
             return (PlayerDecisionProviders.Deterministic, null);
-        if (routine && provider == PlayerDecisionProviders.Jev && helper.Provider != "off")
+        if (routine && helperEligible && provider == PlayerDecisionProviders.Jev && helper.Provider != "off")
             return (helper.Provider, null);
-        if (routine && provider == PlayerDecisionProviders.Jev && helper.Provider == "off")
+        if (routine && provider == PlayerDecisionProviders.Jev && (helper.Provider == "off" || !helperEligible))
         {
             // Jev is a world-level helper, never a requirement for an agent to
             // continue. Prefer this agent's personal planner, then the world
@@ -1534,6 +1536,7 @@ public sealed partial class ConfigurableDecisionProvider(
 
     private static bool IsRoutine(InhabitantObservation observation) =>
         observation.ObserverGuidance is not { Count: > 0 } &&
+        !observation.NeedsName && !observation.IsNameRetry &&
         !observation.NeedsPersonality && !observation.NeedsAspiration &&
         observation.Candidates.All(candidate => RoutineCandidateIds.Contains(candidate.Id) || candidate.Id.StartsWith("care:", StringComparison.Ordinal));
 

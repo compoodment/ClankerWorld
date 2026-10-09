@@ -130,7 +130,10 @@ check and the listed model names have been tested against recorded sample
 replies, not yet against live provider accounts. A paused world's routine
 helper can be Off, Jev or OpenAI Decisions, with its own model picker. Decisions
 uses a saved OpenAI key and handles the same routine choices and owner-private
-memory scoring as Jev. Switching cancels pending work and preserves memories.
+memory scoring as Jev. Both helpers serve adults and elders, including people
+born in the world. Children keep their own model; conversations, identity,
+wills and planning use the agent's personal model throughout life. Switching
+cancels pending work and preserves memories.
 The Decisions integration is checked against the published API contract and
 sample replies; the live-account Windows check is still [pending](../playtest/magical-heisenberg-mwvofv-routine-helper.md).
 When a personal model names a new agent, it gets a stable first-letter hint to
@@ -165,7 +168,10 @@ have no explicit model remain unconfigured; world defaults are not inherited.
 The owner can later choose a different personal model or explicitly clear it;
 that setting is saved, and a cleared child continues with built-in choices.
 This setup supports long valid world seeds and recovers saved newborns whose
-provider setup was interrupted.
+provider setup was interrupted. Once the child becomes an adult, the world's
+selected routine helper can handle routine choices and score that adult's own
+memories. Turning the helper off restores the personal model or built-in
+choices; it does not inherit a paid world default.
 
 Personal models choose from legal actions. Each request gives the agent's
 name, life stage, personality, aspiration, household, hunger, and warmth and
