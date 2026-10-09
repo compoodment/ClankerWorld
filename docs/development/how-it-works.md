@@ -1356,6 +1356,11 @@ so each can be checked on its own
    35% tree chance; meadows have a 2% chance. Seeded ranking spreads trees
    through any chunk that reaches its budget instead of filling one edge.
 
+The running world places starter clay on unoccupied, reachable buildable dry
+ground beside a river or lake. A rocky mountain shore can be walkable but is
+not a valid clay resource site. If no valid bank exists, the runtime records
+`settlement_resource_blocked` for clay and keeps advancing and saving.
+
 Generated sites use at most 1,016 of a chunk's 1,024 resource slots; the validated
 configuration ceiling is 2,048. The remaining eight slots stay
 free for sites the running world adds, such as the three settlement sites
