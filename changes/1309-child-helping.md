@@ -1,0 +1,1 @@
+- Children can gather nearby wild food and fallen wood and carry small household food or wood loads home, with physical travel, storage and carrying limits. Infants remain inactive.
