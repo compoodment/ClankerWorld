@@ -26,6 +26,30 @@ public partial class Main
         await KeyboardKeyAsync(Key.Enter);
     }
 
+    private async Task VerifyKeyboardScrollAsync(ScrollContainer scroll, Control? panel = null, Window? window = null)
+    {
+        for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        var bar = scroll.GetVScrollBar();
+        if (!bar.IsVisibleInTree() || bar.MaxValue <= bar.Page)
+            throw new InvalidOperationException("Keyboard scrolling requires an overflowing actual reader.");
+        Control? FocusOwner() => window?.GuiGetFocusOwner() ?? GetViewport().GuiGetFocusOwner();
+        var limit = panel is null ? 32 : KeyboardControls(panel).Length + 2;
+        for (var step = 0; FocusOwner() != bar && step < limit; step++) await KeyboardKeyAsync(Key.Tab);
+        if (FocusOwner() != bar)
+            throw new InvalidOperationException("Tab must reach a plain reader's scrollbar, including native dialogs.");
+        if (bar.GetThemeStylebox("scroll_focus") is not StyleBoxFlat { BorderWidthLeft: > 0 })
+            throw new InvalidOperationException("A plain reader's keyboard focus must have a visible outline.");
+        await KeyboardKeyAsync(Key.Home);
+        var before = scroll.ScrollVertical;
+        await KeyboardKeyAsync(Key.Down);
+        if (scroll.ScrollVertical <= before)
+            throw new InvalidOperationException("Down must scroll the plain reader even when its continuous pointer step is zero.");
+        var afterDown = scroll.ScrollVertical;
+        await KeyboardKeyAsync(Key.Up);
+        if (scroll.ScrollVertical >= afterDown)
+            throw new InvalidOperationException("Up must scroll the plain reader back.");
+    }
+
     private async Task WithKeyboardOwnerAsync(Func<Task> check)
     {
         var previousRegistration = registration;
@@ -185,6 +209,18 @@ public partial class Main
                     await KeyboardKeyAsync(camera.Y < terrainMap!.Height - 1 ? Key.Down : Key.Up);
                     if (cameraCenterTiles == camera)
                         throw new InvalidOperationException("Focused World Map arrows must move the camera.");
+                }
+                if (key == Key.E)
+                {
+                    var longHistory = new Label { Text = string.Join('\n', Enumerable.Range(0, 120).Select(index => $"Recorded event {index}")) };
+                    eventRows.AddChild(longHistory);
+                    try { await VerifyKeyboardScrollAsync(eventScroll, eventsPanel); }
+                    finally
+                    {
+                        eventRows.RemoveChild(longHistory);
+                        longHistory.QueueFree();
+                        eventScroll.ScrollVertical = 0;
+                    }
                 }
                 if (key == Key.F12)
                 {

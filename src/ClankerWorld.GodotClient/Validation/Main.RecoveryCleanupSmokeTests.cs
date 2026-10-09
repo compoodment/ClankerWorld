@@ -49,6 +49,15 @@ public partial class Main
                 throw new InvalidOperationException("Cleanup must preview exact removed and kept copies before confirmation.");
             if (isOwnerAction && !recoveryCleanupConfirmation.GetOkButton().Disabled)
                 throw new InvalidOperationException("Cleanup confirmation must wait until its preview action finishes.");
+            var previewText = recoveryCleanupSummary.Text;
+            recoveryCleanupSummary.Text += "\n" + string.Join('\n', Enumerable.Range(0, 120).Select(index => $"Recovery copy {index}"));
+            var previewScroll = recoveryCleanupConfirmation.GetChildren().OfType<ScrollContainer>().Single();
+            try { await VerifyKeyboardScrollAsync(previewScroll, window: recoveryCleanupConfirmation); }
+            finally
+            {
+                recoveryCleanupSummary.Text = previewText;
+                previewScroll.ScrollVertical = 0;
+            }
             recoveryCleanupConfirmation.EmitSignal(ConfirmationDialog.SignalName.Canceled);
             recoveryCleanupConfirmation.Hide();
             await CleanConfirmedRecoveryHistoryAsync();

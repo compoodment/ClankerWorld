@@ -11,7 +11,16 @@ public partial class Main
     private void BuildKeyboardNavigation()
     {
         foreach (var scroll in FindChildren("*", nameof(ScrollContainer), recursive: true, owned: false).OfType<ScrollContainer>())
+        {
             scroll.FocusMode = FocusModeEnum.All;
+            foreach (var bar in new ScrollBar[] { scroll.GetVScrollBar(), scroll.GetHScrollBar() })
+            {
+                bar.FocusMode = FocusModeEnum.All;
+                // ScrollContainer uses Step=0 for smooth pointer scrolling.
+                // Give arrows a separate increment without quantizing dragging.
+                if (bar.Step <= 0 && bar.CustomStep <= 0) bar.CustomStep = 16;
+            }
+        }
         foreach (var panel in new Control[]
         {
             mainMenuOverlay, gameMenuPanel, settingsPanel, modLibraryPanel, worldMenuOverlay, manualSaveOverlay,
