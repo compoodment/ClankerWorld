@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # What works today
@@ -1439,6 +1439,9 @@ between regions yet.
 Grass and tree canopies use the approved seasonal colours: brighter in spring,
 base colours in summer, warmer in autumn and desaturated in winter. Existing
 snow follows the world state; changing season adds no snow by itself.
+
+The Event Log names buildings and recipes when construction or crafting starts
+or finishes, including older recorded work.
 
 The map uses the pixel art approved in the October 1 art review: every ground
 type, with mountains, peaks and hills drawn from the world's elevation as one

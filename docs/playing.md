@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Playing the current game
@@ -575,7 +575,8 @@ in the morning; loading a saved world keeps its recorded time.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
-heading for each day, each with an icon for its kind. An event with a known
+heading for each day, each with an icon for its kind. Building and crafting
+entries name the building or recipe, including older recorded work. An event with a known
 location has a **Find** button that moves the camera there. The log grows to
 fit wrapped text and day headings until it reaches the bottom of the screen,
 then scrolls. It adjusts when the window changes size. Opening the log
