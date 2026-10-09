@@ -36,13 +36,18 @@ public sealed class NoLegalBuildingSiteTests
         var initial = setup.ExportState();
         var author = setup.Towns[0].ResidentIds[0];
         var provider = new LandRouteProvider(author, action, definition.CanonicalId);
-        using var world = PrivateWorldRuntime.Restore(initial, _ => provider);
-        for (var tick = 0; tick < 40 && (action == "request_land_use"
+        using var world = PrivateWorldRuntime.Restore(initial with
+        {
+            Inhabitants = initial.Inhabitants.Select(person => person with { Position = initial.Towns![0].OriginSite!.Value }).ToArray(),
+        }, _ => provider);
+        world.SubmitInstruction(new OwnerInstructionRequest("consider-building-land", "owner:test", author,
+            OwnerInstructionKind.Suggestive, "Consider a land request for the household building."));
+        for (var tick = 0; tick < 10 && (action == "request_land_use"
                  ? world.HouseholdLandUseRequests.Count == 0
                  : world.Towns[0].Governance!.Proposals.All(item => item.Kind != "land_claim")); tick++)
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
 
-        Assert.NotNull(provider.Description);
+        Assert.True(provider.Description is not null, provider.LastObservation);
         Assert.Equal(blocked, provider.Description.StartsWith("No legal building site is available for Land test clinic.", StringComparison.Ordinal));
         Assert.Equal(!blocked, provider.BuildingSiteOffered);
         Assert.Contains("nearest you:", provider.Description, StringComparison.Ordinal);
@@ -73,12 +78,16 @@ public sealed class NoLegalBuildingSiteTests
     {
         public string? Description { get; private set; }
         public bool BuildingSiteOffered { get; private set; }
+        public string? LastObservation { get; private set; }
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 1;
 
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
             var o = request.Observation;
+            if (o.InhabitantId == author)
+                LastObservation = System.Text.Json.JsonSerializer.Serialize(o.Self) + "\n" +
+                    string.Join("\n", o.Candidates.Select(item => item.Id + ": " + item.Description));
             var choice = o.InhabitantId == author && Description is null
                 ? o.Candidates.FirstOrDefault(item => item.Id.Contains("|" + action + "|", StringComparison.Ordinal)) : null;
             var selected = choice ?? o.Candidates.Single(item => item.Id == "safe_idle");
