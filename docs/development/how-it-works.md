@@ -624,6 +624,10 @@ pending, including across reload. A recognized new order replaces outstanding
 orders unless `Queue` is true; queued orders run in submission order. Cancel
 retains an idempotent receipt, including a no-op cancellation of a closed order.
 Receipt-only owner changes supersede a concurrently prepared tick too.
+Cancellation matches the complete native inhabitant identity to its saved order,
+including agents born in the world. The 128-character bounds apply to caller
+keys, issuer, world and order IDs, not native target identities; control
+characters are refused in every cancellation identity.
 Suggestions do not block orders. A suggestion completes only after the
 addressed personal model accepts a request containing it; local choices and
 provider failures do not claim it was heard.
