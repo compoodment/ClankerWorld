@@ -1107,26 +1107,26 @@ public sealed partial class ConfigurableDecisionProvider(
 
         const string instructions = "Speak as one agent in a bounded shared conversation. Use only your own identity plus the public history included below. Never claim the other person agreed. Do not invent events, private thoughts, promises, ownership, resources or world changes. Return JSON only with utterance (one line, at most 500 characters), disposition (continue or withdraw), and effect (one of allowed_effects). Mutual trust and marriage are proposals only: both people must separately accept the same wrap-up. For surname_choice, marriage consent already exists: include surname_choice, exactly one of allowed_surnames, and effect none. Each partner has at most two alternating valid turns; continued disagreement after four turns uses a disclosed seeded draw. A withdrawal suspends that surname session without counting a turn. Do not include reasoning.";
         var input = JsonSerializer.Serialize(new
-                    {
-                        purpose = purposeWire,
-                        speaker = new
-                        {
-                            id = request.SpeakerId,
-                            name = request.SpeakerName,
-                            personality = request.SpeakerPersonality,
-                            aspiration = request.SpeakerAspiration,
-                        },
-                        other_participant = new { id = request.OtherParticipantId, name = request.OtherParticipantName },
-                        public_history = request.PublicHistory.Select(turn => new
-                        {
-                            speaker_id = turn.SpeakerId,
-                            utterance = turn.Text,
-                            is_wrap_up = turn.IsWrapUp,
-                            surname_choice = turn.SurnameChoice,
-                        }).ToArray(),
-                        allowed_effects = request.AllowedEffects.Select(EffectWireValue).ToArray(),
-                        allowed_surnames = request.AllowedSurnames,
-                    }, ConversationJsonOptions);
+        {
+            purpose = purposeWire,
+            speaker = new
+            {
+                id = request.SpeakerId,
+                name = request.SpeakerName,
+                personality = request.SpeakerPersonality,
+                aspiration = request.SpeakerAspiration,
+            },
+            other_participant = new { id = request.OtherParticipantId, name = request.OtherParticipantName },
+            public_history = request.PublicHistory.Select(turn => new
+            {
+                speaker_id = turn.SpeakerId,
+                utterance = turn.Text,
+                is_wrap_up = turn.IsWrapUp,
+                surname_choice = turn.SurnameChoice,
+            }).ToArray(),
+            allowed_effects = request.AllowedEffects.Select(EffectWireValue).ToArray(),
+            allowed_surnames = request.AllowedSurnames,
+        }, ConversationJsonOptions);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(ConversationTimeout);
 

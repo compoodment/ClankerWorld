@@ -1237,8 +1237,10 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         identity_moment = request.Observation.IdentityMoment,
                         self = request.Observation.Self is { } self ? new
                         {
-                            name = self.Name, life_stage = self.LifeStage,
-                            personality = self.Personality, aspiration = self.Aspiration,
+                            name = self.Name,
+                            life_stage = self.LifeStage,
+                            personality = self.Personality,
+                            aspiration = self.Aspiration,
                             household = self.HouseholdName,
                             town = self.TownName,
                             town_membership = self.TownMembershipNote,
@@ -1366,8 +1368,10 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                     agent_id = request.Observation.InhabitantId,
                     self = request.Observation.Self is { } self ? new
                     {
-                        name = self.Name, life_stage = self.LifeStage,
-                        personality = self.Personality, aspiration = self.Aspiration,
+                        name = self.Name,
+                        life_stage = self.LifeStage,
+                        personality = self.Personality,
+                        aspiration = self.Aspiration,
                         household = self.HouseholdName,
                         town = self.TownName,
                     } : null,
