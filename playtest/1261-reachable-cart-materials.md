@@ -1,0 +1,1 @@
+- [ ] With a household Blacksmith, four reachable wood and one rope, keep the only two household iron fittings on disconnected land. Check that an adult does not collect wood for a handcart or refuse ordinary wood deliveries for that incomplete set. Move the fittings to reachable household stock and check that handcart collection and crafting still work after saving and loading.

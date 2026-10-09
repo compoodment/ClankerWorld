@@ -47,7 +47,7 @@ public sealed partial class PrivateWorldRuntime
                 job.State == WorldProductionJobState.Running))
             return null;
         var shortfall = recipe.Inputs.Select(input => (Kind: input.ResourceId, Missing: input.Amount -
-                CarriedMaterialQuantity(actor, input.ResourceId) - HouseholdMaterialQuantity(household, input.ResourceId)))
+                CarriedMaterialQuantity(actor, input.ResourceId) - HouseholdMaterialQuantity(actor, household, input.ResourceId)))
             .Where(item => item.Missing > 0).ToArray();
         // Town Warehouse stock needs a route, so it is counted last: first without routes, then one route per Warehouse.
         return shortfall.All(item => WarehouseStockLots(actor, item.Kind).Sum(AvailableLotQuantity) >= item.Missing) &&
@@ -58,8 +58,9 @@ public sealed partial class PrivateWorldRuntime
         .Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) && lot.OwnerId == actor && lot.ItemKind == kind)
         .Sum(AvailableLotQuantity);
 
-    private int HouseholdMaterialQuantity(string household, string kind) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == household && lot.CarrierId is null && lot.ContainerLotId is null && lot.ItemKind == kind)
+    private int HouseholdMaterialQuantity(string actor, string household, string kind) => society.Checkpoint.Inventory.Lots
+        .Where(lot => lot.OwnerId == household && lot.CarrierId is null && lot.ContainerLotId is null && lot.ItemKind == kind &&
+            AvailableLotQuantity(lot) > 0 && CanReachSharedItem(actor, lot))
         .Sum(AvailableLotQuantity);
 
     private bool ReachableWarehouseStockCovers(string actor, string kind, int missing)

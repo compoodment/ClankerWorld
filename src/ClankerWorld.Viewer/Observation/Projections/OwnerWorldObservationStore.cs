@@ -71,6 +71,9 @@ public sealed partial class OwnerWorldObservationStore
             .Concat(state.Society.Society.Households.Select(household => (Id: household.Id, Name: household.Name)))
             .Concat((state.Towns ?? []).Select(other => (Id: other.Id, Name: other.Name)))
             .Concat((state.WorldContent?.Buildings ?? []).Select(building => (Id: building.CanonicalId, Name: building.DisplayName)))
+            .Concat((state.WorldSimulation?.Buildings ?? []).Select(building => (Id: building.InstanceId,
+                Name: (state.WorldContent?.Buildings.FirstOrDefault(definition => definition.CanonicalId == building.DefinitionId)?.DisplayName ?? "Building") +
+                    " at (" + building.Position.X + ", " + building.Position.Y + ")")))
             .OrderByDescending(item => item.Id.Length).ToArray();
         string Readable(string text)
         {
@@ -148,6 +151,18 @@ public sealed partial class OwnerWorldObservationStore
                         request.Status, request.AssessedBy is { } adjudicator ? Judge(adjudicator) : null,
                         request.AssessedTick, request.Assessment is { } assessment ? Readable(assessment) : null)).ToArray())
                 {
+                    PropertyDetails = item.Property is { } property ? new[]
+                    {
+                        "Property: " + Readable(property.Request.BuildingId) + ". Shared goods: " +
+                            (property.Snapshots[^1].SharedLots.Count == 0 ? "none" : string.Join(", ", property.Snapshots[^1].SharedLots
+                                .GroupBy(lot => lot.ItemKind).Select(group => group.Sum(lot => lot.Quantity) + " " + group.Key.Replace('_', ' ')))) + ".",
+                        "Property consent is separate from answering or waiving a response. Personal goods retain their owners."
+                    }.Concat(TownPropertyRules.RequiredConsent(property.Snapshots[^1]).Select(actor =>
+                        AgentName(actor) + ": " + (property.Consents.LastOrDefault(consent => consent.Revision == property.Snapshots[^1].Revision && consent.AgentId == actor) is { } consent
+                            ? consent.Agreed ? "personally agreed to this property transfer" : "refused this property transfer" : "has not agreed to this property transfer") + "."))
+                        .Concat(property.Transfer is { } transfer ? new[] { "At the ruling, this property passed to " +
+                            (property.Request.TargetHouseholdId is { } recipient ? HouseholdName(recipient) : town.Name) + "." } : [])
+                        .ToArray() : [],
                     CurrentParties = item.Status == "pending" ? TownLandCasePartyRules.CurrentParties(town, revision.Tiles,
                         state.HouseholdLandUseRights ?? [], state.HouseholdLandUseRequests ?? [], state.Society.Society.Inhabitants,
                         state.Society.Society.WorldTick, item).Select(party => Party(party, aware)).ToArray() : [],
@@ -654,6 +669,10 @@ public sealed partial class OwnerWorldObservationStore
                 .Select(group => new ViewerGroundStock(new(group.Key.Position.X, group.Key.Position.Y), group.Key.OwnerId,
                     group.Key.ItemKind, group.Sum(lot => lot.Quantity))).ToArray(),
             WrapsEastWest = state.Geography?.WrapEastWest == true,
+            Generation = state.Geography is { } geography
+                ? new ViewerWorldGeneration(geography.Seed, geography.Size.ToString(), geography.ClimateMode.ToString(),
+                    geography.SelectedClimate.ToString(), geography.LatitudeCooling, geography.WrapEastWest)
+                : null,
             LastTickMilliseconds = diagnostics.LastTickMilliseconds,
             Inhabitants = activeInhabitants
                 .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]) with
@@ -666,9 +685,14 @@ public sealed partial class OwnerWorldObservationStore
                 .OrderBy(inhabitant => inhabitant.Id, StringComparer.Ordinal)
                 .ToArray(),
             Conversations = (state.Conversations ?? [])
+                .Where(conversation => conversation.Status != AgentConversationStatus.Closed)
+                .Concat((state.Conversations ?? [])
+                    .Where(conversation => conversation.Status == AgentConversationStatus.Closed)
+                    .OrderByDescending(conversation => conversation.LastUpdatedTick)
+                    .ThenBy(conversation => conversation.Id, StringComparer.Ordinal)
+                    .Take(16))
                 .OrderByDescending(conversation => conversation.LastUpdatedTick)
                 .ThenBy(conversation => conversation.Id, StringComparer.Ordinal)
-                .Take(16)
                 .Select(conversation => new ViewerConversation(
                     conversation.Id,
                     conversation.InitiatorId,
@@ -843,7 +867,11 @@ public sealed partial class OwnerWorldObservationStore
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
                         order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind, order.TargetEquipmentKind, order.TargetCropKind,
                         order.TargetOutputKind, order.TargetItemKind, order.TargetBuildingKind, order.TargetAnimalId,
-                        order.TargetKnowledgeKind) : null))
+                        order.TargetKnowledgeKind, order.TargetCartLotId,
+                        order.TalkConversationId,
+                        (state.Conversations ?? []).FirstOrDefault(item => item.Id == order.TalkConversationId) is { } talk
+                            ? ConversationStatus(talk.Status) : order.TalkOutcome is not null ? "closed" : null,
+                        order.TalkOutcome, order.TargetKnowledgeArtifactId) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -1251,7 +1279,8 @@ public sealed partial class OwnerWorldObservationStore
             IsDraft: false)
         {
             PublicIntention = runtime?.CurrentIntention is { } publicIntention
-                ? ToPublicIntention(publicIntention.CandidateId, publicIntention.Provider.ToString().ToLowerInvariant(), publicIntention.WorldTick)
+                ? ToPublicIntention(publicIntention.CandidateId, publicIntention.Provider.ToString().ToLowerInvariant(), publicIntention.WorldTick,
+                    OrderExplorationPurpose(state, physical))
                 : null,
             Relationships = RelationshipsFor(state, inhabitant.Id),
             RecentPrivateThoughts = (physical.RecentThoughts ?? [])
@@ -1259,6 +1288,7 @@ public sealed partial class OwnerWorldObservationStore
             RecentMemories = MemoriesFor(state, inhabitant.Id),
             RecentBeliefs = BeliefsFor(state, inhabitant.Id),
             RecentKnowledgeFacts = KnowledgeFactsFor(state, inhabitant.Id),
+            KnownRecipes = RecipesFor(state, inhabitant.Id),
             KnowledgeArtifacts = KnowledgeArtifactsFor(state, inhabitant.Id),
             Project = physical.Project is { } project
                 ? new ViewerProject(project.Label, project.Stage, project.WorkDone, 10, project.Blocker, project.StartedTick)
@@ -1511,6 +1541,7 @@ public sealed partial class OwnerWorldObservationStore
             RecentMemories = MemoriesFor(state, inhabitant.Id),
             RecentBeliefs = BeliefsFor(state, inhabitant.Id),
             RecentKnowledgeFacts = KnowledgeFactsFor(state, inhabitant.Id),
+            KnownRecipes = RecipesFor(state, inhabitant.Id),
             KnowledgeArtifacts = KnowledgeArtifactsFor(state, inhabitant.Id),
             Proficiency = lastPhysical.Proficiency is { } practice
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
@@ -1541,7 +1572,8 @@ public sealed partial class OwnerWorldObservationStore
     }
 
     private static ViewerAgentMemory[] MemoriesFor(PrivateWorldRuntimeState state, string ownerId) =>
-        state.Society.Society.Memories
+        (state.Society.Society.GetInhabitant(ownerId).Status == SocietyInhabitantStatus.Dead
+            ? state.Society.Society.AllMemories() : state.Society.Society.Memories)
             .Where(memory => memory.OwnerId == ownerId && memory.TombstonedTick is null)
             .OrderByDescending(memory => memory.SourceTick)
             .ThenBy(memory => memory.Id, StringComparer.Ordinal)
@@ -1555,7 +1587,8 @@ public sealed partial class OwnerWorldObservationStore
             .ToArray();
 
     private static ViewerAgentBelief[] BeliefsFor(PrivateWorldRuntimeState state, string ownerId) =>
-        (state.Society.Society.Beliefs ?? [])
+        (state.Society.Society.GetInhabitant(ownerId).Status == SocietyInhabitantStatus.Dead
+            ? state.Society.Society.AllBeliefs() : state.Society.Society.Beliefs ?? [])
             .Where(belief => belief.OwnerId == ownerId)
             .OrderByDescending(belief => belief.FormedTick)
             .ThenBy(belief => belief.Id, StringComparer.Ordinal)
@@ -1594,6 +1627,13 @@ public sealed partial class OwnerWorldObservationStore
             .ToArray();
     }
 
+    private static ViewerAgentRecipe[] RecipesFor(PrivateWorldRuntimeState state, string ownerId) =>
+        (state.Knowledge?.Recipes ?? []).Where(item => item.OwnerId == ownerId)
+            .OrderByDescending(item => item.LearnedTick).ThenBy(item => item.RecipeId, StringComparer.Ordinal).Take(16)
+            .Select(item => new ViewerAgentRecipe(item.LearnedTick,
+                state.WorldContent!.Recipes.Single(recipe => recipe.CanonicalId == item.RecipeId).DisplayName, item.Acquisition,
+                item.SourceAgentId is { } source ? state.Society.Society.GetInhabitant(source).Name : null)).ToArray();
+
     private static ViewerAgentKnowledgeArtifact[] KnowledgeArtifactsFor(PrivateWorldRuntimeState state, string ownerId)
     {
         var names = state.Society.Society.Inhabitants.ToDictionary(item => item.Id, item => item.Name, StringComparer.Ordinal);
@@ -1614,7 +1654,10 @@ public sealed partial class OwnerWorldObservationStore
                     fact.Position.Y,
                     fact.Terrain,
                     fact.ResourceKinds,
-                    names.GetValueOrDefault(fact.DiscovererId, fact.DiscovererId))).ToArray()))
+                    names.GetValueOrDefault(fact.DiscovererId, fact.DiscovererId))).ToArray())
+            {
+                RecipeNames = artifact.Recipes.Select(item => state.WorldContent!.Recipes.Single(recipe => recipe.CanonicalId == item.RecipeId).DisplayName).ToArray(),
+            })
             .ToArray();
     }
 
@@ -1662,12 +1705,33 @@ public sealed partial class OwnerWorldObservationStore
         state.Marriages.Where(marriage => AgentMarriageRules.HasParticipant(marriage, agentId))
             .Select(marriage => AgentMarriageRules.Note(marriage, agentId, state.Society.Society));
 
+    private static string? OrderExplorationPurpose(PrivateWorldRuntimeState state,
+        PlaytestInhabitantState physical)
+    {
+        if (physical.Exploration is not
+            { Returning: false, OutingPath.Count: > 0, Goal: { Kind: "resource", OrderInstructionId: { } id } goal } exploration ||
+            exploration.OutingPath[^1] != physical.Position)
+            return null;
+        var instruction = (state.Instructions ?? []).Where(item =>
+                item.TargetInhabitantId == physical.InhabitantId && item.Kind == OwnerInstructionKind.MustDo &&
+                item.Order is { Status: "queued" or "waiting" or "doing" or "interrupted" or "blocked" } &&
+                !(state.CompletedInstructionIds ?? []).Contains(item.InstructionId, StringComparer.Ordinal))
+            .OrderBy(item => item.SubmissionSequence).FirstOrDefault();
+        if (instruction is null || instruction.InstructionId != id || instruction.Order is not
+            { Status: "doing", TargetResourceId: null, TargetPosition: null } order)
+            return null;
+        var target = order.Action == "gather_material" ? order.TargetMaterialKind
+            : order.Action is "seek_food" or "harvest_food" ? order.TargetFoodKind ?? "food" : null;
+        return goal.Target == target ? "looking for " + goal.Target.Replace('_', ' ') : null;
+    }
+
     private static ViewerPublicIntention ToPublicIntention(
         string candidateId,
         string provider,
-        long worldTick) => new(
+        long worldTick,
+        string? purposeSummary = null) => new(
         candidateId,
-        PublicIntentionSummary(candidateId),
+        purposeSummary ?? PublicIntentionSummary(candidateId),
         provider,
         worldTick);
 
@@ -1675,6 +1739,7 @@ public sealed partial class OwnerWorldObservationStore
     {
         "seek_food" => "looking for food",
         "move_to" => "walking to the ordered tile",
+        "boat_order" => "traveling to the ordered Port by boat",
         "harvest_food" => "gathering food",
         "gather_material" => "gathering the ordered material",
         "work_field" => "working on a household field",
@@ -1688,6 +1753,10 @@ public sealed partial class OwnerWorldObservationStore
         "inspect_material_site" => "checking the ordered material site",
         "consume_food" => "eating carried food",
         "safe_idle" => "keeping a safe routine",
+        _ when candidateId.StartsWith("explore_for:resource:", StringComparison.Ordinal) =>
+            "looking for " + candidateId["explore_for:resource:".Length..].Replace('_', ' '),
+        _ when candidateId.StartsWith("explore_for:terrain:", StringComparison.Ordinal) =>
+            "looking for " + candidateId["explore_for:terrain:".Length..].ToLowerInvariant() + " terrain",
         _ when candidateId.StartsWith("guardian_relocate:", StringComparison.Ordinal) => "bringing a child home",
         _ when candidateId.StartsWith("guardian_follow:", StringComparison.Ordinal) => "following their guardian home",
         _ => candidateId.Replace('_', ' '),

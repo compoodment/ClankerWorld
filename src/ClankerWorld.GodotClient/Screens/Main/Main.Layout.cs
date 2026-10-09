@@ -83,6 +83,7 @@ public partial class Main
         worldSettingsContent.Visible = worldSpecific;
         SelectSettingsCategory(worldSpecific ? worldSettingsCategoryButton : gameSettingsCategoryButton);
         settingsScroll.Show();
+        if (worldSpecific) RenderGenerationSettings(observationSession.Current?.Baseline.Snapshot);
         if (worldSpecific && registration is not null)
         {
             _ = RefreshWorldSettingsAsync();
@@ -410,6 +411,7 @@ public partial class Main
         gameSettingsContent.AddChild(SettingsBox("Date and time",
             DisplaySettingRow("Time display", clockFormatChoice), DisplaySettingRow("Date display", dateFormatChoice)));
 
+        BuildGenerationSettings();
         BuildAutosaveSettings();
 
         BuildRoutineHelperSettings();

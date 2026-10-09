@@ -237,7 +237,9 @@ internal static partial class OwnerEndpoints
                     stateFile.VerifyRequiredHistory(checkpoint);
                     var assignments = committed.Assignments;
                     var autosaveSettings = committed.AutosaveSettings;
-                    if (!string.Equals(checkpoint.WorldSeed, runtime.ExportState().WorldSeed, StringComparison.Ordinal))
+                    var current = runtime.ExportState();
+                    if (!string.Equals(checkpoint.WorldSeed, current.WorldSeed, StringComparison.Ordinal) ||
+                        !string.Equals(checkpoint.Society.Society.WorldId, current.Society.Society.WorldId, StringComparison.Ordinal))
                     {
                         ManualWorldSaveTelemetry.Rejected(logger, "load", "different_world");
                         return Results.Conflict(new { error = "This save belongs to a different world." });

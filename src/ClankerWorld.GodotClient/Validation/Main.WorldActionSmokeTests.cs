@@ -172,6 +172,10 @@ public partial class Main
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
         public ManualWorldSave[]? ManualSaves { get; set; }
         public SaveDiskSpaceStatus DiskSpace { get; set; } = new("ok", 4L * 1024 * 1024 * 1024, 1024L * 1024 * 1024, DateTimeOffset.UtcNow);
+        public StartupRecoveryStatus StartupRecovery { get; set; } = new(false, null, null);
+        public TaskCompletionSource RecoveryReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource? ReleaseRecovery { get; set; }
+        public bool LoseRecoveryReply { get; set; }
         public string AutosaveWorldId { get; set; } = "autosave-world-B";
         public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
         /// <summary>The next signed refresh's world, or none to refuse refreshes.</summary>
@@ -275,6 +279,23 @@ public partial class Main
             Requests.Enqueue(context.Request.Url!.AbsolutePath);
             switch (context.Request.Url!.AbsolutePath)
             {
+                case "/api/v1/owner/recovery/status":
+                    response = StartupRecovery;
+                    break;
+                case "/api/v1/owner/recovery/restore":
+                    var recoveryId = envelope.GetProperty("action").GetProperty("value").GetString()!;
+                    RecoveryReceived.TrySetResult();
+                    if (ReleaseRecovery is { } releaseRecovery) await releaseRecovery.Task.ConfigureAwait(false);
+                    StartupRecovery = new(false, StartupRecovery.WorldId, null);
+                    if (LoseRecoveryReply)
+                    {
+                        context.Response.ContentType = "application/json";
+                        await context.Response.OutputStream.WriteAsync("{"u8.ToArray()).ConfigureAwait(false);
+                        context.Response.Close();
+                        return;
+                    }
+                    response = new StartupRecoveryReceipt(recoveryId, 0);
+                    break;
                 case OwnerPairingEndpoints.OwnerAgentPlace:
                     var placement = envelope.GetProperty("action").Deserialize<OwnerAgentPlacementAction>(JsonOptions)!;
                     AgentPlacements.Enqueue(placement);
