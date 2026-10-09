@@ -75,6 +75,8 @@ public sealed partial class PrivateWorldRuntime
     // Dusk and dawn fade it in and out. Shelter, clothing and fire offset it
     // exactly as they offset weather.
     private const int NightChillAtFullDarkness = 15;
+    // Provisional balance: trees give about half a building's storm protection.
+    private const int NaturalStormProtection = 22;
 
     private static bool NeedsUrgentFood(PlaytestInhabitantState person) => person.HungerBasisPoints < UrgentFullness;
 
@@ -88,12 +90,12 @@ public sealed partial class PrivateWorldRuntime
     {
         var naturalCover = WeatherAt(person.Position) == WeatherKind.Storm && NaturalStormCover(person.Position);
         var protection = ClothingProtection(person.InhabitantId, person.Position) +
-            (NearShelter(person.InhabitantId, person.Position) || naturalCover ? 45 : 0);
+            (NearShelter(person.InhabitantId, person.Position) ? 45 : naturalCover ? NaturalStormProtection : 0);
         var heat = AccessibleHeatingBuildings(person.InhabitantId).Any(building => IsFireLit(building) &&
             IsWithinInteractionRange(person.Position, building.Position,
                 building.HouseholdId is null ? 2 : 0)) ? 90 : 0;
         var loss = Math.Max(0, OutdoorExposure(person.Position) - protection);
-        return SwimmingRules.IsSwimmingWater(map, person.Position)
+        return IsSwimming(person.InhabitantId, person.Position)
             ? -Math.Max(SwimmingRules.WarmthLossPerTick, loss - heat)
             : -loss + heat + (loss == 0 ? 20 : 0);
     }
@@ -150,14 +152,34 @@ public sealed partial class PrivateWorldRuntime
     private IEnumerable<PlacedBuilding> BuildingsWithTag(string tag) => worldSimulation.Buildings.Where(building =>
         worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId && definition.Tags.Contains(tag, StringComparer.Ordinal)));
 
-    private IEnumerable<PlacedBuilding> AccessibleShelters(string actor) => BuildingsWithTag("shelter")
+    private bool IsTownHall(PlacedBuilding building) => worldContent.Buildings.Any(definition =>
+        definition.CanonicalId == building.DefinitionId && definition.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal));
+
+    private bool IsTownHallStormRefuge(string actor, PlacedBuilding building) =>
+        IsTownHall(building) && building.TownId is { } townId && TownForResident(actor) == townId &&
+        !HasHome(actor) && WeatherAt(building.Position) == WeatherKind.Storm;
+
+    private IEnumerable<PlacedBuilding> AccessibleShelters(string actor, bool includeStormRefuge = true) => BuildingsWithTag("shelter")
         .Where(building => building.HouseholdId is null ||
             building.HouseholdId == society.Checkpoint.GetInhabitant(actor).HouseholdId
-            || WeatherAt(building.Position) == WeatherKind.Storm && HasHouseGuestInvitation(actor, building.InstanceId));
+            || WeatherAt(building.Position) == WeatherKind.Storm && HasHouseGuestInvitation(actor, building.InstanceId))
+        .Concat(includeStormRefuge ? BuildingsWithTag(TownHallContent.HallTag).Where(building => IsTownHallStormRefuge(actor, building)) : [])
+        .DistinctBy(building => building.InstanceId);
 
     private bool NearShelter(string actor, GridPoint point) => AccessibleShelters(actor).Any(building =>
-        building.HouseholdId is null ? IsWithinInteractionRange(point, building.Position, ResourceInteractionRange) :
-            WorldContentSimulationRules.Footprint(worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building).Contains(point));
+        ShelterBuildingCovers(actor, building, point));
+
+    private int WarmthDestinationRange(string actor, GridPoint origin, PlacedBuilding building) =>
+        !IsSwimming(actor, origin) && building.HouseholdId is null && !IsTownHall(building) ? ResourceInteractionRange : 0;
+
+    private GridPoint? ReachableHallShelterPoint(string actor, GridPoint origin, PlacedBuilding hall) =>
+        WorldContentSimulationRules.Footprint(worldContent.Buildings.Single(definition => definition.CanonicalId == hall.DefinitionId), hall)
+            .Where(point => map.IsPassable(point) && ShelterRouteIsOpen(actor, origin, point))
+            .OrderBy(point => map.FootDistance(origin, point)).ThenBy(point => point.Y).ThenBy(point => point.X)
+            .Select(point => (GridPoint?)point).FirstOrDefault();
+
+    private GridPoint? WarmthDestinationPoint(string actor, PlaytestInhabitantState person, PlacedBuilding building) =>
+        IsTownHall(building) ? ReachableHallShelterPoint(actor, person.Position, building) : building.Position;
 
     private bool NaturalStormCover(GridPoint point) =>
         map.VegetationAt(point) == VegetationCover.Forest ||
@@ -358,10 +380,11 @@ public sealed partial class PrivateWorldRuntime
     private IEnumerable<PlacedBuilding> ReachableWarmthDestinations(string actor, PlaytestInhabitantState person) =>
         AccessibleHeatingBuildings(actor).Where(IsFireLit).Concat(AccessibleShelters(actor))
             .DistinctBy(building => building.InstanceId)
-            .Where(building => !IsWithinInteractionRange(person.Position, building.Position,
-                    building.HouseholdId is null ? ResourceInteractionRange : 0) &&
-                FindUnoccupiedRoute(actor, person.Position, building.Position,
-                    building.HouseholdId is null ? ResourceInteractionRange : 0).Count > 0)
+            .Where(building => !(CanUseLitHearth(actor, building)
+                    ? IsWithinInteractionRange(person.Position, building.Position, WarmthDestinationRange(actor, person.Position, building))
+                    : ShelterBuildingCovers(actor, building, person.Position)) &&
+                WarmthDestinationPoint(actor, person, building) is { } target &&
+                FindUnoccupiedRoute(actor, person.Position, target, WarmthDestinationRange(actor, person.Position, building)).Count > 0)
             .OrderBy(building => CanUseLitHearth(actor, building) ? 0 : 1)
             .ThenBy(building => map.FootDistance(person.Position, building.Position));
 
@@ -374,25 +397,24 @@ public sealed partial class PrivateWorldRuntime
         if (WarmthChange(person) >= 0)
             return;
         var destination = ReachableWarmthDestinations(actor, person).FirstOrDefault();
-        // An unlit House offers no extra heat over current natural storm cover.
-        if (WeatherAt(person.Position) == WeatherKind.Storm && NaturalStormCover(person.Position) &&
-            (destination is null || !CanUseLitHearth(actor, destination)))
+        // Keep building cover unless another destination can supply usable heat.
+        if (NearShelter(actor, person.Position) && (destination is null || !CanUseLitHearth(actor, destination)))
             return;
-        var cover = WeatherAt(person.Position) == WeatherKind.Storm && !NaturalStormCover(person.Position)
+        // Buildings provide more protection than natural cover, even without a lit hearth.
+        if (WeatherAt(person.Position) == WeatherKind.Storm && NaturalStormCover(person.Position) &&
+            destination is null)
+            return;
+        var cover = destination is null && WeatherAt(person.Position) == WeatherKind.Storm && !NaturalStormCover(person.Position)
             ? NearbyNaturalStormCover(actor, person.Position) : null;
-        if (cover is { } coverPoint &&
-            // A nearby tree must not pull a cooling agent back while walking to a lit hearth.
-            (destination is null || !CanUseLitHearth(actor, destination) && map.FootDistance(person.Position, coverPoint) <
-                map.FootDistance(person.Position, destination.Position)))
+        if (cover is { } coverPoint)
         {
             if (person.Position != coverPoint)
                 MoveToward(actor, person, coverPoint, "storm_cover");
         }
-        else if (destination is not null && !IsWithinInteractionRange(person.Position, destination.Position,
-                     destination.HouseholdId is null ? ResourceInteractionRange : 0))
+        else if (destination is not null && WarmthDestinationPoint(actor, person, destination) is { } target &&
+                 !IsWithinInteractionRange(person.Position, target, WarmthDestinationRange(actor, person.Position, destination)))
         {
-            MoveToward(actor, person, destination.Position, "warmth",
-                destination.HouseholdId is null ? ResourceInteractionRange : 0);
+            MoveToward(actor, person, target, "warmth", WarmthDestinationRange(actor, person.Position, destination));
         }
     }
 

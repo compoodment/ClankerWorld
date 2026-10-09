@@ -43,7 +43,8 @@ public sealed class SwimmingRuntimeTests
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(firstWater, Position(world));
         swimming = world.ExportState();
-        Assert.True(swimming.Inhabitants.Single(person => person.InhabitantId == Actor).Survival!.WarmthBasisPoints < physical.Survival!.WarmthBasisPoints,
+        Assert.True(physical.Survival!.WarmthBasisPoints -
+            swimming.Inhabitants.Single(person => person.InhabitantId == Actor).Survival!.WarmthBasisPoints >= 75,
             "The wait between slow swimming steps must also lose warmth.");
         var before = PrivateWorldRuntimeCodec.Encode(swimming);
         Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
@@ -168,6 +169,63 @@ public sealed class SwimmingRuntimeTests
         Assert.Empty(world.ExportState().DeceasedInhabitants ?? []);
     }
 
+    [Fact]
+    public async Task ColdSwimmerReachesShoreRatherThanWaitingBesideAPublicShelterAcrossReload()
+    {
+        const string actor = "agent:00000000000000000000000000000042";
+        var shore = new GridPoint(4, 1);
+        var water = new GridPoint(5, 1);
+        using var setup = Restore(CrossingState(new(3, 1)));
+        var household = setup.AddAgent(actor, shore);
+        Assert.Equal("household:" + actor, household);
+        Assert.DoesNotContain(setup.WorldSimulation.Buildings, building => building.HouseholdId == household);
+        setup.SubmitInstruction(new("shelter-enter-water", "owner:test", actor, OwnerInstructionKind.MustDo, "Move to tile (5, 1)"));
+        for (var tick = 0; tick < 16 && Position(setup, actor) != water; tick++)
+            Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(water, Position(setup, actor));
+        var shelter = setup.WorldContent.Buildings.Single(building => building.LocalId == "shelter");
+        var placed = setup.PlaceBuilding("swimmer-public-shelter", shelter.CanonicalId, shore);
+        Assert.True(placed.Applied, placed.Failure);
+        Assert.Null(setup.WorldSimulation.Buildings.Single(building => building.InstanceId == placed.InstanceId).HouseholdId);
+        var state = setup.ExportState();
+        Assert.True(SwimmingRules.IsSwimmingWater(state.Map, water));
+        // A real unhoused swimmer is urgently cold, with public cover one tile away.
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { Survival = new SurvivalCondition(1_000) } : person).ToArray(),
+        };
+        state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Rain);
+        var provider = new WarmthProvider(actor);
+        using var world = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), provider);
+        world.SubmitInstruction(new("shelter-seek-warmth", "owner:test", actor, OwnerInstructionKind.Suggestive, "Consider seeking nearby warmth."));
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(before), new WarmthProvider(actor));
+        for (var tick = 0; tick < 24 && !world.ExportState().Map.IsPassable(Position(world, actor)); tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        Assert.True(provider.ChoseWarmth, "The real personal decision must choose the offered native warmth action.");
+        Assert.Equal(shore, Position(world, actor));
+        var warmth = world.Inhabitants.Single(person => person.InhabitantId == actor).Survival!.WarmthBasisPoints;
+        for (var tick = 0; tick < 3; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        Assert.True(world.Inhabitants.Single(person => person.InhabitantId == actor).Survival!.WarmthBasisPoints > warmth);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "inhabitant_moved" && item.Detail.EndsWith(":warmth", StringComparison.Ordinal));
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var loaded = Restore(PrivateWorldRuntimeCodec.Decode(saved));
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
+        Assert.Empty(world.ExportState().DeceasedInhabitants ?? []);
+    }
+
     private static PrivateWorldRuntimeState WithLoad(PrivateWorldRuntimeState state, int units) => state with
     {
         Society = state.Society with
@@ -212,8 +270,26 @@ public sealed class SwimmingRuntimeTests
         }, WeatherKind.Clear);
     }
 
-    private static PrivateWorldRuntime Restore(PrivateWorldRuntimeState state) => PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
-    private static GridPoint Position(PrivateWorldRuntime world) => world.Inhabitants.Single(person => person.InhabitantId == Actor).Position;
+    private static PrivateWorldRuntime Restore(PrivateWorldRuntimeState state, IDecisionProvider? provider = null) =>
+        PrivateWorldRuntime.Restore(state, _ => provider ?? new IdleProvider());
+    private static GridPoint Position(PrivateWorldRuntime world, string actor = Actor) => world.Inhabitants.Single(person => person.InhabitantId == actor).Position;
+
+    private sealed class WarmthProvider(string actor) : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 0;
+        internal bool ChoseWarmth { get; private set; }
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            var choice = request.Observation.Candidates.Any(candidate => candidate.Id == "seek_warmth") ? "seek_warmth" : "safe_idle";
+            if (request.Observation.InhabitantId == actor && choice == "seek_warmth") ChoseWarmth = true;
+            return new DeterministicDecisionProvider().DecideAsync(request with
+            {
+                Observation = request.Observation with { Candidates = request.Observation.Candidates.Where(candidate => candidate.Id == choice).ToArray() },
+            }, cancellationToken);
+        }
+    }
 
     private sealed class IdleProvider : IDecisionProvider
     {

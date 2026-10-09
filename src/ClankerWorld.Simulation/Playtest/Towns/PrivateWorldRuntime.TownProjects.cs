@@ -581,7 +581,8 @@ public sealed partial class PrivateWorldRuntime
         }
         if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, state.Survival?.IllnessBasisPoints ?? 0)) return;
         var hammer = ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, actor, ToolFamily.Hammer);
-        var done = Math.Min(workNeeded, choice.Project.WorkDone + (hammer?.WorkUnits ?? 1));
+        var done = Math.Min(workNeeded, SkilledWorkProgress(actor, SettlementSkillKind.Building,
+            choice.Project.WorkDone, hammer?.WorkUnits ?? 1));
         if (hammer is not null) ApplyToolWork(actor, hammer);
         var project = choice.Project with { Stage = "working", WorkDone = done, LastTransitionTick = WorldTick };
         SetTownProject(choice.Town.Id, project);

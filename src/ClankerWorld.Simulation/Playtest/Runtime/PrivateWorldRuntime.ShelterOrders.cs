@@ -17,12 +17,13 @@ public sealed partial class PrivateWorldRuntime
     private bool ShelterBuildingKnown(string actor, PlaytestInhabitantState person, PlacedBuilding building) =>
         building.HouseholdId is { } owner &&
             (owner == society.Checkpoint.GetInhabitant(actor).HouseholdId || HasHouseGuestInvitation(actor, building.InstanceId)) ||
+        IsTownHallStormRefuge(actor, building) ||
         IsWithinInteractionRange(person.Position, building.Position, ResourceInteractionRange);
 
-    private bool ShelterBuildingCovers(PlacedBuilding building, GridPoint point) =>
-        building.HouseholdId is null
+    private bool ShelterBuildingCovers(string actor, PlacedBuilding building, GridPoint point) =>
+        !IsSwimming(actor, point) && (building.HouseholdId is null && !IsTownHall(building)
             ? IsWithinInteractionRange(point, building.Position, ResourceInteractionRange)
-            : WorldContentSimulationRules.Footprint(worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building).Contains(point);
+            : WorldContentSimulationRules.Footprint(worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building).Contains(point));
 
     private bool ShelterRouteIsOpen(string actor, GridPoint origin, GridPoint destination) =>
         origin == destination || FindUnoccupiedRoute(actor, origin, destination, 0).Count > 0;
@@ -47,7 +48,7 @@ public sealed partial class PrivateWorldRuntime
         return order.Action == "tend_fire"
             ? !IsFireLit(building) && IsWithinInteractionRange(binding.Position, building.Position,
                 building.HouseholdId is null ? ResourceInteractionRange : 0)
-            : ShelterBuildingCovers(building, binding.Position);
+            : ShelterBuildingCovers(actor, building, binding.Position);
     }
 
     private OwnerShelterBinding? SelectShelterBinding(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
@@ -69,11 +70,13 @@ public sealed partial class PrivateWorldRuntime
             GridPoint? position;
             if (order.TargetPosition is { } requested)
             {
-                if (order.Action == "tend_fire" ? requested != building.Position : !ShelterBuildingCovers(building, requested)) continue;
+                if (order.Action == "tend_fire" ? requested != building.Position : !ShelterBuildingCovers(actor, building, requested)) continue;
                 position = requested;
             }
-            else if (order.Action == "seek_shelter" && ShelterBuildingCovers(building, person.Position))
+            else if (order.Action == "seek_shelter" && ShelterBuildingCovers(actor, building, person.Position))
                 position = person.Position;
+            else if (IsTownHall(building))
+                position = ReachableHallShelterPoint(actor, person.Position, building);
             else if (building.HouseholdId is null)
                 position = map.FootNeighbors(building.Position).Append(building.Position)
                     .Where(point => map.IsPassable(point) && ShelterRouteIsOpen(actor, person.Position, point))
@@ -253,7 +256,7 @@ public sealed partial class PrivateWorldRuntime
                         binding.BuildingPosition is not { X: >= 0, Y: >= 0 } || binding.BuildingPlacedTick is not { } placed || placed < 0 || placed > worldTick ||
                         binding.OwnerId is { } owner && !householdIds.Contains(owner) ||
                         order.TargetBuildingKind == "house" && (!definition.Tags.Contains("house", StringComparer.Ordinal) || binding.OwnerId is null) ||
-                        !(order.Action == "seek_shelter" ? definition.Tags.Contains("shelter", StringComparer.Ordinal) :
+                        !(order.Action == "seek_shelter" ? definition.Tags.Any(tag => tag is "shelter" or TownHallContent.HallTag) :
                             definition.Tags.Any(tag => tag is "cooking" or "warmth")))
                         throw new InvalidDataException("A shelter order has an invalid building binding.");
                 }

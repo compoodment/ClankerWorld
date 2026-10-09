@@ -5,6 +5,9 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
+    private bool IsSwimming(string actor, GridPoint position) =>
+        PassengerBoat(actor) is null && SwimmingRules.IsSwimmingWater(map, position);
+
     private bool CanSwim(string actor)
     {
         var person = inhabitants[actor];
