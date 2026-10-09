@@ -852,6 +852,7 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
 
     private static Image Leaves(int size, bool carpet)
     {
+        if (!carpet) return AutumnLeavesReview.Draw(size);
         var spec = SceneSpec.TownCorner();
         var canvas = new Canvas(Polish.Scene(size, agents: true));
         canvas.Multiply(new Color("E8C9A0"), 0.12f); // the approved autumn warmth, standing in for the palette
