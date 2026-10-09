@@ -29,6 +29,7 @@ public partial class Main
         BuildDeveloperTools(uiLayer);
         FitFloatingPanelsToContents();
         BuildStatusToast(uiLayer);
+        BuildSaveDiskWarning(uiLayer);
         AddChild(menuLayer);
         BuildMainMenu();
         BuildManualSavesPanel();

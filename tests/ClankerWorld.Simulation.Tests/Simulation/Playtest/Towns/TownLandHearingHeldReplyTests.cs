@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Threading.Channels;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
@@ -29,14 +30,23 @@ public sealed class TownLandHearingHeldReplyTests
             var refreshed = false;
             for (var attempt = 0; attempt < 20 && !provider.Started.Task.IsCompleted; attempt++)
             {
-                Assert.True((await world.AdvanceOneTickNonBlockingAsync().AsTask().WaitAsync(Deadline)).Advanced);
+                var step = await world.AdvanceOneTickNonBlockingAsync().AsTask().WaitAsync(Deadline);
+                Assert.True(step.Advanced);
                 if (!refreshed && world.Towns[0].LandHearings.Cases.Count > 0)
                 {
                     world.SubmitInstruction(new("consider-hearing", "owner:test", Actor, OwnerInstructionKind.Suggestive,
                         "Read the posted land hearing and consider your own response."));
                     refreshed = true;
                 }
-                await Task.Delay(10);
+                if (step.Events.Any(item => item.Kind == "hosted_decision_started" && item.Detail == Actor))
+                {
+                    var call = await provider.Entered.Reader.ReadAsync().AsTask().WaitAsync(Deadline);
+                    // The provider cannot even select a reply until this gate opens. Waiting for
+                    // real entry keeps background scheduling from consuming the hearing window.
+                    Assert.False(world.HostedDecisionsFinished(Actor));
+                    call.Proceed.TrySetResult(true);
+                    if (!await call.ReplyHeld.Task.WaitAsync(Deadline)) await WaitForHostedCompletionAsync(world);
+                }
             }
             Assert.True(provider.Started.Task.IsCompleted, "The actual posted notice and response were not offered within twenty hosted ticks.");
             await provider.Started.Task.WaitAsync(Deadline);
@@ -60,6 +70,7 @@ public sealed class TownLandHearingHeldReplyTests
             Assert.Equal(household, world.AddAgent(Newcomer, house.Position));
             Assert.Equal(household, world.Society.GetInhabitant(Newcomer).HouseholdId);
             await Task.Run(provider.Release).WaitAsync(Deadline);
+            await WaitForHostedCompletionAsync(world);
 
             PrivateWorldStepResult? completed = null;
             for (var attempt = 0; attempt < 10 && completed is null; attempt++)
@@ -68,7 +79,6 @@ public sealed class TownLandHearingHeldReplyTests
                 Assert.True(step.Advanced);
                 if (step.Decisions.Any(decision => decision.InhabitantId == Actor) ||
                     step.Events.Any(item => item.Kind == "hosted_decision_discarded" && item.Detail == Actor)) completed = step;
-                else await Task.Delay(10);
             }
             Assert.NotNull(completed);
             Assert.True(completed.Decisions.Any(decision => decision.InhabitantId == Actor && decision.Admission.FellBack) ||
@@ -113,6 +123,14 @@ public sealed class TownLandHearingHeldReplyTests
         finally { provider.Release(); }
     }
 
+    private static async Task WaitForHostedCompletionAsync(PrivateWorldRuntime world)
+    {
+        using var timeout = new CancellationTokenSource(Deadline);
+        // The provider's return signal precedes completion of the runtime's wrapping task.
+        // Poll that completion without advancing simulation time or expiring the hearing.
+        while (!world.HostedDecisionsFinished(Actor)) await Task.Delay(1, timeout.Token);
+    }
+
     private static PrivateWorldRuntime NewWorld(HeldReplyProvider provider)
     {
         using var generated = NormalPathWorld.CreateGenerated("government-personal-path", _ => new ActionCoverageRecorder(chooseIdle: true));
@@ -142,6 +160,12 @@ public sealed class TownLandHearingHeldReplyTests
         }, id => id == Actor ? provider : new ActionCoverageRecorder(chooseIdle: true));
     }
 
+    private sealed class ProviderCall
+    {
+        public TaskCompletionSource<bool> Proceed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> ReplyHeld { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
     private sealed class HeldReplyProvider(string action) : IDecisionProvider
     {
         // Inline completion lets Release finish after the host's awaiting task receives the old exact response.
@@ -150,12 +174,16 @@ public sealed class TownLandHearingHeldReplyTests
         private bool released;
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 1;
+        public Channel<ProviderCall> Entered { get; } = Channel.CreateUnbounded<ProviderCall>();
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string? ReadCandidateId { get; private set; }
         public string? HeldCandidateId { get; private set; }
 
-        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
+            var call = new ProviderCall();
+            await Entered.Writer.WriteAsync(call, cancellationToken);
+            await call.Proceed.Task.WaitAsync(cancellationToken);
             var observation = request.Observation;
             var choice = released ? null : observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|read|", StringComparison.Ordinal)) ??
                 observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|" + action + "|", StringComparison.Ordinal));
@@ -170,9 +198,11 @@ public sealed class TownLandHearingHeldReplyTests
                 response = value;
                 HeldCandidateId = choice.Id;
                 Started.TrySetResult(true);
-                return new(held.Task);
+                call.ReplyHeld.TrySetResult(true);
+                return await held.Task.WaitAsync(cancellationToken);
             }
-            return ValueTask.FromResult(value);
+            call.ReplyHeld.TrySetResult(false);
+            return value;
         }
 
         public void Release()

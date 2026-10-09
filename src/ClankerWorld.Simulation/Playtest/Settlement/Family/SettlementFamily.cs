@@ -142,6 +142,7 @@ public sealed partial class PrivateWorldRuntime
             relationship.State is SocietyRelationshipState.Proposed or SocietyRelationshipState.Accepted)
         {
             society.Apply(checkpoint => SocietyFixture.RevokeRelationship(checkpoint, target, actor));
+            MaintainMarriages();
             AppendEvent("partnership_ended", actor);
         }
     }

@@ -199,6 +199,7 @@ public partial class Main
                 choiceBounds.End.X > settingsViewport.End.X + 1)
                 throw new InvalidOperationException("Game Settings escaped its usable bounds at 1440p and 200%.");
             await VerifyAgentConversationReaderAt200PercentAsync();
+            VerifyResourceAppearanceReuse(smokeMap);
 
             var emptyLayer = Convert.ToBase64String(new byte[16]);
             var fieldMap = smokeMap with
@@ -1081,30 +1082,7 @@ public partial class Main
             if (Math.Abs(clockFormatChoice.GetGlobalRect().Position.X - themeChoice.GetGlobalRect().Position.X) > 1 ||
                 Math.Abs(dateFormatChoice.GetGlobalRect().Position.X - windowSizeChoice.GetGlobalRect().Position.X) > 1)
                 throw new InvalidOperationException("Game Settings choices must share one aligned caption column.");
-            // Both themes keep text readable on every surface it sits on.
-            foreach (var palette in new[] { UiTheme.Light, UiTheme.Dark })
-            {
-                (string Pair, Color Text, Color Surface, float Minimum)[] readable =
-                [
-                    ("ink on parchment", palette.Ink, palette.Paper, 7f),
-                    ("muted ink on parchment", palette.InkMuted, palette.Paper, 4.5f),
-                    ("section headings", palette.Section, palette.Paper, 4.5f),
-                    ("links", palette.Link, palette.Paper, 4.5f),
-                    ("warnings", palette.Warning, palette.Paper, 4.5f),
-                    ("good status", palette.Good, palette.Paper, 4.5f),
-                    ("bad status", palette.Bad, palette.Paper, 4.5f),
-                    ("button text", palette.Ink, palette.Button, 4.5f),
-                    ("primary button text", palette.PrimaryInk, palette.Primary, 4.5f),
-                    ("paused button text", palette.EmberInk, palette.Ember, 4.5f),
-                    ("text on the wooden bar", palette.OnWood, palette.Wood, 4.5f),
-                    ("soft text on the wooden bar", palette.OnWoodSoft, palette.Wood, 4.5f),
-                    ("field text", palette.Ink, palette.Field, 4.5f),
-                    ("disabled text", palette.InkFaint, palette.FieldDisabled, 3f),
-                ];
-                foreach (var (pair, text, surface, minimum) in readable)
-                    if (UiTheme.Contrast(text, surface) < minimum)
-                        throw new InvalidOperationException($"{palette.Name} theme {pair} is too faint: {UiTheme.Contrast(text, surface):0.00}.");
-            }
+            CheckThemeTextContrast();
             var themeBefore = displayPreferences.Theme;
             var frameBefore = settingsPanel.GetThemeStylebox("panel");
             var (switchTo, expected) = UiTheme.Current == UiTheme.Dark
@@ -1183,6 +1161,8 @@ public partial class Main
                 await VerifySameWorldTimelineUiRecoveryAsync();
                 VerifySaveBranchList();
                 await VerifySaveTimelineAsync();
+                await VerifySaveDiskSpaceWarningAsync();
+                await VerifyStartupRecoveryAsync();
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -3774,6 +3754,7 @@ public partial class Main
                     "I hid the garden tools where Rowan cannot see them.", "private")],
                 RecentKnowledgeFacts = [new OwnerWorldKnowledgeFact(2, 7, 9, "Forest", ["wood"],
                     "Mira", "firsthand", null)],
+                KnownRecipes = [new OwnerWorldRecipe(3, "Mill grain", "read", "Rowan")],
                 KnowledgeArtifacts =
                 [
                     new OwnerWorldKnowledgeArtifact("knowledge-artifact-000001", "field_map",
@@ -3782,7 +3763,7 @@ public partial class Main
                          new OwnerWorldKnowledgeSite(8, 9, "River", [], "Mira")]),
                     new OwnerWorldKnowledgeArtifact("knowledge-artifact-000002", "book",
                         "Book · 1 site", 3, "Mira",
-                        [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira")]),
+                        [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira")]) { RecipeNames = ["Mill grain"] },
                 ],
             };
             var historicalSnapshot = sample with
@@ -3830,6 +3811,8 @@ public partial class Main
                 !MemoryCardsText().Contains("I hid the garden tools", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Field map", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Book written by Mira", StringComparison.Ordinal) ||
+                !MemoryCardsText().Contains("Recipe: Mill grain", StringComparison.Ordinal) ||
+                !MemoryCardsText().Contains("Read from Rowan", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Forest at 7, 9", StringComparison.Ordinal) ||
                 ProfilePeopleText().Contains("I hid the garden tools", StringComparison.Ordinal))
                 throw new InvalidOperationException("Historical memories and bounded agent-owned map records must be inspectable separately from public social notes.");
@@ -3852,9 +3835,9 @@ public partial class Main
                     .Any(label => label.Text.Contains("event pop-ups", StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException("Deaths must remain in the Event Log without an event pop-up setting.");
             if (!eventLog.GetParsedText().Contains("finished writing a book.", StringComparison.Ordinal) ||
-                !eventLog.GetParsedText().Contains("learned about places from a written work.", StringComparison.Ordinal) ||
+                !eventLog.GetParsedText().Contains("learned from a written work.", StringComparison.Ordinal) ||
                 DescribeWorldEvent(knownEvents[102], historicalSnapshot) != "Mira finished writing a book." ||
-                DescribeWorldEvent(knownEvents[103], historicalSnapshot) != "Mira learned about places from a written work." ||
+                DescribeWorldEvent(knownEvents[103], historicalSnapshot) != "Mira learned from a written work." ||
                 eventLog.GetParsedText().Contains("knowledge-artifact-", StringComparison.Ordinal))
                 throw new InvalidOperationException("Written-knowledge events must name the writer or actual reader without displaying artifact identifiers.");
             ToggleEvents();
@@ -3888,6 +3871,7 @@ public partial class Main
             };
             var child = deceased with
             {
+                DisplayName = "Alexandria Montgomery Historical Relative Name",
                 Relationships = [new OwnerWorldInhabitantRelationship("birth:test", parent.Id,
                     "biological_parentage", "accepted", "family", 1, "child")],
             };
@@ -3912,6 +3896,14 @@ public partial class Main
                 !familyTreeView.VisiblePersonIds.Contains(partner.Id) ||
                 family.Any(person => !familyTreeView.VisiblePersonIds.Contains(person.Id)))
                 throw new InvalidOperationException("Family tree must show ancestry, partnerships and deceased profiles.");
+            var deceasedFamilyButtons = familyTreeView.GetChildren().OfType<Button>()
+                .Where(button => button.Text.EndsWith(" · died", StringComparison.Ordinal)).ToArray();
+            if (deceasedFamilyButtons.Length == 0 || deceasedFamilyButtons.Any(button => button.Modulate.A < 1 || button.SelfModulate.A < 1 ||
+                !button.TooltipText.Contains("died", StringComparison.Ordinal)))
+                throw new InvalidOperationException("Deceased family profiles must keep readable text and say died in their tooltip when their name is clipped.");
+            if (!deceasedFamilyButtons.Any(button => button.ClipText &&
+                button.GetThemeFont("font").GetStringSize(button.Text, fontSize: button.GetThemeFontSize("font_size")).X > button.Size.X))
+                throw new InvalidOperationException("The deceased family tooltip check must exercise a name wider than its button.");
             var familyWindow = GetWindow();
             var originalFamilySize = familyWindow.Size;
             var originalFamilyRenderSize = familyWindow.ContentScaleSize;
