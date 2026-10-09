@@ -2,6 +2,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -17,6 +18,10 @@ public sealed class MarketOwnerFoodRecoveryTests
     [InlineData(true, 1, "jev")]
     [InlineData(true, 1, "idle")]
     [InlineData(true, 1, "invalid")]
+    [InlineData(true, 3, "personal")]
+    [InlineData(true, 3, "walking")]
+    [InlineData(true, 3, "jev")]
+    [InlineData(true, 3, "invalid")]
     public async Task HungryOwnersRetrieveAndEatTheirActuallyDepositedMarketFood(bool urgent, int orderMode, string choiceMode)
     {
         var state = await PaidMarketWorld.StateAsync();
@@ -86,6 +91,35 @@ public sealed class MarketOwnerFoodRecoveryTests
         Assert.DoesNotContain(consumed.Society.Inventory.Lots, lot => lot.OwnerId == seller && lot.ItemKind == "berries" &&
             PersonalEquipmentRules.IsCarried(lot, seller));
         ready = consumed.ExportState();
+        string? talkInstructionId = null;
+        string? talkConversationId = null;
+        if (orderMode == 3)
+        {
+            var target = ready.Inhabitants.First(person => person.InhabitantId != seller &&
+                ready.Society.Society.GetInhabitant(person.InhabitantId).AgeBand != SocietyAgeBand.Infant).InhabitantId;
+            var position = ready.Inhabitants.Single(person => person.InhabitantId == seller).Position;
+            var occupied = ready.WorldSimulation!.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+                    ready.WorldContent!.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building))
+                .Concat(ready.Inhabitants.Where(person => person.InhabitantId != target).Select(person => person.Position)).ToHashSet();
+            var adjacent = ready.Map.FootNeighbors(position).First(point => ready.Map.IsPassable(point) && !occupied.Contains(point));
+            var invitation = new MarketRulesPolicy
+            {
+                Choose = (_, candidates) => candidates.FirstOrDefault(candidate => candidate.Id.StartsWith("conversation_accept:", StringComparison.Ordinal)) ??
+                    candidates.Single(candidate => candidate.Id == "safe_idle"),
+            };
+            using var talking = PrivateWorldRuntime.Restore(PaidMarketWorld.At(ready, target, adjacent),
+                actor => new FoodRecoveryConversationProvider(invitation.CreateProvider(actor)));
+            talkInstructionId = talking.SubmitInstruction(new("market-food-talk", "owner:test", seller,
+                OwnerInstructionKind.MustDo, "Talk to " + target)).InstructionId;
+            for (var tick = 0; tick < 12 && !talking.Conversations.Any(conversation => conversation.Status is
+                AgentConversationStatus.Ready or AgentConversationStatus.AwaitingSpeaker); tick++)
+                Assert.True((await talking.AdvanceOneTickAsync()).Advanced);
+            var conversation = Assert.Single(talking.Conversations);
+            Assert.True(conversation.Status is AgentConversationStatus.Ready or AgentConversationStatus.AwaitingSpeaker);
+            talkConversationId = conversation.Id;
+            ready = talking.ExportState();
+            Assert.Equal(talkConversationId, ready.Instructions!.Single().Order!.TalkConversationId);
+        }
         ready = ready with
         {
             Inhabitants = ready.Inhabitants.Select(person => person.InhabitantId == seller
@@ -110,7 +144,7 @@ public sealed class MarketOwnerFoodRecoveryTests
         using var world = PrivateWorldRuntime.Restore(ready, choices.CreateProvider);
         using var replay = PrivateWorldRuntime.Restore(ready, RecoveryChoices(seller, choiceMode).CreateProvider);
         string? instructionId = null;
-        if (orderMode != 0)
+        if (orderMode is 1 or 2)
         {
             var request = new OwnerInstructionRequest("market-food-order", "owner:test", seller,
                 OwnerInstructionKind.MustDo, "repeat gather wood");
@@ -144,7 +178,7 @@ public sealed class MarketOwnerFoodRecoveryTests
                     RecoveryChoices(seller, choiceMode).CreateProvider);
                 using var uninterrupted = PrivateWorldRuntime.Restore(world.ExportState(),
                     RecoveryChoices(seller, choiceMode).CreateProvider);
-                Assert.Equal(walkingBytes, PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
+                AssertRecoveryReload(world, loaded, orderMode == 3);
                 Assert.True((await loaded.AdvanceOneTickAsync()).Advanced);
                 Assert.True((await uninterrupted.AdvanceOneTickAsync()).Advanced);
                 Assert.Equal(PrivateWorldRuntimeCodec.Encode(uninterrupted.ExportState()),
@@ -186,14 +220,57 @@ public sealed class MarketOwnerFoodRecoveryTests
                 Assert.NotEqual("finished", order.Status);
             }
         }
+        if (orderMode == 3)
+        {
+            var order = world.ExportState().Instructions!.Single(item => item.InstructionId == talkInstructionId).Order!;
+            Assert.Equal(("talk_to", talkConversationId, 0), (order.Action, order.TalkConversationId, order.CompletedUnits));
+            var conversation = Assert.Single(world.Conversations);
+            Assert.Equal(talkConversationId, conversation.Id);
+            Assert.Equal(AgentConversationStatus.Suspended, conversation.Status);
+            Assert.Empty(conversation.ResumeAcceptedBy);
+            Assert.Single(world.ExportState().Events, item => item.Kind == "conversation_proposed");
+        }
         if (urgent && mayRetrieve)
             Assert.DoesNotContain(choices.Offered.First(item => item.Actor == seller).Candidates, candidate => candidate.Id.StartsWith("market_collect:", StringComparison.Ordinal) &&
                 candidate.Description.Contains(" wood ", StringComparison.Ordinal));
         world.Validate();
         var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
-        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        AssertRecoveryReload(world, restored, orderMode == 3);
         restored.Validate();
+    }
+
+    private static void AssertRecoveryReload(PrivateWorldRuntime original, PrivateWorldRuntime loaded, bool talk)
+    {
+        if (!talk)
+        {
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(original.ExportState()), PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
+            return;
+        }
+        // Restoring a stopped conversation advances its revision and clears consent.
+        Assert.Equal(original.ExportState().Instructions, loaded.ExportState().Instructions);
+        Assert.Equal(original.Society.Inventory.Lots, loaded.Society.Inventory.Lots);
+        var conversation = Assert.Single(loaded.Conversations);
+        Assert.Equal(Assert.Single(original.Conversations).Id, conversation.Id);
+        Assert.Equal(AgentConversationStatus.Suspended, conversation.Status);
+        Assert.Empty(conversation.ResumeAcceptedBy);
+    }
+
+    private sealed class FoodRecoveryConversationProvider(IDecisionProvider personal) : IDecisionProvider, IAgentConversationProvider
+    {
+        public DecisionProviderKind Kind => personal.Kind;
+        public long ProviderEpoch => personal.ProviderEpoch;
+        public bool CanSpeakAs(string agentId) => true;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default) =>
+            personal.DecideAsync(request, cancellationToken);
+        public ValueTask<AgentConversationTurnResponse> SpeakAsync(AgentConversationTurnRequest request, CancellationToken cancellationToken = default)
+        {
+            request.Validate();
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(new AgentConversationTurnResponse(request.RequestId, request.ConversationId,
+                request.Revision, request.RunEpoch, request.SpeakerId, "A conversation while food remains at the stall.",
+                AgentConversationDisposition.Continue, AgentConversationEffect.None));
+        }
     }
 
     private static int Meals(PrivateWorldRuntime world, string actor) => world.ExportState().Events.Count(item =>
