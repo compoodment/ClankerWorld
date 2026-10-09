@@ -2692,8 +2692,9 @@ default, where vessels rotate between the living beneficiaries. A quantity-one
 map or field record keeps its lot ID.
 
 Final words are optional with either outcome. `CognitionWillChoice.NormalizeFinalWords`
-turns control and invisible formatting characters into spaces, collapses
-spaces, and refuses text over 80 characters or containing markup characters
+preserves complete printable Unicode characters, turns control, invisible
+formatting, private-use and malformed UTF-16 characters into spaces, collapses
+spaces, and refuses text over 80 UTF-16 units or containing markup characters
 (`< > [ ] { }` and backticks). The HTTP provider parser drops unusable words
 before admission; a directly supplied typed reply with invalid words is refused.
 An admitted reply keeps its words even when its division falls back. At settlement
