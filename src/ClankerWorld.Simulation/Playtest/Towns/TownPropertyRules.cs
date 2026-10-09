@@ -68,7 +68,7 @@ public static class TownPropertyRules
         var adults = owners.Where(id => inhabitants.Any(person => person.Id == id && person.Status == SocietyInhabitantStatus.Active &&
             person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder)).Order(StringComparer.Ordinal).ToArray();
         return parties.Where(party => party.HouseholdId != household)
-            .Append(new("household:" + household, "household", household, townId, adults))
+            .Append(new(TownLandCasePartyRules.HouseholdPartyId(household), "household", household, townId, adults))
             .OrderBy(party => party.Id, StringComparer.Ordinal).ToArray();
     }
 

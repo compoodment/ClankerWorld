@@ -184,9 +184,10 @@ public sealed partial class TownLandHearingRuntimeTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task TheTownCanGrantItsRecoveredHouseAndGoodsToAnAcceptingHousehold(bool longHouseholdId)
+    [InlineData(0)]
+    [InlineData(153)]
+    [InlineData(256)]
+    public async Task TheTownCanGrantItsRecoveredHouseAndGoodsToAnAcceptingHousehold(int householdIdLength)
     {
         var provider = new PropertyProvider { Agree = true, Rule = true };
         using var reclaimed = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(await PendingPropertyCase.Value), _ => provider);
@@ -194,8 +195,9 @@ public sealed partial class TownLandHearingRuntimeTests
         var state = reclaimed.ExportState();
         // A legitimate receiving household is formed with the same Society operation used by
         // household_found. No House, stock, hearing, vote, permission or Town membership is added.
-        var recipient = "household:property-recipient" + (longHouseholdId ? ":" + new string('r', 128) : "");
-        Assert.Equal(longHouseholdId, recipient.Length > 128);
+        const string prefix = "household:property-recipient";
+        var recipient = householdIdLength == 0 ? prefix : prefix + new string('r', householdIdLength - prefix.Length);
+        Assert.Equal(householdIdLength == 0 ? prefix.Length : householdIdLength, recipient.Length);
         var society = SocietyFixture.CreateHousehold(state.Society.Society, recipient, "Receiving household", [Filer]);
         var onward = new PropertyProvider { Request = true, Target = recipient, Agree = true, Rule = true };
         using var world = PrivateWorldRuntime.Restore(state with { Society = state.Society with { Society = society.Checkpoint } }, _ => onward);

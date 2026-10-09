@@ -1810,6 +1810,9 @@ property evidence lookups.
 Property requests and reclaim/grant outcomes retain native household references
 up to the hearing file's 256-character identity limit. Offered civic choices
 use the existing bounded household token; property records keep the full ID.
+Saved footprint rights and requests retain that same known household reference.
+A generated household party key longer than 256 characters uses a stable hash,
+while its separate household field keeps the complete identity.
 
 Hearing actions enter through admitted personal-model civic choices. Public
 statements remain allegations; actual nearby observations and inspected rights,
