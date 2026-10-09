@@ -15,7 +15,7 @@ public sealed class SwimmingExplorationReturnTests
     [InlineData(true, true)]
     public async Task ProjectResourcePurposeRequiresALoadedReturnButKeepsFootSourcesUsable(bool existingPurpose, bool footReturn)
     {
-        using var generated = NormalPathWorld.CreateGenerated("cart-set-unfinished", _ => new ActionCoverageRecorder(chooseIdle: true));
+        using var generated = NormalPathWorld.CreateGenerated("cart-cargo-orders", _ => new ActionCoverageRecorder(chooseIdle: true));
         Assert.True((await generated.AdvanceOneTickAsync()).Advanced);
         var state = SettlementWeatherTestFixture.WithWeather(generated.ExportState(), WeatherKind.Clear);
         var house = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == FoodCapacityTestFixture.House);
@@ -25,9 +25,13 @@ public sealed class SwimmingExplorationReturnTests
                 state.WorldSystems!.Ecology.Resources.Single(resource => resource.Id == item.Id).Quantity > 0 &&
                 state.Map.IsReachableOnFoot(item.Position, house.Position) == footReturn &&
                 SwimmingRules.IsReachable(state.Map, item.Position, house.Position) &&
+                state.Map.FootNeighbors(item.Position).Any(point => state.Map.IsPassable(point) &&
+                    state.Inhabitants.All(person => person.Position != point)) &&
                 state.Inhabitants.All(person => person.Position != item.Position))
             .OrderBy(item => state.Map.FootDistance(item.Position, house.Position)).FirstOrDefault();
         Assert.NotNull(source);
+        Assert.Contains(state.Map.FootNeighbors(source.Position), point => state.Map.IsPassable(point) &&
+            state.Inhabitants.All(person => person.Position != point));
         var definition = state.WorldContent!.Buildings.First(item => item.BuildCosts.Any(cost => cost.ResourceId == "wood") &&
             item.Tags.Any(tag => tag is "tailor" or "clinic" or "restaurant" or "store") &&
             !state.WorldSimulation.Buildings.Any(placed => placed.HouseholdId == house.HouseholdId && placed.DefinitionId == item.CanonicalId));
