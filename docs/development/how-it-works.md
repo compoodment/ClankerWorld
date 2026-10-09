@@ -711,8 +711,20 @@ and below map labels, agent markers, weather and panels. It eases between the
 once-a-tick readings, shows a newly opened world's darkness at once, and looks
 the same in both themes. The World Map panel is not darkened.
 
+`GoldenHourLayer` draws one click-through multiply immediately above that
+wash and below night lights, map labels, moving figures and weather. It uses
+the approved rose E9A3A0 at dawn and gold F2B160 at dusk, up to 22%. Strength
+is `4 × darkness × (1 − darkness)`, so the host's existing seasonal twilight
+determines its timing, with zero effect at full day or night. Morning versus
+evening comes from the accepted world tick, ticks per day and saved calendar
+offset; the client never computes another night-length rule. The local
+strength eases between reports in up to half a second. Pause freezes it;
+world changes, rewind, clock-half changes and gaps over a game hour settle
+directly to the current reading. It is unsaved display state and adds no
+host fields, events, game effects or new night tint.
+
 Night lights ([#890](https://github.com/compoodment/ClankerWorld/issues/890))
-are drawn by `NightLightsLayer`, just above the wash and under labels and
+are drawn by `NightLightsLayer`, above the night and golden-hour washes and under labels and
 agents. It takes each placed building's family, footprint, door side and the
 roof, yard and door spots from `BuildingSprites.Plan`, and decides from the
 snapshot whether it is occupied (a living agent stands within its footprint)

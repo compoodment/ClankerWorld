@@ -105,6 +105,12 @@ between. Dusk and dawn each fade over an hour (15 seconds at that pace). A new w
 daylight. Loading an existing world keeps its saved clock. At night the map darkens with a
 gentle blue wash at every zoom, under map names, agents and weather, and it is
 colder outdoors (see [Life, work and society](#life-work-and-society)).
+
+Dawn adds a soft rose glow and dusk a gold one, following seasonal twilight.
+Both fade away in full day and night. Names, moving figures,
+night lights and weather stay above the glow, and pause holds its transition.
+The [Windows glow check](../playtest/1465-rose-dawn-gold-dusk.md) is pending.
+
 Buildings in use glow: light falls on the ground from the windows on a
 building's front and sides and from its open door, never from its roof. A House
 is lit only while someone is inside; a Farmhouse, Store, Tailor Shop, Workshop

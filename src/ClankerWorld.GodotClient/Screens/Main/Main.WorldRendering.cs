@@ -15,6 +15,7 @@ public partial class Main
 
     private void ResetDisplayedWorldContext()
     {
+        goldenHourLayer.Reset();
         knownEvents.Clear();
         eventsWorldId = null;
         lastSeenEventId = long.MinValue;
@@ -182,6 +183,7 @@ public partial class Main
 
         if (!HasMap(snapshot))
         {
+            goldenHourLayer.Reset();
             handcartFacings.Clear();
             animalFacings.Clear();
             boatFacings.Clear();
@@ -234,6 +236,8 @@ public partial class Main
             snapshot.Inhabitants.Where(person => !person.IsDraft && IsLiving(person))
                 .Select(person => new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f)));
         nightLayer.Darkness = NightLayer.FromBasisPoints(snapshot.DarknessBasisPoints);
+        goldenHourLayer.Observe(snapshot.WorldId, snapshot.WorldTick, snapshot.CalendarPace?.TicksPerDay ?? 1440,
+            snapshot.CalendarPace?.CalendarOffsetTicks ?? 0, snapshot.DarknessBasisPoints, snapshot.Authoring?.IsPaused == true);
         if (!string.Equals(cameraWorldId, snapshot.WorldId, StringComparison.Ordinal))
         {
             cameraWorldId = snapshot.WorldId;
