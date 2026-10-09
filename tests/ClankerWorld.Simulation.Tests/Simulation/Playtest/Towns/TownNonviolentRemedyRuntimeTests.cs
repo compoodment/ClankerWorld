@@ -204,6 +204,19 @@ public sealed class TownNonviolentRemedyRuntimeTests
     {
         var state = await NonviolentRuntimeFixture.FindingAsync();
         var actor = NonviolentRuntimeFixture.Subject;
+        var boardPosition = state.Inhabitants.Single(person => person.InhabitantId == actor).Position;
+        var inspect = new NonviolentTestProvider
+        {
+            Choose = observation => observation.InhabitantId == actor
+                ? observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|law_case_inspect|", StringComparison.Ordinal)) : null,
+        };
+        using (var reading = NonviolentRuntimeFixture.Create(state, inspect))
+        {
+            NonviolentRuntimeFixture.Wake(reading, actor, "inspect-skilled-repair-case");
+            await NonviolentRuntimeFixture.UntilAsync(reading, () =>
+                TownNonviolentRules.ReadCurrent(reading.Towns[0].Nonviolent.Cases[0], actor, reading.WorldTick), 4);
+            state = NonviolentRuntimeFixture.Strict(reading.ExportState());
+        }
         var household = state.Society.Society.Inhabitants.Single(person => person.Id == actor).HouseholdId!;
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "skilled-remedy-shop-fiber", "fiber",
             household, 2, storageBuildingId: "first-town-house-b");
@@ -227,9 +240,46 @@ public sealed class TownNonviolentRemedyRuntimeTests
             { Position = shop.Position, HungerBasisPoints = 10_000, Survival = new(), Equipment = new("skilled-remedy-coat") } : person).ToArray(),
         };
         state = SettlementSkillWorkTests.WithSkill(state, actor, SettlementSkillKind.Crafting);
-        state = await NonviolentRuntimeFixture.OfferRemedyAsync(state,
-            [new("repair_equipment", actor, actor, "padded_coat", 1, "skilled-remedy-coat")], completionTicks: 7);
-        Assert.Equal(7, Assert.Single(state.Towns![0].Nonviolent.Offers).CompletionTicks);
+        var offerProvider = new NonviolentTestProvider
+        {
+            Choose = observation => observation.InhabitantId == actor
+                ? observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|remedy_offer|", StringComparison.Ordinal)) : null,
+            Payload = (_, candidate) => candidate.Id.Contains("|remedy_offer|", StringComparison.Ordinal)
+                ? new(Statement: "I voluntarily offer my own named coat repair in seven ticks.",
+                    Terms: [new("repair_equipment", actor, actor, "padded_coat", 1, "skilled-remedy-coat")], CompletionTicks: 7) : null,
+        };
+        using (var offering = NonviolentRuntimeFixture.Create(state, offerProvider))
+        {
+            NonviolentRuntimeFixture.Wake(offering, actor, "offer-skilled-short-repair");
+            await NonviolentRuntimeFixture.UntilAsync(offering, () => offering.Towns[0].Nonviolent.Offers.Count > 0, 4);
+            state = NonviolentRuntimeFixture.Strict(offering.ExportState());
+        }
+        var offer = Assert.Single(state.Towns![0].Nonviolent.Offers);
+        Assert.Equal(7, offer.CompletionTicks);
+        Assert.Empty(state.Towns[0].Nonviolent.Agreements);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
+            { Position = boardPosition } : person).ToArray(),
+        };
+        var readOffer = new NonviolentTestProvider
+        {
+            Choose = observation => observation.InhabitantId == actor
+                ? observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|remedy_read|", StringComparison.Ordinal)) : null,
+        };
+        using (var reading = NonviolentRuntimeFixture.Create(state, readOffer))
+        {
+            NonviolentRuntimeFixture.Wake(reading, actor, "read-skilled-short-repair-offer");
+            await NonviolentRuntimeFixture.UntilAsync(reading, () => reading.Towns[0].Governance!.Knowledge.Any(receipt =>
+                receipt.AgentId == actor && receipt.NoticeId == offer.NoticeId), 4);
+            state = NonviolentRuntimeFixture.Strict(reading.ExportState());
+        }
+        Assert.Empty(state.Towns![0].Nonviolent.Agreements);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
+            { Position = shop.Position } : person).ToArray(),
+        };
         Assert.DoesNotContain(state.Society.Society.Inventory.Reservations, reservation => reservation.LotId == "skilled-remedy-cloth");
         var consent = new NonviolentTestProvider
         {
