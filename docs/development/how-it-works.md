@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # How the game works
@@ -133,7 +133,7 @@ Physical movement may preserve damaged or spoiled property. Consumption still
 requires usable inputs. `InventoryFixture` remains the authority for an actual
 reservation, transfer, container operation or consumption.
 
-`Playtest/Goods/` currently supplies two query uses. `Holdings` excludes unusable
+`Playtest/Goods/` currently supplies three query uses. `Holdings` excludes unusable
 lots or parent vessels, reserved quantities, delivery promises and goods held
 for sale at a borrowed Market stall. `ConsumeAt` matches the inventory
 reservation boundary, including usable contained ingredients and partially
@@ -141,13 +141,33 @@ unreserved quantities; reusable vessels themselves are not consumable inputs.
 Requests name exact owners and item kinds, and can restrict a building. The
 answer's `Total` and `First` read the same stable matches. It includes each lot's
 root vessel, physical place, available quantity and whole-vessel movement size.
-Travel, destination capacity and other uses belong to the later steps of
+Destination capacity and remaining uses belong to the later steps of
 [#1366](https://github.com/compoodment/ClankerWorld/issues/1366); unsupported
-travel/destination fields are refused rather than silently ignored.
+origin/destination fields and extra-unit requests are refused rather than silently ignored.
+
+Actor-bound `Collect` extends Holdings with native custody/place permission,
+free vessel families, actual carrying room and an unoccupied walking route.
+Whole-vessel matches include all contents in their movement size, even when
+matching a contained kind. Already-carried supplies need no additional carry
+room. The route runs last and is reused for lots at the same position and
+interaction range within one answer; native route rules still account for
+occupants, shared destinations and an attached cart.
+
+`SharedItem` uses Collect for household equipment, repair inputs and planting
+seeds, with the existing Warehouse fallback rechecked through the same use.
+`CollectEquipment` rechecks the selected lot immediately before its transfer.
+Animal-supply sources use Collect and recheck before pickup; care permission,
+feed reserves, product capacity, destination room and workstation surplus
+remain feature-specific filters. These are the first household pickup callers
+of [#1370](https://github.com/compoodment/ClankerWorld/issues/1370). Personal
+recovery, birth food, material counts and the remaining Warehouse/Town paths
+still use their existing helpers.
 
 With `Explain`, exclusions retain their first failure in this fixed order:
 owner, kind, building, damage, spoilage, vessel, empty stock, reservation,
-delivery and Market sale promise. Diagnostics are derived, never saved or
+delivery and Market sale promise. Collect then checks custody/place, family
+reservations, equipped or hitched goods, carry room and finally reach.
+Diagnostics are derived, never saved or
 logged every tick. Normal queries use the owner/building index; explanations
 scan all lots so they can also explain an owner or place mismatch.
 

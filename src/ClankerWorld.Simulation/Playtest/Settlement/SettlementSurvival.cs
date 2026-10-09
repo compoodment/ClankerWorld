@@ -135,11 +135,22 @@ public sealed partial class PrivateWorldRuntime
         lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
         lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0);
 
-    private InventoryLot? SharedItem(string kind, string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.OwnerId == HouseholdFor(actor) && lot.CarrierId is null && lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
-        (lot.StorageBuildingId is null || society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
-        CanReachSharedItem(actor, lot)) ??
-        (kind == "food" ? null : AvailableWarehouseStock(actor, kind).FirstOrDefault());
+    private static GoodsRequest SharedCollectionRequest(string actor, string owner, string kind) =>
+        new(GoodsUse.Collect, actor, GoodsOwners.One(owner), GoodsKinds.One(kind));
+
+    private InventoryLot? SharedItem(string kind, string actor)
+    {
+        if (HouseholdFor(actor) is { } household)
+        {
+            var request = SharedCollectionRequest(actor, household, kind);
+            var source = FindGoods(request).Matches.FirstOrDefault(match => match.Lot.ContainerLotId is null && match.Lot.CarrierId is null);
+            if (source is not null) return source.Lot;
+        }
+        if (kind == "food") return null;
+        foreach (var lot in AvailableWarehouseStock(actor, kind))
+            if (RecheckGoods(SharedCollectionRequest(actor, lot.OwnerId, kind), lot.Id) is { } match) return match.Lot;
+        return null;
+    }
 
     private bool CanReachSharedItem(string actor, InventoryLot lot) =>
         !OnBorrowedMarketStall(lot) && FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
@@ -297,6 +308,7 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, person, storage, "equipment", interactionRange);
             return;
         }
+        if (RecheckGoods(SharedCollectionRequest(actor, item.OwnerId, kind), item.Id) is null) return;
         // Every household work tool, of any tier, is borrowed rather than handed over.
         var borrowedTool = item.ItemKind == "tool" || ToolProgressionRules.Find(item.ItemKind) is not null;
         ApplyInventoryTransition(inventory => borrowedTool && item.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId
