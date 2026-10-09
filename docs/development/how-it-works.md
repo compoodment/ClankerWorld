@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # How the game works
@@ -114,6 +114,20 @@ assignments, extend these guards and document its boundary here. Run the
 [tick equivalence comparison](build-and-test.md#compare-tick-equivalence)
 against the exact base and include the result in the PR. Later steps extend
 the writer ratchet to the state they move.
+
+## Client roster presentation
+
+The Godot client compares the sorted, non-draft Agents list presentation on
+each accepted observation: IDs, names, living/deceased state, readable activity,
+fullness label, Cold/Ill tags and portrait life stage. Unchanged presentation
+retains both the selection text list and native cards and portrait textures,
+including while the panel is hidden. Selection changes update the existing
+rows separately, preserving browsing position unless another agent is selected.
+
+Actual presentation changes refresh immediately, so opening a hidden list shows
+the latest accepted information. World identity, a theme change or resetting the
+displayed world invalidates reuse. This cache belongs only to client presentation;
+it changes no observation cadence, simulation state, saved data or history.
 
 ## Finding goods
 
