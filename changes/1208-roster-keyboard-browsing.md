@@ -1,0 +1,1 @@
+- You can browse the Agents list with Up and Down while it stays open, then press Enter to open the chosen agent's Profile.

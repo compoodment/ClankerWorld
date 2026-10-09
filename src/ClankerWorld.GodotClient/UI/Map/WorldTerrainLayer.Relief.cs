@@ -37,6 +37,7 @@ public partial class WorldTerrainLayer
     // The chunk the ground pass last asked about, and whether relief covers it.
     private (int X, int Y, int Size)? lastReliefKey;
     private bool lastReliefCovers;
+    private ulong reliefDrawAtMs;
 
     private enum ReliefState { Waiting, Rendering, Ready, Failed }
 
@@ -128,6 +129,7 @@ public partial class WorldTerrainLayer
     /// </summary>
     private void BeginReliefDraw()
     {
+        reliefDrawAtMs = Time.GetTicksMsec();
         foreach (var texture in retiredRelief) texture.Dispose();
         retiredRelief.Clear();
         lastReliefKey = null;
@@ -145,7 +147,7 @@ public partial class WorldTerrainLayer
         if (lastReliefKey != key)
         {
             lastReliefKey = key;
-            lastReliefCovers = ShownRelief(key) is { } shown && FadeOf(shown, Time.GetTicksMsec()) >= 1f;
+            lastReliefCovers = ShownRelief(key) is { } shown && FadeOf(shown, reliefDrawAtMs) >= 1f;
         }
         return lastReliefCovers;
     }
@@ -175,7 +177,7 @@ public partial class WorldTerrainLayer
     {
         if (world is null || !DrawsRelief || bounds.Width <= 0 || bounds.Height <= 0) return;
         reliefDrawSerial++;
-        var now = Time.GetTicksMsec();
+        var now = reliefDrawAtMs;
         var fading = 0;
         var waiting = new List<ReliefChunk>();
         var end = bounds.Left + bounds.Width;

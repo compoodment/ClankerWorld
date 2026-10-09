@@ -1,0 +1,1 @@
+- Adults can carry usable flour home from the Farmhouse even when a broken flour pot is also stored there.
