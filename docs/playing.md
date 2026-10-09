@@ -48,6 +48,15 @@ waiting for a home, meeting up or travelling. The child joins the guardian's
 household and Town only when they arrive together and the House still has room.
 Birth parents and family history stay unchanged.
 
+A well-fed child can choose to gather nearby wild food or fallen wood for
+home, or carry loose household food or wood back to their House. Inspect their
+current action, carried goods and the Event Log to follow the trip and delivery.
+Helping loads are limited to four carried units in total and short trips of up
+to eight steps each way, within eight tiles of home. Reserved goods, other
+households' supplies and heavy materials are unavailable for these tasks.
+Infants do no helping work. If the House fills, a child keeps their cargo until
+there is room to deliver it. These limits are initial trial values.
+
 A household can make a crude wooden axe and pickaxe at its own House from
 wood stored there. Nearby fallen wood can be gathered by hand to get started.
 The axe fells trees and the pickaxe extracts stone, so a household does not
@@ -497,6 +506,11 @@ in a whole jug. **Deliver two bread to my House** shares spare carried bread whi
 keeping one serving; **Stock restaurant meals in my Store** uses the normal shop
 limits. Loose personal meals are collected or shared, rather than put away with
 the nonfood **Store** command.
+
+Adults can visit another Town's shops to buy missing Restaurant ingredients,
+or visit its Restaurants for meals. Both traders must meet and agree before
+anything changes hands. The customer carries the purchase; visiting or buying
+gives no right to take Warehouse stock or another household's private goods.
 
 To start household building work, use **Build a Clinic**, **Build a Silo** or
 another supported household building name: House, Farmhouse, Blacksmith,
