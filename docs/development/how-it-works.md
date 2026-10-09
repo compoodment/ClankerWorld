@@ -1057,8 +1057,9 @@ either participant is talking. Conversation logs record only purpose, bounded
 turn count, latency and usage totals, including reported usage for rejected speech.
 
 Personal requests retrieve at most four relevant own-memory/belief excerpts and
-sixteen recent own-map facts. An existing Jev routine call may score up to twelve
-previously unassessed records; only linked salience/confidence values are saved.
+sixteen recent own-map facts. Excerpts use at most 160 UTF-16 units and keep
+complete Unicode characters; the saved source text and evidence stay unchanged.
+An existing Jev routine call may score up to twelve previously unassessed records; only linked salience/confidence values are saved.
 It adds no separate paid request or generated prose. Local retrieval works with
 Jev off. Automatic experience capture and narrative summarization are unfinished.
 

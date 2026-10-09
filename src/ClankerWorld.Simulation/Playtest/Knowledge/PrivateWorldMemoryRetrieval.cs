@@ -180,10 +180,15 @@ internal static class PrivateWorldMemoryRetrieval
         ? null
         : Bounded(value, limit);
 
-    private static string Bounded(string value, int limit) =>
-        string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)) is { } normalized
-            ? normalized[..Math.Min(limit, normalized.Length)]
-            : string.Empty;
+    private static string Bounded(string value, int limit)
+    {
+        var normalized = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var length = Math.Min(limit, normalized.Length);
+        if (length > 0 && length < normalized.Length &&
+            char.IsHighSurrogate(normalized[length - 1]) && char.IsLowSurrogate(normalized[length]))
+            length--;
+        return normalized[..length];
+    }
 
     private static HashSet<string> Terms(string text)
     {
