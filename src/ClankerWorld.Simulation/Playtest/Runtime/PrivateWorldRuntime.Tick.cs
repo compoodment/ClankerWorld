@@ -179,6 +179,7 @@ public sealed partial class PrivateWorldRuntime
                     completedConversationTurns,
                     proposed.WorldTick,
                     IsConversationTurnProviderCurrent);
+                proposed.CompleteClosedTalkOrders();
                 proposed.CompleteIdentityMoments(completedIdentityMoments, IsIdentityMomentProviderCurrent);
                 if (deferHosted)
                     proposed.ProcessWillDecisions(completedWills, activeWillIds, inactiveWillReasons,
@@ -674,6 +675,7 @@ public sealed partial class PrivateWorldRuntime
             MaintainKnowledgeWriting();
             ProcessBoatQueue();
             ReconcileAnimalCustody();
+            CompleteClosedTalkOrders();
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();

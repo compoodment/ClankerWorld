@@ -194,6 +194,11 @@ public sealed partial class PrivateWorldRuntime
     private void ContinueKnowledgeWriting(AgentKnowledgeWritingProject project)
     {
         var actor = project.ActorId;
+        if (project.OrderInstructionId is not null && !IsCurrentKnowledgeOrderProject(project))
+        {
+            CancelKnowledgeWriting(project, "order_unavailable");
+            return;
+        }
         if (!HasLiveWritingInputs(project) || !HasWritingSource(project))
         {
             CancelKnowledgeWriting(project, "materials_or_source_unavailable");
@@ -226,10 +231,12 @@ public sealed partial class PrivateWorldRuntime
                 WritingProjectId = project.Id,
                 Materials = project.Materials,
                 SourceArtifactId = project.SourceArtifactId,
+                OrderInstructionId = project.OrderInstructionId,
             }).ToArray(),
         };
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("agent_knowledge_artifact_created", $"{actor}|{artifactId}|{project.Kind}|{project.Facts.Count}");
+        CreditKnowledgeOrderCompletion(project, artifactId);
     }
 
     private void ReplaceKnowledgeWriting(AgentKnowledgeWritingProject project)
@@ -240,6 +247,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void CancelKnowledgeWriting(AgentKnowledgeWritingProject project, string reason)
     {
+        ClearKnowledgeOrderBinding(project);
         ApplyInventoryTransition(inventory => project.Materials.Aggregate(inventory,
             (current, input) => current.Reservations.Any(item => item.Id == input.ReservationId)
                 ? InventoryFixture.ReleaseReservation(current, input.ReservationId, "knowledge_writing_cancelled") : current));
@@ -252,7 +260,7 @@ public sealed partial class PrivateWorldRuntime
     private void MaintainKnowledgeWriting()
     {
         foreach (var project in knowledge.WritingProjects.ToArray())
-            if (!MayMakeKnowledgeArtifact(project.ActorId) ||
+            if (project.OrderInstructionId is not null && !IsCurrentKnowledgeOrderProject(project) || !MayMakeKnowledgeArtifact(project.ActorId) ||
                 !HasLiveWritingInputs(project) || !HasWritingSource(project))
                 CancelKnowledgeWriting(project, "materials_or_source_unavailable");
     }
