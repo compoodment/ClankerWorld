@@ -1279,6 +1279,15 @@ Rivers terminate at lakes or oceans; this revision does not invent lake outlets.
 The [Small/Medium comparison](assets/inland-water-comparison.png) shows seed
 `inland-water-0` at 45% water with wrapping (historical left, revised right).
 It is a generator-layer rendering, not a Godot screenshot or native playtest.
+The outer `GeographyGenerator.PolarEdgeRows` (two) rows at the north and
+south edges are always polar ocean, whatever the climate mode, latitude
+cooling, water share or size. Building the playable map sets them to Ocean
+with a Polar climate, open water and no cover as its last pass, after every
+object is placed, and drops resources that landed there. For the same
+candidate attempt, every other tile and object is generated as before.
+Candidate selection can change because it measures the revised map. Nobody
+can walk onto the polar rows. Changed map digests can also change the first
+Town's layout, which is seeded from the digest, for the same seed.
 Revision 0 (including absent revision fields) retains the historical generator;
 unsupported revisions are rejected rather than substituted. Individual trees are
 objects/resources. Old generated worlds recover missing layers from saved
