@@ -708,7 +708,9 @@ public sealed partial class PrivateWorldRuntime
                 order.RequestedUnits == 1 && order.CompletedUnits is >= 0 and <= 1 && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
                 order.ProgressUnit == "cart_tasks" && order.TargetFoodKind is null && order.TargetAgentId is null && order.TargetResourceId is null && order.TargetPosition is null &&
                 order.Status != "not_understood" && (order.Status == "finished") == (order.CompletedUnits == 1) &&
-                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.TargetCartLotId is not null && order.LastEffectId == CartOrderEffectId(instruction));
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.TargetCartLotId is not null &&
+                    (order.Action == "repair_handcart" ? CartRepairOrderReceiptTick(instruction, worldTick) is not null :
+                        order.LastEffectId == CartOrderEffectId(instruction)));
         if (IsAnimalOrder(order.Action))
             return !string.IsNullOrWhiteSpace(order.TargetAnimalId) && order.TargetAnimalId.Length <= 128 &&
                 !order.TargetAnimalId.Any(char.IsControl) && order.RequestedUnits == 1 && order.CompletedUnits >= 0 &&
