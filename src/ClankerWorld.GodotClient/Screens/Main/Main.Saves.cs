@@ -172,6 +172,7 @@ public partial class Main
         {
             if (!manualSaveOverlay.Visible) CancelManualSaveListRead();
             else ApplyManualSaveView();
+            saveDiskWarningPanel.Visible = !manualSaveOverlay.Visible && saveDiskWarningLabel.Text.Length > 0;
         };
         manualSaveOverlay.ZIndex = 220;
         menuLayer.AddChild(manualSaveOverlay);
@@ -195,6 +196,9 @@ public partial class Main
         body.AddChild(headingRow);
         manualSaveStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(manualSaveStatus);
+        manualSaveDiskWarning.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        manualSaveDiskWarning.Hide();
+        body.AddChild(manualSaveDiskWarning);
         // A new save opens already named after the world's date, so one click saves.
         var newSave = new HBoxContainer();
         newSave.AddThemeConstantOverride("separation", 8);
@@ -552,6 +556,7 @@ public partial class Main
         pendingDeletion = null;
         listedSaveWorldId = readWorldId;
         ShowManualSavePanel(loadMode);
+        _ = RefreshSaveDiskSpaceAsync(force: true);
         bool IsCurrentRead() => ReferenceEquals(manualSaveListCancellation, read) &&
             IsCurrentWorldRequest(readGeneration) &&
             manualSaveOverlay.Visible && ReferenceEquals(registration, readRegistration) &&
@@ -701,6 +706,10 @@ public partial class Main
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
+            var generation = observationSession.RequestGeneration;
+            await RefreshSaveDiskSpaceAsync(force: true);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!IsCurrentWorldRequest(generation)) throw new ObsoleteWorldRequestException();
             var saved = await AwaitCurrentWorldResultAsync(ownerApi.CreateManualSaveAsync(ResolveWorldUri(), authority,
                 deviceId, name, signer, CancellationToken.None));
             manualSaveOverlay.Hide();
@@ -727,6 +736,10 @@ public partial class Main
         if (id is null || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         await RunOwnerActionAsync(async () =>
         {
+            var generation = observationSession.RequestGeneration;
+            await RefreshSaveDiskSpaceAsync(force: true);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!IsCurrentWorldRequest(generation)) throw new ObsoleteWorldRequestException();
             var receipt = await AwaitCurrentWorldResultAsync(ownerApi.OverwriteManualSaveAsync(ResolveWorldUri(), authority,
                 deviceId, id, signer, CancellationToken.None));
             manualSaveOverlay.Hide();

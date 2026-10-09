@@ -11,6 +11,20 @@ internal static partial class OwnerEndpoints
 {
     private static void MapSaves(WebApplication app, bool isPrivateWorld)
     {
+        app.MapPost("/api/v1/owner/saves/disk-status", (
+            OwnerSignedHttpRequest<OwnerControlAction> request,
+            OwnerRequestAuthorizer authorizer,
+            SaveDiskSpaceMonitor disk) =>
+        {
+            if (!IsControl(request, "save-disk-status"))
+                return Results.BadRequest(new { error = "A save-space status action is required." });
+            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/disk-status",
+                OwnerHttpBinding.EmptyPayload("save-disk-status"));
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+            if (!isPrivateWorld) return Results.Conflict(new { error = "Save-space status requires a private world." });
+            return Results.Ok(disk.Capture());
+        });
+
         app.MapPost("/api/v1/owner/saves/list", (
             OwnerSignedHttpRequest<OwnerControlAction> request,
             OwnerRequestAuthorizer authorizer,
@@ -223,7 +237,9 @@ internal static partial class OwnerEndpoints
                     stateFile.VerifyRequiredHistory(checkpoint);
                     var assignments = committed.Assignments;
                     var autosaveSettings = committed.AutosaveSettings;
-                    if (!string.Equals(checkpoint.WorldSeed, runtime.ExportState().WorldSeed, StringComparison.Ordinal))
+                    var current = runtime.ExportState();
+                    if (!string.Equals(checkpoint.WorldSeed, current.WorldSeed, StringComparison.Ordinal) ||
+                        !string.Equals(checkpoint.Society.Society.WorldId, current.Society.Society.WorldId, StringComparison.Ordinal))
                     {
                         ManualWorldSaveTelemetry.Rejected(logger, "load", "different_world");
                         return Results.Conflict(new { error = "This save belongs to a different world." });

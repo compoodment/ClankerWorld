@@ -552,6 +552,28 @@ public sealed partial class ManualWorldSaveStore
         return ReadCommitted(id).Checkpoint;
     }
 
+    /// <summary>Autosaves on the active history, including its last loaded point when a new branch has not saved yet.</summary>
+    public IReadOnlyList<ManualWorldSave> StartupRecoveryCandidates(string worldId)
+    {
+        lock (gate)
+        {
+            var timeline = ReadTimeline(worldId);
+            if (timeline is null && File.Exists(TimelinePath(worldId))) return [];
+            var all = List(worldId);
+            var candidates = all.Where(save => save.IsAutosave && !ReadMetadata(save.Id).HasInvalidBranchMetadata);
+            if (timeline is not null)
+            {
+                candidates = candidates.Where(save => save.Branch?.Id == timeline.Branch?.Id);
+                if (ContinuingBranch(timeline, all) is null && timeline.ContinuedFromId is not null)
+                    candidates = candidates.Where(save => timeline.Branch is not null
+                        ? save.BranchPosition <= timeline.ContinuedFromBranchPosition
+                        : save.CreatedUtc <= timeline.ContinuedFromCreatedUtc);
+            }
+            return candidates.OrderByDescending(save => save.BranchPosition)
+                .ThenByDescending(save => save.CreatedUtc).ThenBy(save => save.Id, StringComparer.Ordinal).ToArray();
+        }
+    }
+
     /// <summary>Read the checkpoint and its routing/settings from one published generation.</summary>
     public (PrivateWorldRuntimeState Checkpoint, IReadOnlyList<InhabitantProviderAssignment> Assignments,
         WorldAutosaveSettings? AutosaveSettings) ReadCommitted(string id)

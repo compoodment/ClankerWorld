@@ -199,6 +199,7 @@ public partial class Main
                 choiceBounds.End.X > settingsViewport.End.X + 1)
                 throw new InvalidOperationException("Game Settings escaped its usable bounds at 1440p and 200%.");
             await VerifyAgentConversationReaderAt200PercentAsync();
+            VerifyResourceAppearanceReuse(smokeMap);
 
             var emptyLayer = Convert.ToBase64String(new byte[16]);
             var fieldMap = smokeMap with
@@ -1184,6 +1185,8 @@ public partial class Main
                 await VerifySameWorldTimelineUiRecoveryAsync();
                 VerifySaveBranchList();
                 await VerifySaveTimelineAsync();
+                await VerifySaveDiskSpaceWarningAsync();
+                await VerifyStartupRecoveryAsync();
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1672,6 +1675,7 @@ public partial class Main
                 throw new InvalidOperationException("The Town panel must not show operator diagnostics such as revisions or digests.");
             RenderTownExtras(sample);
             await VerifyWorldInfoPagesAsync();
+            VerifyAgentCardStyleRetention();
             VerifySeasonalLandscape(sample);
             // Top-bar panels hug their contents, and short text leaves no empty space below it.
             foreach (var panel in new PanelContainer[] { rosterPanel, eventsPanel, worldInfoPanel, filtersPanel, worldOverviewPanel })
@@ -3058,6 +3062,7 @@ public partial class Main
             if (mapObjectVisuals.ContainsKey("building:test-hall")) throw new InvalidOperationException("Removed building marker was retained.");
             await VerifyAgentPosesAsync(sample, founder);
             await VerifyMountainReliefAsync();
+            await VerifyTerrainCacheRefreshAsync();
             await VerifyDesertAndSnowArtAsync();
             VerifyOrchardSaplingAppearance(sample);
             var crowded = sample with
@@ -3773,6 +3778,7 @@ public partial class Main
                     "I hid the garden tools where Rowan cannot see them.", "private")],
                 RecentKnowledgeFacts = [new OwnerWorldKnowledgeFact(2, 7, 9, "Forest", ["wood"],
                     "Mira", "firsthand", null)],
+                KnownRecipes = [new OwnerWorldRecipe(3, "Mill grain", "read", "Rowan")],
                 KnowledgeArtifacts =
                 [
                     new OwnerWorldKnowledgeArtifact("knowledge-artifact-000001", "field_map",
@@ -3781,7 +3787,7 @@ public partial class Main
                          new OwnerWorldKnowledgeSite(8, 9, "River", [], "Mira")]),
                     new OwnerWorldKnowledgeArtifact("knowledge-artifact-000002", "book",
                         "Book · 1 site", 3, "Mira",
-                        [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira")]),
+                        [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira")]) { RecipeNames = ["Mill grain"] },
                 ],
             };
             var historicalSnapshot = sample with
@@ -3829,6 +3835,8 @@ public partial class Main
                 !MemoryCardsText().Contains("I hid the garden tools", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Field map", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Book written by Mira", StringComparison.Ordinal) ||
+                !MemoryCardsText().Contains("Recipe: Mill grain", StringComparison.Ordinal) ||
+                !MemoryCardsText().Contains("Read from Rowan", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Forest at 7, 9", StringComparison.Ordinal) ||
                 ProfilePeopleText().Contains("I hid the garden tools", StringComparison.Ordinal))
                 throw new InvalidOperationException("Historical memories and bounded agent-owned map records must be inspectable separately from public social notes.");
@@ -3851,9 +3859,9 @@ public partial class Main
                     .Any(label => label.Text.Contains("event pop-ups", StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException("Deaths must remain in the Event Log without an event pop-up setting.");
             if (!eventLog.GetParsedText().Contains("finished writing a book.", StringComparison.Ordinal) ||
-                !eventLog.GetParsedText().Contains("learned about places from a written work.", StringComparison.Ordinal) ||
+                !eventLog.GetParsedText().Contains("learned from a written work.", StringComparison.Ordinal) ||
                 DescribeWorldEvent(knownEvents[102], historicalSnapshot) != "Mira finished writing a book." ||
-                DescribeWorldEvent(knownEvents[103], historicalSnapshot) != "Mira learned about places from a written work." ||
+                DescribeWorldEvent(knownEvents[103], historicalSnapshot) != "Mira learned from a written work." ||
                 eventLog.GetParsedText().Contains("knowledge-artifact-", StringComparison.Ordinal))
                 throw new InvalidOperationException("Written-knowledge events must name the writer or actual reader without displaying artifact identifiers.");
             ToggleEvents();
