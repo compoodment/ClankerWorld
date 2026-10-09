@@ -619,6 +619,8 @@ public sealed partial class PrivateWorldRuntime
             "store_food_in_pot" ||
         KnowledgeWritingFor(state.InhabitantId) is { OrderInstructionId: null } writing && writing.CandidateId == id ||
         id == "explore" && state.Exploration?.OutingPath.Count > 0 ||
+        state.Exploration is { Returning: false, OutingPath.Count: > 0, Goal: { OrderInstructionId: null } goal } &&
+            ExplorationGoalCandidateId(goal) == id ||
         id.StartsWith("assist:", StringComparison.Ordinal) ||
         id.StartsWith(GatherBlacksmithInputPrefix, StringComparison.Ordinal) ||
         id.StartsWith(GatherBuildingMaterialPrefix, StringComparison.Ordinal) ||
@@ -1074,6 +1076,14 @@ public sealed partial class PrivateWorldRuntime
         if (candidateId is "plant_tree" or "plant_orchard")
         {
             PlantTreeNearby(inhabitantId, state, candidateId == "plant_orchard");
+            return;
+        }
+
+        if (candidateId.StartsWith(ExplorationGoalPrefix, StringComparison.Ordinal))
+        {
+            var parts = candidateId[ExplorationGoalPrefix.Length..].Split(':');
+            if (parts.Length == 2 && ValidExplorationGoal(new(parts[0], parts[1])))
+                Explore(inhabitantId, state, new(parts[0], parts[1]));
             return;
         }
 

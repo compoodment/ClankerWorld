@@ -440,8 +440,14 @@ public static class GameUiText
     /// </summary>
     public static string ActivityPhrase(string? candidateId, string? summary)
     {
+        if (summary?.StartsWith("looking for ", StringComparison.Ordinal) == true && !summary.Contains(':', StringComparison.Ordinal))
+            return summary.Trim();
         if (candidateId is not null && KnowledgeActionPhrase(candidateId, inProgress: true) is { } knowledgeActivity)
             return knowledgeActivity;
+        if (candidateId?.StartsWith("explore_for:resource:", StringComparison.Ordinal) == true)
+            return "looking for " + candidateId["explore_for:resource:".Length..].Replace('_', ' ');
+        if (candidateId?.StartsWith("explore_for:terrain:", StringComparison.Ordinal) == true)
+            return "looking for " + candidateId["explore_for:terrain:".Length..].ToLowerInvariant() + " terrain";
         if (candidateId?.StartsWith("tool_request_", StringComparison.Ordinal) == true)
             return candidateId.Split(':', 2)[0] switch
             {
