@@ -68,7 +68,7 @@ public sealed class MarketBlacksmithDemandTests
         Assert.Equal(expected, trades.Length);
         Assert.Equal(expected != 0, choices.OfferedTo(buyer).Any(item => item.Id.StartsWith("market_buy:", StringComparison.Ordinal)));
         Assert.Equal(expected, final.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == buyer && lot.ItemKind == kind).Sum(lot => lot.Quantity));
-        Assert.Equal(4 - expected, final.Society.Society.Inventory.Lots.Where(lot => lot.Id == "smith-market-payment").Sum(lot => lot.Quantity));
+        Assert.Equal(4 - expected, final.Society.Society.Inventory.Lots.Where(lot => lot.Id == "smith-market-payment" && lot.OwnerId == buyer).Sum(lot => lot.Quantity));
         Assert.All(trades, trade =>
         {
             Assert.NotNull(trade.SettledTick);
@@ -82,6 +82,8 @@ public sealed class MarketBlacksmithDemandTests
             Assert.Equal("smith-market-payment", offer.SecondLotId);
         });
         var foreignHousehold = PaidMarketWorld.HouseholdOf(state, foreignSeller);
+        Assert.Equal(expected, final.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId == foreignHousehold &&
+            (lot.Id == "smith-market-payment" || lot.ProvenanceLotId == "smith-market-payment")).Sum(lot => lot.Quantity));
         Assert.Equal(4 - expected, final.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind == kind && lot.OwnerId == foreignHousehold).Sum(lot => lot.Quantity));
         Assert.Equal(boundary == "missing" ? 0 : 4, final.Society.Society.Inventory.Lots.Where(lot => MarketTradeRules.IsReceiptLot(ownReceipt, lot)).Sum(lot => lot.Quantity));
         Assert.Equal(boundary == "left" ? 1 : 2, market.Occupancies.Count(item => item.EndedTick is null));
