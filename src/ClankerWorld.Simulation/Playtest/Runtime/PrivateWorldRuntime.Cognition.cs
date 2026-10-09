@@ -13,6 +13,11 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
+    // Keep authoritative membership keys in saves; only model context needs a bounded alias.
+    private static string? CognitionHouseholdId(string? id) => id is null || id.Length <= 128
+        ? id
+        : "household-sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(id)));
+
     private void EnqueueDueCognition(IReadOnlySet<string> activeHostedIds)
     {
         var cognitionState = society.Capture().Cognition;
@@ -128,7 +133,7 @@ public sealed partial class PrivateWorldRuntime
             var requiresPersonalProvider = checkpoint.Births.Any(birth => birth.ChildId == inhabitant.Id);
             var knownMapFacts = KnownMapFactsForCognition(inhabitant.Id);
             var self = new CognitionSelfContext(inhabitant.Id, inhabitant.Name, inhabitant.AgeBand.ToString(),
-                physical.Personality, physical.Aspiration, inhabitant.HouseholdId,
+                physical.Personality, physical.Aspiration, CognitionHouseholdId(inhabitant.HouseholdId),
                 physical.Survival?.WarmthBasisPoints, physical.Survival?.IllnessBasisPoints,
                 physical.RecentThoughts is { Count: > 0 } thoughts ? thoughts[^1].Text : null,
                 checkpoint.Households.SingleOrDefault(item => item.Id == inhabitant.HouseholdId)?.Name,

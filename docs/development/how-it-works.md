@@ -834,6 +834,10 @@ memories and unrelated identities are excluded. Household and Town keep their
 existing recorded-name fields. This bounded snapshot is part of the ordinary
 personal-model request and its digest, in both numeric and word-based need
 formats; it creates no separate request or inherited traits.
+Household IDs longer than the self-context limit use stable SHA-256 aliases
+in ordinary decisions and post-death will requests. Short IDs stay unchanged.
+Saved membership, property and other household references retain the complete
+household identity, including one founded by a native-born adult.
 
 Native births use the existing `IdentityChoicePending` marker and the
 `undecided`/`find a purpose` placeholders. Infants still receive no cognition.
@@ -1025,9 +1029,10 @@ turn ID, with duplicate and owner checks. Listener and belief-owner references
 retain complete native inhabitant IDs, including longer identities created by
 birth; they do not share the length bounds for caller-provided belief IDs and
 prose. Canonical identity and known-owner checks still apply.
-Personal-model memory subjects use stable hash aliases for longer native IDs,
-as map-knowledge discoverers already do; saved social-memory and belief
-ownership and subjects keep their complete identities.
+Personal-model memory subjects and belief reporters use the same stable hash
+alias for a longer native identity, as map-knowledge discoverers already do.
+Short identities remain unchanged. Saved social-memory and belief ownership,
+subjects and reporters keep their complete identities and evidence links.
 Memory salience indexes retain the same complete native owner identities while
 validating each indexed source against that owner's existing records.
 Helper score replies retain these owner IDs too; admission requires the exact
@@ -1649,7 +1654,7 @@ Paused founder setup creates one First Town when the owner accepts its five-buil
 site. Founders become residents; Start World changes founding state to founded.
 Later placement inside the saved border establishes residence; walking does
 not change it. A newborn joins its primary caregiver's Town; death removes the
-resident. Joining another Town later needs that Town's council (below). Owned-building placement establishes household membership.
+resident. Joining another existing Town later needs that Town's council (below), except deliberate resettlement of an abandoned Town. Owned-building placement establishes household membership.
 
 Founders and added adults arrive at a seeded age from day 15 to day 25 in
 day-lifecycle worlds. `SocietyFixture.FounderArrivalAge` orders that range once
@@ -1660,6 +1665,18 @@ an added adult's day from the world seed and the number of inhabitants already
 recorded, living or dead, not from the client's agent ID. The saved birth tick
 holds the result, so loading never draws again. Year-based development worlds
 keep the 18-year adult age.
+
+`PrivateWorldRuntime.TownFounding` offers an explicit personal `found` civic
+choice to a living adult on buildable unclaimed land. The stable candidate ID
+binds the world seed and current site. Execution rechecks the adult, location,
+other Town borders and titles, and private property after earlier choices.
+The first layout uses `TownBorderRules.Around`, including the ordinary spare
+margin around incorporated household buildings. Another household's building
+or field refuses the site. Existing owned buildings and fields retain ownership
+and receive footprint use rights under the new title; founding creates no
+building, Road or inventory lot. The adult's Town care group moves under the
+one-Town rule, and governance starts from its living adult residents. Later
+visitors use ordinary admission. A built House alone never founds a Town.
 
 Each `TownRuntimeState` carries its own `TownGovernanceState`. `TownGovernanceRules`
 implements all-adult and representative councils from recorded living adult
