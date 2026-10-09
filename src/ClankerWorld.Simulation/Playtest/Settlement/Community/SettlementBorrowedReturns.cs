@@ -31,7 +31,7 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, inhabitants[actor], house.Position, "personal_goods", 1);
             return null;
         }
-        var room = StorageRoom(house.InstanceId);
+        var room = StorageRoomAfterInboundDeliveries(house.InstanceId);
         var quantity = InventoryContainerRules.IsContainer(lot.ItemKind)
             ? VesselFits(lot, room) ? 1 : 0
             : Math.Min(PhysicalUnreservedQuantity(lot), room);

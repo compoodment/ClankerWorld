@@ -637,6 +637,7 @@ public static class GameUiText
             "safe_idle" => "take it easy",
             "seek_food" => "find food",
             "move_to" => "go to a tile",
+            "boat_order" => "travel to the requested Port by boat",
             "eat_food" => "eat",
             "consume_food" => "eat",
             "collect_shared_food" => "collect food from camp",

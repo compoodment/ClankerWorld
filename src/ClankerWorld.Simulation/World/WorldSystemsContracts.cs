@@ -599,6 +599,12 @@ public static class EcologyRules
         ArgumentNullException.ThrowIfNull(calendar);
         ArgumentNullException.ThrowIfNull(config);
         config.Validate();
+
+        return RegenerateWithValidatedConfig(resource, calendar);
+    }
+
+    private static EcologyResource RegenerateWithValidatedConfig(EcologyResource resource, WorldCalendar calendar)
+    {
         resource.Validate();
 
         if (!resource.IsRenewable || resource.State == EcologyResourceState.Transformed)
@@ -663,9 +669,11 @@ public static class EcologyRules
         ArgumentNullException.ThrowIfNull(config);
         Validate(state, config);
 
+        // Validate above checks the current config. Keep per-resource checks
+        // during regeneration without retaining config trust across later calls.
         var resources = state.Resources
             .OrderBy(resource => resource.Id, StringComparer.Ordinal)
-            .Select(resource => Regenerate(resource, calendar, config))
+            .Select(resource => RegenerateWithValidatedConfig(resource, calendar))
             .ToArray();
         return state with { Resources = resources };
     }
