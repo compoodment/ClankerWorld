@@ -17,6 +17,8 @@ public sealed partial class PrivateWorldRuntime
     {
         SocietyFixture.Validate(society.Checkpoint);
         ValidateBeliefEventSources(society.Checkpoint.AllBeliefs(), events, eventHistoryFloor);
+        ValidateExplorationGoalBindings(inhabitants.Values.Concat(deceasedInhabitants.Values.Select(person => person.LastPhysical)),
+            instructionsByIdempotency.Values);
         society.Validate();
         ValidateBusinessTrades(BusinessTrades, society.Checkpoint, map, WorldTick);
         ValidateToolMakingRequests(ToolMakingRequests, worldSimulation, worldContent, society.Checkpoint, inhabitants.Values, BusinessTrades, WorldTick);
@@ -432,6 +434,8 @@ public sealed partial class PrivateWorldRuntime
         AgentKnowledgeRules.ValidateRecipes(state.Knowledge, society.Checkpoint, state.WorldContent, state.WorldSimulation!, society.Checkpoint.WorldTick);
         ValidateKnowledgeReadOrderBindings(state.Instructions ?? [], state.Knowledge);
         ValidateKnowledgeOrderBindings(state.Knowledge, state.Instructions ?? []);
+        ValidateExplorationGoalBindings(state.Inhabitants.Concat((state.DeceasedInhabitants ?? []).Select(person => person.LastPhysical)),
+            state.Instructions ?? []);
         ValidateSurvival(state);
         ValidateCouncil(state);
         foreach (var town in state.Towns ?? [])

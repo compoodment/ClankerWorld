@@ -1279,7 +1279,8 @@ public sealed partial class OwnerWorldObservationStore
             IsDraft: false)
         {
             PublicIntention = runtime?.CurrentIntention is { } publicIntention
-                ? ToPublicIntention(publicIntention.CandidateId, publicIntention.Provider.ToString().ToLowerInvariant(), publicIntention.WorldTick)
+                ? ToPublicIntention(publicIntention.CandidateId, publicIntention.Provider.ToString().ToLowerInvariant(), publicIntention.WorldTick,
+                    OrderExplorationPurpose(state, physical))
                 : null,
             Relationships = RelationshipsFor(state, inhabitant.Id),
             RecentPrivateThoughts = (physical.RecentThoughts ?? [])
@@ -1704,12 +1705,33 @@ public sealed partial class OwnerWorldObservationStore
         state.Marriages.Where(marriage => AgentMarriageRules.HasParticipant(marriage, agentId))
             .Select(marriage => AgentMarriageRules.Note(marriage, agentId, state.Society.Society));
 
+    private static string? OrderExplorationPurpose(PrivateWorldRuntimeState state,
+        PlaytestInhabitantState physical)
+    {
+        if (physical.Exploration is not
+            { Returning: false, OutingPath.Count: > 0, Goal: { Kind: "resource", OrderInstructionId: { } id } goal } exploration ||
+            exploration.OutingPath[^1] != physical.Position)
+            return null;
+        var instruction = (state.Instructions ?? []).Where(item =>
+                item.TargetInhabitantId == physical.InhabitantId && item.Kind == OwnerInstructionKind.MustDo &&
+                item.Order is { Status: "queued" or "waiting" or "doing" or "interrupted" or "blocked" } &&
+                !(state.CompletedInstructionIds ?? []).Contains(item.InstructionId, StringComparer.Ordinal))
+            .OrderBy(item => item.SubmissionSequence).FirstOrDefault();
+        if (instruction is null || instruction.InstructionId != id || instruction.Order is not
+            { Status: "doing", TargetResourceId: null, TargetPosition: null } order)
+            return null;
+        var target = order.Action == "gather_material" ? order.TargetMaterialKind
+            : order.Action is "seek_food" or "harvest_food" ? order.TargetFoodKind ?? "food" : null;
+        return goal.Target == target ? "looking for " + goal.Target.Replace('_', ' ') : null;
+    }
+
     private static ViewerPublicIntention ToPublicIntention(
         string candidateId,
         string provider,
-        long worldTick) => new(
+        long worldTick,
+        string? purposeSummary = null) => new(
         candidateId,
-        PublicIntentionSummary(candidateId),
+        purposeSummary ?? PublicIntentionSummary(candidateId),
         provider,
         worldTick);
 
@@ -1731,6 +1753,10 @@ public sealed partial class OwnerWorldObservationStore
         "inspect_material_site" => "checking the ordered material site",
         "consume_food" => "eating carried food",
         "safe_idle" => "keeping a safe routine",
+        _ when candidateId.StartsWith("explore_for:resource:", StringComparison.Ordinal) =>
+            "looking for " + candidateId["explore_for:resource:".Length..].Replace('_', ' '),
+        _ when candidateId.StartsWith("explore_for:terrain:", StringComparison.Ordinal) =>
+            "looking for " + candidateId["explore_for:terrain:".Length..].ToLowerInvariant() + " terrain",
         _ when candidateId.StartsWith("guardian_relocate:", StringComparison.Ordinal) => "bringing a child home",
         _ when candidateId.StartsWith("guardian_follow:", StringComparison.Ordinal) => "following their guardian home",
         _ => candidateId.Replace('_', ' '),
