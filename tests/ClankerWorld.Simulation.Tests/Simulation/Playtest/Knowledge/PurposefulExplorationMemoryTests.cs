@@ -37,7 +37,7 @@ public sealed partial class PurposefulExplorationTests
         var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved),
             id => new ScoutProvider(id == actor ? choice : "safe_idle"));
-        var visited = new HashSet<ClankerWorld.Simulation.Kernel.GridPoint> { Person(world, actor).Position };
+        var visited = new HashSet<GridPoint> { Person(world, actor).Position };
         for (var tick = 0; tick < 85 && Person(world, actor).Exploration!.Goal is not null; tick++)
         {
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
