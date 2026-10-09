@@ -40,7 +40,7 @@ public static class WorldEventText
     public static string Describe(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
     {
         var parts = worldEvent.Detail.Split(':', StringSplitOptions.RemoveEmptyEntries);
-        if (worldEvent.Kind is "marriage_accepted" or "marriage_surname_agreed" or "marriage_surname_draw")
+        if (worldEvent.Kind is "marriage_accepted" or "marriage_surname_agreed" or "marriage_surname_draw" or "marriage_ended")
             return worldEvent.Detail;
         if (worldEvent.Kind == "marriage_surname_blocked")
             return "The shared surname would make a name too long. Shorten the agent's name and resume the surname conversation; both names are unchanged.";
@@ -113,6 +113,7 @@ public static class WorldEventText
             "field_harvested" => $"{LeadingName(snapshot, worldEvent.Detail)} harvested {ThingAt(parts.Length - 1).ToLowerInvariant()}.",
             "field_ready" => "A field is ready to harvest.",
             "field_work_interrupted" => "Work on a field stopped.",
+            "field_returned_to_grass" => "A field nobody worked for a season went back to grass.",
             "crop_weather_loss" => $"{ThingAt(parts.Length - 1)} reduced a crop harvest.",
             "crop_moisture_effect" when parts.Length >= 3 => parts[^2] == "wet"
                 ? "Moist soil improved a crop harvest."
@@ -256,6 +257,7 @@ public static class WorldEventText
             "town_admission_lapsed" => $"{Name(snapshot, Field(worldEvent.Detail, 1))} did not join {civicTownName}: the approval no longer fits their circumstances.",
             "town_building_assigned" => "A building joined the first Town.",
             "town_border_expanded" => "The first Town border expanded.",
+            "town_founded" when worldEvent.Detail.Contains('|') => $"{Name(snapshot, Field(worldEvent.Detail, 1))} founded {civicTownName}.",
             "town_founded" => "Your first Town is founded.",
             "bridge_built" when parts.Length > 0 && parts[0] == "road" => "A new Road crosses a river on a new bridge.",
             "bridge_built" => "Agents crossed a river here so often that a bridge was built.",
@@ -280,6 +282,7 @@ public static class WorldEventText
             "paused" => "The world was paused.",
             "resumed" => "The world resumed.",
             "model_call_warning" => DescribeModelCallWarning(parts),
+            "model_attempt_status" => DescribeModelFailure(worldEvent.Detail, snapshot),
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
         };
     }
@@ -492,6 +495,22 @@ public static class WorldEventText
         snapshot?.Inhabitants.FirstOrDefault(person => person.Id == id)?.DisplayName
         ?? (string.IsNullOrEmpty(id) || id.Contains(':', StringComparison.Ordinal)
             ? "Someone" : GameUiText.HumanizeIdentifier(id));
+
+    private static string DescribeModelFailure(string detail, OwnerWorldSnapshot? snapshot)
+    {
+        var separator = detail.LastIndexOf(':');
+        if (separator <= 0) return "A model reply failed.";
+        var name = Name(snapshot, detail[..separator]);
+        var reason = detail[(separator + 1)..] switch
+        {
+            "missing_key" => "the model key is missing",
+            "usage_limit" => "the usage limit was reached",
+            "unusable_reply" => "the model sent an unusable reply",
+            "timed_out" => "the model reply timed out",
+            _ => "the model is unavailable",
+        };
+        return $"{name} could not get a model reply: {reason}.";
+    }
 
     private static string LeadingName(OwnerWorldSnapshot? snapshot, string detail)
     {

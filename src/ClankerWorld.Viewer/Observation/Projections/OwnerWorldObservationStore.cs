@@ -669,6 +669,10 @@ public sealed partial class OwnerWorldObservationStore
                 .Select(group => new ViewerGroundStock(new(group.Key.Position.X, group.Key.Position.Y), group.Key.OwnerId,
                     group.Key.ItemKind, group.Sum(lot => lot.Quantity))).ToArray(),
             WrapsEastWest = state.Geography?.WrapEastWest == true,
+            Generation = state.Geography is { } geography
+                ? new ViewerWorldGeneration(geography.Seed, geography.Size.ToString(), geography.ClimateMode.ToString(),
+                    geography.SelectedClimate.ToString(), geography.LatitudeCooling, geography.WrapEastWest)
+                : null,
             LastTickMilliseconds = diagnostics.LastTickMilliseconds,
             Inhabitants = activeInhabitants
                 .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]) with
@@ -681,9 +685,14 @@ public sealed partial class OwnerWorldObservationStore
                 .OrderBy(inhabitant => inhabitant.Id, StringComparer.Ordinal)
                 .ToArray(),
             Conversations = (state.Conversations ?? [])
+                .Where(conversation => conversation.Status != AgentConversationStatus.Closed)
+                .Concat((state.Conversations ?? [])
+                    .Where(conversation => conversation.Status == AgentConversationStatus.Closed)
+                    .OrderByDescending(conversation => conversation.LastUpdatedTick)
+                    .ThenBy(conversation => conversation.Id, StringComparer.Ordinal)
+                    .Take(16))
                 .OrderByDescending(conversation => conversation.LastUpdatedTick)
                 .ThenBy(conversation => conversation.Id, StringComparer.Ordinal)
-                .Take(16)
                 .Select(conversation => new ViewerConversation(
                     conversation.Id,
                     conversation.InitiatorId,
@@ -858,7 +867,11 @@ public sealed partial class OwnerWorldObservationStore
                         order.TargetResourceId, order.TargetPosition?.X, order.TargetPosition?.Y,
                         order.BlockedReason, order.TargetAgentId, order.TargetMaterialKind, order.TargetEquipmentKind, order.TargetCropKind,
                         order.TargetOutputKind, order.TargetItemKind, order.TargetBuildingKind, order.TargetAnimalId,
-                        order.TargetKnowledgeKind) : null))
+                        order.TargetKnowledgeKind, order.TargetCartLotId,
+                        order.TalkConversationId,
+                        (state.Conversations ?? []).FirstOrDefault(item => item.Id == order.TalkConversationId) is { } talk
+                            ? ConversationStatus(talk.Status) : order.TalkOutcome is not null ? "closed" : null,
+                        order.TalkOutcome, order.TargetKnowledgeArtifactId) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
             ContentPackages = state.Content?.Packages
@@ -1690,6 +1703,7 @@ public sealed partial class OwnerWorldObservationStore
     {
         "seek_food" => "looking for food",
         "move_to" => "walking to the ordered tile",
+        "boat_order" => "traveling to the ordered Port by boat",
         "harvest_food" => "gathering food",
         "gather_material" => "gathering the ordered material",
         "work_field" => "working on a household field",

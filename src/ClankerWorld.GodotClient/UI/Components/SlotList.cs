@@ -18,6 +18,12 @@ public partial class SlotList : ScrollContainer
     public delegate void ItemSelectedEventHandler(long index);
 
     [Signal]
+    public delegate void ItemClickedEventHandler(long index);
+
+    [Signal]
+    public delegate void ItemNavigatedEventHandler(long index);
+
+    [Signal]
     public delegate void ItemActivatedEventHandler(long index);
 
     private readonly VBoxContainer cards = new();
@@ -165,7 +171,9 @@ public partial class SlotList : ScrollContainer
         if (@event.IsActionPressed("ui_down") || @event.IsActionPressed("ui_up"))
         {
             var step = @event.IsActionPressed("ui_down") ? 1 : -1;
-            Choose(Math.Clamp(selected < 0 ? 0 : selected + step, 0, items.Count - 1));
+            var next = Math.Clamp(selected < 0 ? 0 : selected + step, 0, items.Count - 1);
+            Choose(next);
+            EmitSignal(SignalName.ItemNavigated, next);
             AcceptEvent();
         }
         else if (@event.IsActionPressed("ui_accept") && selected >= 0)
@@ -180,6 +188,7 @@ public partial class SlotList : ScrollContainer
         if (input is not InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } click) return;
         GrabFocus();
         Choose(index);
+        EmitSignal(SignalName.ItemClicked, index);
         if (click.DoubleClick) EmitSignal(SignalName.ItemActivated, index);
         AcceptEvent();
     }

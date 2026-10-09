@@ -1,0 +1,1 @@
+- Milk collection chooses a jug only when its existing contents and the cow's waiting milk fit the adult's carrying space. A fuller jug no longer blocks an empty one that fits.

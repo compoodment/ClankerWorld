@@ -1,0 +1,1 @@
+- Town construction planning avoids allocating complete footprints for sites whose origin is already blocked, reducing managed allocations in measured grown-Town workloads while retaining the same offered sites and placement checks.
