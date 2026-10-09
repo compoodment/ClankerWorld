@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Saves and replay
@@ -652,6 +652,22 @@ food, cancellation/replacement, exact targeting, full/partial knowledge limits,
 malformed progress and rejected read ticks. This number is provisional until
 merge. Older alpha checkpoints are refused and preserved without migration.
 
+Private-world schema 117 adds `propose_marriage` orders using the existing
+`TargetAgentId`, `TalkConversationId` and `TalkOutcome` fields. A selected partner
+stays bound; an order without a partner must have neither a conversation nor
+progress. Linked orders identify one actual ordinary invitation between their
+actor and target. Completion requires a deterministic `marriage-order:` receipt
+and the actual closed outcome: `refused`, `proposal_declined`, `not_proposed` or
+another native unsuccessful outcome. `married` additionally requires completed
+native marriage and surname records. Retained marriage consent also verifies
+closed order outcomes after ordinary history is trimmed. Accepted consent without a finished surname
+leaves progress at zero. Existing marriage validation protects both consent and
+surname receipts. Reload stops accepted ordinary or surname conversations,
+clears one-sided resume choices and requires both personal models again.
+Cancellation and replay preserve actual consent without duplicating task or
+marriage effects; rejected ticks admit neither. The number is provisional until
+merge. Older alpha saves are refused and preserved without migration.
+
 Private-world schema 84 adds required marriage records and conversation kinds.
 Each marriage retains its accepted partnership snapshot and the ordinary
 conversation's separate mutual marriage consent. Its surname session admits
@@ -902,6 +918,14 @@ does not change. An older build refuses, and keeps, a save that places an
 agent, a map memory, an exploration path or traffic evidence in a two-tile
 river.
 
+Swimming uses existing physical position, warmth and travel-cooldown fields;
+there is no new save field or schema version. Live and archived positions may
+lie in a wide river or lake. A sea position still requires the saved boat
+passenger evidence. Loading does not apply the starting warmth, illness or load
+gate to someone already in swimming water: they must be able to reach shore.
+Refused ticks commit no movement or warmth loss. Older builds refuse and keep
+a checkpoint that places an agent in swimming water.
+
 Scouting waypoints record already walked steps, rather than permission to
 repeat those steps now. Loading checks each ordered edge against the current
 bridge map or against the same terrain with only bridges built strictly before
@@ -956,7 +980,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 116. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 117. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -1565,7 +1589,9 @@ beyond the existing per-second checkpoint.
 
 Named manual checkpoints use a private `.manual` directory and reference the
 same history archive. Overwriting a selected checkpoint retains a recovery copy;
-these copies have no settled retention policy. Rotating autosaves are a separate
+new copies have explicit recovery provenance and an opt-in count-based cleanup
+preview, described under [permanent deletion](#explicit-permanent-deletion).
+Rotating autosaves are a separate
 mechanism and must not delete another world's checkpoints, or another branch's.
 Updating autosave configuration trims only that configured world, including
 rotation off, and counts each branch's autosaves separately.
@@ -1740,6 +1766,37 @@ roots and their digest-addressed chains before removing unreferenced segments.
 Unpublished generations conservatively count as roots. Corrupt roots defer history
 cleanup, preserving other saves. This is ordinary file deletion, not secure disk
 erasure, and does not remove copies in external backups.
+
+Recovery cleanup is a separate signed `POST /api/v1/owner/saves/recovery-cleanup`
+action. Its canonical payload binds `preview` or `apply`, world identity, a
+count from one to ten and the exact preview digest. It requires the current
+world to be paused. There is no background cleanup or persisted enabled setting;
+the client initially offers a provisional count of three.
+
+New overwrite backups and before-load copies with a named source record that
+source's opaque save ID and a monotonic recovery sequence in adjacent metadata.
+Sequence orders copies even when the clock moves backwards. Names never identify
+recoveries. Missing, malformed or unclassified provenance confers no deletion
+authority and does not prevent loading an intact checkpoint. Explicitly overwriting a recovery makes the selected slot a named
+manual checkpoint again. Copies without a named source remain ordinary saves.
+The world checkpoint schema and replay bytes do not change.
+
+The preview decodes each classified checkpoint, verifies its world identity and
+required history, and keeps the latest requested number of verified copies for
+each source. It additionally protects the recovery currently continued from;
+an older active copy may exceed the requested count. Unverifiable files, manual
+saves, autosaves and migration originals are never cleanup candidates. Earlier
+unclassified backups remain protected even if their names look like recoveries.
+An existing damaged timeline refuses cleanup because the active copy cannot be
+verified; it does not block saving a new checkpoint.
+
+The preview digest binds the listed metadata, classified checkpoint bytes,
+verification results, timeline and exact kept/removed IDs. Apply rescans under
+the shared world-mutation/save-store gate; a mismatch refuses deletion before
+any checkpoint is removed. Confirmed cleanup uses the existing durable deletion
+intents. Shared history segments remain in place, protecting every retained
+checkpoint and migration original. Interrupted cleanup is reported
+honestly and startup resumes only those already confirmed deletion intents.
 
 ## Developer edits
 

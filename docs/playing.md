@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Playing the current game
@@ -262,7 +262,8 @@ alternating turns; if they still disagree, the game discloses a draw for the
 surname. A failed call, pause or cancellation keeps the completed turns and
 leaves marriage incomplete until the surname is settled. The agent's Profile
 shows their spouse and whether that choice is still pending. Marriage is not
-required to have a child.
+required to have a child. **Propose marriage** orders the selected adult to
+attempt this process with their current partner; it cannot make the partner agree.
 
 Either partner may end their partnership and marriage alone. A partner's
 death also ends the marriage. Both keep their names, and a living former
@@ -370,6 +371,18 @@ acceptance, stopped conversation or outcome; a finished talk attempt can have
 been refused. Queued work waits for the conversation to end. Loading an
 accepted unfinished conversation stops it until both people choose to resume.
 Cancelling the order removes the task; it does not make either person agree.
+
+Use **Propose marriage** or **Propose marriage to my partner** for an adult
+with an eligible current partner. They approach that partner and attempt the
+conversation using their own model. Their partner may refuse the invitation
+or marriage, and either person keeps their own wrap-up and surname choices.
+The card distinguishes refusal, a conversation without a proposal, and marriage
+completed with a shared surname. Accepted marriage waits for that surname
+choice before the order finishes and queued work proceeds. Saving an unfinished
+conversation stops it until both people choose to resume. Cancelling the order
+removes the task while keeping any consent and surname progress already made.
+If the selected person stops being their partner, the order explains the blocker
+and does not choose someone else.
 
 When a child needs a guardian, an adult can follow **Become guardian for Élodie Vale**,
 using the child's full name. Names with accents work when typed or pasted,
@@ -1001,6 +1014,18 @@ world and all its saves. Open or create another world first if the target is
 active. Canceling either confirmation changes nothing. These controls require
 a paused world.
 
+To clean older recovery copies, pause the world and open **Save World**. Set
+**Recovery copies per save** (1–10; initially a provisional 3), then choose
+**Preview cleanup**. The confirmation lists the exact copies to remove and keep.
+**Delete these copies** permanently removes only that preview's older verified
+recoveries. Canceling changes nothing. Cleanup stays off until you ask for it;
+it never runs automatically or deletes by age.
+
+The latest verified recovery for each save is kept, along with any recovery the
+running world continues from. Manual saves, migration originals, older copies
+without recovery records and checkpoints the host cannot verify are kept. If
+the saves change while the preview is open, preview again before confirming.
+
 ## Report what you notice
 
 Use [GitHub Issues](https://github.com/compoodment/ClankerWorld/issues/new/choose)
@@ -1025,6 +1050,19 @@ starts automatically after that action completes.
 **Reroll** chooses another seed and clears the old map while its replacement
 loads. You can reroll during generation; the preview will follow your latest
 seed. If the world name is missing, enter it and choose **Preview again**.
+
+## Crossing rivers and lakes
+
+Agents can wade rivers one or two tiles wide. A healthy agent with enough
+warmth and a light load can also swim wider rivers and lakes, much more slowly,
+losing warmth as they move. The map shows the agent swimming with a
+**Swimming** label; their tooltip says the same. Cold or ill agents, loads above
+four carried units, carts and accompanying animals prevent a new swim.
+When supplies must return across freshwater, agents collect only what they can
+carry back; vessels count together with their contents. The sea still needs a boat.
+An agent already swimming can reach shore if their condition changes, and an
+unfinished crossing survives saving and loading. Swimming speed, warmth loss
+and the load limit are provisional for playtesting.
 
 ## Animals
 

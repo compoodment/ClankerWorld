@@ -610,14 +610,16 @@ public sealed partial class PrivateWorldRuntime
         }
         var inputs = building?.BuildCosts ?? recipe!.Inputs;
         PlacedBuilding? recipeBuilding = null;
+        GridPoint? inputWorkSite = selection.SitePosition;
         if (recipe is not null)
         {
-            if (!TryFindRecipeSite(recipe, out var recipeSite, out _, inhabitantId))
+            if (!TryFindRecipeSite(recipe, out var recipeSite, out var recipePosition, inhabitantId))
             {
                 SetProject(inhabitantId, project with { Stage = "blocked", Blocker = WaitingForWorkSiteBlocker });
                 return;
             }
             recipeBuilding = worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == recipeSite);
+            inputWorkSite = recipePosition;
         }
         var constructionOwner = recipe is not null ? IsHandcartRecipe(recipe) ? inhabitantId : ProductionOwnerFor(recipeBuilding, inhabitantId)
             : BuildingConstructionOwner(inhabitantId, building!);
@@ -636,7 +638,13 @@ public sealed partial class PrivateWorldRuntime
         {
             if (FinishProjectHouseholdDelivery(inhabitantId, state))
                 return;
-            AcquireProjectInput(inhabitantId, state, missing, constructionOwner);
+            if (constructionOwner == inhabitantId && inputWorkSite is null && building is not null)
+            {
+                var rankedInputSites = TownLayoutService.RankConstructionSites(
+                    CreateTownLayoutContext(inhabitantId, null, building), building);
+                if (rankedInputSites.Count > 0) inputWorkSite = rankedInputSites[0].Position;
+            }
+            AcquireProjectInput(inhabitantId, state, missing, constructionOwner, inputWorkSite);
             return;
         }
         GridPoint position;
@@ -768,7 +776,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private void AcquireProjectInput(string inhabitantId, PlaytestInhabitantState state,
-        ContentQuantity input, string constructionOwner)
+        ContentQuantity input, string constructionOwner, GridPoint? personalWorkSite)
     {
         var project = state.Project!;
         // Only the agent's own goods; borrowed household goods are not theirs to give.
@@ -803,7 +811,15 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        if (WarehouseWithAvailableStock(inhabitantId, input.ResourceId) is { } warehouse &&
+        var returnHouse = HouseForHousehold(constructionOwner);
+        var returnTo = constructionOwner == inhabitantId ? personalWorkSite : returnHouse?.Position ?? SettlementStoragePosition;
+        var returnRange = constructionOwner == inhabitantId || returnHouse is not null ? 0 : ResourceInteractionRange;
+        if (returnTo is null)
+        {
+            SetProject(inhabitantId, project with { Stage = "blocked", Blocker = WaitingForWorkSiteBlocker });
+            return;
+        }
+        if (WarehouseWithAvailableStock(inhabitantId, input.ResourceId, returnTo.Value, returnRange) is { } warehouse &&
             society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
                 lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
                 lot.ItemKind == input.ResourceId && AvailableLotQuantity(lot) > 0) is { } communal)
@@ -825,7 +841,7 @@ public sealed partial class PrivateWorldRuntime
             if (communal is null) return;
             var quantity = Math.Min(WarehouseLoadQuantity,
                 Math.Min(input.Amount, AvailableLotQuantity(communal)));
-            quantity = Math.Min(quantity, FreeCarryCapacity(inhabitantId));
+            quantity = Math.Min(quantity, PickupCarryCapacity(inhabitantId, communal, returnTo.Value, returnRange));
             if (quantity == 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"warehouse-pickup:{WorldTick}:{inhabitantId}", warehouse.TownId!, inhabitantId,
@@ -834,15 +850,15 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        var source = MaterialSource(input.ResourceId, inhabitantId);
+        var source = MaterialSource(input.ResourceId, inhabitantId, returnTo, returnRange, useHarvestBonus: false);
         if (source is null)
         {
             SetProject(inhabitantId, project with { Stage = "blocked", Blocker = $"No available source of {input.ResourceId}" });
             return;
         }
         SetProject(inhabitantId, project with { Stage = "gathering", Blocker = $"Need {input.Amount} {input.ResourceId}" });
-        var useHarvestBonus = UseHarvestBonusForBuildingMaterial(inhabitantId, input.ResourceId, source);
-        GatherProjectMaterial(inhabitantId, state, input.ResourceId, source, useHarvestBonus);
+        var useHarvestBonus = UseHarvestBonusForBuildingMaterial(inhabitantId, input.ResourceId, source, returnTo, returnRange);
+        GatherProjectMaterial(inhabitantId, state, input.ResourceId, source, useHarvestBonus, returnTo: returnTo, returnRange: returnRange);
     }
 
     private ToolGatheringPlan? ProjectMaterialHarvest(string actor, string itemKind, MapResource source,
@@ -864,10 +880,14 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private MaterialGatherEffect? GatherProjectMaterial(string inhabitantId, PlaytestInhabitantState state, string itemKind,
-        MapResource source, bool useHarvestBonus = true, string? deliveryBuildingId = null)
+        MapResource source, bool useHarvestBonus = true, string? deliveryBuildingId = null,
+        GridPoint? returnTo = null, int returnRange = 0)
     {
         var ecology = worldSystems.Ecology.GetResource(source.Id);
         var plan = ProjectMaterialHarvest(inhabitantId, itemKind, source, useHarvestBonus);
+        returnTo ??= worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == deliveryBuildingId)?.Position;
+        if (returnTo is { } destination && !CanReturnWithHarvest(inhabitantId, itemKind, source,
+            destination, returnRange, useHarvestBonus)) return null;
         if (plan is null)
         {
             CollectToolForGathering(inhabitantId, state, itemKind, source);
@@ -964,7 +984,8 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private MapResource? MaterialSource(string itemKind, string actor)
+    private MapResource? MaterialSource(string itemKind, string actor, GridPoint? returnTo = null,
+        int returnRange = 0, bool useHarvestBonus = true)
     {
         // A source scan observes one inventory snapshot. Reuse tool availability
         // during that scan; gathering rechecks the actual tool and capacity.
@@ -980,9 +1001,10 @@ public sealed partial class PrivateWorldRuntime
             .ThenBy(resource => resource.Id, StringComparer.Ordinal)
             .FirstOrDefault(resource =>
                 CanGatherFromSource(actor, itemKind, resource, reachableToolCache) &&
-                map.IsReachableOnFoot(inhabitants[actor].Position, resource.Position) &&
+                CanReachByFootOrSwimming(actor, inhabitants[actor].Position, resource.Position) &&
                 (IsWithinInteractionRange(inhabitants[actor].Position, resource.Position, ResourceInteractionRange) ||
-                 FindUnoccupiedRoute(actor, inhabitants[actor].Position, resource.Position, ResourceInteractionRange).Count > 0));
+                 FindUnoccupiedRoute(actor, inhabitants[actor].Position, resource.Position, ResourceInteractionRange).Count > 0) &&
+                (returnTo is null || CanReturnWithHarvest(actor, itemKind, resource, returnTo.Value, returnRange, useHarvestBonus)));
     }
 
     private bool CanAcquireProjectInputs(IReadOnlyList<ContentQuantity> inputs, string? ownerId = null,
@@ -1021,7 +1043,7 @@ public sealed partial class PrivateWorldRuntime
                     continue;
 
                 var sourceQuantity = worldSystems.Ecology.GetResource(resource.Id).Quantity;
-                if (sourceQuantity <= 0 || !map.IsReachableOnFoot(position, resource.Position))
+                if (sourceQuantity <= 0 || !CanReachByFootOrSwimming(residentId, position, resource.Position))
                     continue;
 
                 var gatherQuantity = AvailableGatherQuantity(residentId, input.ResourceId, resource, reachableToolCache);
@@ -1048,7 +1070,8 @@ public sealed partial class PrivateWorldRuntime
                     lot.OwnerId == helperId && PersonalEquipmentRules.IsCarried(lot, helperId) && lot.ContainerLotId is null &&
                     lot.ItemKind == itemKind && lot.DeliveryBuildingId is null &&
                     AvailableLotQuantity(lot) > 0);
-            if (hasCarriedMaterial || MaterialSource(itemKind, helperId) is { } source &&
+            if (hasCarriedMaterial || MaterialSource(itemKind, helperId, HouseForHousehold(request.OwnerId)?.Position ?? inhabitants[request.Requester].Position,
+                HouseForHousehold(request.OwnerId) is not null && HouseholdFor(helperId) == request.OwnerId ? 0 : ResourceInteractionRange) is { } source &&
                 FreeCarryCapacity(helperId) >= ProjectMaterialCarryUnits(helperId, itemKind, source))
             {
                 candidates.Add(new CognitionCandidate("assist:" + itemKind,
@@ -1080,9 +1103,12 @@ public sealed partial class PrivateWorldRuntime
             AvailableLotQuantity(lot) > 0);
         if (carried is null)
         {
-            if (MaterialSource(itemKind, helperId) is { } source)
+            var returnRange = HouseForHousehold(request.OwnerId) is not null && HouseholdFor(helperId) == request.OwnerId ? 0 : ResourceInteractionRange;
+            if (MaterialSource(itemKind, helperId, HouseForHousehold(request.OwnerId)?.Position ?? inhabitants[request.Requester].Position, returnRange) is { } source)
             {
-                GatherProjectMaterial(helperId, state, itemKind, source);
+                GatherProjectMaterial(helperId, state, itemKind, source,
+                    returnTo: HouseForHousehold(request.OwnerId)?.Position ?? inhabitants[request.Requester].Position,
+                    returnRange: returnRange);
             }
             return;
         }
