@@ -88,6 +88,7 @@ public sealed record OwnerInstructionOrder(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] OwnerShelterCompletion? ShelterCompletion = null)
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? TargetAnimalId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public OwnerBoatTravelBinding? BoatTravel { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? TargetKnowledgeKind { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? KnowledgeWritingProjectId { get; init; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? KnowledgeCopySourceArtifactId { get; init; }
@@ -98,6 +99,7 @@ public sealed record OwnerInstructionOrder(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public OwnerKnowledgeReadCompletion? KnowledgeReadCompletion { get; init; }
 }
 
+public sealed record OwnerBoatTravelBinding(string DestinationPortId, string? RequestId = null);
 public sealed record OwnerKnowledgeReadCompletion(long WorldTick, IReadOnlyList<GridPoint> LearnedSites);
 
 public sealed record OwnerShelterBinding(

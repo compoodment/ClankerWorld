@@ -3030,6 +3030,17 @@ Repeal ends future permission; it does not abandon a passenger already aboard.
 A grant changes no membership, ownership or Warehouse access.
 
 Native personal decisions approach the Port and create a sequenced trip request.
+The complete owner grammar also accepts `Travel by boat to Port at (x, y)`.
+It resolves that existing Port's instance ID at submission and retains the
+requested tile; ambiguous or absent targets and mixed/repeated tasks are not
+understood. `boat_order` uses the same departure choices, approach movement and
+request creation as ordinary travel. Each ordered request retains its instruction
+ID, and the order binds its latest request. Queue admission, physical boats,
+permissions, reservations and recovery remain authoritative. Native destination
+arrival credits one receipt; a safe return or a cancelled order receives none.
+Cancellation/replacement settles only waiting requests, preserving underway
+journeys. A settled return or lost permission can retry through the normal queue
+when conditions permit, with a new request after the old one settles.
 Queue processing chooses the oldest currently usable request, atomically binds
 one idle boat and a free destination dock, and boards only that passenger with
 their actual carried goods. Blocked requests retain their sequence; cancellation

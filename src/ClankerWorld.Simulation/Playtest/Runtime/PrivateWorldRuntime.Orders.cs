@@ -31,6 +31,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.Action == "talk_to") return TalkOrderCandidateFor(instruction, person);
         if (IsCartOrder(order.Action)) return CartOrderCandidateFor(instruction, person);
         if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
+        if (order.Action == "travel_by_boat") return BoatOrderCandidate(instruction);
         if (IsTreePlantingOrder(order.Action)) return TreePlantingOrderCandidate(instruction, person);
         if (IsKnowledgeOrder(order.Action)) return KnowledgeOrderCandidateFor(instruction);
 
@@ -236,6 +237,11 @@ public sealed partial class PrivateWorldRuntime
             ExecuteAnimalOrder(instruction);
             return;
         }
+        if (order.Action == "travel_by_boat")
+        {
+            ExecuteBoatOrder(instruction);
+            return;
+        }
         if (IsTreePlantingOrder(order.Action))
         {
             ExecuteTreePlantingOrder(instruction, person);
@@ -438,6 +444,7 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "travel_by_boat") return BoatOrderBlockedReason(instruction);
         if (instruction.Order?.Action == "read_knowledge")
             return KnowledgeReadOrderBlocker(instruction) ?? "Waiting to read the written item.";
         if (instruction.Order?.Action == "talk_to") return TalkOrderBlocker(instruction, person) ?? "Waiting for the conversation outcome.";
