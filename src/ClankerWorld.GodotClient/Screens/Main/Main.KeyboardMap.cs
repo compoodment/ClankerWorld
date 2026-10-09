@@ -6,6 +6,7 @@ namespace ClankerWorld.GodotClient;
 public partial class Main
 {
     private Vector2I? keyboardMapTile;
+    private bool refreshingKeyboardMapSelection;
 
     private void BeginKeyboardMapSelection()
     {
@@ -34,17 +35,25 @@ public partial class Main
 
     private void RefreshKeyboardMapSelection()
     {
-        if (!mapCanvas.HasFocus() || keyboardMapTile is not { } tile || renderedMapSnapshot is not { } snapshot || terrainMap is null)
+        if (refreshingKeyboardMapSelection || !mapCanvas.HasFocus() || keyboardMapTile is not { } tile ||
+            renderedMapSnapshot is not { } snapshot || terrainMap is null)
             return;
-        keyboardMapTile = tile = BoundKeyboardMapTile(snapshot, tile);
-        var point = KeyboardMapCanvasPoint(tile);
-        if (!new Rect2(Vector2.Zero, mapCanvas.Size).Grow(-8).HasPoint(point))
+        // Recentring refreshes geometry, which asks for hover again. During
+        // resize or at an edge, the inset can still exclude the chosen tile.
+        refreshingKeyboardMapSelection = true;
+        try
         {
-            CenterCameraAt(new Vector2(tile.X + 0.5f, tile.Y + 0.5f));
-            point = KeyboardMapCanvasPoint(tile);
+            keyboardMapTile = tile = BoundKeyboardMapTile(snapshot, tile);
+            var point = KeyboardMapCanvasPoint(tile);
+            if (!new Rect2(Vector2.Zero, mapCanvas.Size).Grow(-8).HasPoint(point))
+            {
+                CenterCameraAt(new Vector2(tile.X + 0.5f, tile.Y + 0.5f));
+                point = KeyboardMapCanvasPoint(tile);
+            }
+            UpdateTileHover(point);
+            terrainLayer.SetHoveredTile(tile);
         }
-        UpdateTileHover(point);
-        terrainLayer.SetHoveredTile(tile);
+        finally { refreshingKeyboardMapSelection = false; }
     }
 
     private bool HandleKeyboardMapInput(InputEvent input, OwnerWorldSnapshot snapshot)

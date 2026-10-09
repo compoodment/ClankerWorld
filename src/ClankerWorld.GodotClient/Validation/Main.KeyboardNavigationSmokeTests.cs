@@ -149,8 +149,26 @@ public partial class Main
             if (keyboardMapTile == before || !mapCanvas.HasFocus())
                 throw new InvalidOperationException("Arrows must move the focused tile without leaving the map.");
             var chosen = keyboardMapTile;
+            // A transient small canvas during resize cannot fit the inset.
+            // Camera refresh must return even when recentering cannot put the
+            // cursor inside it; ordinary observation must retain that cursor.
+            var canvasSize = mapCanvas.Size;
+            try
+            {
+                mapCanvas.Size = new Vector2(8, 8);
+                RefreshKeyboardMapSelection();
+                if (!mapCanvas.HasFocus() || keyboardMapTile != chosen)
+                    throw new InvalidOperationException("Resize recentering must keep the focused tile and return.");
+            }
+            finally
+            {
+                mapCanvas.Size = canvasSize;
+                UpdateMapGeometry(snapshot);
+            }
             RefreshTileHoverAtMouse();
             if (keyboardMapTile != chosen) throw new InvalidOperationException("Observation hover must preserve the keyboard tile.");
+            if (!new Rect2(Vector2.Zero, mapCanvas.Size).HasPoint(KeyboardMapCanvasPoint(chosen!.Value)))
+                throw new InvalidOperationException("The camera must show the focused tile after resizing.");
             // Select an empty ground tile through the ordinary map action.
             var ground = snapshot.Tiles.First(tile =>
                 !snapshot.Inhabitants.Any(person => person.Position.X == tile.X && person.Position.Y == tile.Y) &&
