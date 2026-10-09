@@ -274,6 +274,18 @@ Queued work waits for that outcome. An accepted unfinished conversation loads
 stopped and needs both people's fresh resume choices. Unavailable people,
 models, allowances and routes leave useful blockers. Marriage proposals are
 outside this talk adapter. [The Windows check](../playtest/1222-talk-order.md)
+is written, but has not been run.
+
+Reading orders cover personally owned, carried field records, maps and books.
+"Read a map", "Read a book" or "Read" selects one eligible item; an exact
+artifact ID, lot ID or unique title binds that item even while it is elsewhere.
+The task adds only its frozen written sites and original discovery sources,
+within the existing knowledge limit. Foreign, borrowed, stored, ground or
+reserved items leave a blocker. An unreadable item or one with no new sites
+does not finish the task. Only that agent's own successful native read counts;
+another person's reading teaches them separately. Queueing, cancellation,
+replacement, urgent survival and saving preserve the task and its actual
+progress. [The Windows reading-order check](../playtest/1223-reading-orders.md)
 is pending.
 
 Orders currently cover eating carried food, collecting accessible household
