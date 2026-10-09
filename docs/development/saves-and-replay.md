@@ -380,8 +380,11 @@ refused and preserved without migration.
 
 Private-world schema 90 adds shelter target bindings and completion records.
 Building targets pin identity, definition, owner, anchor and placement time;
-natural cover pins its actual destination. Shelter completion records the
-arrival time and position. Fire completion also references the unique actual
+natural cover pins its actual destination. The same building binding can name
+a Town Hall for a homeless own-Town resident's storm refuge; its fields and
+the current schema are unchanged. Live refuge permission is checked when
+work continues, while a completed arrival remains historical. Shelter completion
+records the arrival time and position. Fire completion also references the unique actual
 completed one-wood fuel reservation. Validation checks action-specific shapes
 and payment evidence without requiring historical cover, permission or a fire
 to remain available forever. Unfinished targets are revalidated when work
