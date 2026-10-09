@@ -103,8 +103,8 @@ public partial class Main
         {
             new OwnerWorldPlacedBuilding("keyboard-stone", "test/stone_lantern", new(3, 1), 0,
                 "Stone street lantern", ["street_lantern", "stone_lantern"], 1, 1, Entrance: new(3, 2)),
-            new OwnerWorldPlacedBuilding("keyboard-hanging", "test/hanging_lantern", new(4, 1), 0,
-                "Hanging street lantern", ["street_lantern", "hanging_lantern"], 1, 1, Entrance: new(4, 2)),
+            new OwnerWorldPlacedBuilding("keyboard-hanging", "test/hanging_lantern", new(3, 2), 0,
+                "Hanging street lantern", ["street_lantern", "hanging_lantern"], 1, 1, Entrance: new(3, 3)),
         };
         var snapshot = original with { Inhabitants = people, PlacedBuildings = lanterns, LatestEventId = 0 };
         var handshake = new OwnerWorldHandshake(new(1, 1),
@@ -122,6 +122,8 @@ public partial class Main
             selectedInhabitantId = null;
             agentProfileRequested = false;
             Render(snapshot, []);
+            if (lanterns.Any(lantern => !MapContains(snapshot, lantern.Position.X, lantern.Position.Y)))
+                throw new InvalidOperationException("Keyboard lantern fixtures must lie inside the rendered map.");
             GetViewport().GuiReleaseFocus();
             await KeyboardKeyAsync(Key.R);
             if (!rosterPanel.Visible || !rosterCards.HasFocus())
@@ -249,10 +251,10 @@ public partial class Main
                 await KeyboardKeyAsync(Key.Right);
                 await KeyboardKeyAsync(Key.Enter);
                 if (!buildingQuickCard.Visible || selectedBuildingId != lantern.InstanceId)
-                    throw new InvalidOperationException("Keyboard Enter must select both street-lantern styles by their tile.");
+                    throw new InvalidOperationException($"Keyboard Enter must select both street-lantern styles by their tile: expected={lantern.InstanceId}, selected={selectedBuildingId}, cursor={keyboardMapTile}, quickCard={buildingQuickCard.Visible}.");
                 await KeyboardKeyAsync(Key.Escape);
             }
-            GD.Print("Keyboard screen walk passed: Settings/Back, Agents/Profile, Thoughts, Memories, Family, World Info, Filters, Event Log, World Map camera, Controls, Developer numeric field and map tile inspection.");
+            GD.Print("Keyboard screen walk passed: Settings opener/Back, Agents/Profile/Rename, overflowing Thoughts scrolling, Memories, Family, World Info, Filters, Event Log, World Map camera, Controls, Developer numeric field, ground and both street lanterns.");
         }
         finally
         {
