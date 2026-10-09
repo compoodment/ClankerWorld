@@ -1925,6 +1925,12 @@ The owner projection shows readable asset and consent details in the existing
 Town, plot and property hearing views. Personal owners keep limited entrance
 collection access after recovery and onward granting.
 
+Building inspection labels property rulings separately from permission-only
+cases and keeps the current building owner above the historical outcome.
+Result-event text resolves the exact ruling ID within the event's Town to choose
+property or permission wording. Missing case context uses a neutral land-ruling
+description; event prose does not establish ownership or case kind.
+
 `TownRuntimeState.Nonviolent` records non-land allegations, notice revisions,
 sources, responses and civil findings separately from permission adjustments.
 `TownHearingProcedure` supplies shared response, conflict and case-election

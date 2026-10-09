@@ -1034,6 +1034,11 @@ their owners and entrance collection access; membership, Town title and crops
 stay unchanged. Changed assets or claimants require a fresh notice, and active
 work, deliveries and reservations block the physical transfer.
 
+Building cards distinguish property outcomes from use-permission rulings and
+show the current recorded owner alongside the case history. Result notices
+describe the recorded property or permission case; when that case is unavailable,
+they describe a land ruling without assuming that only permission changed.
+
 Non-land cases have a separate protected mandate. Reports retain the conduct,
 applicable law version and actual evidence sources. Response windows,
 independent judges and reasoned findings lead to explanations, warnings or

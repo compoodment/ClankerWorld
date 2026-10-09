@@ -209,7 +209,7 @@ public static class WorldEventText
             "town_civic_proposal" => $"A proposal was submitted to {civicTownName}'s council.",
             // Rulings and household transfers post their outcome as a result notice, but no council decided them.
             "town_civic_result" when Field(worldEvent.Detail, 1).StartsWith("land-ruling:", StringComparison.Ordinal) =>
-                $"{civicTownName} posted the result of a land ruling. See the Towns page for its permission change and reasons.",
+                DescribeLandRulingResult(worldEvent, snapshot, civicTownName),
             "town_civic_result" when Field(worldEvent.Detail, 1).StartsWith("land-transfer:", StringComparison.Ordinal) =>
                 $"{civicTownName} posted the outcome of a household permission transfer. See the Towns page for its terms.",
             "town_civic_result" => $"{civicTownName}'s council recorded a decision. See the Towns page for its result.",
@@ -313,6 +313,21 @@ public static class WorldEventText
             "law_case_remedy_effect" => $"{actor ?? "A contributor"} carried out an agreed voluntary contribution in {town}. See Towns for the recorded work and any remainder.",
             _ => $"A hearing request in {town} was rejected without imposing a remedy.",
         };
+    }
+
+    private static string DescribeLandRulingResult(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot, string townName)
+    {
+        var town = snapshot?.Towns.FirstOrDefault(item => item.Id == Field(worldEvent.Detail, 0));
+        var rulingId = Field(worldEvent.Detail, 1);
+        var hearing = town?.LandHearings.FirstOrDefault(item => item.Rulings.Any(ruling => ruling.Id == rulingId));
+        var subject = hearing?.Kind == "property" ? "property ruling" : "land ruling";
+        var outcome = hearing?.Kind switch
+        {
+            "property" => "ownership outcome",
+            "dispute" or "expiry" => "permission change",
+            _ => "outcome",
+        };
+        return $"{townName} posted the result of a {subject}. See the Towns page for its {outcome} and reasons.";
     }
 
     private static string DescribeLandTransfer(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)

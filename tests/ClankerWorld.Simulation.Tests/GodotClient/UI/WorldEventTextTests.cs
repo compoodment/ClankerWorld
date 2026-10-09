@@ -290,7 +290,7 @@ public sealed class WorldEventTextTests
     }
 
     [Theory]
-    [InlineData("land-ruling:town:first:4", "Land hearing decided: confirm.", "A Town posted the result of a land ruling. See the Towns page for its permission change and reasons.")]
+    [InlineData("land-ruling:town:first:4", "Land hearing decided: confirm.", "A Town posted the result of a land ruling. See the Towns page for its outcome and reasons.")]
     [InlineData("land-transfer:town:first:5", "Voluntary household permission transfer completed.", "A Town posted the outcome of a household permission transfer. See the Towns page for its terms.")]
     [InlineData("town:first:proposal:6", "land_use proposal passed: Grant household use.", "A Town's council recorded a decision. See the Towns page for its result.")]
     public void OnlyCouncilResultNoticesAreDescribedAsCouncilDecisions(string subject, string notice, string expected)
