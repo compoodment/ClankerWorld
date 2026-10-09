@@ -1109,7 +1109,8 @@ public sealed partial class PrivateWorldRuntime
         {
             society.Apply(checkpoint => SocietyFixture.RecordSocialMemory(checkpoint, new SocietySocialMemory(
                 memoryId, request.Requester, helperId,
-                $"Grateful for {society.Checkpoint.GetInhabitant(helperId).Name}'s help with project materials.", "public", WorldTick)));
+                $"Grateful for {society.Checkpoint.GetInhabitant(helperId).Name}'s help with project materials.", "public", WorldTick)
+            { Kind = SocietyMemoryKind.Relationship }));
         }
         AppendEvent("project_request_fulfilled", $"{helperId}:{request.Requester}:{itemKind}:{quantity}");
     }

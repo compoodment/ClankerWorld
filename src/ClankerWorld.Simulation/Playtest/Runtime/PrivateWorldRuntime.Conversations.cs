@@ -341,7 +341,7 @@ public sealed partial class PrivateWorldRuntime
         if (oldestClosed is null) return;
 
         var turnIds = oldestClosed.Turns.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
-        if ((society.Checkpoint.Beliefs ?? []).Any(item => item.SourceTurnId is { } turnId && turnIds.Contains(turnId)))
+        if (society.Checkpoint.AllBeliefs().Any(item => item.SourceTurnId is { } turnId && turnIds.Contains(turnId)))
         {
             society.Apply(checkpoint => new SocietyOperationResult(checkpoint with
             {
@@ -349,6 +349,9 @@ public sealed partial class PrivateWorldRuntime
                     item.SourceTurnId is { } sourceTurnId && turnIds.Contains(sourceTurnId)
                         ? item with { SourceTurnId = null }
                         : item).ToArray(),
+                ArchivedBeliefs = checkpoint.ArchivedBeliefs.Select(item =>
+                    item.Belief.SourceTurnId is { } sourceTurnId && turnIds.Contains(sourceTurnId)
+                        ? item with { Belief = item.Belief with { SourceTurnId = null } } : item).ToArray(),
             }));
         }
         conversations.Remove(oldestClosed);
@@ -519,7 +522,7 @@ public sealed partial class PrivateWorldRuntime
         {
             if (ownerId == turn.SpeakerId ||
                 society.Checkpoint.GetInhabitant(ownerId).Status != SocietyInhabitantStatus.Active ||
-                (society.Checkpoint.Beliefs ?? []).Any(item => item.OwnerId == ownerId && item.SourceTurnId == turn.Id))
+                society.Checkpoint.AllBeliefs().Any(item => item.OwnerId == ownerId && item.SourceTurnId == turn.Id))
                 continue;
             var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{turn.Id}|{ownerId}")))
                 .ToLowerInvariant();
