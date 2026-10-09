@@ -326,8 +326,12 @@ public sealed class PersonalEquipmentTests
         var provider = new HeldRepairPlanningProvider();
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
             PrivateWorldRuntimeCodec.Encode(state)), id => id == actor ? provider : new Choices([]));
+        // Keep this expiry check stationary: an untargeted harvest can now
+        // scout into cold terrain and legitimately wear the coat. This order
+        // has no carried input and cannot progress while its reply is held.
+        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.OwnerId == actor && lot.ItemKind == "stone");
         var receipt = world.SubmitInstruction(new OwnerInstructionRequest("planning-probe-order", "owner:test",
-            actor, OwnerInstructionKind.MustDo, "harvest food"));
+            actor, OwnerInstructionKind.MustDo, "store stone"));
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         for (var tick = 0; tick < 120; tick++)

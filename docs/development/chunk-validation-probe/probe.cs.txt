@@ -1,0 +1,78 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text.Json;
+using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.World;
+using ClankerWorld.Viewer.Observation;
+using Xunit.Abstractions;
+
+namespace ClankerWorld.Simulation.Tests;
+
+public sealed class ChunkCostProbe(ITestOutputHelper output)
+{
+    [Theory]
+    [InlineData(WorldSizePreset.Small)]
+    [InlineData(WorldSizePreset.Medium)]
+    public void NativeChunkValidationCost(WorldSizePreset size)
+    {
+        var geography = new GeographyOptions("terrain-encode-cost-audit", size);
+        using var world = new PrivateWorldRuntime(geography.Seed,
+            startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        var initial = world.ExportState();
+        var initialSystems = Assert.IsType<WorldSystemsState>(initial.WorldSystems);
+        var state = initialSystems;
+        for (var tick = 0; tick < 3; tick++) state = WorldSystemsRules.AdvanceOneTick(state);
+        var advances = new List<object>();
+        for (var tick = 0; tick < 20; tick++)
+        {
+            var allocated = GC.GetAllocatedBytesForCurrentThread();
+            var started = Stopwatch.GetTimestamp();
+            state = WorldSystemsRules.AdvanceOneTick(state);
+            var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            advances.Add(new { elapsedMs = elapsed, allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocated });
+        }
+        var replay = initialSystems;
+        for (var tick = 0; tick < 23; tick++) replay = WorldSystemsRules.AdvanceOneTick(replay);
+        var finalBytes = WorldSystemsCodec.Encode(state);
+        Assert.Equal(finalBytes, WorldSystemsCodec.Encode(replay));
+        Assert.Same(initialSystems.Chunks, state.Chunks);
+        var digestSamples = new List<object>();
+        for (var sample = -3; sample < 30; sample++)
+        {
+            var allocated = GC.GetAllocatedBytesForCurrentThread();
+            var started = Stopwatch.GetTimestamp();
+            foreach (var chunk in state.Chunks) Assert.Equal(chunk.ManifestDigest, ChunkManifestCodec.Digest(chunk));
+            var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            if (sample >= 0) digestSamples.Add(new { elapsedMs = elapsed, allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocated });
+        }
+        var checkpoint = PrivateWorldRuntimeCodec.Encode(initial);
+        var captureDirectory = Environment.GetEnvironmentVariable("CLANKERWORLD_CHUNK_PROBE_ROOT");
+        if (captureDirectory is not null)
+        {
+            Directory.CreateDirectory(captureDirectory);
+            File.WriteAllBytes(Path.Combine(captureDirectory, size + "-checkpoint.bin"), checkpoint);
+            File.WriteAllBytes(Path.Combine(captureDirectory, size + "-world-systems.bin"), finalBytes);
+        }
+        var directory = Directory.CreateTempSubdirectory("clankerworld-chunk-cost-");
+        try
+        {
+            var file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"));
+            file.Save(world);
+            Assert.Equal(checkpoint, File.ReadAllBytes(file.Path));
+            using var restored = file.LoadOrCreate(initial.WorldSeed);
+            Assert.Equal(checkpoint, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+            file.Save(restored);
+            Assert.Equal(checkpoint, File.ReadAllBytes(file.Path));
+        }
+        finally { directory.Delete(recursive: true); }
+        output.WriteLine("CHUNK_COST " + JsonSerializer.Serialize(new
+        {
+            size = size.ToString(), tiles = initial.Map.Tiles.Count, resources = initial.Map.Resources.Count,
+            chunks = state.Chunks.Count, advances, digestSamples,
+            exactReplay = true, sameChunkList = true,
+            checkpointSha256 = Convert.ToHexStringLower(SHA256.HashData(checkpoint)),
+            finalWorldSystemsSha256 = Convert.ToHexStringLower(SHA256.HashData(finalBytes)),
+            schema = initial.SchemaVersion,
+        }));
+    }
+}
