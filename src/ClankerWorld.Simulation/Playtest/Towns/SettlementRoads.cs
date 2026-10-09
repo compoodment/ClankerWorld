@@ -120,8 +120,9 @@ public sealed partial class PrivateWorldRuntime
         var doors = worldSimulation.Buildings.Where(item => item.Entrance is not null &&
                 !StreetLanternContent.IsLantern(item.DefinitionId))
             .Select(item => item.Entrance!.Value).ToHashSet();
-        var town = towns.Single(item => item.Id == building.TownId);
-        var ordered = working.Where(town.BorderTiles.Contains).OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
+        var townBorder = building.TownId is { } townId ? towns.Single(item => item.Id == townId).BorderTiles.ToHashSet() : null;
+        var ordered = working.Where(point => townBorder is null || townBorder.Contains(point))
+            .OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
         var streets = new TownStreets(map, occupied, ordered);
         var random = Pcg32XshRrV1.Create(worldSeed, $"town-streets/{building.InstanceId}");
         foreach (var end in ordered)

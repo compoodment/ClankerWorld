@@ -81,6 +81,7 @@ public static class RoadRoutePlanner
         var starts = request.Starts.Distinct().Where(point => IsRoadGround(request, point))
             .OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
         if (starts.Length == 0) return new RoadRouteResult(null, RoadRouteOutcomes.NoEntrance);
+        if (request.Network.Count == 0) return new RoadRouteResult(null, RoadRouteOutcomes.RouteUnavailable);
         var existing = request.Bridges.Select(RiverBridgeRules.ToCrossing).ToArray();
         var redundancy = new Dictionary<string, bool>(StringComparer.Ordinal);
         var banned = new HashSet<string>(StringComparer.Ordinal);
@@ -171,7 +172,15 @@ public static class RoadRoutePlanner
         var byEntrance = request.Bridges.OrderBy(item => item.Id, StringComparer.Ordinal)
             .SelectMany(bridge => bridge.Entrances.Select(entrance => (Entrance: entrance, Bridge: bridge)))
             .ToLookup(item => item.Entrance, item => item.Bridge);
-        var open = new PriorityQueue<GridPoint, (int Cost, int Y, int X, int Order)>();
+        var minX = request.ReuseRoads ? request.Network.Min(point => point.X) : 0;
+        var maxX = request.ReuseRoads ? request.Network.Max(point => point.X) : 0;
+        var minY = request.ReuseRoads ? request.Network.Min(point => point.Y) : 0;
+        var maxY = request.ReuseRoads ? request.Network.Max(point => point.Y) : 0;
+        // A simple route can use each existing Road tile/deck at most once.
+        // 43 is the largest saving (a 141-cost diagonal becomes 98).
+        var maximumSavings = request.ReuseRoads ? 43L * (roads.Count + request.Bridges.Where(bridge => bridge.Trigger == BridgeTriggers.Road)
+            .Sum(bridge => (long)bridge.Span.Count)) : 0;
+        var open = new PriorityQueue<GridPoint, (int Score, int Cost, int Y, int X, int Order)>();
         var best = new Dictionary<GridPoint, int>();
         var predecessor = new Dictionary<GridPoint, Link>();
         var order = 0;
@@ -179,7 +188,7 @@ public static class RoadRoutePlanner
         {
             best[start] = 0;
             predecessor[start] = new Link(start, LinkKind.Start, null, null);
-            open.Enqueue(start, (0, start.Y, start.X, order++));
+            open.Enqueue(start, (Heuristic(start), 0, start.Y, start.X, order++));
         }
 
         while (open.TryDequeue(out var current, out var priority) && best.Count <= MaximumSearchTiles)
@@ -239,12 +248,27 @@ public static class RoadRoutePlanner
         int Beside(GridPoint tile, bool joins) => !request.ReuseRoads && !joins && TownStreets.Directions.Any(step =>
             roads.Contains(new GridPoint(tile.X + step.X, tile.Y + step.Y))) ? BesideRoadCost : 0;
 
+        int Heuristic(GridPoint point)
+        {
+            if (!request.ReuseRoads) return 0;
+            var y = Math.Clamp(point.Y, minY, maxY);
+            var clamped = new GridPoint(Math.Clamp(point.X, minX, maxX), y);
+            var left = new GridPoint(minX, y);
+            var right = new GridPoint(maxX, y);
+            var direct = Math.Min(map.FootRouteHeuristicCost(point, clamped),
+                Math.Min(map.FootRouteHeuristicCost(point, left), map.FootRouteHeuristicCost(point, right)));
+            var steps = Math.Min(map.FootDistance(point, clamped), Math.Min(map.FootDistance(point, left), map.FootDistance(point, right)));
+            // Both bounds ignore obstacles and cannot exceed the actual route:
+            // cheapest possible steps, or dry-ground cost minus all possible savings.
+            return Math.Max(checked(steps * 70), (int)Math.Max(0, direct - maximumSavings));
+        }
+
         void Relax(GridPoint next, int cost, Link link)
         {
             if (best.TryGetValue(next, out var previous) && previous <= cost) return;
             best[next] = cost;
             predecessor[next] = link;
-            open.Enqueue(next, (cost, next.Y, next.X, order++));
+            open.Enqueue(next, (checked(cost + Heuristic(next)), cost, next.Y, next.X, order++));
         }
 
         bool IsRedundant(RiverCrossing crossing)

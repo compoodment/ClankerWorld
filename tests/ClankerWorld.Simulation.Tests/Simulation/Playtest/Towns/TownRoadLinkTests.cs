@@ -119,6 +119,21 @@ public sealed partial class TownMembershipTests
 public sealed class InterTownRoadRouteTests
 {
     [Fact]
+    public void DistantTownOnOpenLandConnectsWithinTheExistingSearchBudget()
+    {
+        var row = new string('.', 500);
+        var map = RiverBridgeTests.Map(Enumerable.Repeat(row, 160).ToArray());
+        var start = new GridPoint(0, 80);
+        var end = new GridPoint(499, 80);
+        var request = new RoadRouteRequest(map, [start], new HashSet<GridPoint> { end }, new HashSet<GridPoint>(), [], ReuseRoads: true);
+        var route = Assert.IsType<RoadRouteProposal>(RoadRoutePlanner.Plan(request).Proposal);
+        Assert.Equal(Enumerable.Range(0, 500).Select(x => new GridPoint(x, 80)), route.RoadTiles);
+        Assert.Null(RoadRoutePlanner.Validate(request, route));
+        // The local Dijkstra search still keeps its old budget and behavior.
+        Assert.Null(RoadRoutePlanner.Plan(request with { ReuseRoads = false }).Proposal);
+    }
+
+    [Fact]
     public void TownLinkUsesWrappedDiagonalOnlyWithBothClearShoulders()
     {
         var map = RiverBridgeTests.Map(".........", ".........", ".........") with { WrapsEastWest = true };

@@ -27,7 +27,8 @@ public sealed partial class PrivateWorldRuntime
             .ThenBy(other => other.Id, StringComparer.Ordinal).FirstOrDefault();
         if (nearest is null) return;
         var occupied = RoadBlockedTiles();
-        var network = roadTiles.Where(nearest.BorderTiles.Contains).ToHashSet();
+        var nearestBorder = nearest.BorderTiles.ToHashSet();
+        var network = roadTiles.Where(nearestBorder.Contains).ToHashSet();
         if (network.Count == 0)
         {
             network.UnionWith(worldSimulation.Buildings.Where(building => building.TownId == nearest.Id)
