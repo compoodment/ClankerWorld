@@ -161,7 +161,8 @@ public sealed class SwimmingStockDeliveryTests
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
-            var choice = request.Observation.Candidates.FirstOrDefault(candidate => active && candidate.Id is "haul_smith_input" or "haul_household_stock") ??
+            var choice = request.Observation.Candidates.FirstOrDefault(candidate => active && candidate.Id == "haul_smith_input") ??
+                request.Observation.Candidates.FirstOrDefault(candidate => active && candidate.Id == "haul_household_stock") ??
                 request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
             return new DeterministicDecisionProvider().DecideAsync(request with
             {
