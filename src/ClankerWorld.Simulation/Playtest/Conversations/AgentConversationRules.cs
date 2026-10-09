@@ -26,8 +26,8 @@ public static class AgentConversationRules
         long runEpoch)
     {
         ValidateIdentifier(id, nameof(id), 512);
-        ValidateIdentifier(initiatorId, nameof(initiatorId));
-        ValidateIdentifier(inviteeId, nameof(inviteeId));
+        ValidateAgentIdentifier(initiatorId, nameof(initiatorId));
+        ValidateAgentIdentifier(inviteeId, nameof(inviteeId));
         if (initiatorId == inviteeId)
             throw new ArgumentException("An agent cannot invite itself to a conversation.", nameof(inviteeId));
         ArgumentOutOfRangeException.ThrowIfNegative(worldTick);
@@ -448,8 +448,8 @@ public static class AgentConversationRules
         if (conversation.Turns.Any(turn => turn is null))
             throw new InvalidDataException("A saved conversation turn is missing.");
         ValidateIdentifier(conversation.Id, nameof(conversation.Id), 512);
-        ValidateIdentifier(conversation.InitiatorId, nameof(conversation.InitiatorId));
-        ValidateIdentifier(conversation.InviteeId, nameof(conversation.InviteeId));
+        ValidateAgentIdentifier(conversation.InitiatorId, nameof(conversation.InitiatorId));
+        ValidateAgentIdentifier(conversation.InviteeId, nameof(conversation.InviteeId));
         if (conversation.InitiatorId == conversation.InviteeId || conversation.CreatedTick < 0 ||
             conversation.ProposalDeadlineTick < conversation.CreatedTick ||
             conversation.ProposalDeadlineTick - conversation.CreatedTick != ProposalLifetimeTicks ||
@@ -483,7 +483,7 @@ public static class AgentConversationRules
             if (turn is null || turn.ListenerIds is null)
                 throw new InvalidDataException("A saved conversation turn is incomplete.");
             ValidateIdentifier(turn.Id, nameof(turn.Id), 600);
-            ValidateIdentifier(turn.SpeakerId, nameof(turn.SpeakerId));
+            ValidateAgentIdentifier(turn.SpeakerId, nameof(turn.SpeakerId));
             if (!IsParticipant(conversation, turn.SpeakerId) || turn.WorldTick < conversation.CreatedTick ||
                 turn.WorldTick < previousTurnTick || turn.WorldTick > worldTick || !IsValidUtterance(turn.Text) ||
                 !Enum.IsDefined(turn.Disposition) || turn.ListenerIds.Count > MaximumListenersPerTurn ||
@@ -685,7 +685,15 @@ public static class AgentConversationRules
     private static string[] Participants(AgentConversation conversation) =>
         [conversation.InitiatorId, conversation.InviteeId];
 
-    private static void ValidateIdentifier(string value, string parameterName, int maximumLength = 128)
+    // Native agent references retain the complete identity created by birth.
+    private static void ValidateAgentIdentifier(string value, string parameterName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
+        if (value != value.Trim() || value.Any(char.IsControl))
+            throw new ArgumentException("A conversation agent identifier is invalid.", parameterName);
+    }
+
+    private static void ValidateIdentifier(string value, string parameterName, int maximumLength)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
         if (value.Length > maximumLength || value != value.Trim() || value.Any(char.IsControl))

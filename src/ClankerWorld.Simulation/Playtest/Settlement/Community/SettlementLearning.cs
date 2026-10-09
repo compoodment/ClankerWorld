@@ -209,7 +209,8 @@ public sealed partial class PrivateWorldRuntime
             if (!society.Checkpoint.Memories.Any(memory => memory.Id == memoryId))
             {
                 society.Apply(checkpoint => SocietyFixture.RecordSocialMemory(checkpoint, new(memoryId, student.InhabitantId, actor,
-                    $"Learned {lesson.Skill.ToString().ToLowerInvariant()} with {checkpoint.GetInhabitant(actor).Name}.", "public", WorldTick)));
+                    $"Learned {lesson.Skill.ToString().ToLowerInvariant()} with {checkpoint.GetInhabitant(actor).Name}.", "public", WorldTick)
+                { Kind = SocietyMemoryKind.Skill }));
             }
         }
         SetLesson(student.InhabitantId, lesson);

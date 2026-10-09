@@ -147,6 +147,12 @@ public static class GeographyGenerator
         "This world's map was made by an older terrain generator, before mountains formed massifs. " +
         "This build cannot rebuild that map, so the world is not loaded; its save is kept.";
     public const int ChunkSize = 64;
+
+    /// <summary>
+    /// Rows at the north and south map edges that are always polar sea, so
+    /// no agent walks into an edge it cannot see (agreed October 8, #1249).
+    /// </summary>
+    public const int PolarEdgeRows = 2;
     public const int MaximumCandidateAttempts = 3;
 
     public static (int Width, int Height) Dimensions(WorldSizePreset size) => size switch
@@ -287,6 +293,9 @@ public static class GeographyGenerator
         return new GeneratedGeography(width, height, options.WrapEastWest, elevation, rainfall, water,
             temperature, climate, drainage);
     }
+
+    /// <summary>Whether a row is one of the polar sea rows at the north or south edge.</summary>
+    public static bool IsPolarEdgeRow(int y, int height) => y < PolarEdgeRows || y >= height - PolarEdgeRows;
 
     /// <summary>
     /// A seeded, coherent noise field for a later map layer, such as where
