@@ -464,7 +464,7 @@ public static class GameUiText
 
     /// <summary>
     /// The historical profile's will lines: who the agent named and what each
-    /// was left, or that the household inherits, then any final words.
+    /// was left, or that default inheritance applies, then any final words.
     /// </summary>
     public static IReadOnlyList<string> FinalWillLines(string? status, OwnerWorldFinalWill? will)
     {
@@ -491,7 +491,7 @@ public static class GameUiText
                 }
                 break;
             case "default":
-                lines.Add("Personal estate follows household inheritance.");
+                lines.Add("Personal estate follows default inheritance rules.");
                 break;
             default:
                 lines.Add("No current thoughts or activity.");

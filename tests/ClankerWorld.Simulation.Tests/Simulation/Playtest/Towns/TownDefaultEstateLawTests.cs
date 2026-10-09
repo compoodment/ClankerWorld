@@ -153,7 +153,9 @@ public sealed class TownDefaultEstateLawTests
     [InlineData(true, 0, 5, 0)]
     public async Task NaturalDeathUsesRecordedTownAndHistoricalDefaultLawAcrossSettlementReload(bool allDie, int share, int townWood, int heirWood)
     {
-        using var generated = NormalPathWorld.CreateGenerated("default-estate-natural", _ => new ActionCoverageRecorder(chooseIdle: true));
+        var willProvider = new DefaultWillProvider();
+        IDecisionProvider Provider(string id) => !allDie && id == Author ? willProvider : new ActionCoverageRecorder(chooseIdle: true);
+        using var generated = NormalPathWorld.CreateGenerated("default-estate-natural", Provider);
         var state = generated.ExportState();
         var society = state.Society.Society;
         var lastDay = Assert.IsType<SocietyDayLifecycle>(society.Config.DayLifecycle).MaximumDay;
@@ -186,10 +188,23 @@ public sealed class TownDefaultEstateLawTests
             Society = state.Society with { Society = society },
             Towns = [town],
             Inhabitants = state.Inhabitants.Select(person => person with { Equipment = null }).ToArray(),
-        }, _ => new ActionCoverageRecorder(chooseIdle: true));
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        }, Provider);
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         var estate = world.Society.Estates.Single(item => item.DeceasedId == Author);
-        Assert.NotEqual("accepted", estate.WillStatus);
+        for (var attempt = 0; attempt < 40 && estate.WillStatus == "pending"; attempt++)
+        {
+            await Task.Delay(10);
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+            estate = world.Society.GetEstate(estate.Id);
+        }
+        Assert.Equal("default", estate.WillStatus);
+        if (!allDie)
+        {
+            var request = Assert.Single(willProvider.Requests);
+            var choice = request.Observation.Candidates.Single(candidate => candidate.Id == CognitionWillContext.HouseholdCandidateId);
+            Assert.Contains("50%", choice.Description, StringComparison.Ordinal);
+            Assert.Contains(town.Name, choice.Description, StringComparison.Ordinal);
+        }
         Assert.Equal(Town, world.ExportState().DeceasedInhabitants!.Single(person => person.InhabitantId == Author).TownId);
         Assert.False(estate.Settled);
         // The native society test above covers the full unshortened hold. Here the
@@ -321,6 +336,26 @@ public sealed class TownDefaultEstateLawTests
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, observation.InhabitantId, Kind, ProviderEpoch,
                 observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest, selected.Id, 1,
                 observation.Candidates.ToDictionary(candidate => candidate.Id, candidate => candidate.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal)));
+        }
+    }
+
+    private sealed class DefaultWillProvider : IDecisionProvider
+    {
+        public ConcurrentQueue<CognitionDecisionRequest> Requests { get; } = new();
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 1;
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            var observation = request.Observation;
+            var isWill = observation.Will is not null;
+            if (isWill) Requests.Enqueue(request);
+            var selected = observation.Candidates.Single(candidate => candidate.Id ==
+                (isWill ? CognitionWillContext.HouseholdCandidateId : "safe_idle"));
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, observation.InhabitantId, Kind, ProviderEpoch,
+                observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest, selected.Id, 1,
+                observation.Candidates.ToDictionary(candidate => candidate.Id, candidate => candidate.Id == selected.Id ? 1d : 0d, StringComparer.Ordinal),
+                Will: isWill ? new CognitionWillChoice([]) : null));
         }
     }
 

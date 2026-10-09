@@ -150,10 +150,15 @@ public sealed partial class PrivateWorldRuntime
 
         var summary = string.Join(", ", items.Select(item =>
             $"{item.Quantity} {item.Kind}{(item.Contents is { } held ? $" holding {held}" : "")}"));
+        var recordedTown = towns.SingleOrDefault(item => item.Id == archived?.TownId);
+        var defaultRule = TownEstateDefaultRules.AtDeath(recordedTown?.Government, estate.CreatedTick)?.Version.EstateDefault;
+        var defaultDescription = defaultRule is null
+            ? "Use default inheritance: living household heirs share your belongings; if none remain, your recorded Town inherits, or communal stock when you have no recorded Town."
+            : $"Use default inheritance: {recordedTown!.Name} receives {defaultRule.TownSharePercent}% of each eligible lot, rounded down and limited by Warehouse room; living household heirs share the rest. Vessel families stay together. If no household heirs remain, your recorded Town inherits.";
         var candidates = new List<CognitionCandidate>
         {
             new(CognitionWillContext.HouseholdCandidateId,
-                $"You have died. Leave your belongings ({summary}) to your household, the usual way."),
+                $"You have died. Your belongings: {summary}. {defaultDescription}"),
         };
         if (heirs.Count > 0)
         {
@@ -171,7 +176,7 @@ public sealed partial class PrivateWorldRuntime
             deceased.Id, estate.CreatedTick, candidates);
         var digestInput = estate.Id + "|" + string.Join("|", snapshot.Select(item =>
             $"{item.LotId}:{item.ItemKind}:{item.Quantity}")) + "|" +
-            string.Join("|", candidates.Select(item => item.Id)) + "|" +
+            string.Join("|", candidates.Select(item => $"{item.Id}:{item.Description}")) + "|" +
             string.Join("|", heirs.Select(item => $"{item.Key}:{heirKeys[item.Key]}:{item.Relation}")) + "|" +
             string.Join("|", memories.Select(item => item.Id));
         var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(digestInput)));
@@ -293,7 +298,7 @@ public sealed partial class PrivateWorldRuntime
                 }
 
                 // Final words belong to an admitted reply; they stand even when
-                // its division is unusable and the household default applies.
+                // its division is unusable and default inheritance applies.
                 var finalWords = response.Will?.FinalWords;
                 if (response.SelectedCandidateId == CognitionWillContext.HouseholdCandidateId)
                 {

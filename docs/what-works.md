@@ -798,7 +798,7 @@ guidance without the caregiver household's private quantities. Ordinary food
 acquisition and cooking priorities still apply.
 
 When an agent with a personal model dies owning something, their model is
-asked once for a final will. It can leave everything to the household or name
+asked once for a final will. It can choose the default inheritance rules or name
 up to three heirs: living people of any age, including children, or the Town
 the agent lived in when that Town has a Warehouse. The will either shares every
 item equally or gives each item to one heir, and anything it leaves out is
@@ -812,6 +812,8 @@ holds. A Town keeps its share in its Warehouse while there is room. All food,
 including eggs, milk and their meals, follows the household path. So do
 handcarts, goods that do not fit, and shares for heirs who have died since, plus
 interrupted, unknown or invalid choices, so no goods are created or lost.
+The offered default choice describes the supported Town law effective at death,
+when there is one, rather than promising that the household receives everything.
 
 Through ordinary Council proposals and votes, residents can set a supported
 default estate law giving the Town 0%, 25%, 50%, 75% or 100% of each eligible

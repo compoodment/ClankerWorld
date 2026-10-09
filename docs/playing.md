@@ -579,6 +579,8 @@ through their Town's ordinary Council. Its proposal names the Town's share:
 applies only to residents who die after adoption without a valid will; a valid
 will keeps priority. Read the proposal and recorded law in Towns. Changing or
 repealing it later leaves earlier estates under their original rule.
+The final will's default choice describes the law effective at that death;
+choosing it uses default inheritance rather than overriding the Town share.
 The Town keeps eligible goods in its Warehouse while there is room, and living
 household heirs share the rest. Whole vessels stay together. With no living
 household heir, goods belong to the deceased resident's Town; non-food goods
