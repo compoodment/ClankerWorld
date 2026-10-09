@@ -51,6 +51,8 @@ public sealed partial class ManualWorldSaveStore
             List<string> inventory = [worldId, keepCount.ToString(CultureInfo.InvariantCulture)];
             var timeline = ReadTimeline(worldId);
             var timelinePath = TimelinePath(worldId);
+            if (timeline is null && File.Exists(timelinePath))
+                throw new InvalidDataException("Recovery cleanup cannot verify the active save's timeline.");
             if (File.Exists(timelinePath)) inventory.Add(Fingerprint(File.ReadAllBytes(timelinePath)));
             foreach (var save in List(worldId).OrderBy(save => save.Id, StringComparer.Ordinal))
             {

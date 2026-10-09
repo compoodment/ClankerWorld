@@ -1743,7 +1743,7 @@ New overwrite backups and before-load copies with a named source record that
 source's opaque save ID and a monotonic recovery sequence in adjacent metadata.
 Sequence orders copies even when the clock moves backwards. Names never identify
 recoveries. Missing, malformed or unclassified provenance confers no deletion
-authority. Explicitly overwriting a recovery makes the selected slot a named
+authority and does not prevent loading an intact checkpoint. Explicitly overwriting a recovery makes the selected slot a named
 manual checkpoint again. Copies without a named source remain ordinary saves.
 The world checkpoint schema and replay bytes do not change.
 
@@ -1753,6 +1753,8 @@ each source. It additionally protects the recovery currently continued from;
 an older active copy may exceed the requested count. Unverifiable files, manual
 saves, autosaves and migration originals are never cleanup candidates. Earlier
 unclassified backups remain protected even if their names look like recoveries.
+An existing damaged timeline refuses cleanup because the active copy cannot be
+verified; it does not block saving a new checkpoint.
 
 The preview digest binds the listed metadata, classified checkpoint bytes,
 verification results, timeline and exact kept/removed IDs. Apply rescans under

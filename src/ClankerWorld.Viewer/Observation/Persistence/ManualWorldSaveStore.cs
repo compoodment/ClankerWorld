@@ -636,13 +636,14 @@ public sealed partial class ManualWorldSaveStore
             return JsonSerializer.Deserialize<Metadata>(bytes);
 
         // Parse required identity/checkpoint/routing fields strictly. Optional
-        // branch fields cannot make an otherwise playable checkpoint disappear.
+        // branch and recovery fields cannot make a playable checkpoint disappear.
         using var core = new MemoryStream();
         using (var writer = new Utf8JsonWriter(core))
         {
             writer.WriteStartObject();
             foreach (var property in root.EnumerateObject())
             {
+                if (property.Name == "Recovery") continue;
                 if (property.Name != "Save" || property.Value.ValueKind != JsonValueKind.Object)
                 {
                     property.WriteTo(writer);
@@ -659,6 +660,16 @@ public sealed partial class ManualWorldSaveStore
         }
         var metadata = JsonSerializer.Deserialize<Metadata>(core.ToArray());
         if (metadata?.Save is null) return metadata;
+        if (root.TryGetProperty("Recovery", out var recovery))
+        {
+            try
+            {
+                var provenance = recovery.Deserialize<RecoveryProvenance>();
+                if (provenance is not null && IsId(provenance.SourceSaveId) && provenance.Sequence > 0)
+                    metadata = metadata with { Recovery = provenance };
+            }
+            catch (JsonException) { }
+        }
         try
         {
             var branch = JsonSerializer.Deserialize<BranchMetadata>(save.GetRawText());

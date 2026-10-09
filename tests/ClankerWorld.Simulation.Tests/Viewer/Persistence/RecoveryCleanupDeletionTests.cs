@@ -7,6 +7,39 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class RecoveryCleanupDeletionTests
 {
     [Theory]
+    [InlineData("sequence")]
+    [InlineData("source")]
+    [InlineData("shape")]
+    public void MalformedRecoveryProvenanceKeepsAnIntactCheckpointPlayableAndUnclassified(string damage)
+    {
+        var directory = Directory.CreateTempSubdirectory("recovery-provenance-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "world.json");
+            using var runtime = new PrivateWorldRuntime("recovery-provenance");
+            runtime.Pause();
+            var store = new ManualWorldSaveStore(path);
+            var named = store.Create("Named", runtime, []);
+            var damaged = store.Overwrite(named.Id, runtime, []).BackupId;
+            store.Overwrite(named.Id, runtime, []);
+            var bytes = PrivateWorldRuntimeCodec.Encode(store.Read(damaged));
+            var metadataPath = Path.Combine(path + ".manual", damaged + ".meta.json");
+            var metadata = JsonNode.Parse(File.ReadAllBytes(metadataPath))!;
+            if (damage == "shape") metadata["Recovery"] = "damaged";
+            else metadata["Recovery"]![damage == "sequence" ? "Sequence" : "SourceSaveId"] =
+                JsonValue.Create(damage == "sequence" ? "damaged" : "not-a-save-id");
+            File.WriteAllText(metadataPath, metadata.ToJsonString());
+            var reopened = new ManualWorldSaveStore(path);
+            Assert.Contains(reopened.List(runtime.Society.WorldId), save => save.Id == damaged);
+            Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reopened.Read(damaged)));
+            var preview = reopened.PreviewRecoveryCleanup(runtime.Society.WorldId, 1, new PrivateWorldStateFile(path));
+            Assert.Contains(preview.Keep, save => save.Id == damaged);
+            Assert.DoesNotContain(preview.Remove, save => save.Id == damaged);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Theory]
     [InlineData("history")]
     [InlineData("schema")]
     [InlineData("identity")]
@@ -92,6 +125,15 @@ public sealed class RecoveryCleanupDeletionTests
             Assert.DoesNotContain(active.Remove, save => save.Id == firstOld);
             Assert.Contains(active.Keep, save => save.Id == firstLatest);
             Assert.Throws<InvalidOperationException>(() => reopened.CleanRecoveryHistory(preview.WorldId, 1, preview.Digest, stateFile));
+            // Cleanup cannot infer that no recovery is active from an unreadable timeline.
+            var timelinePath = Assert.Single(Directory.GetFiles(path + ".manual", "timeline-*.json"));
+            var timeline = JsonNode.Parse(File.ReadAllBytes(timelinePath))!;
+            timeline["LastBranchNumber"] = "damaged";
+            File.WriteAllText(timelinePath, timeline.ToJsonString());
+            var before = Directory.GetFiles(path + ".manual").ToDictionary(file => file, File.ReadAllBytes);
+            Assert.Throws<InvalidDataException>(() => reopened.PreviewRecoveryCleanup(runtime.Society.WorldId, 1, stateFile));
+            Assert.Throws<InvalidDataException>(() => reopened.CleanRecoveryHistory(active.WorldId, 1, active.Digest, stateFile));
+            foreach (var (file, bytes) in before) Assert.Equal(bytes, File.ReadAllBytes(file));
         }
         finally { directory.Delete(recursive: true); }
     }
