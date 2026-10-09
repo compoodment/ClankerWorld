@@ -341,9 +341,6 @@ public sealed partial class PrivateWorldRuntime
                 lot.DeliveryBuildingId is null &&
                 !PersonalEquipmentRules.IsSelected(equipment, lot.Id) &&
                 !AgentKnowledgeRules.IsArtifactKind(lot.ItemKind) &&
-                !society.Checkpoint.Inventory.Reservations.Any(reservation => reservation.LotId == lot.Id &&
-                    reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
-                        InventoryReservationState.Committed) &&
                 (!InventoryContainerRules.IsContainer(lot.ItemKind) || !HasActiveContainerReservation(inventory, lot.Id)))
             // Tools speed up later gathering, so they are set down last.
             .OrderBy(lot => lot.ItemKind is "tool" or "wooden_axe" or "wooden_pickaxe" ? 1 : 0)
@@ -351,7 +348,7 @@ public sealed partial class PrivateWorldRuntime
         var moves = new List<SpareCargoMove>();
         foreach (var lot in spare)
         {
-            var available = Math.Max(0, lot.Quantity - (retainedLotQuantities?.GetValueOrDefault(lot.Id) ?? 0));
+            var available = Math.Max(0, PhysicalUnreservedQuantity(lot) - (retainedLotQuantities?.GetValueOrDefault(lot.Id) ?? 0));
             if (available == 0) continue;
             var vessel = InventoryContainerRules.IsContainer(lot.ItemKind);
             var quantity = vessel ? 1 : Math.Min(missing, available);

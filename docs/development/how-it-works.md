@@ -2743,7 +2743,11 @@ The orchard planting choice requires carrying room to collect a shared seed.
 An already carried planting seed remains usable at full capacity. Ordinary
 wood-tree seeds remain distinct.
 
-Urgent food recovery first sets down ordinary spare cargo. If that cannot free
+Urgent food recovery first sets down ordinary spare cargo. A quantity claim on
+a loose stack protects its held units while unrelated unreserved units remain
+available; the original claimed source and offer stay intact. Whole vessels
+with any held family member remain protected, along with retained repair
+inputs, worn equipment, knowledge goods and delivery loads. If that cannot free
 enough carrying room, it may also select the actor's own orchard propagation
 seeds. Their selected planting reservations are released in the same inventory
 transition that stores the seeds with the household, after reaching the House
@@ -3475,7 +3479,9 @@ A cared adult horse has one real reserved saddle and one adult rider. Movement
 uses the normal legal route and occupancy rules, halves walking cost and admits
 at most two legal steps per tick. A mount adds eight cargo units. Care or
 permission loss ends riding; dismount puts unreserved excess cargo at the actual
-position without changing its owner. Cart attachments and boat travel exclude
+position without changing its owner. A partially held loose stack can shed
+only its unreserved units, preserving the original claimed source; a held
+vessel or its contents protect the whole vessel family. Cart attachments and boat travel exclude
 ridden or led animals. Godot projects and draws the authoritative animal state
 with young/adult headings, mounted horses, yard art, inspection and event text.
 
