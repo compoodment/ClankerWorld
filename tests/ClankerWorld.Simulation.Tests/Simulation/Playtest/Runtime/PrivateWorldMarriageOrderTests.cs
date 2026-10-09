@@ -109,6 +109,7 @@ public sealed class PrivateWorldMarriageOrderTests
             world.Inhabitants.Single(person => person.InhabitantId == partner).Position) <= 1);
         var conversationId = Assert.Single(world.Conversations).Id;
         Assert.True(world.RenameAgent(actor, "Aster"));
+        Assert.False(AgentMarriageRules.CanPropose(world.Society, world.Marriages, actor, partner));
         await Until(world, () => Assert.Single(world.ExportState().Instructions!).Order!.Status == "blocked");
         var blocked = Assert.Single(world.ExportState().Instructions!).Order!;
         Assert.Contains("chosen full names", blocked.BlockedReason!, StringComparison.Ordinal);
@@ -280,7 +281,8 @@ public sealed class PrivateWorldMarriageOrderTests
         { Marriages = completed.Marriages!.Select(item => item with { CompletedTick = null, ChosenSurname = null, SurnameReceipt = null }).ToArray() }));
         Assert.Single(world.ExportState().Events, item => item.Kind == "marriage_accepted");
         Assert.Single(world.ExportState().Events, item => item.Kind == "instruction_order_finished");
-        var trimmed = completed with { Conversations = [] };
+        var trimmed = completed with { Conversations = [], Society = completed.Society with
+        { Society = completed.Society.Society with { Beliefs = completed.Society.Society.Beliefs!.Select(item => item with { SourceTurnId = null }).ToArray() } } };
         using var trimmedReload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(trimmed)), id => new PersonalProvider(id));
         Assert.Equal(finished.Order, Assert.Single(trimmedReload.ExportState().Instructions!).Order);
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(trimmed with { Marriages = [] }));
@@ -289,7 +291,10 @@ public sealed class PrivateWorldMarriageOrderTests
     private static async Task Until(PrivateWorldRuntime world, Func<bool> complete)
     {
         for (var tick = 0; tick < 100 && !complete(); tick++) await Tick(world);
-        Assert.True(complete(), "The native marriage-order stage did not complete.");
+        Assert.True(complete(), "The native marriage-order stage did not complete: " +
+            string.Join("; ", world.ExportState().Instructions!.Select(item => $"{item.Order!.Status}/{item.Order.BlockedReason}/{item.Order.TalkOutcome}")) +
+            " conversations=" + string.Join("; ", world.Conversations.Select(item => $"{item.Kind}/{item.Status}/{item.Outcome}")) +
+            " recent=" + string.Join("; ", world.ExportState().Events.TakeLast(8).Select(item => $"{item.Kind}:{item.Detail}")));
     }
 
     private static async Task Tick(PrivateWorldRuntime world)
