@@ -1,0 +1,1 @@
+- Adults born in the world can found a household and continue making decisions after saving and reloading. Long household identities stay intact in saves and use bounded references in model requests, including final wills.
