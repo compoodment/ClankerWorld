@@ -521,7 +521,7 @@ public sealed partial class PortBoatRuntimeTests
         scenario.World.Resume();
     }
 
-    private static async Task<byte[]> BuildPaidBoatAsync(bool stopBeforeFirstPort = false)
+    private static async Task<byte[]> BuildPaidBoatAsync(bool stopBeforeFirstPort = false, int ticksPerDay = 24)
     {
         var policy = new BoatPolicy { Build = true };
         using var created = new PrivateWorldRuntime("probe-a", policy.CreateProvider,
@@ -574,17 +574,17 @@ public sealed partial class PortBoatRuntimeTests
                 Society = state.Society.Society with
                 {
                     Inventory = inventory,
-                    Config = state.Society.Society.Config with { TicksPerWorldDay = 24 },
+                    Config = state.Society.Society.Config with { TicksPerWorldDay = ticksPerDay },
                     Inhabitants = state.Society.Society.Inhabitants.Select(person => person with
                     {
-                        BirthTick = person.BirthTick / oldDay * 24,
-                        BirthLifeTick = person.BirthLifeTick is { } birth ? birth / oldDay * 24 : null,
+                        BirthTick = person.BirthTick / oldDay * ticksPerDay,
+                        BirthLifeTick = person.BirthLifeTick is { } birth ? birth / oldDay * ticksPerDay : null,
                     }).ToArray(),
                 }
             },
             // Arrange the initial time scale; every vote, payment and journey remains native.
             WorldSystems = RegionalWeatherRules.Initialize(state.WorldSystems! with
-            { Config = state.WorldSystems.Config with { TicksPerDay = 24, CalendarOffsetTicks = 0 }, RegionalWeather = null }, state.Map),
+            { Config = state.WorldSystems.Config with { TicksPerDay = ticksPerDay, CalendarOffsetTicks = 0 }, RegionalWeather = null }, state.Map),
         };
         using var scenario = new BoatScenario(state, policy);
         await scenario.UntilAsync(() => scenario.World.Towns[0].Projects.Count > 0, 80);
@@ -625,6 +625,8 @@ public sealed partial class PortBoatRuntimeTests
                 "; first Port offers: " + string.Join("; ", Policy.Observations.Take(4).Select(observation => observation.InhabitantId + ":" +
                     string.Join(",", observation.Candidates.Where(candidate => candidate.Id.Contains("|project|port-", StringComparison.Ordinal)).Select(candidate => candidate.Id)))) +
                 "; positions: " + string.Join("; ", World.Inhabitants.Select(person => person.InhabitantId + ":" + person.Position)) +
+                "; proposal votes: " + string.Join("; ", World.Towns[0].Governance!.Proposals.TakeLast(6)
+                    .Select(proposal => proposal.Text + ":" + proposal.Status + ":" + proposal.Votes.Count(vote => vote.Yes) + "/" + proposal.RequiredYes)) +
                 "; recent choices: " + string.Join("; ", Policy.Choices.TakeLast(16)));
         }
         public void Dispose() => World.Dispose();
@@ -639,6 +641,7 @@ public sealed partial class PortBoatRuntimeTests
         internal string TripActor { get; set; } = Author;
         internal bool CancelWaiting { get; set; }
         internal bool GrantAll { get; set; }
+        internal bool RevokeBoatAccess { get; set; }
         internal bool LeaveToTown { get; set; }
         internal string? HoldActor { get; set; }
         internal TaskCompletionSource<CognitionDecisionResponse> HeldReply { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -674,6 +677,15 @@ public sealed partial class PortBoatRuntimeTests
                     selected = candidates.FirstOrDefault(candidate => candidate.Id.StartsWith("boat_cancel:", StringComparison.Ordinal));
                 if (selected is null && policy.GrantAll && actor == Author)
                     selected = candidates.FirstOrDefault(candidate => candidate.Id.Contains("|boat_access|all|", StringComparison.Ordinal));
+                if (selected is null && policy.RevokeBoatAccess && actor == Author)
+                {
+                    var law = policy.World!.Towns[0].Government!.Laws.FirstOrDefault(law =>
+                        TownLawRules.IsInForce(law) && TownLawRules.Current(law).BoatAccess is not null);
+                    if (law is not null && !policy.World.Towns[0].Government!.LawDrafts.Any(draft =>
+                            draft.Action == "repeal" && draft.LawId == law.Id && draft.Status == "pending"))
+                        selected = candidates.FirstOrDefault(candidate =>
+                            candidate.Id.Contains("|repeal|" + law.Id + "|", StringComparison.Ordinal));
+                }
                 if (selected is null && policy.Build && actor == Author &&
                     !projects.Any(project => project.Stage is not ("completed" or "cancelled")))
                 {

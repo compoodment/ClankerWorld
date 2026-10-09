@@ -1348,6 +1348,66 @@ public sealed record MapValidationResult(bool IsValid, string? Failure)
 /// </summary>
 public static class MapAcceptance
 {
+    private static readonly ConditionalWeakTable<SeededMap, CampTraversalCache> CampTraversals = new();
+
+    private sealed class CampTraversalCache
+    {
+        private readonly Lock gate = new();
+        private SeededMap? topology;
+        private GridPoint origin;
+        private HashSet<GridPoint>? reachable;
+
+        internal HashSet<GridPoint> Get(SeededMap map, GridPoint startingPoint)
+        {
+            lock (gate)
+            {
+                if (topology is not null && origin == startingPoint && SameWalkability(map, topology))
+                    return reachable!;
+
+                // Arrays and read-only collection views may still be borrowed.
+                // Compare actual contents before reuse, and traverse owned data
+                // so an old terrain index cannot hide a caller's tile edit.
+                var snapshot = map with
+                {
+                    Tiles = map.Tiles.ToArray(),
+                    HydrologyKinds = map.HydrologyKinds?.ToArray(),
+                    ElevationLevels = map.ElevationLevels?.ToArray(),
+                    SurfaceKinds = map.SurfaceKinds?.ToArray(),
+                    BridgeDecks = map.BridgeDecks?.ToDictionary(),
+                    ClimateZones = null,
+                    VegetationKinds = null,
+                    CampObjects = [],
+                    Resources = [],
+                    ManifestDigest = string.Empty,
+                };
+                var fresh = ReachableFrom(snapshot, startingPoint);
+                topology = snapshot;
+                origin = startingPoint;
+                reachable = fresh;
+                return fresh;
+            }
+        }
+    }
+
+    private static bool SameWalkability(SeededMap map, SeededMap snapshot)
+    {
+        if (map.Width != snapshot.Width || map.Height != snapshot.Height ||
+            map.WrapsEastWest != snapshot.WrapsEastWest || map.Tiles.Count != snapshot.Tiles.Count ||
+            !SameLayer(map.HydrologyKinds, snapshot.HydrologyKinds) ||
+            !SameLayer(map.ElevationLevels, snapshot.ElevationLevels) ||
+            !SameLayer(map.SurfaceKinds, snapshot.SurfaceKinds)) return false;
+        for (var index = 0; index < map.Tiles.Count; index++)
+            if (map.Tiles[index] != snapshot.Tiles[index]) return false;
+        if (map.BridgeDecks is null) return snapshot.BridgeDecks is null;
+        if (snapshot.BridgeDecks is null || map.BridgeDecks.Count != snapshot.BridgeDecks.Count) return false;
+        foreach (var (point, axis) in map.BridgeDecks)
+            if (!snapshot.BridgeDecks.TryGetValue(point, out var savedAxis) || axis != savedAxis) return false;
+        return true;
+    }
+
+    private static bool SameLayer(byte[]? current, byte[]? snapshot) =>
+        current is null ? snapshot is null : snapshot is not null && current.AsSpan().SequenceEqual(snapshot);
+
     public static MapValidationResult Validate(SeededMap map, bool allowEmptyCamp = false)
     {
         ArgumentNullException.ThrowIfNull(map);
@@ -1439,7 +1499,7 @@ public static class MapAcceptance
             map.Resources.FirstOrDefault(item => item.Id == "berry-patch")?.Position;
         if (startingPoint is null)
             return MapValidationResult.Invalid("The starting area has no reachable food resource.");
-        var reachable = ReachableFrom(map, startingPoint.Value);
+        var reachable = CampTraversals.GetValue(map, static _ => new()).Get(map, startingPoint.Value);
         var starterResources = allowEmptyCamp
             ? map.Resources.Where(resource => resource.Id is "berry-patch" or "timber-tree" or "grain-seed-patch" or "wild-greens-patch" or "medicinal-herb-patch")
             : map.Resources;

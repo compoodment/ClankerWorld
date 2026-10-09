@@ -9,6 +9,29 @@ public static class GameUiText
 {
     private const int MinutesPerDay = 1_440;
 
+    /// <summary>A continuing model problem produces one row until recovery; waits and cancellations stay out of the log.</summary>
+    public static IEnumerable<OwnerWorldEvent> PlayerEvents(IEnumerable<OwnerWorldEvent> events)
+    {
+        var failures = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var item in events.OrderBy(item => item.EventId))
+        {
+            if (item.Kind != "model_attempt_status")
+            {
+                if (IsPlayerFacingEvent(item.Kind)) yield return item;
+                continue;
+            }
+            var separator = item.Detail.LastIndexOf(':');
+            if (separator <= 0) continue;
+            var agentId = item.Detail[..separator];
+            var status = item.Detail[(separator + 1)..];
+            if (status == "ready") failures.Remove(agentId);
+            if (status is not ("missing_key" or "usage_limit" or "unusable_reply" or "timed_out" or "model_unavailable")) continue;
+            if (failures.TryGetValue(agentId, out var previous) && previous == status) continue;
+            failures[agentId] = status;
+            yield return item;
+        }
+    }
+
     public static string ModelStatus(string? status) => status switch
     {
         "waiting" => "Waiting for the model",
@@ -614,6 +637,7 @@ public static class GameUiText
             "safe_idle" => "take it easy",
             "seek_food" => "find food",
             "move_to" => "go to a tile",
+            "boat_order" => "travel to the requested Port by boat",
             "eat_food" => "eat",
             "consume_food" => "eat",
             "collect_shared_food" => "collect food from camp",
