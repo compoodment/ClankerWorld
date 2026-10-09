@@ -1384,6 +1384,14 @@ inspection use the same treatment. Fruit, trunks, shadows, rock, water and
 permanent snow retain their original colours. Night and regional weather still
 draw above the landscape, and winter colour alone does not add snow.
 
+The client retains decoded ground, its palette, the overview atlas and warm
+relief when only resources change. Its terrain cache compares the world ID,
+dimensions, wrapping and actual packed terrain/layer contents, or a retained
+copy of legacy tile facts. A resource-manifest change alone does not rebuild
+the ground; tree stages, resource quantities and other live overlays still
+refresh. Changed ground or layers rebuild even if digest metadata stays the
+same, and a new world context or newly available layers rebuild the map.
+
 All of these numbers are **provisional**. They were chosen from fixed-seed
 measurements, not owner-reviewed maps, and live in `TerrainPlacementRules`.
 Current fixed-world tests require 25–45% forest-grass tree coverage, and every
@@ -3323,9 +3331,11 @@ keeps the existing supply path collecting feed and enough usable jug water befor
 approaching the animal, including after a partial pickup. Water may be split
 across jugs or content lots; fetching counts the usable water already carried
 and rechecks each whole jug against reservations and free carrying space.
-At the animal's tile,
-permitted local yard stock remains usable directly. Physical supply trips
-retain the owning household. Cancelling or replacing an animal order releases
+At the animal's tile, permitted local yard stock remains usable directly.
+Supply pickup leaves household sale stock on an actively borrowed Market stall.
+Once borrowing ends, that stock can be collected through the normal ownership,
+reservation, capacity and travel checks. Physical supply trips retain the
+owning household. Cancelling or replacing an animal order releases
 only a supply trip matching its actor, animal and action, without relocating,
 transferring or spending its cargo. Executing a new animal order also discards
 an unrelated retained trip, including one loaded from a previously cancelled
