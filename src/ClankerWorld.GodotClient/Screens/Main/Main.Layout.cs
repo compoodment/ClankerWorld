@@ -538,7 +538,7 @@ public partial class Main
         label.ScrollActive = true;
         // The built-in scrollbar defaults to accessibility-only focus.
         // Long readers need ordinary Tab/arrow navigation as well.
-        label.GetVScrollBar().FocusMode = FocusModeEnum.All;
+        ConfigureKeyboardScrollBar(label.GetVScrollBar());
         label.SetMeta(TextPanelLimit, maximumHeight);
         // A new width rewraps the text, but only after the resized signal, so
         // measure it once this frame's layout is done.

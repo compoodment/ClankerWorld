@@ -14,12 +14,7 @@ public partial class Main
         {
             scroll.FocusMode = FocusModeEnum.All;
             foreach (var bar in new ScrollBar[] { scroll.GetVScrollBar(), scroll.GetHScrollBar() })
-            {
-                bar.FocusMode = FocusModeEnum.All;
-                // ScrollContainer uses Step=0 for smooth pointer scrolling.
-                // Give arrows a separate increment without quantizing dragging.
-                if (bar.Step <= 0 && bar.CustomStep <= 0) bar.CustomStep = 16;
-            }
+                ConfigureKeyboardScrollBar(bar);
         }
         foreach (var panel in new Control[]
         {
@@ -49,6 +44,18 @@ public partial class Main
                 }
             };
         }
+    }
+
+    private static void ConfigureKeyboardScrollBar(ScrollBar bar)
+    {
+        bar.FocusMode = FocusModeEnum.All;
+        // ScrollContainer uses Step=0 for smooth pointer scrolling.
+        // Give arrows a separate increment without quantizing dragging.
+        if (bar.Step <= 0 && bar.CustomStep <= 0) bar.CustomStep = 16;
+        // Godot scrolls on arrows without consuming their focus navigation.
+        // Keep the scrolling axis here; Tab still reaches the next control.
+        if (bar is VScrollBar) bar.FocusNeighborTop = bar.FocusNeighborBottom = ".";
+        else bar.FocusNeighborLeft = bar.FocusNeighborRight = ".";
     }
 
     private Control CurrentKeyboardPanel()

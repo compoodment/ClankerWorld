@@ -40,14 +40,22 @@ public partial class Main
         if (bar.GetThemeStylebox("scroll_focus") is not StyleBoxFlat { BorderWidthLeft: > 0 })
             throw new InvalidOperationException("A plain reader's keyboard focus must have a visible outline.");
         await KeyboardKeyAsync(Key.Home);
+        var afterHomeFocus = FocusOwner()?.GetPath().ToString();
         var before = scroll.ScrollVertical;
         await KeyboardKeyAsync(Key.Down);
+        var afterDownFocus = FocusOwner()?.GetPath().ToString();
+        if (FocusOwner() != bar)
+            throw new InvalidOperationException($"Scrolling Down must keep focus on the scrollbar: bar={bar.GetPath()}, focus={afterDownFocus}.");
         if (scroll.ScrollVertical <= before)
             throw new InvalidOperationException($"Down must scroll the plain reader even when its continuous pointer step is zero: before={before}, after={scroll.ScrollVertical}, focus={FocusOwner()?.GetPath()}, max={bar.MaxValue}, page={bar.Page}, window={window?.Name}.");
         var afterDown = scroll.ScrollVertical;
         await KeyboardKeyAsync(Key.Up);
+        if (FocusOwner() != bar)
+            throw new InvalidOperationException("Scrolling Up must keep focus on the scrollbar.");
         if (scroll.ScrollVertical >= afterDown)
-            throw new InvalidOperationException($"Up must scroll the plain reader back: down={afterDown}, up={scroll.ScrollVertical}, focus={FocusOwner()?.GetPath()}, max={bar.MaxValue}, page={bar.Page}, window={window?.Name}.");
+            throw new InvalidOperationException($"Up must scroll the plain reader back: down={afterDown}, up={scroll.ScrollVertical}, focus={FocusOwner()?.GetPath()}, homeFocus={afterHomeFocus}, downFocus={afterDownFocus}, bar={bar.GetPath()}, step={bar.Step}, customStep={bar.CustomStep}, max={bar.MaxValue}, page={bar.Page}, window={window?.Name}.");
+        await KeyboardKeyAsync(Key.Tab);
+        if (FocusOwner() == bar) throw new InvalidOperationException("Tab must leave the scrollbar after arrow scrolling.");
     }
 
     private async Task WithKeyboardOwnerAsync(Func<Task> check)
@@ -180,6 +188,7 @@ public partial class Main
                 throw new InvalidOperationException("A reader's keyboard focus must have a visible outline.");
             var scrollBefore = readerScroll.Value;
             await KeyboardKeyAsync(Key.Down);
+            if (!readerScroll.HasFocus()) throw new InvalidOperationException("Scrolling a text reader must retain its keyboard focus.");
             if (readerScroll.Value <= scrollBefore)
                 throw new InvalidOperationException("Arrow input must scroll the actual overflowing reader.");
             await KeyboardKeyAsync(Key.Escape);
