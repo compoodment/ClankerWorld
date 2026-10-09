@@ -1014,6 +1014,18 @@ world and all its saves. Open or create another world first if the target is
 active. Canceling either confirmation changes nothing. These controls require
 a paused world.
 
+To clean older recovery copies, pause the world and open **Save World**. Set
+**Recovery copies per save** (1–10; initially a provisional 3), then choose
+**Preview cleanup**. The confirmation lists the exact copies to remove and keep.
+**Delete these copies** permanently removes only that preview's older verified
+recoveries. Canceling changes nothing. Cleanup stays off until you ask for it;
+it never runs automatically or deletes by age.
+
+The latest verified recovery for each save is kept, along with any recovery the
+running world continues from. Manual saves, migration originals, older copies
+without recovery records and checkpoints the host cannot verify are kept. If
+the saves change while the preview is open, preview again before confirming.
+
 ## Report what you notice
 
 Use [GitHub Issues](https://github.com/compoodment/ClankerWorld/issues/new/choose)
@@ -1038,6 +1050,19 @@ starts automatically after that action completes.
 **Reroll** chooses another seed and clears the old map while its replacement
 loads. You can reroll during generation; the preview will follow your latest
 seed. If the world name is missing, enter it and choose **Preview again**.
+
+## Crossing rivers and lakes
+
+Agents can wade rivers one or two tiles wide. A healthy agent with enough
+warmth and a light load can also swim wider rivers and lakes, much more slowly,
+losing warmth as they move. The map shows the agent swimming with a
+**Swimming** label; their tooltip says the same. Cold or ill agents, loads above
+four carried units, carts and accompanying animals prevent a new swim.
+When supplies must return across freshwater, agents collect only what they can
+carry back; vessels count together with their contents. The sea still needs a boat.
+An agent already swimming can reach shore if their condition changes, and an
+unfinished crossing survives saving and loading. Swimming speed, warmth loss
+and the load limit are provisional for playtesting.
 
 ## Animals
 

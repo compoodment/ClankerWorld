@@ -36,11 +36,11 @@ public sealed record SaveTimelinePosition(string? ContinuedFromId, string? Branc
 /// atomic writes, and private files keep names out of paths and credentials
 /// out of world saves. History segments remain alongside the active save.
 /// </summary>
-public sealed class ManualWorldSaveStore
+public sealed partial class ManualWorldSaveStore
 {
     private sealed record Metadata(ManualWorldSave Save, IReadOnlyList<InhabitantProviderAssignment> Assignments,
         WorldAutosaveSettings? AutosaveSettings, string? WorldId = null, string? Generation = null,
-        [property: JsonIgnore] bool HasInvalidBranchMetadata = false);
+        [property: JsonIgnore] bool HasInvalidBranchMetadata = false, RecoveryProvenance? Recovery = null);
     private sealed record BranchMetadata(SaveBranch? Branch = null, string? ContinuedFromId = null,
         DateTimeOffset? ContinuedFromCreatedUtc = null, long BranchPosition = 0);
     // Where the running world's history continues from: its branch (null when the
@@ -111,7 +111,7 @@ public sealed class ManualWorldSaveStore
             };
             WriteAtomic(StatePath(backup.Id), previousBytes);
             WriteAtomic(MetadataPath(backup.Id), JsonSerializer.SerializeToUtf8Bytes(
-                previousMetadata with { Save = backup, Generation = null }));
+                previousMetadata with { Save = backup, Generation = null, Recovery = NextRecovery(id) }));
 
             // The backup keeps the old version in its original branch. The chosen
             // slot now holds the running world, so it joins the running world's branch.
@@ -154,7 +154,7 @@ public sealed class ManualWorldSaveStore
 
     private ManualWorldSave CreateCore(string name, PrivateWorldRuntime runtime,
         IReadOnlyList<InhabitantProviderAssignment> assignments,
-        WorldAutosaveSettings? autosaveSettings, bool isAutosave)
+        WorldAutosaveSettings? autosaveSettings, bool isAutosave, RecoveryProvenance? recovery = null)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(assignments);
@@ -179,7 +179,7 @@ public sealed class ManualWorldSaveStore
             // position still keeps the next save on this branch.
             AdvanceTimeline(worldId, timeline, entry, bytes);
             WriteAtomic(MetadataPath(entry.Id), JsonSerializer.SerializeToUtf8Bytes(
-                new Metadata(entry, assignments, autosaveSettings, worldId)));
+                new Metadata(entry, assignments, autosaveSettings, worldId, Recovery: recovery)));
             return entry;
         }
     }
@@ -636,13 +636,14 @@ public sealed class ManualWorldSaveStore
             return JsonSerializer.Deserialize<Metadata>(bytes);
 
         // Parse required identity/checkpoint/routing fields strictly. Optional
-        // branch fields cannot make an otherwise playable checkpoint disappear.
+        // branch and recovery fields cannot make a playable checkpoint disappear.
         using var core = new MemoryStream();
         using (var writer = new Utf8JsonWriter(core))
         {
             writer.WriteStartObject();
             foreach (var property in root.EnumerateObject())
             {
+                if (property.Name == "Recovery") continue;
                 if (property.Name != "Save" || property.Value.ValueKind != JsonValueKind.Object)
                 {
                     property.WriteTo(writer);
@@ -659,6 +660,16 @@ public sealed class ManualWorldSaveStore
         }
         var metadata = JsonSerializer.Deserialize<Metadata>(core.ToArray());
         if (metadata?.Save is null) return metadata;
+        if (root.TryGetProperty("Recovery", out var recovery))
+        {
+            try
+            {
+                var provenance = recovery.Deserialize<RecoveryProvenance>();
+                if (provenance is not null && IsId(provenance.SourceSaveId) && provenance.Sequence > 0)
+                    metadata = metadata with { Recovery = provenance };
+            }
+            catch (JsonException) { }
+        }
         try
         {
             var branch = JsonSerializer.Deserialize<BranchMetadata>(save.GetRawText());

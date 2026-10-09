@@ -942,7 +942,8 @@ public partial class Main
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 if (!manualSaveOverlay.GetGlobalRect().Encloses(manualSaveCard.GetGlobalRect()) ||
                     manualSaveOverlay.GetGlobalRect().GetCenter().DistanceTo(manualSaveCard.GetGlobalRect().GetCenter()) > 2)
-                    throw new InvalidOperationException($"Save/load panel escaped its centered bounds at {size}.");
+                    throw new InvalidOperationException($"Save/load panel escaped its centered bounds at {size}: " +
+                        $"overlay={manualSaveOverlay.GetGlobalRect()}, card={manualSaveCard.GetGlobalRect()}.");
                 manualSaveOverlay.Hide();
                 ResetWorldGenerationOptions();
                 if (CurrentWorldOptions().WaterPercent != 50 || CurrentWorldOptions().ForestCover != "Normal" ||
@@ -1157,6 +1158,7 @@ public partial class Main
                 await VerifyAutosaveSettingsOwnershipAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 await VerifyManualSaveListOwnershipAsync();
+                await VerifyRecoveryCleanupAsync();
                 await VerifySameWorldTimelineUiRecoveryAsync();
                 VerifySaveBranchList();
                 await VerifySaveTimelineAsync();

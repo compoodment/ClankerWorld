@@ -73,7 +73,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.Action == "move_to" && order.TargetPosition is { } destination)
             return !MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination) &&
                 (person.Position == destination ||
-                 map.IsPassable(destination) && map.IsReachableOnFoot(person.Position, destination) &&
+                 (map.IsPassable(destination) || CanSwim(instruction.TargetInhabitantId) && SwimmingRules.IsSwimmingWater(map, destination)) &&
                  FindUnoccupiedRoute(instruction.TargetInhabitantId, person.Position, destination, 0).Count > 0)
                     ? new CognitionCandidate("move_to", $"Travel to tile ({destination.X}, {destination.Y}).", 0)
                     : null;
@@ -132,7 +132,7 @@ public sealed partial class PrivateWorldRuntime
                  knowledge.Facts.Any(fact => fact.OwnerId == instruction.TargetInhabitantId &&
                     fact.Position == resource.Position &&
                     fact.ResourceKinds.Contains(FoodKnowledgeKind(resource), StringComparer.Ordinal))) &&
-                map.IsReachableOnFoot(person.Position, resource.Position))
+                CanReachByFootOrSwimming(instruction.TargetInhabitantId, person.Position, resource.Position))
             .OrderBy(resource => map.FootDistance(person.Position, resource.Position))
             .ThenBy(resource => resource.Id, StringComparer.Ordinal)
             .FirstOrDefault(resource => IsWithinInteractionRange(person.Position, resource.Position, ResourceInteractionRange) ||
@@ -488,7 +488,7 @@ public sealed partial class PrivateWorldRuntime
                 ? "The requested tile is outside this world."
                 : MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination)
                     ? "Waiting for an invitation to enter another household's House."
-                : "No open walking route reaches the requested tile right now.";
+                : "No open walking or safe swimming route reaches the requested tile right now.";
         if (instruction.Order is { Action: "accept_guardianship", TargetAgentId: { } child })
             return GuardianOrderBlockedReason(instruction.TargetInhabitantId, child);
         if (instruction.Order?.Action == "consume_food")
