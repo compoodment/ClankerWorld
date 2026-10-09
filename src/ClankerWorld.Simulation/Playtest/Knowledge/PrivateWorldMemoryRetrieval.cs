@@ -119,7 +119,7 @@ internal static class PrivateWorldMemoryRetrieval
             .Select(memory => new SourceRecord(
                 memory.Id,
                 ownerId,
-                CognitionSubjectId(memory.SubjectId),
+                CognitionAgentId(memory.SubjectId),
                 Bounded(memory.Summary, MaximumSummaryLength),
                 memory.SourceTick,
                 "experience",
@@ -137,14 +137,14 @@ internal static class PrivateWorldMemoryRetrieval
             .Select(belief => new SourceRecord(
                 belief.Id,
                 ownerId,
-                CognitionSubjectId(belief.AboutInhabitantId ?? ownerId),
+                CognitionAgentId(belief.AboutInhabitantId ?? ownerId),
                 Bounded(belief.Statement, MaximumSummaryLength),
                 belief.FormedTick,
                 "belief",
                 null,
                 belief.Provenance.ToString().ToLowerInvariant(),
                 belief.ConfidenceBasisPoints,
-                belief.SourceAgentId,
+                belief.SourceAgentId is { } sourceAgentId ? CognitionAgentId(sourceAgentId) : null,
                 belief.SourceEventId,
                 belief.SupersededByBeliefId is not null));
 
@@ -174,9 +174,9 @@ internal static class PrivateWorldMemoryRetrieval
     private static bool IsCanonicalId(string? value) => value is { Length: > 0 } &&
         value == value.Trim() && !value.Any(char.IsControl);
 
-    private static string CognitionSubjectId(string subjectId) => subjectId.Length <= 128
-        ? subjectId
-        : "agent-sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(subjectId)));
+    private static string CognitionAgentId(string agentId) => agentId.Length <= 128
+        ? agentId
+        : "agent-sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(agentId)));
 
     private static string? BoundedOptional(string? value, int limit) => value is null
         ? null
