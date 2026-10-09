@@ -3095,7 +3095,9 @@ non-food cargo keep their ordinary loading rules.
 
 Crafting uses the Blacksmith's handcart recipe with the adult worker's carried
 wood, fittings and rope. An adult collects them from household or Town
-Warehouse stock only while the whole set is carried or in that stock, and the
+Warehouse stock only while the whole set is carried or in stock they can
+physically reach and collect. Unreachable household stock and goods on an
+actively borrowed Market stall do not complete the set. The
 Blacksmith, Store and workstation supply hauls leave the carried set with them
 rather than returning it to stock. Exact inputs are reserved through the
 production job; the personal cart appears on the work site's ground after
