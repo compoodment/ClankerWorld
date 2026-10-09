@@ -1,3 +1,4 @@
+using ClankerWorld.GodotClient.Pairing;
 using ClankerWorld.GodotClient.UI;
 using Godot;
 
@@ -25,7 +26,38 @@ public partial class Main
         await KeyboardKeyAsync(Key.Enter);
     }
 
-    private async Task VerifyTitleKeyboardAsync()
+    private async Task WithKeyboardOwnerAsync(Func<Task> check)
+    {
+        var previousRegistration = registration;
+        var previousKey = deviceKey;
+        var previousUrl = worldUrlInput.Text;
+        var previousCi = System.Environment.GetEnvironmentVariable("CI");
+        System.Environment.SetEnvironmentVariable("CI", "true");
+        using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
+        using var host = new WorldActionSmokeHost(signer.PublicKeySpkiBase64);
+        try
+        {
+            registration = new(host.Authority, "smoke-device", signer.PublicKeyFingerprint, host.Address);
+            deviceKey = signer;
+            worldUrlInput.Text = host.Address;
+            await check();
+        }
+        finally
+        {
+            registration = previousRegistration;
+            deviceKey = previousKey;
+            worldUrlInput.Text = previousUrl;
+            System.Environment.SetEnvironmentVariable("CI", previousCi);
+            RefreshMainMenuAvailability();
+            RefreshControlAvailability();
+        }
+    }
+
+    private Task VerifyTitleKeyboardAsync() => WithKeyboardOwnerAsync(VerifyTitleKeyboardCoreAsync);
+
+    private Task VerifyWorldKeyboardAsync() => WithKeyboardOwnerAsync(VerifyWorldKeyboardCoreAsync);
+
+    private async Task VerifyTitleKeyboardCoreAsync()
     {
         ShowMainMenu();
         GetViewport().GuiReleaseFocus();
@@ -44,6 +76,8 @@ public partial class Main
         await KeyboardActivateAsync(gameMenuPanel, menuCloseButton);
         if (gameMenuPanel.Visible || !mainMenuOverlay.Visible)
             throw new InvalidOperationException("Keyboard Back must return to Main Menu.");
+        if (GetViewport().GuiGetFocusOwner() != mainMenuSettingsButton)
+            throw new InvalidOperationException("Closing title Settings must restore focus to its Settings opener.");
         await KeyboardKeyAsync(Key.Tab);
         if (GetViewport().GuiGetFocusOwner() is not { } focus || !mainMenuOverlay.IsAncestorOf(focus))
             throw new InvalidOperationException("Returned Main Menu must keep its keyboard focus inside the menu.");
@@ -51,7 +85,7 @@ public partial class Main
         keyboardNavigation = false;
     }
 
-    private async Task VerifyWorldKeyboardAsync()
+    private async Task VerifyWorldKeyboardCoreAsync()
     {
         var original = renderedMapSnapshot ?? throw new InvalidOperationException("Keyboard screen walk needs a rendered world.");
         var previousReconnect = observationSession.Current;
@@ -65,7 +99,14 @@ public partial class Main
             PanelSmokeAgent("keyboard-first", "First", new(1, 1)),
             PanelSmokeAgent("keyboard-second", "Second", new(2, 1)),
         };
-        var snapshot = original with { Inhabitants = people, LatestEventId = 0 };
+        var lanterns = new[]
+        {
+            new OwnerWorldPlacedBuilding("keyboard-stone", "test/stone_lantern", new(3, 1), 0,
+                "Stone street lantern", ["street_lantern", "stone_lantern"], 1, 1, Entrance: new(3, 2)),
+            new OwnerWorldPlacedBuilding("keyboard-hanging", "test/hanging_lantern", new(4, 1), 0,
+                "Hanging street lantern", ["street_lantern", "hanging_lantern"], 1, 1, Entrance: new(4, 2)),
+        };
+        var snapshot = original with { Inhabitants = people, PlacedBuildings = lanterns, LatestEventId = 0 };
         var handshake = new OwnerWorldHandshake(new(1, 1),
             ["owner-observation.read.v1", "inhabitant-inspection.read.v1", "spatial-knowledge.read.v1",
              "owner-control.request.v1", "paused-authoring.request.v1"], []);
@@ -92,8 +133,29 @@ public partial class Main
             await KeyboardKeyAsync(Key.Enter);
             if (!agentProfilePanel.Visible || selectedInhabitantId != people[1].Id)
                 throw new InvalidOperationException("Enter must open the selected Profile.");
+            await KeyboardActivateAsync(agentProfilePanel, renameToggleButton);
+            if (!renameRow.Visible || !renameAgentInput.HasFocus())
+                throw new InvalidOperationException("Keyboard Rename must open and focus its editor.");
+            await KeyboardKeyAsync(Key.Escape);
+            await KeyboardActivateAsync(agentProfilePanel, renameToggleButton);
+            if (renameRow.Visible) throw new InvalidOperationException("Keyboard must close Rename without submitting it.");
             await KeyboardActivateAsync(agentProfilePanel, readThoughtsButton);
             if (!thoughtsPanel.Visible) throw new InvalidOperationException("Keyboard must reach the thoughts reader.");
+            // Fill the actual reader past its viewport, then use real Tab and
+            // arrow input. Opening a short reader alone cannot prove scrolling.
+            thoughtsReaderText.Text = string.Join("\n", Enumerable.Range(0, 120).Select(index => $"Recorded thought {index}: a long reader must remain usable."));
+            FitTextPanel(thoughtsReaderText);
+            for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var readerScroll = thoughtsReaderText.GetVScrollBar();
+            for (var step = 0; GetViewport().GuiGetFocusOwner() != readerScroll && step <= KeyboardControls(thoughtsPanel).Length; step++)
+                await KeyboardKeyAsync(Key.Tab);
+            if (!readerScroll.HasFocus()) throw new InvalidOperationException("Tab must reach an overflowing reader's scrollbar.");
+            if (readerScroll.GetThemeStylebox("scroll_focus") is not StyleBoxFlat { BorderWidthLeft: > 0 })
+                throw new InvalidOperationException("A reader's keyboard focus must have a visible outline.");
+            var scrollBefore = readerScroll.Value;
+            await KeyboardKeyAsync(Key.Down);
+            if (readerScroll.Value <= scrollBefore)
+                throw new InvalidOperationException("Arrow input must scroll the actual overflowing reader.");
             await KeyboardKeyAsync(Key.Escape);
             await KeyboardActivateAsync(agentProfilePanel, memoriesButton);
             if (!memoriesPanel.Visible) throw new InvalidOperationException("Keyboard must reach Memories.");
@@ -172,13 +234,24 @@ public partial class Main
             // Select an empty ground tile through the ordinary map action.
             var ground = snapshot.Tiles.First(tile =>
                 !snapshot.Inhabitants.Any(person => person.Position.X == tile.X && person.Position.Y == tile.Y) &&
-                BuildingAt(snapshot, new(tile.X, tile.Y), KeyboardMapCanvasPoint(new(tile.X, tile.Y))) is null);
+                BuildingAt(snapshot, new(tile.X, tile.Y)) is null);
             keyboardMapTile = new Vector2I(ground.X, ground.Y);
             RefreshKeyboardMapSelection();
             await KeyboardKeyAsync(Key.Enter);
             if (!selectedTilePanel.Visible || selectedTile != new Vector2I(ground.X, ground.Y))
                 throw new InvalidOperationException("Enter must inspect the selected ground tile.");
             await KeyboardKeyAsync(Key.Escape);
+            foreach (var lantern in lanterns)
+            {
+                await KeyboardKeyAsync(Key.K);
+                keyboardMapTile = new Vector2I(lantern.Position.X - 1, lantern.Position.Y);
+                RefreshKeyboardMapSelection();
+                await KeyboardKeyAsync(Key.Right);
+                await KeyboardKeyAsync(Key.Enter);
+                if (!buildingQuickCard.Visible || selectedBuildingId != lantern.InstanceId)
+                    throw new InvalidOperationException("Keyboard Enter must select both street-lantern styles by their tile.");
+                await KeyboardKeyAsync(Key.Escape);
+            }
             GD.Print("Keyboard screen walk passed: Settings/Back, Agents/Profile, Thoughts, Memories, Family, World Info, Filters, Event Log, World Map camera, Controls, Developer numeric field and map tile inspection.");
         }
         finally

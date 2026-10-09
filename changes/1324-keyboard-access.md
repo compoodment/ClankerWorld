@@ -1,2 +1,2 @@
-- Tab and Shift+Tab reach controls within open menus and panels, including numeric fields and readers, with visible focus. Keyboard Profile actions enter its controls, and closing panels returns focus to their opener.
-- Press K to browse world tiles with arrows and select or place with Enter. The World Map atlas also moves the camera with arrows.
+- Tab and Shift+Tab reach controls within open menus and panels, including numeric fields, Rename and overflowing readers, with visible focus. Keyboard Profile actions enter its controls, and closing panels returns focus to their opener.
+- Press K to browse world tiles with arrows and select agents, buildings (including street lanterns) or ground, or place with Enter. The World Map atlas also moves the camera with arrows.

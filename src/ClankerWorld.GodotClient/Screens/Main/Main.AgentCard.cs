@@ -155,7 +155,7 @@ public partial class Main
         // A small pencil beside the name renames; it opens a field only when wanted.
         StyleIconButton(renameToggleButton, PixelGlyph.Pencil);
         renameToggleButton.Flat = true;
-        foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "disabled", "focus" })
+        foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "disabled" })
             renameToggleButton.AddThemeStyleboxOverride(state, new StyleBoxEmpty { ContentMarginLeft = 3, ContentMarginRight = 3, ContentMarginTop = 3, ContentMarginBottom = 3 });
         renameToggleButton.TooltipText = "Rename";
         renameToggleButton.Pressed += ToggleRenameRow;

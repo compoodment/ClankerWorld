@@ -451,7 +451,7 @@ public static class UiTheme
         foreach (var (type, vertical) in new[] { ("VScrollBar", true), ("HScrollBar", false) })
         {
             theme.SetStylebox("scroll", type, Flat(p.Inset, vertical ? 5 : 0, vertical ? 0 : 5, p.InsetEdge));
-            theme.SetStylebox("scroll_focus", type, Flat(p.Inset, vertical ? 5 : 0, vertical ? 0 : 5, p.InsetEdge));
+            theme.SetStylebox("scroll_focus", type, Focus(p));
             theme.SetStylebox("grabber", type, Bevel(p.Wood, p.WoodLight, p.WoodDark, p.WoodEdge, 3));
             theme.SetStylebox("grabber_highlight", type, Bevel(p.WoodLight, p.WoodLight, p.WoodDark, p.WoodEdge, 3));
             theme.SetStylebox("grabber_pressed", type, Bevel(p.WoodDark, p.WoodEdge, p.Wood, p.WoodEdge, 3));

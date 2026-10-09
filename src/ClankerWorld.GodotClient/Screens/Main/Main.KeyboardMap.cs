@@ -99,7 +99,7 @@ public partial class Main
         else if (selectAgent && snapshot.Inhabitants.FirstOrDefault(person => !person.IsDraft && IsLiving(person) &&
             person.Position.X == tile.X && person.Position.Y == tile.Y) is { } agent)
             SelectInhabitant(agent.Id);
-        else if (BuildingAt(snapshot, tile, canvasPoint) is { } building)
+        else if (BuildingAt(snapshot, tile, selectAgent ? null : canvasPoint) is { } building)
             SelectBuilding(building.InstanceId);
         else
         {
