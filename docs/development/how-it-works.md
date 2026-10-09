@@ -1770,7 +1770,10 @@ roles separately, and each ruling projects its actual closure party roster.
 
 Hearing actions enter through admitted personal-model civic choices. Public
 statements remain allegations; actual nearby observations and inspected rights,
-title, law versions and earlier rulings retain their sources. The current land
+title, law versions and earlier rulings retain their sources. Ruling-choice
+context includes up to four inspected evidence records, each excerpt bounded to
+160 UTF-16 units without splitting a Unicode character. The full text, its sources
+and the inspection records stay saved. The current land
 mayor must inspect the file and revalidate authority, conflicts and the response
 window before ruling. A permission past its agreed end must be renewed, amended
 or ended; it cannot be confirmed or left as it is. A renewal renews every lapsed

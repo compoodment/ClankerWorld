@@ -137,7 +137,7 @@ public sealed partial class PrivateWorldRuntime
         var known = item.Reads.Where(read => read.AgentId == actor && read.Revision == revision.Number && read.ReadTick <= WorldTick)
             .SelectMany(read => read.EvidenceIds).ToHashSet(StringComparer.Ordinal);
         var evidence = item.Evidence.Where(evidence => known.Contains(evidence.Id)).TakeLast(4).Select(evidence =>
-            evidence.Id + "=" + evidence.Kind + " from " + evidence.SourceAgentId + ": " + evidence.Text[..Math.Min(evidence.Text.Length, 160)]);
+            evidence.Id + "=" + evidence.Kind + " from " + evidence.SourceAgentId + ": " + NonviolentExcerpt(evidence.Text, 160));
         return "Requested result: " + revision.RequestedOutcome.Kind + " " + revision.RequestedOutcome.HouseholdId +
             ". Affected households: " + string.Join(", ", LandHearingParties(town, revision.Tiles, item)
                 .Where(party => party.HouseholdId is not null).Select(party => party.HouseholdId)) +
