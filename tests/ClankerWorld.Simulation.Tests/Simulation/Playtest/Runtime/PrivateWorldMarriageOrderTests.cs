@@ -98,8 +98,11 @@ public sealed class PrivateWorldMarriageOrderTests
         var destination = state.Map.Tiles.Select(tile => tile.Position).Where(point => state.Map.IsPassable(point) &&
             state.Map.FootDistance(origin, point) > 2 && state.Map.IsReachableOnFoot(origin, point) &&
             state.Inhabitants.All(person => person.Position != point)).OrderBy(point => state.Map.FootDistance(origin, point)).First();
-        state = state with { Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == partner
-            ? person with { Position = destination } : person).ToArray() };
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == partner
+                ? person with { Position = destination } : person).ToArray()
+        };
         using var world = PrivateWorldRuntime.Restore(state, id => new PersonalProvider(id));
         var receipt = world.SubmitInstruction(new("approach-marriage", "owner:test", actor, OwnerInstructionKind.MustDo, "Propose marriage"));
         await Tick(world);
@@ -281,8 +284,14 @@ public sealed class PrivateWorldMarriageOrderTests
         { Marriages = completed.Marriages!.Select(item => item with { CompletedTick = null, ChosenSurname = null, SurnameReceipt = null }).ToArray() }));
         Assert.Single(world.ExportState().Events, item => item.Kind == "marriage_accepted");
         Assert.Single(world.ExportState().Events, item => item.Kind == "instruction_order_finished");
-        var trimmed = completed with { Conversations = [], Society = completed.Society with
-        { Society = completed.Society.Society with { Beliefs = completed.Society.Society.Beliefs!.Select(item => item with { SourceTurnId = null }).ToArray() } } };
+        var trimmed = completed with
+        {
+            Conversations = [],
+            Society = completed.Society with
+            {
+                Society = completed.Society.Society with { Beliefs = completed.Society.Society.Beliefs!.Select(item => item with { SourceTurnId = null }).ToArray() }
+            }
+        };
         using var trimmedReload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(trimmed)), id => new PersonalProvider(id));
         Assert.Equal(finished.Order, Assert.Single(trimmedReload.ExportState().Instructions!).Order);
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(trimmed with { Marriages = [] }));
