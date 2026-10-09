@@ -17,6 +17,7 @@ public sealed class GrownAgentHelperMemoryTests
     {
         var state = PrivateWorldRuntimeCodec.Decode(await Born.Value);
         var childId = Assert.Single(state.Society.Society.Births).ChildId;
+        Assert.True(childId.Length > 128, "The native opaque-world birth must exercise a long identity.");
         if (age == 15)
         {
             var society = state.Society.Society;
@@ -101,6 +102,13 @@ public sealed class GrownAgentHelperMemoryTests
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
         }
         var observation = Assert.Single(provider.Observations, item => item.Self?.LifeStage == (age == 3 ? "Child" : "Adult"));
+        observation.Validate();
+        foreach (var subject in (observation.RetrievedMemories ?? []).Select(item => item.SubjectId)
+                     .Concat((observation.MemoryCompactionCandidates ?? []).Select(item => item.SubjectId)))
+        {
+            Assert.InRange(subject.Length, 1, 128);
+            Assert.StartsWith("agent-sha256:", subject, StringComparison.Ordinal);
+        }
         Assert.True(observation.RequiresPersonalProvider);
         if (age == 15)
         {
