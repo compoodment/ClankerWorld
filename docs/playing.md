@@ -152,6 +152,10 @@ title, household use right, pending use request or dispute, the household that
 owns it, and anything on it, such as a tree, a field or goods left on the
 ground.
 
+When a building finishes on screen at close or mid zoom, a ring of dust
+settles around it and a few twinkles appear over the roof. The moment plays
+once, freezes while paused, and does not replay when you reopen the world.
+
 **Filters** turns map overlays on and off: Town borders, household property,
 Town land title, household land use and disputed land. Each one says what it
 draws, and all start off. Town borders show as a pale dashed line. While you

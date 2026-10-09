@@ -116,8 +116,13 @@ zooms in one step.
 
 ## 12 · Moments (`moments`)
 
+Approved building-finish C is implemented in the client's
+`BuildingCompletionArt` and `Implemented/BuildingCompletion.cs`. Run
+`dotnet run -- completion out` for its unchanged stills and loops. It has
+left the proposal list; A and B below remain review alternatives.
+
 - **Building finished A:** a ring of dust settling. **B:** dust, then a small
-  flag on the roof for a moment. **C:** dust and a few twinkles.
+  flag on the roof for a moment.
 - **Grave A:** a small wooden cross. **B:** a rounded headstone. **C:** an
   earth mound with flowers. How long a grave stays is a question for the
   review: until something is built there, or fading after a year.

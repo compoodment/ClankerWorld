@@ -3331,6 +3331,7 @@ public partial class Main
                 throw new InvalidOperationException($"Lightning must stay soft and rare: peak={brightest}, lit samples={lit}, flashes={flashes}.");
             await VerifyNightWashAsync(largeMap);
             await VerifyNightLightsAsync(largeMap);
+            await VerifyBuildingCompletionAsync();
             var startedMap = largeMap with { FounderSetup = null };
             RenderWorldHud(startedMap);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

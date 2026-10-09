@@ -1115,7 +1115,6 @@ public sealed class MomentsProposal : IArtProposal, IAnimatedArtProposal
         {
             yield return new(Family, $"finish-a-dust-{size}", Finish("a-dust", size, 0.5), "Finished A: a ring of dust settling");
             yield return new(Family, $"finish-b-flag-{size}", Finish("b-flag", size, 1.2), "Finished B: dust, then a small flag on the roof for a moment");
-            yield return new(Family, $"finish-c-sparkle-{size}", Finish("c-sparkle", size, 0.9), "Finished C: dust and a few twinkles");
             yield return new(Family, $"grave-a2-cross-{size}", GraveOnMap(GraveSprites.Cross(), size), "Grave A, second round: a wooden cross with grain, planted in a mound");
             yield return new(Family, $"grave-b2-stone-{size}", GraveOnMap(GraveSprites.Headstone(), size), "Grave B, second round: a carved headstone on a plinth, with a little moss");
             foreach (var (id, note) in new[] { ("grave-a-cross", "Grave A: a small wooden cross"), ("grave-b-stone", "Grave B: a rounded headstone"), ("grave-c-mound", "Grave C: an earth mound with flowers") })
@@ -1126,7 +1125,7 @@ public sealed class MomentsProposal : IArtProposal, IAnimatedArtProposal
     public IEnumerable<(string Id, IReadOnlyList<Image> Frames)> Animate()
     {
         foreach (var size in new[] { 32, 16 })
-            foreach (var look in new[] { "a-dust", "b-flag", "c-sparkle" })
+            foreach (var look in new[] { "a-dust", "b-flag" })
                 yield return ($"finish-{look}-{size}", Polish.Loop(Seconds, t => Finish(look, size, t)));
     }
 
@@ -1157,20 +1156,6 @@ public sealed class MomentsProposal : IArtProposal, IAnimatedArtProposal
             canvas.Fill((int)(roofTop.X + unit), (int)(roofTop.Y - pole), (int)MathF.Max(1, 5 * unit), (int)MathF.Max(1, 3 * unit) + wave, new Color("D9AE3C") with { A = fade });
             canvas.Fill((int)(roofTop.X + unit), (int)(roofTop.Y - pole), (int)MathF.Max(1, 5 * unit), (int)MathF.Max(1, unit), new Color("FFE28A") with { A = fade });
         }
-        if (look == "c-sparkle")
-            for (var n = 0; n < 5; n++)
-            {
-                var phase = (float)((t * 1.3 + n * 0.21) % 1.0);
-                if (t > 2.4) continue;
-                var at = rect.Position + new Vector2(Polish.Hash01(n, 1, 71) * rect.Size.X, Polish.Hash01(n, 2, 71) * rect.Size.Y);
-                var a = MathF.Sin(phase * MathF.PI);
-                var arm = (int)MathF.Max(1, 2 * unit);
-                for (var d = -arm; d <= arm; d++)
-                {
-                    canvas.Put((int)at.X + d, (int)at.Y, new Color("FFF6D8") with { A = a });
-                    canvas.Put((int)at.X, (int)at.Y + d, new Color("FFF6D8") with { A = a });
-                }
-            }
         return canvas.ToImage();
     }
 
