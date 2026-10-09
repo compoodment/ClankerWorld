@@ -289,6 +289,14 @@ blocked with a reason. These are single trips; queue another order for the
 return journey. A destination in another household's House requires an
 invitation. Urgent food or warmth needs can interrupt the trip, then it resumes.
 
+For a boat trip, use **Travel by boat to Port at (196, 13)**, replacing the
+coordinates with the Port's listed tile. The adult walks to a usable departure
+Port and waits for a real communal boat. Visitors still need Council permission.
+The order shows why it is waiting for a route, permission, a boat or landing
+space, and finishes only at the named destination. Cancelling before boarding
+releases the request. Cancelling aboard lets the boat finish its safe journey
+or return; returning to departure never counts as reaching the destination.
+
 Use **Read a field record**, **Read a map**, **Read a book** or **Read** to
 read one eligible written item the adult personally owns and carries. Add its
 exact artifact ID, lot ID or unique title to select it explicitly. Stored,

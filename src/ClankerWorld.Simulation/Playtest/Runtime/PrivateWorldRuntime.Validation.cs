@@ -636,6 +636,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.Action != "talk_to" && (order.TalkConversationId is not null || order.TalkOutcome is not null)) return false;
         if (!IsCartOrder(order.Action) && order.TargetCartLotId is not null) return false;
         if ((order.TargetAnimalId is not null) != IsAnimalOrder(order.Action)) return false;
+        if ((order.BoatTravel is not null) != (order.Action == "travel_by_boat")) return false;
         if (!IsKnowledgeOrder(order.Action) && (order.TargetKnowledgeKind is not null || order.KnowledgeWritingProjectId is not null) ||
             order.Action != "copy_knowledge" && order.KnowledgeCopySourceArtifactId is not null)
             return false;
@@ -882,6 +883,8 @@ public sealed partial class PrivateWorldRuntime
                 (order.Status == "finished") == (!order.RepeatUntilCancelled && order.CompletedUnits >= order.RequestedUnits) &&
                 (order.QuantityIsExplicit ? order.ProgressUnit == "material_items" : order.ProgressUnit == "harvests" && order.RequestedUnits == 1) &&
                 (order.CompletedUnits == 0 ? order.LastEffectId is null : order.LastEffectId?.StartsWith("gather:material:", StringComparison.Ordinal) == true);
+
+        if (order.Action == "travel_by_boat") return IsValidBoatOrderShape(order);
 
         if (order.Action == "move_to")
             return order.TargetPosition is { } destination && order.TargetFoodKind is null && order.TargetResourceId is null &&
