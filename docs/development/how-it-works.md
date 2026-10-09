@@ -1811,6 +1811,17 @@ representation from the same captured rights, request masks, inhabitants, civic
 authority and clock used by the runtime. Death, departure and succession update
 current standing without rewriting the original notice. Owner views label these
 roles separately, and each ruling projects its actual closure party roster.
+A property case whose building or ownership can no longer be captured keeps
+its last valid notice and asset snapshot. It cannot transfer stale assets or
+publish a new notice without a matching snapshot; current standing and judge
+conflicts still apply. Malformed saved notice numbering is refused before
+property evidence lookups.
+Property requests and reclaim/grant outcomes retain native household references
+up to the hearing file's 256-character identity limit. Offered civic choices
+use the existing bounded household token; property records keep the full ID.
+Saved footprint rights and requests retain that same known household reference.
+A generated household party key longer than 256 characters uses a stable hash,
+while its separate household field keeps the complete identity.
 
 Hearing actions enter through admitted personal-model civic choices. Public
 statements remain allegations; actual nearby observations and inspected rights,
@@ -1836,12 +1847,31 @@ can no longer open when its vote passes keeps the vote and posts the reason.
 Bounded permission adjustments retain original grant receipts and replayable
 before/after rights. A ruling records the exact covered portions of pending
 requests, so resolved tiles stop contributing claims while remaining portions
-stay pending. Town title, membership, buildings, crops and inventory are not
-transferred by a hearing. Owner projection carries all active cases and pending
+stay pending. Permission hearings leave Town title, membership, buildings,
+crops and inventory unchanged. Owner projection carries all active cases and pending
 rehearing assessments plus eight recent settled cases; complete ledgers remain
 in the checkpoint. Town, plot and property views use public names, sources and
 world clocks. Lifecycle telemetry carries identifiers, status and counts, with
 no statements, model replies or private memories.
+
+An explicit `property` land case instead binds a whole existing building and
+its physically present shared lots to each notice. `TownPropertyRequest` is
+part of the Council's exact filing authorization; a governing mayor uses its
+recorded office. Empty membership supplies eligibility, never ownership.
+Membership relationship history and birth records identify living former
+members even after they join another household. `TownPropertyConsent` records
+each person's informed agreement or refusal separately from response waivers.
+New assets, quantities or claimants require a fresh notice and new consent.
+The independent judge cites the inspected snapshot before `reclaim` or `grant`.
+The ruling commits a distinct `property_ruling` footprint adjustment, building owner and actual
+inventory transfers together, retaining full before/after transfer receipts.
+Containers move with their contents; condition, freshness and physical location
+are preserved. Personal and carried goods are excluded. Active work, deliveries
+and reservations block completion. A grant needs a prior Town recovery ruling,
+an eligible receiving household and every receiving adult's personal agreement.
+The owner projection shows readable asset and consent details in the existing
+Town, plot and property hearing views. Personal owners keep limited entrance
+collection access after recovery and onward granting.
 
 `TownRuntimeState.Nonviolent` records non-land allegations, notice revisions,
 sources, responses and civil findings separately from permission adjustments.

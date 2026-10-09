@@ -257,6 +257,7 @@ public sealed record OwnerTownLandHearing(string Id, string Kind, string Status,
     OwnerLandHearingElection? JudgeElection, OwnerLandHearingElection? LatestJudgeElection,
     IReadOnlyList<OwnerLandHearingReopenRequest> ReopenRequests)
 {
+    public IReadOnlyList<string> PropertyDetails { get; init; } = [];
     public IReadOnlyList<OwnerLandHearingRead> Reads { get; init; } = [];
     public IReadOnlyList<OwnerLandHearingParty> CurrentParties { get; init; } = [];
 }
