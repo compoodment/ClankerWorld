@@ -30,7 +30,7 @@ public sealed partial class PrivateWorldRuntime
         }
         assetReservations.Validate();
         ValidateAssetReservationsAgainstActivePackages();
-        WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
+        WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick, TownPropertyValidation.RecoveredBuildings(towns));
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidateBoatTransport(CaptureState());
         ValidateAnimalState(CaptureState());
@@ -38,7 +38,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateCartOrderBindings(society.Checkpoint.Inventory, instructionsByIdempotency.Values);
         ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
-            society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates);
+            society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates, TownPropertyValidation.RecoveredBuildings(towns));
         ValidateFarmFields(fields.ToArray(), map, worldSeed, society.Checkpoint, worldSimulation, worldContent, RoadAndBridgeTiles().ToArray());
         ValidateFieldOrderBindings(fields, instructionsByIdempotency.Values);
         ValidateProductionOrderBindings(worldSimulation, worldContent, inhabitants.Values, instructionsByIdempotency.Values);
@@ -109,6 +109,7 @@ public sealed partial class PrivateWorldRuntime
         }
         ValidateTownAdmissions(towns, society.Checkpoint, checkpointSchemaVersion);
         ValidateLandHearings(map, society.Checkpoint, towns, householdLandUseRights, householdLandUseRequests, townLandTitles, worldSystems.Config.TicksPerDay);
+        TownPropertyValidation.ValidateWorld(map, society.Checkpoint, towns, worldSimulation, worldContent);
         TownProjectValidation.Validate(towns, society.Checkpoint, map, worldSimulation, worldContent,
             townLandTitles, householdLandUseRights, householdLandUseRequests, fields, RoadTiles, Bridges);
         ValidatePaidMarkets(towns, society.Checkpoint, map, worldSimulation, worldContent,
@@ -277,7 +278,7 @@ public sealed partial class PrivateWorldRuntime
 
     private static void ValidatePhysicalInventoryLocations(InventoryCheckpoint inventory,
         WorldContentSimulationState simulation, DeclarativeWorldContentState content,
-        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map, IReadOnlyList<SocietyEstate> estates)
+        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map, IReadOnlyList<SocietyEstate> estates, HashSet<string> recoveredBuildings)
     {
         var buildings = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
@@ -308,10 +309,11 @@ public sealed partial class PrivateWorldRuntime
                 if (!buildings.TryGetValue(storageId, out var storage) ||
                     !definitions.TryGetValue(storage.DefinitionId, out var definition) ||
                     !(storage.HouseholdId == lot.OwnerId && definition.Tags.Any(IsHouseholdBuildingTag) ||
-                      (people.ContainsKey(lot.OwnerId) || HasEstateStorage(lot)) && storage.HouseholdId is not null &&
+                      (people.ContainsKey(lot.OwnerId) || HasEstateStorage(lot)) && (storage.HouseholdId is not null || recoveredBuildings.Contains(storageId)) &&
                       definition.Tags.Contains("house", StringComparer.Ordinal) ||
-                      storage.TownId == lot.OwnerId && storage.HouseholdId is null && !InventoryContainerRules.IsFood(lot.ItemKind) &&
-                      definition.Tags.Contains("warehouse", StringComparer.Ordinal)))
+                      storage.TownId == lot.OwnerId && storage.HouseholdId is null &&
+                      (recoveredBuildings.Contains(storageId) && definition.Tags.Any(IsHouseholdBuildingTag) ||
+                          !InventoryContainerRules.IsFood(lot.ItemKind) && definition.Tags.Contains("warehouse", StringComparer.Ordinal))))
                     throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid building storage location.");
             }
             if (lot.DeliveryBuildingId is { } deliveryId &&
@@ -482,7 +484,7 @@ public sealed partial class PrivateWorldRuntime
         }
         state.WorldContent.Validate();
         WorldContentSimulationRules.Validate(state.WorldSimulation, state.WorldContent, state.Map,
-            state.Society.Society.WorldTick);
+            state.Society.Society.WorldTick, TownPropertyValidation.RecoveredBuildings(state.Towns));
         ValidateProductionOrderBindings(state.WorldSimulation, state.WorldContent, state.Inhabitants, state.Instructions ?? []);
         ValidateCustodyOrderBindings(society.Checkpoint, state.Instructions ?? []);
         ValidateDeliveryOrderBindings(state.WorldSimulation, society.Checkpoint, state.Towns, state.Instructions ?? []);
@@ -499,7 +501,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateCartOrderBindings(state.Society.Society.Inventory, state.Instructions ?? []);
         ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
-            state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates);
+            state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates, TownPropertyValidation.RecoveredBuildings(state.Towns));
         ValidateFarmFields(state.Fields!.ToArray(), state.Map, state.WorldSeed, state.Society.Society,
             state.WorldSimulation, state.WorldContent, state.RoadTiles.Concat(
                 state.Bridges.SelectMany(bridge => bridge.Entrances)).ToArray());
@@ -514,6 +516,7 @@ public sealed partial class PrivateWorldRuntime
             state.Society.Society);
         ValidateLandHearings(state.Map, society.Checkpoint, state.Towns ?? [], state.HouseholdLandUseRights!,
             state.HouseholdLandUseRequests!, state.TownLandTitles!, state.WorldSystems!.Config.TicksPerDay);
+        TownPropertyValidation.ValidateWorld(state.Map, society.Checkpoint, state.Towns ?? [], state.WorldSimulation, state.WorldContent);
         foreach (var town in state.Towns ?? [])
             TownNonviolentValidation.Validate(state.Map, society.Checkpoint, town, state.TownLandTitles!, state.WorldSystems.Config.TicksPerDay);
         ValidateNonviolentPhysicalState(state.Map, society.Checkpoint, state.Towns ?? [], state.TownLandTitles!, state.HouseholdLandUseRights!);

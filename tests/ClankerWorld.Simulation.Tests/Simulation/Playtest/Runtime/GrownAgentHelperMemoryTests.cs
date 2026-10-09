@@ -1,13 +1,192 @@
 using System.Reflection;
+using System.Collections.Concurrent;
+using System.Text.Json;
+using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class GrownAgentHelperMemoryTests
+public sealed partial class GrownAgentHelperMemoryTests
 {
     private static readonly Lazy<Task<byte[]>> Born = new(CreateBornAsync);
+    private static readonly Lazy<Task<byte[]>> Adult = new(CreateAdultAsync);
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NativeHouseholdFormationKeepsSavedIdentityAndContinuesAfterReload(bool nativeBorn)
+    {
+        var state = PrivateWorldRuntimeCodec.Decode(await Adult.Value);
+        var birth = Assert.Single(state.Society.Society.Births);
+        var actor = nativeBorn ? birth.ChildId : birth.PrimaryCaregiverId;
+        var choices = new HouseholdChoices(actor);
+        using var displaced = PrivateWorldRuntime.Restore(state, _ => choices);
+        Assert.True(displaced.DisplaceAdult(actor));
+        state = displaced.ExportState();
+        // Match the existing solo-formation fixture's explicit refusal setup;
+        // birth, adulthood, departure and the offered formation action are native.
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    LastDecisionContext = null,
+                    Housing = new(Refusals: state.Society.Society.Households.Select(household =>
+                        new SettlementHousingRefusal(household.Id, state.Society.Society.WorldTick)).ToArray()),
+                } : person).ToArray(),
+        };
+        using var world = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => choices);
+        world.Resume();
+        for (var tick = 0; tick < 12 && world.Society.GetInhabitant(actor).HouseholdId is null; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var householdId = Assert.IsType<string>(world.Society.GetInhabitant(actor).HouseholdId);
+        Assert.Equal(nativeBorn, householdId.Length > 128);
+        Assert.StartsWith("household:solo:" + actor + ":", householdId, StringComparison.Ordinal);
+        Assert.Equal([actor], world.Society.GetHousehold(householdId).MemberIds);
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "household_founded" &&
+            item.Detail == actor + "|" + householdId);
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var next = new HouseholdChoices(actor);
+        var repeated = new HouseholdChoices(actor);
+        using var reload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => next);
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => repeated);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(reload.ExportState()));
+        for (var tick = 0; tick < 4; tick++)
+        {
+            Assert.True((await reload.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(reload.ExportState()),
+                PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        var observation = Assert.Single(next.Observations.Where(item => item.Self?.HouseholdId is not null)
+            .Take(1));
+        observation.Validate();
+        Assert.InRange(observation.Self!.HouseholdId!.Length, 1, 128);
+        if (nativeBorn)
+            Assert.StartsWith("household-sha256:", observation.Self.HouseholdId, StringComparison.Ordinal);
+        else
+            Assert.Equal(householdId, observation.Self.HouseholdId);
+        Assert.Equal(householdId, reload.Society.GetInhabitant(actor).HouseholdId);
+        Assert.Equal(JsonSerializer.Serialize(world.Society.GetHousehold(householdId)),
+            JsonSerializer.Serialize(reload.Society.GetHousehold(householdId)));
+        await CheckWillHouseholdContext(reload, actor, householdId, observation.Self.HouseholdId);
+    }
+
+    private static async Task CheckWillHouseholdContext(PrivateWorldRuntime world, string actor,
+        string householdId, string modelHouseholdId)
+    {
+        // Archive an explicit fixture death with one real frozen lot, following
+        // PostDeathWillTests. The household itself was formed by the native runtime.
+        var state = world.ExportState();
+        var physical = state.Inhabitants.Single(person => person.InhabitantId == actor);
+        var checkpoint = state.Society.Society;
+        checkpoint = checkpoint with
+        {
+            Inventory = InventoryFixture.AddLot(checkpoint.Inventory, "household-context-will-lot", "stone", actor, 1,
+                groundPosition: new InventoryGroundPosition(physical.Position.X, physical.Position.Y)),
+        };
+        checkpoint = SocietyFixture.Kill(checkpoint, actor, SocietyDeathCause.Accident).Checkpoint;
+        var inventory = checkpoint.Inventory;
+        if (inventory.Lots.Any(lot => lot.CarrierId == actor))
+            inventory = InventoryFixture.DropCarrierGoods(inventory, actor,
+                new InventoryGroundPosition(physical.Position.X, physical.Position.Y));
+        checkpoint = checkpoint with { Inventory = inventory };
+        state = state with
+        {
+            Society = state.Society with { Society = checkpoint },
+            Towns = state.Towns!.Select(town =>
+            {
+                var residents = town.ResidentIds.Where(id => id != actor).ToArray();
+                var adults = residents.Where(id => checkpoint.GetInhabitant(id).Status == SocietyInhabitantStatus.Active &&
+                    checkpoint.GetInhabitant(id).AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder);
+                var advanced = TownGovernmentRules.Advance(town.Governance!, town.Government!, town.Id,
+                    town.Name, state.WorldSeed, adults, checkpoint.WorldTick, state.WorldSystems!.Config.TicksPerDay);
+                return town with { ResidentIds = residents, Governance = advanced.Council, Government = advanced.Government };
+            }).ToArray(),
+            Inhabitants = state.Inhabitants.Where(person => person.InhabitantId != actor).ToArray(),
+            DeceasedInhabitants = (state.DeceasedInhabitants ?? []).Append(new PlaytestDeceasedInhabitantState(
+                actor, world.WorldTick, checkpoint.AgeAt(checkpoint.GetInhabitant(actor), world.WorldTick), physical)).ToArray(),
+        };
+        var provider = new HouseholdChoices(actor);
+        using var willWorld = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
+        Assert.True((await willWorld.AdvanceOneTickNonBlockingAsync()).Advanced);
+        var will = await provider.WillCalled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        will.Validate();
+        Assert.Equal(modelHouseholdId, will.Self!.HouseholdId);
+        Assert.Equal(householdId, willWorld.Society.GetInhabitant(actor).HouseholdId);
+        Assert.Equal(world.Society.GetHousehold(householdId).Name,
+            willWorld.Society.GetHousehold(householdId).Name);
+    }
+
+    private static async Task<byte[]> CreateAdultAsync()
+    {
+        var state = PrivateWorldRuntimeCodec.Decode(await Born.Value);
+        var child = Assert.Single(state.Society.Society.Births).ChildId;
+        var checkpoint = state.Society.Society;
+        foreach (var parent in checkpoint.Relationships.Where(edge =>
+                     edge.Type == SocietyRelationshipType.BiologicalParentage && edge.TargetId == child)
+                     .Select(edge => edge.ProposerId))
+            checkpoint = ChosenBirthNameTestFixture.NameParent(checkpoint, parent);
+        state = state with { Society = state.Society with { Society = checkpoint } };
+        using var world = PrivateWorldRuntime.Restore(state,
+            id => id == child ? new InitialIdentityProvider() : new QuietProvider());
+        world.Pause();
+        world.SetJevEnabled(false);
+        world.SetLifePace(365);
+        world.Resume();
+        while (world.Society.AgeAt(world.Society.GetInhabitant(child), world.WorldTick) < 15)
+        {
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+            await WaitForRequests(world);
+        }
+        world.Pause();
+        world.SetLifePace(1);
+        world.Resume();
+        for (var tick = 0; tick < 40 && (world.Society.GetInhabitant(child).NeedsName ||
+             world.Inhabitants.Single(person => person.InhabitantId == child).IdentityChoicePending); tick++)
+        {
+            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+            await WaitForRequests(world);
+        }
+        Assert.Equal(SocietyAgeBand.Adult, world.Society.GetInhabitant(child).AgeBand);
+        Assert.False(world.Society.GetInhabitant(child).NeedsName);
+        Assert.False(world.Inhabitants.Single(person => person.InhabitantId == child).IdentityChoicePending);
+        return PrivateWorldRuntimeCodec.Encode(world.ExportState());
+    }
+
+    private sealed class HouseholdChoices(string actor) : IDecisionProvider
+    {
+        public ConcurrentQueue<InhabitantObservation> Observations { get; } = new();
+        public TaskCompletionSource<InhabitantObservation> WillCalled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 0;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (request.Observation.InhabitantId == actor) Observations.Enqueue(request.Observation);
+            if (request.Observation.Will is not null)
+            {
+                WillCalled.TrySetResult(request.Observation);
+                return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId,
+                    request.Observation.InhabitantId, Kind, ProviderEpoch, request.Observation.RunEpoch,
+                    request.Observation.DecisionGeneration, request.Observation.ObservationDigest,
+                    CognitionWillContext.HouseholdCandidateId, 1,
+                    request.Observation.Candidates.ToDictionary(item => item.Id,
+                        item => item.Id == CognitionWillContext.HouseholdCandidateId ? 1d : 0d)));
+            }
+            var candidate = request.Observation.InhabitantId == actor
+                ? request.Observation.Candidates.FirstOrDefault(item => item.Id == "household_found") : null;
+            candidate ??= request.Observation.Candidates.Single(item => item.Id == "safe_idle");
+            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId,
+                request.Observation.InhabitantId, Kind, ProviderEpoch, request.Observation.RunEpoch,
+                request.Observation.DecisionGeneration, request.Observation.ObservationDigest, candidate.Id, 1,
+                request.Observation.Candidates.ToDictionary(item => item.Id, item => item.Id == candidate.Id ? 1d : 0d)));
+        }
+    }
 
     [Theory]
     [InlineData(3, true)]

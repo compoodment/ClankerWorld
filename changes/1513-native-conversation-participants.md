@@ -1,0 +1,1 @@
+- Agents born in the world can start and take part in conversations even when their internal identity is longer than a founder's. Their own models and saved dialogue keep the full identity.

@@ -709,10 +709,22 @@ or ended; renewing renews every lapsed permission on the plot for its own househ
 residents can elect a willing, independent adult for that case only. A case waits
 if nobody qualifies. A rehearing requires material new evidence or a demonstrated
 procedural error. The old ruling remains recorded and current rights stay in
-effect until a valid correction. These decisions leave Town title, household
+effect until a valid correction. These permission decisions leave Town title, household
 membership, buildings, crops and goods with their holders; they neither evict
 occupants nor grant entry to private buildings. Plot and building details show
 the hearing, and the disputed-land filter marks plots still under review.
+
+When a household has no members left, its buildings and shared goods keep their
+recorded owner. Moving in gives nobody ownership. The Town government can ask
+for a property hearing naming an existing building and its shared goods on
+that plot. The usual notice, actual file reading and independent ruling apply.
+Every living former member must personally agree before ownership passes to
+the Town; answering, silence and waiving a response give no property consent.
+Towns shows the property and each person's agreement or refusal. The Town can
+then ask to grant a recovered building and its goods to a household whose
+adults agree, including a household that needs a House. Personal goods stay
+with their owners and can still be collected at the House entrance. Active
+work, deliveries and reserved goods must finish before a transfer can proceed.
 
 Witnesses, affected people and the legitimate Town government can report
 specific conduct under a law that applied when it happened. Visitors have the
