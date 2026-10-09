@@ -501,6 +501,11 @@ keeping one serving; **Stock restaurant meals in my Store** uses the normal shop
 limits. Loose personal meals are collected or shared, rather than put away with
 the nonfood **Store** command.
 
+Adults can visit another Town's shops to buy missing Restaurant ingredients,
+or visit its Restaurants for meals. Both traders must meet and agree before
+anything changes hands. The customer carries the purchase; visiting or buying
+gives no right to take Warehouse stock or another household's private goods.
+
 To start household building work, use **Build a Clinic**, **Build a Silo** or
 another supported household building name: House, Farmhouse, Blacksmith,
 Tailor Shop, Store or Restaurant. **Build a Restaurant** starts its 1×2 size
