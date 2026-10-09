@@ -309,7 +309,8 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
             yield return new(Family, $"puddles-a-{size}", Puddles(size, wetGround: false), "Puddles A: small puddles on Roads and bare ground");
             yield return new(Family, $"puddles-b-{size}", Puddles(size, wetGround: true), "Puddles B: puddles plus darker, wet-looking ground");
             yield return new(Family, $"roof-snow-a2-{size}", RoofSnowFollowingSlopes(size), "Roof snow A, second round: the shaded slope covered, the sunny slope keeping snow near the ridge, following each roof's shape");
-            yield return new(Family, $"puddles-a2-{size}", PuddlesInRuts(size), "Puddles A, second round: bigger, see-through puddles in many shapes, on Roads, fields and a few dips in the grass");
+            foreach (var look in PuddleLooks)
+                yield return new(Family, $"puddles-r3-{look}-{size}", Puddles(size, look), $"Puddles, third round: {look}");
             yield return new(Family, $"leaves-a-{size}", Leaves(size, carpet: false), "Leaves A: a few fallen leaves under each tree");
             yield return new(Family, $"leaves-b-{size}", Leaves(size, carpet: true), "Leaves B: a carpet of leaves under trees and around them");
         }
@@ -319,6 +320,8 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
     {
         foreach (var size in new[] { 32, 16 })
             yield return ($"footprints-{size}", Polish.Loop(5, t => Footprints(size, t)));
+        foreach (var look in PuddleLooks)
+            yield return ($"puddles-r3-{look}-rain-32", Polish.Loop(2.4, t => Puddles(32, look, t + 0.001)));
     }
 
     /// <summary>Building pixels: where the scene with buildings differs from the scene without them, inside each footprint.</summary>
@@ -496,86 +499,259 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
     }
 
     /// <summary>
-    /// Puddles after rain, shaped by noise so no two match: big, irregular
-    /// pools that fill the low parts of Roads and fields, and now and then
-    /// a shallow one in a dip of open grass. The water is see-through: the
-    /// dirt or grass shows under a slate-blue tint that deepens toward the
-    /// middle, with patches of reflected sky, a shaded north-west bank, a lit
-    /// south-east lip, darkened wet ground around it and a few glints.
-    /// Buildings, plants and agents stay on top, dry.
+    /// Puddles, third round: four looks with different moods, after
+    /// computment asked for "total different vibes". Each is shaped and
+    /// painted its own way; buildings, plants and agents stay on top, dry.
+    /// <list type="bullet">
+    /// <item><b>mirror</b>: still, glassy pools that mirror the sky: deep blue, a pale band and a cloud.</item>
+    /// <item><b>muddy</b>: wide, murky brown pools with a dull milky sheen and mud flecks around them.</item>
+    /// <item><b>outlined</b>: chunky puddles drawn like the sprites, with a dark outline, two flat blues and a shine.</item>
+    /// <item><b>sheen</b>: the whole Road dark and glistening, with streaks of light and only a few small pools.</item>
+    /// </list>
     /// </summary>
     private static readonly Vector2[] Dips = [new(10.6f, 9.4f), new(13.5f, 2.6f)];
 
-    private static Image PuddlesInRuts(int size)
+    internal static readonly string[] PuddleLooks = ["mirror", "muddy", "outlined", "sheen"];
+
+    private sealed class PuddleField
     {
-        var spec = SceneSpec.TownCorner();
-        var withAgents = Polish.Scene(size, agents: true);
-        var plain = Polish.Scene(size);
-        var bare = Polish.Scene(size, nature: false);
-        var canvas = new Canvas(withAgents);
-        int width = canvas.Width, height = canvas.Height;
-        var scale = 32f / size; // work in 32 px units so both zooms match
-        var water = new float[width * height]; // 0 dry, above 0 how deep
-        for (var y = 0; y < height; y++)
-            for (var x = 0; x < width; x++)
-            {
-                var tile = new Vector2I(x / size, y / size);
-                if (!Ground(spec, tile.X, tile.Y) || spec.Bridges.ContainsKey(tile)) continue;
-                if (withAgents.GetPixel(x, y) != plain.GetPixel(x, y) || plain.GetPixel(x, y) != bare.GetPixel(x, y)) continue;
-                float wx = (x + 0.5f) * scale, wy = (y + 0.5f) * scale;
-                var c = plain.GetPixel(x, y);
-                var road = spec.Roads.Contains(tile) && c.R > c.G + 0.02f;
-                var field = spec.Surface[tile.Y * spec.Width + tile.X] == 7;
-                var n = 0.78f * Noise(wx / 15f, wy / 12f) + 0.22f * Noise(wx / 5f + 17, wy / 5f + 5);
-                // Open grass soaks rain up except in a couple of dips, placed by hand for the review.
-                var dip = Dips.Min(d => (new Vector2(wx, wy) / 32f - d).Length());
-                var threshold = road ? 0.6f : field ? 0.66f : 0.5f + 0.3f * dip;
-                if (n > threshold) water[y * width + x] = Math.Clamp((n - threshold) / 0.14f, 0.05f, 1f);
-            }
-        // Drop specks: a puddle smaller than about 48 pixels at close zoom reads as noise.
-        var seen = new bool[width * height];
-        var minimum = (int)(48 / (scale * scale));
-        for (var start = 0; start < water.Length; start++)
+        public required SceneSpec Spec;
+        public required Image WithAgents, Plain, Bare;
+        public required int Size, Width, Height;
+        public required float Scale;
+        public required float[] Water;
+
+        /// <summary>Open ground with nothing drawn over it: no building, plant or agent.</summary>
+        public bool Open(int x, int y)
         {
-            if (water[start] <= 0 || seen[start]) continue;
-            var blob = new List<int> { start }; seen[start] = true;
-            for (var k = 0; k < blob.Count; k++)
-            {
-                int bx = blob[k] % width, by = blob[k] / width;
-                foreach (var (nx, ny) in new[] { (bx + 1, by), (bx - 1, by), (bx, by + 1), (bx, by - 1) })
-                {
-                    if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-                    var i = ny * width + nx;
-                    if (water[i] > 0 && !seen[i]) { seen[i] = true; blob.Add(i); }
-                }
-            }
-            if (blob.Count < minimum) foreach (var i in blob) water[i] = 0;
+            if (x < 0 || y < 0 || x >= Width || y >= Height) return false;
+            var tile = new Vector2I(x / Size, y / Size);
+            if (!Ground(Spec, tile.X, tile.Y) || Spec.Bridges.ContainsKey(tile)) return false;
+            return WithAgents.GetPixel(x, y) == Plain.GetPixel(x, y) && Plain.GetPixel(x, y) == Bare.GetPixel(x, y);
         }
-        bool Wet(int x, int y) => x >= 0 && y >= 0 && x < width && y < height && water[y * width + x] > 0;
-        var tint = new Color("4E7489"); var sky = new Color("B4D0DC"); var bank = new Color("2F4250"); var lip = new Color("D2E3EA");
-        for (var y = 0; y < height; y++)
-            for (var x = 0; x < width; x++)
+
+        public bool Dirt(int x, int y)
+        {
+            if (!Open(x, y)) return false;
+            var c = Plain.GetPixel(x, y);
+            return Spec.Roads.Contains(new(x / Size, y / Size)) && c.R > c.G + 0.02f;
+        }
+
+        public bool Field(int x, int y) => Open(x, y) && Spec.Surface[y / Size * Spec.Width + x / Size] == 7;
+        public bool Wet(int x, int y) => x >= 0 && y >= 0 && x < Width && y < Height && Water[y * Width + x] > 0;
+        public (float X, float Y) World(int x, int y) => ((x + 0.5f) * Scale, (y + 0.5f) * Scale);
+
+        /// <summary>Removes puddles smaller than <paramref name="pixels"/> at close zoom and returns the rest as pixel lists.</summary>
+        public List<List<int>> Blobs(int pixels)
+        {
+            var seen = new bool[Water.Length];
+            var minimum = (int)(pixels / (Scale * Scale));
+            var kept = new List<List<int>>();
+            for (var start = 0; start < Water.Length; start++)
             {
-                var depth = water[y * width + x];
-                var c = canvas.Get(x, y);
-                if (depth <= 0)
+                if (Water[start] <= 0 || seen[start]) continue;
+                var blob = new List<int> { start }; seen[start] = true;
+                for (var k = 0; k < blob.Count; k++)
                 {
-                    // Wet ground: within two pixels of water, a little darker.
-                    var near = false;
-                    for (var dy = -2; dy <= 2 && !near; dy++) for (var dx = -2; dx <= 2; dx++) if (Wet(x + dx, y + dy)) { near = true; break; }
-                    if (near && Ground(spec, x / size, y / size) && withAgents.GetPixel(x, y) == plain.GetPixel(x, y) && plain.GetPixel(x, y) == bare.GetPixel(x, y))
-                        canvas.Set(x, y, c.Lerp(new Color("3A2E22"), 0.2f));
-                    continue;
+                    int bx = blob[k] % Width, by = blob[k] / Width;
+                    foreach (var (nx, ny) in new[] { (bx + 1, by), (bx - 1, by), (bx, by + 1), (bx, by - 1) })
+                    {
+                        if (nx < 0 || ny < 0 || nx >= Width || ny >= Height) continue;
+                        var i = ny * Width + nx;
+                        if (Water[i] > 0 && !seen[i]) { seen[i] = true; blob.Add(i); }
+                    }
                 }
-                float wx = (x + 0.5f) * scale, wy = (y + 0.5f) * scale;
-                var colour = c.Lerp(tint, 0.38f + 0.3f * depth);
-                if (Noise(wx / 6f + 40, wy / 3f + 9) > 0.62f) colour = colour.Lerp(sky, 0.45f); // reflected sky
-                if (!Wet(x - 1, y) || !Wet(x, y - 1)) colour = colour.Lerp(bank, 0.55f);
-                else if (!Wet(x + 1, y) || !Wet(x, y + 1)) colour = colour.Lerp(lip, 0.35f);
-                if (depth > 0.6f && Polish.Hash01((int)wx, (int)wy, 61) < 0.012f) colour = new Color("F2F7F9");
-                canvas.Set(x, y, colour);
+                if (blob.Count < minimum) foreach (var i in blob) Water[i] = 0;
+                else kept.Add(blob);
             }
+            return kept;
+        }
+    }
+
+    private static PuddleField NewPuddleField(int size)
+    {
+        var withAgents = Polish.Scene(size, agents: true);
+        return new PuddleField
+        {
+            Spec = SceneSpec.TownCorner(), WithAgents = withAgents, Plain = Polish.Scene(size), Bare = Polish.Scene(size, nature: false),
+            Size = size, Width = withAgents.GetWidth(), Height = withAgents.GetHeight(), Scale = 32f / size,
+            Water = new float[withAgents.GetWidth() * withAgents.GetHeight()],
+        };
+    }
+
+    /// <summary>Noise-shaped pools on Roads, fields and the grass dips; <paramref name="smooth"/> rounds them off.</summary>
+    private static void NoisePools(PuddleField f, float road, float field, bool smooth)
+    {
+        for (var y = 0; y < f.Height; y++)
+            for (var x = 0; x < f.Width; x++)
+            {
+                if (!f.Open(x, y)) continue;
+                var (wx, wy) = f.World(x, y);
+                var n = smooth ? Noise(wx / 13f + 5, wy / 10f + 2) : 0.72f * Noise(wx / 15f, wy / 12f) + 0.28f * Noise(wx / 5f + 17, wy / 5f + 5);
+                var dip = Dips.Min(d => (new Vector2(wx, wy) / 32f - d).Length());
+                var threshold = f.Dirt(x, y) ? road : f.Field(x, y) ? field : 0.48f + 0.3f * dip;
+                if (n > threshold) f.Water[y * f.Width + x] = Math.Clamp((n - threshold) / 0.14f, 0.05f, 1f);
+            }
+    }
+
+    private static Image Puddles(int size, string look, double t = 0)
+    {
+        var f = NewPuddleField(size);
+        var canvas = new Canvas(f.WithAgents);
+        var unit = size / 32f;
+        switch (look)
+        {
+            case "mirror":
+            {
+                NoisePools(f, 0.6f, 0.65f, smooth: true);
+                var blobs = f.Blobs(60);
+                var deep = new Color("2E5878"); var shallow = new Color("4F82A6"); var skyBand = new Color("9CCBE6"); var cloud = new Color("EEF6FA");
+                for (var y = 0; y < f.Height; y++)
+                    for (var x = 0; x < f.Width; x++)
+                    {
+                        var d = f.Water[y * f.Width + x];
+                        if (d <= 0) { if (Near(f, x, y, 1) && f.Open(x, y)) canvas.Set(x, y, canvas.Get(x, y).Lerp(new Color("3B2C1E"), 0.35f)); continue; }
+                        var (wx, wy) = f.World(x, y);
+                        var colour = shallow.Lerp(deep, d);
+                        // The sky mirrored in a soft diagonal band, brightest across the middle.
+                        var band = MathF.Abs(((wx * 0.45f + wy) % 22f) - 11f);
+                        if (band < 2.2f) colour = colour.Lerp(skyBand, 0.75f);
+                        else if (band < 3.4f) colour = colour.Lerp(skyBand, 0.35f);
+                        if (!f.Wet(x, y - 1) || !f.Wet(x - 1, y)) colour = new Color("1F3D55"); // the bank's shadow
+                        canvas.Set(x, y, colour);
+                    }
+                // One small cloud mirrored in each big pool.
+                foreach (var blob in blobs.Where(b => b.Count > 140 / (f.Scale * f.Scale)))
+                {
+                    var cx = (int)blob.Average(i => i % f.Width); var cy = (int)blob.Average(i => i / f.Width);
+                    for (var dy = -1; dy <= 1; dy++)
+                        for (var dx = -3; dx <= 3; dx++)
+                        {
+                            if (Math.Abs(dx) + Math.Abs(dy) * 2 > 3 || size < 32 && (Math.Abs(dx) > 1 || dy != 0)) continue;
+                            if (f.Wet(cx + dx, cy + dy) && f.Wet(cx + dx - 1, cy + dy - 1)) canvas.Set(cx + dx, cy + dy, cloud);
+                        }
+                }
+                break;
+            }
+            case "muddy":
+            {
+                // Wide, shallow pools that spread over most of a Road's width.
+                NoisePools(f, 0.55f, 0.62f, smooth: false);
+                f.Blobs(40);
+                var murk = new Color("5A4836"); var silt = new Color("8A7556"); var glint = new Color("E0D2B0");
+                for (var y = 0; y < f.Height; y++)
+                    for (var x = 0; x < f.Width; x++)
+                    {
+                        var d = f.Water[y * f.Width + x];
+                        var c = canvas.Get(x, y);
+                        if (d <= 0)
+                        {
+                            if (!f.Open(x, y)) continue;
+                            if (Near(f, x, y, 1)) canvas.Set(x, y, c.Lerp(new Color("3E2C1B"), 0.45f));
+                            else if (Near(f, x, y, 3) && Polish.Hash01(x, y, 71) < 0.12f) canvas.Set(x, y, c.Lerp(new Color("4A3420"), 0.6f)); // mud flecks
+                            continue;
+                        }
+                        var (mx, my) = f.World(x, y);
+                        var colour = c.Lerp(silt.Lerp(murk, d), 0.85f);
+                        // A dull, milky sheen drifting across the murk.
+                        if (Noise(mx / 7f + 13, my / 2.5f + 3) > 0.66f) colour = colour.Lerp(glint, 0.35f);
+                        if (!f.Wet(x, y - 1) || !f.Wet(x - 1, y)) colour = new Color("3A2A1A");
+                        else if (!f.Wet(x, y + 1) || !f.Wet(x + 1, y)) colour = colour.Lerp(glint, 0.5f);
+                        canvas.Set(x, y, colour);
+                    }
+                break;
+            }
+            case "outlined":
+            {
+                // Chunky rounded puddles, one to three per Road tile, plus the dips and fields.
+                foreach (var tile in f.Spec.Roads)
+                {
+                    if (f.Spec.Bridges.ContainsKey(tile) || Polish.Hash01(tile.X, tile.Y, 7) > 0.5f) continue;
+                    var count = 1 + (int)(Polish.Hash01(tile.X, tile.Y, 29) * 3);
+                    for (var n = 0; n < count; n++)
+                    {
+                        var centre = new Vector2(tile.X + 0.2f + 0.6f * Polish.Hash01(tile.X * 3 + n, tile.Y, 9), tile.Y + 0.35f + 0.3f * Polish.Hash01(tile.X, tile.Y * 3 + n, 11)) * size;
+                        var rx = (3.5f + 4f * Polish.Hash01(tile.X + n, tile.Y, 13)) * unit; var ry = rx * (0.55f + 0.25f * Polish.Hash01(tile.X, tile.Y + n, 17));
+                        for (var y = (int)(centre.Y - ry - 1); y <= centre.Y + ry + 1; y++)
+                            for (var x = (int)(centre.X - rx - 1); x <= centre.X + rx + 1; x++)
+                                if (f.Dirt(x, y) && MathF.Pow((x + 0.5f - centre.X) / rx, 2) + MathF.Pow((y + 0.5f - centre.Y) / ry, 2) <= 1) f.Water[y * f.Width + x] = 1;
+                    }
+                }
+                NoisePools(f, 2f, 0.68f, smooth: true);
+                for (var i = 0; i < f.Water.Length; i++) if (f.Water[i] > 0) f.Water[i] = 1;
+                var blobs = f.Blobs(14);
+                var outline = new Color("26343E"); var fill = new Color("5E93B4"); var light = new Color("8FC0DA"); var shine = new Color("F4FAFC");
+                for (var y = 0; y < f.Height; y++)
+                    for (var x = 0; x < f.Width; x++)
+                    {
+                        if (!f.Wet(x, y)) { if (f.Open(x, y) && Near(f, x, y, 1)) canvas.Set(x, y, outline); continue; }
+                        canvas.Set(x, y, fill);
+                    }
+                foreach (var blob in blobs)
+                {
+                    int x0 = blob.Min(i => i % f.Width), x1 = blob.Max(i => i % f.Width), y0 = blob.Min(i => i / f.Width), y1 = blob.Max(i => i / f.Width);
+                    // The lighter upper-left part, then a shine dash.
+                    foreach (var i in blob)
+                    {
+                        int x = i % f.Width, y = i / f.Width;
+                        if ((x - x0) / (float)Math.Max(1, x1 - x0) + (y - y0) / (float)Math.Max(1, y1 - y0) < 0.75f && f.Wet(x - 1, y - 1)) canvas.Set(x, y, light);
+                    }
+                    var sx = x0 + (x1 - x0) / 4 + 1; var sy = y0 + (y1 - y0) / 3;
+                    for (var k = 0; k < Math.Max(1, 3 * size / 32); k++) if (f.Wet(sx + k, sy)) canvas.Set(sx + k, sy, shine);
+                }
+                break;
+            }
+            default: // sheen
+            {
+                NoisePools(f, 0.7f, 0.74f, smooth: true);
+                f.Blobs(24);
+                for (var y = 0; y < f.Height; y++)
+                    for (var x = 0; x < f.Width; x++)
+                    {
+                        var c = canvas.Get(x, y);
+                        if (f.Wet(x, y)) { canvas.Set(x, y, new Color("3C5F76").Lerp(new Color("B7D3E0"), f.Wet(x, y - 1) && f.Wet(x - 1, y) ? 0 : 0.6f)); continue; }
+                        if (!f.Dirt(x, y)) continue;
+                        // Wet, darker, cooler dirt, with short streaks of light along it.
+                        var (wx, wy) = f.World(x, y);
+                        var wet = c.Lerp(new Color("3A3029"), 0.5f);
+                        var streak = Noise(wx / 4f + 50, wy / 1f + 20);
+                        if (streak > 0.66f) wet = wet.Lerp(new Color("D6E2E8"), Math.Min(0.6f, (streak - 0.66f) * 4f));
+                        canvas.Set(x, y, wet);
+                    }
+                break;
+            }
+        }
+        if (t > 0) Ripples(canvas, f, t);
         return canvas.ToImage();
+    }
+
+    private static bool Near(PuddleField f, int x, int y, int reach)
+    {
+        for (var dy = -reach; dy <= reach; dy++) for (var dx = -reach; dx <= reach; dx++) if (f.Wet(x + dx, y + dy)) return true;
+        return false;
+    }
+
+    /// <summary>Rain landing on the puddles: rings that open and fade, scattered in time and place.</summary>
+    private static void Ripples(Canvas canvas, PuddleField f, double t)
+    {
+        var unit = f.Size / 32f;
+        var wet = Enumerable.Range(0, f.Water.Length).Where(i => f.Water[i] > 0).ToArray();
+        if (wet.Length == 0) return;
+        // About one drop for every 60 pixels of water, each landing somewhere new every cycle.
+        for (var n = 0; n < wet.Length / 60; n++)
+        {
+            var cycle = t / 1.2 + Polish.Hash01(n, 1, 81);
+            var phase = cycle % 1.0;
+            var spot = wet[(int)(Polish.Hash01(n, (int)cycle % 2, 83) * wet.Length)]; // two cycles per 2.4 s loop, so it repeats seamlessly
+            int x = spot % f.Width, y = spot / f.Width;
+            var r = (float)(1 + phase * 4) * unit;
+            var alpha = (float)(1 - phase) * 0.85f;
+            for (var a = 0; a < 24; a++)
+            {
+                var px = (int)MathF.Round(x + MathF.Cos(a * MathF.PI / 12) * r); var py = (int)MathF.Round(y + MathF.Sin(a * MathF.PI / 12) * r * 0.7f);
+                if (f.Wet(px, py)) canvas.Put(px, py, new Color("E6F0F4") with { A = alpha });
+            }
+        }
     }
 
     private static bool Ground(SceneSpec spec, int x, int y) =>

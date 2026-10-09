@@ -295,6 +295,9 @@ black overlay; the ramps already shift hue toward blue in the shade.
   jumping, changing walk frames every quarter second, with a one-pixel bob
   on each step. A jump of more than three tiles, such as after a reload,
   still snaps.
+- A10 A grave is a 32 × 32 sprite on a fresh earth mound: a wooden cross in
+  the Timber ramp, or a rounded headstone in the Rock ramp with a carved
+  cross. It fades out after a year of game time.
 
 ## 11. Items
 
@@ -343,8 +346,11 @@ black overlay; the ramps already shift hue toward blue in the shade.
   and fade after it passes: after snowfall open ground is covered, with
   grass tips and trodden Roads showing, and anyone crossing it leaves
   footprints that fade within about a game hour; in autumn a few leaves lie
-  under broadleaf and orchard trees. Roof snow and puddles are agreed, but
-  their drawing waits for a second look
+  under broadleaf and orchard trees. Roof snow follows each roof's own
+  slopes: shaded faces (north and east) stay covered, and sunny faces
+  (south and west) keep snow near the ridge with a thin dusting below, so
+  no face is bare; building shadows stay clear. Puddles after rain are
+  agreed, but their look is still being chosen
   ([Visual polish](../../tools/ArtPreview/Proposed/Polish.md)).
 - E6 Weather fades in and out over about a second instead of switching.
 

@@ -16,32 +16,33 @@ computment answered the review on October 9:
 | 3 · Chimney smoke | **B**, column |
 | 7 · Ground snow | **A**, covered, with footprints |
 | 7 · Fallen leaves | **A**, a few |
-| 7 · Roof snow | A, redrawn: see below |
-| 7 · Puddles | A, redrawn: see below |
+| 7 · Roof snow | **A**, redrawn to follow each roof's slopes (approved on the second look) |
+| 7 · Puddles | not settled yet: see below |
 | 8 · Golden hour | **C**, rose at dawn and gold at dusk |
 | 9 · Stock | **A**, at the door |
 | 11 · Camera | **B**, ease |
 | 12 · Building finished | **C**, dust and twinkles |
-| 12 · Grave | A and B, redrawn: see below; a grave fades after a year of game time |
+| 12 · Grave | **A and B**, both redrawn (approved on the second look); a grave fades after a year of game time |
 | 13 · Weather fades | **B**, fade |
 
-Three pieces went back for better drawing at computment's request, and
-are waiting for a second look:
+Three pieces went back for better drawing at computment's request:
 
-- **Roof snow** (`roof-snow-a2`): computment asked for some snow left on the
-  sunny side, and for roofs whose ridge runs north to south not to be split
-  north and south. The redraw follows each roof's real slopes: a gable roof
-  has two faces, a hipped roof four, and the Silo's cone melts on one side.
-  Shaded faces (north and east) stay covered; sunny faces (south and west)
-  keep snow near the ridge, then a thin dusting down to the eaves.
-- **Puddles** (`puddles-a2`): computment asked for better puddles, then for
-  bigger, see-through ones with more shapes and variety. The redraw shapes
-  them with noise, so they fill the low parts of Roads and fields and a few
-  dips in the grass, and tints the ground under them rather than covering
-  it.
-- **Graves** (`grave-a2-cross`, `grave-b2-stone`): computment wanted both the
-  wooden cross and the headstone, with better art. Both are redrawn as 32 px
-  sprites on a fresh earth mound.
+- **Roof snow** (`roof-snow-a2`), approved: computment asked for some snow
+  left on the sunny side, and for roofs whose ridge runs north to south not
+  to be split north and south. The redraw follows each roof's real slopes:
+  a gable roof has two faces, a hipped roof four, and the Silo's cone melts
+  on one side. Shaded faces (north and east) stay covered; sunny faces
+  (south and west) keep snow near the ridge, then a thin dusting down to
+  the eaves. Building shadows and the forge yard stay clear.
+- **Graves** (`grave-a2-cross`, `grave-b2-stone`), approved: the wooden cross
+  and the headstone, redrawn as 32 px sprites on a fresh earth mound.
+- **Puddles**, still open: the first redraw was bigger and see-through, but
+  computment asked for "total different vibes". The third round
+  (`puddles-r3-<look>`, with `-rain` loops showing rings while rain falls)
+  offers four moods: **mirror** (glassy pools mirroring the sky),
+  **muddy** (murky brown pools), **outlined** (chunky puddles drawn like
+  the sprites) and **sheen** (the whole Road dark and glistening, with a
+  few small pools).
 
 ## Drawing the pictures
 

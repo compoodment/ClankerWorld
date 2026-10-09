@@ -608,12 +608,14 @@ provide a UI drawing.
     with what they hold;
   - the camera eases when **Find** moves it or the view zooms;
   - a finished building gets a ring of dust and a few twinkles;
-  - where someone died, a grave stays for a year of game time, then fades;
+  - after snowfall roofs keep snow on their shaded side and a dusting on
+    their sunny side, following each roof's shape;
+  - where someone died, a grave marked by a wooden cross or a headstone
+    stays for a year of game time, then fades;
   - weather fades in and out instead of switching at once.
 
-  Roof snow, puddles after rain and the grave markers (a wooden cross and a
-  headstone) are agreed too, but computment asked for better drawings, which
-  wait for a second look.
+  Puddles after rain are agreed too, but computment has not yet chosen
+  their look.
 - Ground remains square-tiled, but permanent **black tile-border grid lines**
   are not part of the intended presentation; they would clash with textures.
 - **Agreed on October 8
