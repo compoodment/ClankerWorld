@@ -2085,6 +2085,14 @@ storage need or when there is no resident place, but added places use only the
 completed footprint. Unfinished expansion does not reserve room for another
 resident.
 
+The birth food gate and contribution selector exclude household food on an
+actively borrowed Market stall through the same boundary as ordinary goods
+pickup. Their queries capture both the society checkpoint and Town state;
+owner cards and private continuity guidance use that same captured state.
+Ending borrowing makes the stock eligible again. The reserve remains two
+ready-to-eat portions per active household member plus four, and the transaction
+still spends four actual portions. No collection or trade is performed by birth.
+
 **Overcrowding relocation** (`HouseRelocationRules`, `SettlementRelocation`).
 Selection uses the completed House footprint and active permanent residents.
 Volunteers come first, then existing notices and the latest eligible arrivals,

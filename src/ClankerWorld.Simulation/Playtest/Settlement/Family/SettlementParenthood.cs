@@ -53,21 +53,23 @@ public sealed partial class PrivateWorldRuntime
 
     private bool FamilyFoodReady(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
-        ParenthoodFoodReadiness(society.Checkpoint, actor).IsReady &&
+        ParenthoodFoodReadiness(society.Checkpoint, actor, towns).IsReady &&
         BirthFood(actor) is not null;
 
     /// <summary>Derives the birth food gate from one captured checkpoint, also used by owner and parent guidance.</summary>
-    public static SettlementParenthoodFood ParenthoodFoodReadiness(SocietyCheckpoint checkpoint, string caregiverId)
+    public static SettlementParenthoodFood ParenthoodFoodReadiness(SocietyCheckpoint checkpoint, string caregiverId,
+        IReadOnlyList<TownRuntimeState> townStates)
     {
         if (checkpoint.GetInhabitant(caregiverId).HouseholdId is not { } householdId) return new(0, 4);
         var required = checkpoint.Inhabitants.Count(person => person.HouseholdId == householdId &&
             person.Status == SocietyInhabitantStatus.Active) * 2 + 4;
-        return new(BirthFoodSources(checkpoint, caregiverId).Sum(lot => AvailableLotQuantity(checkpoint.Inventory, lot)), required);
+        return new(BirthFoodSources(checkpoint, caregiverId, townStates).Sum(lot => AvailableLotQuantity(checkpoint.Inventory, lot)), required);
     }
 
-    public static string ParenthoodFoodNote(SocietyCheckpoint checkpoint, string caregiverId, bool showAmounts = true)
+    public static string ParenthoodFoodNote(SocietyCheckpoint checkpoint, string caregiverId,
+        IReadOnlyList<TownRuntimeState> townStates, bool showAmounts = true)
     {
-        var food = ParenthoodFoodReadiness(checkpoint, caregiverId);
+        var food = ParenthoodFoodReadiness(checkpoint, caregiverId, townStates);
         if (!showAmounts)
             return food.IsReady ? "The caregiver's household has enough ready-to-eat food."
                 : "The caregiver's household needs more ready-to-eat food; grain and flour need cooking.";
@@ -78,14 +80,15 @@ public sealed partial class PrivateWorldRuntime
 
     // Birth reserves and consumes its food in place, which the inventory
     // allows for food in a usable storage pot as well as loose food.
-    private IEnumerable<InventoryLot> BirthFoodSources(string actor) => BirthFoodSources(society.Checkpoint, actor);
+    private IEnumerable<InventoryLot> BirthFoodSources(string actor) => BirthFoodSources(society.Checkpoint, actor, towns);
 
-    private static IEnumerable<InventoryLot> BirthFoodSources(SocietyCheckpoint checkpoint, string actor)
+    private static IEnumerable<InventoryLot> BirthFoodSources(SocietyCheckpoint checkpoint, string actor,
+        IReadOnlyList<TownRuntimeState> townStates)
     {
         var household = checkpoint.GetInhabitant(actor).HouseholdId ?? actor;
         return checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household &&
             (lot.CarrierId is null || lot.CarrierId == actor) && InUsableVesselOrLoose(checkpoint.Inventory, lot) &&
-            IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(checkpoint.Inventory, lot) > 0)
+            IsEdibleFood(lot.ItemKind) && !OnBorrowedMarketStall(lot, townStates) && AvailableLotQuantity(checkpoint.Inventory, lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal);
     }
 
