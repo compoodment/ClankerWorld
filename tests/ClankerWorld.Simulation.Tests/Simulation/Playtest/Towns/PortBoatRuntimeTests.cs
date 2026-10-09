@@ -286,7 +286,7 @@ public sealed partial class PortBoatRuntimeTests
                 Assert.Equal(PrivateWorldRuntimeCodec.Encode(settling.World.ExportState()), PrivateWorldRuntimeCodec.Encode(settledReplay.World.ExportState()));
             }
             settling.World.SubmitInstruction(new("estate-clear-landing", "owner:test", Blockers[0],
-                OwnerInstructionKind.MustDo, "move to 194,10"));
+                OwnerInstructionKind.MustDo, MoveAwayFromPorts(settling.World)));
             policy.IdleActors.Remove(Blockers[0]);
             await settling.UntilAsync(() => settling.World.Boats[0].Journey is null, 100);
             var landedJug = settling.World.Society.Inventory.GetLot("travel-jug");
@@ -401,7 +401,7 @@ public sealed partial class PortBoatRuntimeTests
         // Clear one landing through an ordinary owner movement instruction.
         // Scouting can legitimately be unavailable in the current weather.
         scenario.World.SubmitInstruction(new("clear-landing", "owner:test", Blockers[0],
-            OwnerInstructionKind.MustDo, "move to 194,10"));
+            OwnerInstructionKind.MustDo, MoveAwayFromPorts(scenario.World)));
         policy.IdleActors.Remove(Blockers[0]);
         await scenario.UntilAsync(() => scenario.World.Boats[0].Journey is not null, 30);
         Assert.Equal(Follower, scenario.World.Boats[0].Journey!.PassengerId);
@@ -486,6 +486,27 @@ public sealed partial class PortBoatRuntimeTests
         }));
     }
 
+    /// <summary>An order to walk to <see cref="FreeSpotAwayFromPorts"/>.</summary>
+    private static string MoveAwayFromPorts(PrivateWorldRuntime world)
+    {
+        var spot = FreeSpotAwayFromPorts(world);
+        return $"move to {spot.X},{spot.Y}";
+    }
+
+    /// <summary>A free buildable tile in the Town, well away from every Port's landing.</summary>
+    private static GridPoint FreeSpotAwayFromPorts(PrivateWorldRuntime world)
+    {
+        var state = world.ExportState();
+        var ports = world.WorldSimulation.Buildings.Where(building => world.WorldContent.Buildings
+            .Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains(PortContent.PortTag)).ToArray();
+        var board = world.Towns[0].OriginSite!.Value;
+        var spot = state.Map.Tiles.Select(tile => tile.Position).Where(point => state.Map.IsBuildable(point) &&
+                state.Map.IsReachableOnFoot(board, point) && state.Inhabitants.All(person => person.Position != point) &&
+                ports.All(port => state.Map.FootDistance(port.Position, point) >= 4))
+            .OrderBy(point => state.Map.FootDistance(board, point)).ThenBy(point => point.Y).ThenBy(point => point.X).First();
+        return spot;
+    }
+
     private static void AddLandingBlockers(BoatScenario scenario, string portId, int blockerOffset = 0)
     {
         var port = scenario.World.WorldSimulation.Buildings.Single(building => building.InstanceId == portId);
@@ -500,14 +521,14 @@ public sealed partial class PortBoatRuntimeTests
         scenario.World.Resume();
     }
 
-    private static async Task<byte[]> BuildPaidBoatAsync(bool stopBeforeFirstPort = false)
+    private static async Task<byte[]> BuildPaidBoatAsync(bool stopBeforeFirstPort = false, int ticksPerDay = 24)
     {
         var policy = new BoatPolicy { Build = true };
         using var created = new PrivateWorldRuntime("probe-a", policy.CreateProvider,
             startPace: WorldStartPace.FounderSetup,
             geographyOptions: new GeographyOptions("probe-a", WorldSizePreset.Small));
         created.InitializeFirstTownContent();
-        created.AcceptFirstTownLayout(new(194, 12));
+        created.AcceptFirstTownLayout(new(194, 11));
         // These are genuine paused founder placements beside the notice place.
         // Keep voters in the same land component as the coastal Town.
         var map = created.ExportState().Map;
@@ -535,7 +556,7 @@ public sealed partial class PortBoatRuntimeTests
                 quantity - held - (kind == "wood" ? 16 : kind == "stone" ? 4 : 0), groundPosition: new(189, 14));
             if (kind is "wood" or "stone")
                 inventory = InventoryFixture.AddLot(inventory, "second-port-stock-" + kind, kind, TownBorderRules.FirstTownId,
-                    kind == "wood" ? 16 : 4, groundPosition: new(196, 13));
+                    kind == "wood" ? 16 : 4, groundPosition: new(198, 13));
         }
         foreach (var person in state.Inhabitants)
         {
@@ -553,17 +574,17 @@ public sealed partial class PortBoatRuntimeTests
                 Society = state.Society.Society with
                 {
                     Inventory = inventory,
-                    Config = state.Society.Society.Config with { TicksPerWorldDay = 24 },
+                    Config = state.Society.Society.Config with { TicksPerWorldDay = ticksPerDay },
                     Inhabitants = state.Society.Society.Inhabitants.Select(person => person with
                     {
-                        BirthTick = person.BirthTick / oldDay * 24,
-                        BirthLifeTick = person.BirthLifeTick is { } birth ? birth / oldDay * 24 : null,
+                        BirthTick = person.BirthTick / oldDay * ticksPerDay,
+                        BirthLifeTick = person.BirthLifeTick is { } birth ? birth / oldDay * ticksPerDay : null,
                     }).ToArray(),
                 }
             },
             // Arrange the initial time scale; every vote, payment and journey remains native.
             WorldSystems = RegionalWeatherRules.Initialize(state.WorldSystems! with
-            { Config = state.WorldSystems.Config with { TicksPerDay = 24, CalendarOffsetTicks = 0 }, RegionalWeather = null }, state.Map),
+            { Config = state.WorldSystems.Config with { TicksPerDay = ticksPerDay, CalendarOffsetTicks = 0 }, RegionalWeather = null }, state.Map),
         };
         using var scenario = new BoatScenario(state, policy);
         await scenario.UntilAsync(() => scenario.World.Towns[0].Projects.Count > 0, 80);
@@ -604,6 +625,8 @@ public sealed partial class PortBoatRuntimeTests
                 "; first Port offers: " + string.Join("; ", Policy.Observations.Take(4).Select(observation => observation.InhabitantId + ":" +
                     string.Join(",", observation.Candidates.Where(candidate => candidate.Id.Contains("|project|port-", StringComparison.Ordinal)).Select(candidate => candidate.Id)))) +
                 "; positions: " + string.Join("; ", World.Inhabitants.Select(person => person.InhabitantId + ":" + person.Position)) +
+                "; proposal votes: " + string.Join("; ", World.Towns[0].Governance!.Proposals.TakeLast(6)
+                    .Select(proposal => proposal.Text + ":" + proposal.Status + ":" + proposal.Votes.Count(vote => vote.Yes) + "/" + proposal.RequiredYes)) +
                 "; recent choices: " + string.Join("; ", Policy.Choices.TakeLast(16)));
         }
         public void Dispose() => World.Dispose();
@@ -618,6 +641,7 @@ public sealed partial class PortBoatRuntimeTests
         internal string TripActor { get; set; } = Author;
         internal bool CancelWaiting { get; set; }
         internal bool GrantAll { get; set; }
+        internal bool RevokeBoatAccess { get; set; }
         internal bool LeaveToTown { get; set; }
         internal string? HoldActor { get; set; }
         internal TaskCompletionSource<CognitionDecisionResponse> HeldReply { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -653,16 +677,27 @@ public sealed partial class PortBoatRuntimeTests
                     selected = candidates.FirstOrDefault(candidate => candidate.Id.StartsWith("boat_cancel:", StringComparison.Ordinal));
                 if (selected is null && policy.GrantAll && actor == Author)
                     selected = candidates.FirstOrDefault(candidate => candidate.Id.Contains("|boat_access|all|", StringComparison.Ordinal));
+                if (selected is null && policy.RevokeBoatAccess && actor == Author)
+                {
+                    var law = policy.World!.Towns[0].Government!.Laws.FirstOrDefault(law =>
+                        TownLawRules.IsInForce(law) && TownLawRules.Current(law).BoatAccess is not null);
+                    if (law is not null && !policy.World.Towns[0].Government!.LawDrafts.Any(draft =>
+                            draft.Action == "repeal" && draft.LawId == law.Id && draft.Status == "pending"))
+                        selected = candidates.FirstOrDefault(candidate =>
+                            candidate.Id.Contains("|repeal|" + law.Id + "|", StringComparison.Ordinal));
+                }
                 if (selected is null && policy.Build && actor == Author &&
                     !projects.Any(project => project.Stage is not ("completed" or "cancelled")))
                 {
                     var prefix = projects.Count(project => project.Stage == "completed" && project.Plan.BoatPortId is null) switch
                     {
                         0 => "|project|port-south|189,14",
-                        1 => "|project|port-south|196,13",
+                        1 => "|project|port-",
                         _ => "|boat_project|",
                     };
-                    selected = candidates.FirstOrDefault(candidate => candidate.Id.Contains(prefix, StringComparison.Ordinal));
+                    // The second Port takes the first offered site other than the launch Port's.
+                    selected = candidates.FirstOrDefault(candidate => candidate.Id.Contains(prefix, StringComparison.Ordinal) &&
+                        (prefix != "|project|port-" || !candidate.Id.EndsWith("|project|port-south|189,14", StringComparison.Ordinal)));
                     if (prefix == "|boat_project|")
                     {
                         var launchPort = projects.Single(project => project.Plan.Site == new GridPoint(189, 14) && project.Plan.BoatPortId is null).CompletedBuildingId!;

@@ -1,0 +1,1 @@
+- Restaurant workers can buy missing ingredients while their housemates have household goods on sale at a borrowed Market stall. Those sale goods stay protected until the stall is released.

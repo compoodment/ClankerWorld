@@ -1,0 +1,1 @@
+- Towns can hear cases over an empty household's buildings and shared goods. Living former members must personally agree before a ruling passes property to the Town, which can grant a recovered House onward to an accepting household. Personal belongings keep their owners and collection access. Earlier alpha saves no longer load and remain preserved.

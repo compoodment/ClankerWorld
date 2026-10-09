@@ -75,6 +75,38 @@ public partial class Main
         Expect(Show(3, 1, ill), 6, AgentFrame.Hurt, "who is ill, even mid-step");
         for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 
+        var waiting = walker with { DecisionFactors = [new("model-status", "waiting")] };
+        marker = Show(3, 1, waiting);
+        var waitingBounds = new Rect2(marker.Position, marker.Size);
+        marker.ConversationBadgeVisible = true;
+        var conversationBounds = marker.ConversationBadgeBounds;
+        marker._Process(0.5);
+        if (marker.WaitingMarkerVisible) throw new InvalidOperationException("A quick model reply must not flash the waiting spark.");
+        Show(3, 1, walker);
+        marker._Process(3);
+        if (marker.WaitingMarkerVisible) throw new InvalidOperationException("A completed reply must clear the waiting spark.");
+        marker = Show(3, 1, waiting);
+        marker.ConversationBadgeVisible = true;
+        marker._Process(AgentMarker.WaitingMarkerDelaySeconds + 0.01);
+        marker = Show(3, 1, waiting);
+        marker.ConversationBadgeVisible = true;
+        if (!marker.WaitingMarkerVisible || !marker.IsProcessing() || marker.Frame != AgentFrame.Still ||
+            new Rect2(marker.Position, marker.Size) != waitingBounds || marker.ConversationBadgeBounds != conversationBounds)
+            throw new InvalidOperationException("A slow reply must keep its spark through refresh and walk expiry, beside the unchanged conversation hit target.");
+        for (var frame = 0; frame < 8; frame++)
+        {
+            marker._Process(0.125);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        marker.ObserveModelWait(map.WorldId, waiting: true, paused: true);
+        if (marker.WaitingMarkerVisible || marker.IsProcessing())
+            throw new InvalidOperationException("Pause must clear the waiting marker and stop its animation.");
+        marker.ObserveModelWait(map.WorldId, waiting: true, paused: false);
+        marker._Process(3);
+        marker.ObserveModelWait("another-wait-world", waiting: true, paused: false);
+        if (marker.WaitingMarkerVisible) throw new InvalidOperationException("Another world must start a fresh waiting delay.");
+        marker.ObserveModelWait(map.WorldId, waiting: false, paused: false);
+
         var loose = new AgentMarker();
         try
         {

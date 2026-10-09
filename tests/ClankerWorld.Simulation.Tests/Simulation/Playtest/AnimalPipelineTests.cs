@@ -555,7 +555,7 @@ public sealed partial class AnimalPipelineTests
     [Fact]
     public async Task OrdinaryPaidOrdersBuildAndExpandTheHouseholdsAnimalYard()
     {
-        using var generated = NormalPathWorld.CreateGenerated("animal-native-yard", _ => new AnimalChooser());
+        using var generated = NormalPathWorld.CreateGenerated("animal-native-yard-2", _ => new AnimalChooser());
         var state = generated.ExportState();
         var actor = state.Inhabitants[0].InhabitantId;
         var home = state.Society.Society.GetInhabitant(actor).HouseholdId!;
