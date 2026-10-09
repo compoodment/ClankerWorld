@@ -1,0 +1,1 @@
+- People inside a building are no longer squeezed onto its roof on the map. They are hidden while inside, and the building shows a small badge with how many people are in it; hover the badge to see who.

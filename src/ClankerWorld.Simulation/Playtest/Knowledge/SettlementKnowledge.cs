@@ -95,17 +95,18 @@ public sealed partial class PrivateWorldRuntime
         ReadIfKnowledgeArtifact(secondLotId, secondPartyId, firstPartyId);
     }
 
-    private void ReadIfKnowledgeArtifact(string lotId, string sourceAgentId, string recipientId)
+    private int ReadIfKnowledgeArtifact(string lotId, string sourceAgentId, string recipientId)
     {
         var artifact = knowledge.Artifacts.FirstOrDefault(item => item.LotId == lotId);
         if (artifact is null || !HeldKnowledgeArtifacts(recipientId).Any(item => item.Id == artifact.Id))
-            return;
+            return 0;
         var learned = LearnArtifactFacts(recipientId, sourceAgentId, artifact, "read");
         if (learned > 0)
         {
             checkpointSchemaVersion = StateSchemaVersion;
             AppendEvent("agent_knowledge_artifact_read", $"{sourceAgentId}|{recipientId}|{artifact.Id}|{learned}");
         }
+        return learned;
     }
 
     private int LearnArtifactFacts(

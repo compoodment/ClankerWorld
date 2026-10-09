@@ -1,0 +1,2 @@
+- On the paired world: create Small and Medium worlds, let time advance and watch weather and plant growth. Save, reopen and continue; the map, resources and weather should resume without a load error. ([#1200](https://github.com/compoodment/ClankerWorld/issues/1200))
+- On the paired world: plant a tree on a legal free tile, advance time, save and reopen. The planted tree and its growth should remain on that tile and continue normally. ([#1200](https://github.com/compoodment/ClankerWorld/issues/1200))

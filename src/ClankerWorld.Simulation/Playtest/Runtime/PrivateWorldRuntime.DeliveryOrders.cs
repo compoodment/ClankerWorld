@@ -63,7 +63,7 @@ public sealed partial class PrivateWorldRuntime
         }
         if (HouseForHousehold(householdId) is not { } house || !DeliveryDestinationMatches(order, house)) return null;
         if (order.TargetItemKind == "flour" && FarmhouseForHousehold(householdId) is { } farmhouse &&
-            FarmFlourForHouse(householdId, farmhouse.InstanceId) is { } flour &&
+            FarmFlourForHouse(householdId, farmhouse.InstanceId, actor, house.InstanceId, maximumQuantity) is { } flour &&
             PlanFarmStockHaul(actor, house.InstanceId, flour, maximumQuantity) is { } flourPlan &&
             order.DeliveryRoute is null or "farm_flour")
             return new("farm_flour", house, householdId, flourPlan.Carrier, flourPlan.Resource,

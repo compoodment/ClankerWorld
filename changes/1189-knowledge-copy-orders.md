@@ -1,0 +1,1 @@
+- Adults can follow orders to copy held field records, maps and books with real materials and work. Counts and repeating tasks wait for new eligible accounts; lost sources release unused supplies and wait for that same source. Current-format saves retain and validate source, work and completion bindings; older alpha saves are refused without migration.
