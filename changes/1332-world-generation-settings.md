@@ -1,0 +1,1 @@
+- World Settings now shows the world's size, climate, wrapping and seed without changing them.

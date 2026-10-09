@@ -359,20 +359,26 @@ public sealed record InhabitantObservation(
                 message.RunEpoch < 0 || message.RunEpoch > RunEpoch || message.SubmissionSequence <= 0 ||
                 !instructionIds.Add(message.InstructionId) ||
                 message.Kind == "must_do" && message.UnderstoodTask is not
-                    ("care for the named animal with real feed and jug water" or
+                    ("reach and attach the selected owned handcart" or
+                        "park the selected attached handcart here with its cargo intact" or
+                        "attempt to talk with the named person; agreement and resumption remain each participant's choice" or
+                        "care for the named animal with real feed and jug water" or
                         "collect the named animal's ready products locally" or
                         "tame the named wild animal for your household" or
                         "lead the named animal to its household yard" or
                         "fit a real household saddle on the named horse" or
                         "mount the named cared-for horse with permission" or
                         "dismount the named horse and leave excess cargo here" or
-                        "eat one carried food item" or "travel within gathering range of an available food source" or
+                        "eat one carried food item" or
+                    "read one personally held written record, map or book and learn only its written facts" or "travel within gathering range of an available food source" or
                         "gather several food servings from a nearby food source" or
                         "gather the requested material from a natural source" or
                         "collect your own stored or dropped material" or
                         "collect your own stored or dropped food" or
                         "deliver the requested goods to a permitted building" or
                         "make the requested goods at a permitted workstation" or
+                        "write the requested record, map or book from your learned sites using real materials" or
+                        "copy the requested held record, map or book using real materials and sites you know" or
                         "construct the requested household building at a permitted site" or
                         "complete the requested building's next permitted expansion" or
                         "reach the requested permitted shelter" or
@@ -387,6 +393,7 @@ public sealed record InhabitantObservation(
                         "repair your own worn tool" or
                         "till a field for your household" or
                         "plant the requested crop in your household field" or
+                        "plant the requested tree using a real seed outside Town borders" or
                         "tend your household crop" or
                         "harvest your household crop" or
                         "travel to the exact tile named in this order" or
@@ -425,10 +432,11 @@ public sealed record InhabitantObservation(
              surnames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != surnames.Count))
             throw new ArgumentException("Child naming context must contain at most two bounded parental surnames.", nameof(Self));
 
+        // Parent references retain authoritative inhabitant IDs, including longer native-born IDs.
         if (Self?.FamilyBackground is { } parents &&
             (!NeedsPersonality && !NeedsAspiration || parents.Count > 2 ||
              parents.Any(parent => parent is null || string.IsNullOrWhiteSpace(parent.ParentId) ||
-                 parent.ParentId.Length > 128 || parent.ParentId == InhabitantId || parent.ParentId.Any(char.IsControl) ||
+                 parent.ParentId == InhabitantId || parent.ParentId.Any(char.IsControl) ||
                  string.IsNullOrWhiteSpace(parent.Name) || parent.Name.Length > 128 || parent.Name.Any(char.IsControl) ||
                  parent.Personality is not null && CognitionDecisionResponse.NormalizeIdentityText(parent.Personality) != parent.Personality ||
                  parent.Aspiration is not null && CognitionDecisionResponse.NormalizeIdentityText(parent.Aspiration) != parent.Aspiration) ||
