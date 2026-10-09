@@ -239,7 +239,8 @@ public sealed record CognitionSelfContext(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? AllowedChildSurnames = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MarriageNote = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionParentIdentity>? FamilyBackground = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? KnownRecipes = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? KnownRecipes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? Skills = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -429,6 +430,11 @@ public sealed record InhabitantObservation(
                 string.IsNullOrWhiteSpace(recipe) || recipe.Length > 128 || recipe.Any(char.IsControl))) ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
+
+        if (Self?.Skills is { } skills && (skills.Count > 4 ||
+            skills.Any(skill => skill is not ("building" or "farming" or "crafting" or "smithing")) ||
+            skills.Distinct(StringComparer.Ordinal).Count() != skills.Count))
+            throw new ArgumentException("Self context must contain only the actor's known skill names.", nameof(Self));
 
         if (Self?.AllowedChildSurnames is { } surnames &&
             (surnames.Count > 2 || surnames.Any(surname => string.IsNullOrWhiteSpace(surname) ||
@@ -1005,6 +1011,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
             tool_making_request = observation.Self?.ToolMakingRequestNote,
             marriage = observation.Self?.MarriageNote,
             known_recipes = observation.Self?.KnownRecipes,
+            skills = observation.Self?.Skills,
             candidates = observation.Candidates.Select(candidate => new
             {
                 id = candidate.Id,
@@ -1227,6 +1234,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             tool_making_request = self.ToolMakingRequestNote,
                             marriage = self.MarriageNote,
                             known_recipes = self.KnownRecipes,
+                            skills = self.Skills,
                             allowed_child_surnames = request.Observation.NeedsName ? self.AllowedChildSurnames : null,
                             family_background = self.FamilyBackground?.Select(parent => new
                             { name = parent.Name, personality = parent.Personality, aspiration = parent.Aspiration }).ToArray(),

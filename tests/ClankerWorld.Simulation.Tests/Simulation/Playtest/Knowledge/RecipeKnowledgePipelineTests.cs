@@ -116,17 +116,16 @@ public sealed class RecipeKnowledgePipelineTests
         var (state, author, recipeId) = await ProducedRecipe();
         if (includeSites)
         {
-            using (var exploring = Restore(state, author, "explore"))
-            {
-                await Until(exploring, () => exploring.Knowledge.Facts.Any(fact => fact.OwnerId == author));
-                state = exploring.ExportState();
-            }
-            using var returning = Restore(state, author, "explore_return");
-            returning.SubmitInstruction(new("return-before-recipe-book", "owner:test", author,
+            var scout = new SelectingProvider(author, ["explore"]);
+            using var exploring = PrivateWorldRuntime.Restore(state, _ => scout);
+            await Until(exploring, () => exploring.Knowledge.Facts.Any(fact => fact.OwnerId == author));
+            scout.Prefixes = ["explore_return"];
+            exploring.SubmitInstruction(new("return-before-recipe-book", "owner:test", author,
                 OwnerInstructionKind.Suggestive, "Return from scouting before writing the book."));
-            await Until(returning, () => returning.ExportState().Inhabitants.Single(person =>
+            await Until(exploring, () => exploring.ExportState().Inhabitants.Single(person =>
                 person.InhabitantId == author).Exploration is { OutingPath.Count: 0 });
-            state = returning.ExportState();
+            Assert.Contains(exploring.ExportState().Events, item => item.Kind == "exploration_completed");
+            state = exploring.ExportState();
         }
         using var writing = Restore(Supply(state, author, 2, 1), author, "knowledge_write:book", "knowledge_continue");
         await Until(writing, () => writing.Knowledge.Artifacts.Count == 1);
@@ -353,10 +352,11 @@ public sealed class RecipeKnowledgePipelineTests
     {
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
+        public string[] Prefixes { get; set; } = prefixes;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
             var selected = request.Observation.InhabitantId == actor
-                ? prefixes.Select(prefix => request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith(prefix, StringComparison.Ordinal)))
+                ? Prefixes.Select(prefix => request.Observation.Candidates.FirstOrDefault(item => item.Id.StartsWith(prefix, StringComparison.Ordinal)))
                     .FirstOrDefault(item => item is not null) : null;
             selected ??= request.Observation.Candidates.Single(item => item.Id == "safe_idle");
             return new DeterministicDecisionProvider().DecideAsync(request with

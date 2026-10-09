@@ -151,7 +151,9 @@ public sealed partial class PrivateWorldRuntime
                 FamilyBackground: InitialChildFamilyBackground(inhabitant.Id, physical),
                 KnownRecipes: knowledge.Recipes.Where(item => item.OwnerId == inhabitant.Id)
                     .OrderByDescending(item => item.LearnedTick).ThenBy(item => item.RecipeId, StringComparer.Ordinal).Take(16)
-                    .Select(item => worldContent.Recipes.Single(recipe => recipe.CanonicalId == item.RecipeId).DisplayName).ToArray());
+                    .Select(item => worldContent.Recipes.Single(recipe => recipe.CanonicalId == item.RecipeId).DisplayName).ToArray(),
+                Skills: (physical.Skills ?? []).OrderBy(skill => skill.Kind)
+                    .Select(skill => skill.Kind.ToString().ToLowerInvariant()).ToArray());
             var observation = new InhabitantObservation(
                 inhabitant.Id,
                 WorldTick,

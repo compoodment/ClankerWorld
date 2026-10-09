@@ -20,7 +20,17 @@ public sealed class ModelRequestWordingTests
         IDecisionProvider provider = personal
             ? new OpenAiCompatibleDecisionProvider(client, () => "synthetic-key", new Uri("https://model.test/v1/chat/completions"), "synthetic-model")
             : new JevDecisionProvider(client, () => "synthetic-key", new Uri("https://model.test/v1/systemone"));
-        using var world = NormalPathWorld.CreateGenerated("model-wording", _ => provider);
+        using var seed = NormalPathWorld.CreateGenerated("model-wording", _ => provider);
+        var state = seed.ExportState();
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select((person, index) => person with
+            {
+                Skills = index == 0 ? [new(SettlementSkillKind.Building, 0), new(SettlementSkillKind.Farming, 0)]
+                    : index == 1 ? [new(SettlementSkillKind.Smithing, 0)] : null,
+            }).ToArray(),
+        };
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => provider);
         await world.AdvanceOneTickNonBlockingAsync();
         for (var attempt = 0; attempt < 50 && handler.Bodies.Count < PrivateWorldRuntime.RequiredFounders; attempt++)
             await Task.Delay(10);
@@ -40,6 +50,9 @@ public sealed class ModelRequestWordingTests
             var self = personal ? context.GetProperty("self") : context;
             Assert.Equal(world.Society.GetHousehold(agent.HouseholdId!).Name, self.GetProperty("household").GetString());
             Assert.Equal(world.Towns.Single().Name, self.GetProperty("town").GetString());
+            Assert.Equal((state.Inhabitants.Single(person => person.InhabitantId == agent.Id).Skills ?? [])
+                .Select(skill => skill.Kind.ToString().ToLowerInvariant()),
+                self.GetProperty("skills").EnumerateArray().Select(skill => skill.GetString()));
             foreach (var field in new[] { "world_tick", "run_epoch", "decision_generation", "inhabitant_id", "household_id" })
                 Assert.False(context.TryGetProperty(field, out _), field);
             Assert.False(self.TryGetProperty("household_id", out _));
