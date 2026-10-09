@@ -72,7 +72,7 @@ public sealed partial class PrivateWorldRuntime
             .Select(n => (n.Receipt.SourceAgentId is { } source ? $"Heard from {society.Checkpoint.GetInhabitant(source).Name}: " : "Read Town notice: ") +
                 n.Town + ": " + ReadableCivicNotice(n.Notice.Text)).ToArray();
         var excerpt = string.Join(" | ", learned);
-        return learned.Length == 0 ? null : excerpt.Length > 1024 ? excerpt[..1024] : excerpt;
+        return learned.Length == 0 ? null : CivicExcerpt(excerpt, 1024);
     }
 
 
@@ -90,7 +90,16 @@ public sealed partial class PrivateWorldRuntime
             var day = WorldCalendarRules.FromTick(tick, worldSystems.Config).DayIndex;
             return day < long.MaxValue ? "world day " + (day + 1).ToString(CultureInfo.InvariantCulture) : match.Value;
         });
-        return text.Length > 270 ? text[..270] : text;
+        return CivicExcerpt(text, 270);
+    }
+
+    private static string CivicExcerpt(string text, int limit)
+    {
+        var length = Math.Min(limit, text.Length);
+        if (length > 0 && length < text.Length &&
+            char.IsHighSurrogate(text[length - 1]) && char.IsLowSurrogate(text[length]))
+            length--;
+        return text[..length];
     }
 
     private void AdvanceTownGovernance()
