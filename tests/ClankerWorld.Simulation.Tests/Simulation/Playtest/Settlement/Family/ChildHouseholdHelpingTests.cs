@@ -142,6 +142,79 @@ public sealed class ChildHouseholdHelpingTests
     }
 
     [Theory]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    public async Task HelpingTripsCountMovementStepsAndRefuseTheNinthStep(int steps)
+    {
+        var (state, child, houseId, _) = await Prepared("food");
+        var house = state.WorldSimulation!.Buildings.Single(item => item.InstanceId == houseId);
+        var routeMethod = typeof(PrivateWorldRuntime).GetMethod("FindUnoccupiedRoute",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        // Locate a real native route at the boundary; do not add terrain, a
+        // House, permission or a delivery. The ninth-step route stays within
+        // the home radius so its refusal exercises the separate trip limit.
+        using var locating = Restore(state, child, new HelpingProvider("safe_idle"));
+        var route = state.Map.Tiles.Where(tile => state.Map.IsPassable(tile.Position) &&
+                state.Map.FootDistance(tile.Position, house.Position) <= 8 &&
+                !state.Inhabitants.Any(person => person.InhabitantId != child && person.Position == tile.Position))
+            .OrderBy(tile => tile.Position.Y).ThenBy(tile => tile.Position.X)
+            .Select(tile => (IReadOnlyList<GridPoint>)routeMethod.Invoke(locating,
+                [child, tile.Position, house.Position, 0])!)
+            .FirstOrDefault(path => path.Count == steps + 1 &&
+                path.All(point => state.Map.FootDistance(point, house.Position) <= 8));
+        Assert.NotNull(route);
+        Assert.Equal(house.Position, route[^1]);
+        var point = route[0];
+        var household = state.Society.Society.GetInhabitant(child).HouseholdId!;
+        const string stockId = "000-child-boundary-stock";
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, stockId, "wood", household, 1,
+            groundPosition: new(point.X, point.Y));
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == child
+                ? person with { Position = point } : person).ToArray(),
+        };
+        var provider = new HelpingProvider("child_carry:" + stockId);
+        using var world = Restore(state, child, provider);
+        var storedBefore = Stored(world, household, houseId, "wood");
+        for (var tick = 0; tick < 12 && !world.Society.Inventory.Lots.Any(lot =>
+                 lot.OwnerId == child && lot.DeliveryBuildingId == houseId); tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        if (steps == 9)
+        {
+            Assert.DoesNotContain("child_carry:" + stockId, provider.Seen);
+            var retained = world.Society.Inventory.GetLot(stockId);
+            Assert.Equal((household, 1, new InventoryGroundPosition(point.X, point.Y)),
+                (retained.OwnerId, retained.Quantity, retained.GroundPosition));
+            Assert.Equal(storedBefore, Stored(world, household, houseId, "wood"));
+            Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "child_collected_household" ||
+                item.Kind == "child_delivered_household");
+            world.Validate();
+            var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+            using var reloaded = Restore(PrivateWorldRuntimeCodec.Decode(saved), child, new HelpingProvider("safe_idle"));
+            Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+            return;
+        }
+        Assert.Contains("child_carry:" + stockId, provider.Seen);
+        var cargo = Assert.Single(world.Society.Inventory.Lots, lot => lot.OwnerId == child && lot.DeliveryBuildingId == houseId);
+        Assert.Equal(("wood", 1), (cargo.ItemKind, cargo.Quantity));
+        Assert.Equal(storedBefore, Stored(world, household, houseId, "wood"));
+        var midTrip = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(midTrip), child, new HelpingProvider("safe_idle"));
+        Assert.Equal(midTrip, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        provider.Gather = false;
+        for (var tick = 0; tick < 80 && !world.ExportState().Events.Any(item => item.Kind == "child_delivered_household"); tick++)
+            await StepPair(world, replay);
+        Assert.Single(world.ExportState().Events, item => item.Kind == "child_delivered_household");
+        Assert.Equal(storedBefore + 1, Stored(world, household, houseId, "wood"));
+        Assert.Equal(house.Position, world.Inhabitants.Single(person => person.InhabitantId == child).Position);
+        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.OwnerId == child && lot.DeliveryBuildingId == houseId);
+        world.Validate();
+    }
+
+    [Theory]
     [InlineData("food")]
     [InlineData("wood")]
     [InlineData("carry")]

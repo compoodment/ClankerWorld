@@ -27,7 +27,7 @@ public sealed partial class PrivateWorldRuntime
         {
             if (IsWithinInteractionRange(from, to, interactionRange)) return true;
             var route = FindUnoccupiedRoute(actor, from, to, interactionRange);
-            return route.Count is > 0 and <= ChildHelpingRoute &&
+            return route.Count > 0 && route.Count - 1 <= ChildHelpingRoute &&
                 route.All(point => map.FootDistance(point, house.Position) <= ChildHelpingRoute);
         }
         return map.FootDistance(source, house.Position) <= ChildHelpingRoute &&
