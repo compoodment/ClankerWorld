@@ -137,6 +137,16 @@ unrelated action or a stale order cannot advance a replacement task. Alpha saves
 must use the current checkpoint schema; older saves are refused without
 migration and remain unchanged.
 
+Private-world schema 112 records each Town's first completed building time,
+including a completed building incorporated at founding. The time remains
+after removal, abandonment and reload, so constructing a replacement cannot
+repeat the first-building Road link. Loading checks it against the Town's
+founding time and world clock and requires it when a Town has buildings.
+Inter-Town Road tiles and bridges use their existing saved records. Current
+roundtrips and replay preserve the time, complete Road network and original
+Town/household land; older alpha schemas are refused and preserved without
+migration.
+
 Food consumption progress keeps a fixed-length SHA-256 receipt derived from
 the actual consumption's world time, actor and complete lot identity. Valid
 inventory splits can lengthen that lot identity without lengthening the saved
@@ -913,7 +923,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 111. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 112. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus

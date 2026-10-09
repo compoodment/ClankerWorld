@@ -2013,7 +2013,29 @@ corner tiles are clear, and pays extra for each tile beside an existing Road,
 so it meets streets rather than running alongside them. Then every dead end
 fewer than three tiles past its nearest door carries on in its own direction
 where the land allows (`town_road_extended`). The border grows around all the
-new Road tiles.
+new local Road tiles. Local streets join Roads within their own Town's border;
+they do not choose another Town's network as their destination.
+
+When a Town gains its first completed building, `GenerateRoadBetweenTowns`
+selects the nearest other Town by wrapped foot distance between recorded
+origins, breaking equal distances by Town ID. A completed household building
+incorporated during founding triggers the same link. `RoadRoutePlanner` searches
+from the building's legal entrances to Roads in the selected Town, or to its
+building entrances or unoccupied origin when it has no Roads. The route uses
+the existing Road movement discount, without the local side-street adjacency
+penalty. It may reuse existing Roads and bridges, including Roads subsequently
+overlapped by household land, but new tiles and bridge banks still avoid held
+land, pending requests, resources and building footprints. The complete route
+and any new one- or two-tile river crossings validate before commitment.
+`town_road_linked` records the selected pair; `town_road_link_unconnected`
+records a refused route. A failed link does not choose a farther Town. These
+inter-Town Roads use the ordinary saved Road tiles and bridge records, keep the
+same rendering and persistence, and never expand either Town's title or border.
+The Town's saved `FirstBuildingCompletedTick` prevents a replacement building
+from repeating the link after removal or reload, including a failed first link.
+Reassigning a completed Warehouse to an empty Town uses the same first-building
+trigger. When that Warehouse stands outside the receiving Town, the Road starts
+at the receiving Town's origin and leaves the remote building's entrance alone.
 
 Street neighbours, headings, diagonal corners and clearance use the map's
 east-west wrap. A Road across the seam counts toward the distance to the last

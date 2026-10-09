@@ -146,6 +146,8 @@ public sealed partial class PrivateWorldRuntime
                     reassignedRights, WorldTick)
                 : null;
 
+            var firstBuildingTown = isWarehouse && nextTownId is { } target &&
+                towns.Single(town => town.Id == target).FirstBuildingCompletedTick is null ? nextTownId : null;
             if (isWarehouse && nextTownId is { } reassignedTownId)
             {
                 if (building.TownId is { } previousTownId)
@@ -162,6 +164,9 @@ public sealed partial class PrivateWorldRuntime
                     : worldSimulation.GuestInvitations,
             };
             householdLandUseRights = reassignedRights.ToList();
+            if (firstBuildingTown is { } firstTown)
+                GenerateRoadBetweenTowns(towns.Single(town => town.Id == firstTown),
+                    worldSimulation.Buildings.Single(item => item.InstanceId == instanceId));
             if (rightsTown is not null && reassignedHearings is not null)
             {
                 SetTown(rightsTown with { LandHearings = reassignedHearings });
@@ -234,6 +239,7 @@ public sealed partial class PrivateWorldRuntime
         SetTown(town with
         {
             AssignedBuildingIds = town.AssignedBuildingIds.Append(buildingId).Order(StringComparer.Ordinal).ToArray(),
+            FirstBuildingCompletedTick = town.FirstBuildingCompletedTick ?? WorldTick,
         });
     }
 }
