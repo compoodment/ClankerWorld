@@ -75,6 +75,8 @@ public sealed partial class PrivateWorldRuntime
     // Dusk and dawn fade it in and out. Shelter, clothing and fire offset it
     // exactly as they offset weather.
     private const int NightChillAtFullDarkness = 15;
+    // Provisional balance: trees give about half a building's storm protection.
+    private const int NaturalStormProtection = 22;
 
     private static bool NeedsUrgentFood(PlaytestInhabitantState person) => person.HungerBasisPoints < UrgentFullness;
 
@@ -88,7 +90,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var naturalCover = WeatherAt(person.Position) == WeatherKind.Storm && NaturalStormCover(person.Position);
         var protection = ClothingProtection(person.InhabitantId, person.Position) +
-            (NearShelter(person.InhabitantId, person.Position) || naturalCover ? 45 : 0);
+            (NearShelter(person.InhabitantId, person.Position) ? 45 : naturalCover ? NaturalStormProtection : 0);
         var heat = AccessibleHeatingBuildings(person.InhabitantId).Any(building => IsFireLit(building) &&
             IsWithinInteractionRange(person.Position, building.Position,
                 building.HouseholdId is null ? 2 : 0)) ? 90 : 0;
@@ -372,16 +374,16 @@ public sealed partial class PrivateWorldRuntime
         if (WarmthChange(person) >= 0)
             return;
         var destination = ReachableWarmthDestinations(actor, person).FirstOrDefault();
-        // An unlit House offers no extra heat over current natural storm cover.
-        if (WeatherAt(person.Position) == WeatherKind.Storm && NaturalStormCover(person.Position) &&
-            (destination is null || !CanUseLitHearth(actor, destination)))
+        // Keep building cover unless another destination can supply usable heat.
+        if (NearShelter(actor, person.Position) && (destination is null || !CanUseLitHearth(actor, destination)))
             return;
-        var cover = WeatherAt(person.Position) == WeatherKind.Storm && !NaturalStormCover(person.Position)
+        // Buildings provide more protection than natural cover, even without a lit hearth.
+        if (WeatherAt(person.Position) == WeatherKind.Storm && NaturalStormCover(person.Position) &&
+            destination is null)
+            return;
+        var cover = destination is null && WeatherAt(person.Position) == WeatherKind.Storm && !NaturalStormCover(person.Position)
             ? NearbyNaturalStormCover(actor, person.Position) : null;
-        if (cover is { } coverPoint &&
-            // A nearby tree must not pull a cooling agent back while walking to a lit hearth.
-            (destination is null || !CanUseLitHearth(actor, destination) && map.FootDistance(person.Position, coverPoint) <
-                map.FootDistance(person.Position, destination.Position)))
+        if (cover is { } coverPoint)
         {
             if (person.Position != coverPoint)
                 MoveToward(actor, person, coverPoint, "storm_cover");

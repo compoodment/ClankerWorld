@@ -513,8 +513,8 @@ survival pauses the work before it resumes.
 
 Use **Seek shelter**, **Take cover** or **Shelter in my House** to reach
 permitted cover. Add **at (12, 4)** to require that location. A storm guest
-still needs a current invitation, and natural cover protects only during a
-storm. The task finishes when the agent reaches usable cover; this does not
+still needs a current invitation. Forests and trees give partial protection
+during a storm; a House gives more cover. The task finishes when the agent reaches usable cover; this does not
 mean they have recovered their warmth.
 
 An adult can follow **Light a fire**, **Tend the fire** or **Light the fire in

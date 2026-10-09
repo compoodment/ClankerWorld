@@ -736,9 +736,11 @@ work or conversation, and no sleep or energy. Longer winter nights mean more
 hours of chill. Night does not change weather or crops yet.
 
 The warmth action keeps an agent in place when their current protection stops
-cooling. Otherwise, a reachable lit hearth takes priority over nearby natural
-storm cover, so a tree along the route cannot pull the agent back from the
-hearth. Natural cover remains a fallback when no lit destination is reachable;
+cooling. Forest and tree cover give a provisional 22 storm-protection points,
+compared with a building's 45. A cooling agent prefers a reachable permitted
+building over natural cover, with a usable lit hearth first. Once in a
+building, they keep its cover unless a usable lit hearth is reachable. Natural
+cover remains a fallback when no building destination is reachable;
 existing access permissions, routes and fuel use still apply.
 The lit destination must be a heating building the agent can use; a
 storm-shelter guest invitation alone does not grant use of a household hearth.
