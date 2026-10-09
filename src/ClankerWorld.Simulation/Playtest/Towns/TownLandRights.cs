@@ -235,7 +235,7 @@ public static class TownLandRightsRules
         foreach (var right in rights)
         {
             if (!ValidId(right.Id) || !ValidId(right.TownId) || !townsById.ContainsKey(right.TownId) ||
-                !households.Contains(right.HouseholdId) || !ValidId(right.HouseholdId) ||
+                !households.Contains(right.HouseholdId) || !ValidText(right.HouseholdId, 256) ||
                 !ValidText(right.GrantSource, 64) ||
                 !IsValidPlot(map, right.Tiles, worldTick, right.GrantedTick, right.AgreedEndTick) ||
                 right.Tiles.Any(tile => !IsCoveredByTownTitle(tile, right.TownId, titles) ||
@@ -246,7 +246,7 @@ public static class TownLandRightsRules
         foreach (var request in requests)
         {
             if (!ValidId(request.Id) || !ValidId(request.TownId) || !townsById.ContainsKey(request.TownId) ||
-                !households.Contains(request.HouseholdId) || !ValidId(request.HouseholdId) ||
+                !households.Contains(request.HouseholdId) || !ValidText(request.HouseholdId, 256) ||
                 !ValidId(request.RequestedByAgentId) || !agents.Contains(request.RequestedByAgentId) ||
                 request.Tiles is not { Count: <= CognitionDecisionResponse.MaximumCivicLandTiles } ||
                 !IsValidPlot(map, request.Tiles, worldTick, request.RequestedTick, request.AgreedEndTick) ||

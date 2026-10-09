@@ -1,0 +1,249 @@
+// Compiled by measure-town-ticks.sh against the selected checkout, including old schemas.
+using System.Diagnostics;
+using System.Globalization;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text.Json;
+using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Content;
+using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
+using ClankerWorld.Simulation.World;
+
+const string seed = "town-project-real-donation";
+var output = args[0];
+var commit = args[1];
+var cases = args[2].Split(',').Select(value => value.Split(':').Select(value => int.Parse(value, CultureInfo.InvariantCulture)).ToArray()).ToArray();
+var startTick = int.Parse(args[3], CultureInfo.InvariantCulture);
+var samples = int.Parse(args[4], CultureInfo.InvariantCulture);
+var probeDigest = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(args[5])));
+var profileGate = args[6];
+if (cases.Any(value => value.Length != 2 || value[0] < 4 || value[0] > 64 || value[1] < 1 || value[1] > 1024) ||
+    startTick < 1 || samples < 1 || samples > 1024)
+    throw new ArgumentException("Use 4–64 residents, 1–1024 Roads, a positive start tick and 1–1024 samples.");
+var results = new List<object>();
+foreach (var size in cases)
+{
+    var setupTimer = Stopwatch.StartNew();
+    var builder = new MarketBuilder();
+    using var initial = CreateWorld(seed, _ => builder);
+    var state = initial.ExportState();
+    var market = state.WorldContent!.Buildings.SingleOrDefault(definition => definition.Tags.Contains("market"));
+    if (market is not null)
+    {
+        builder.MarketLocalId = market.LocalId;
+        var stock = state.Society.Society.Inventory;
+        foreach (var cost in market.BuildCosts)
+            stock = InventoryFixture.AddLot(stock, "probe-market-" + cost.ResourceId, cost.ResourceId,
+                state.Towns![0].Id, cost.Amount, storageBuildingId: "first-town-warehouse");
+        state = WithInventory(state, stock);
+    }
+    var world = PrivateWorldRuntime.Restore(state, _ => builder);
+    try
+    {
+        if (market is not null)
+        {
+            while (!world.WorldSimulation.Buildings.Any(building => building.DefinitionId == market.CanonicalId) && world.WorldTick < startTick)
+                RequireAdvance(await world.AdvanceOneTickAsync());
+            if (!world.WorldSimulation.Buildings.Any(building => building.DefinitionId == market.CanonicalId))
+                throw new InvalidOperationException($"The native Council/Market setup did not finish by tick {world.WorldTick}.");
+        }
+        world.Pause();
+        for (var ordinal = 5; ordinal <= size[0]; ordinal++)
+        {
+            state = world.ExportState();
+            var house = state.WorldContent!.Buildings.Single(definition => definition.LocalId == "house-1x1");
+            var site = Sites(state, house).First(point => state.Towns![0].BorderTiles.Contains(point) &&
+                !state.Inhabitants.Any(person => person.Position == point));
+            var actor = $"agent:{ordinal:D32}";
+            world.AddAgent(actor, site);
+            state = world.ExportState();
+            var household = "household:probe-" + ordinal;
+            var society = SocietyFixture.CreateHousehold(state.Society.Society, household, "Probe household " + ordinal, [actor]).Checkpoint;
+            var stock = InventoryFixture.AddLot(society.Inventory, "probe-house-wood-" + ordinal, "wood", household, 8);
+            state = state with { Society = state.Society with { Society = society with { Inventory = stock } } };
+            world.Dispose();
+            world = PrivateWorldRuntime.Restore(state, _ => builder);
+            PlaceAtFirstLegal(world, "probe-house-" + ordinal, house, household);
+        }
+        var workshop = world.ExportState().WorldContent!.Buildings.Single(definition => definition.LocalId == "blacksmith-1x2");
+        for (var ordinal = 0; world.RoadTiles.Count < size[1]; ordinal++)
+        {
+            if (ordinal >= 256) throw new InvalidOperationException($"The fixture stopped at {world.RoadTiles.Count} Roads and {world.WorldSimulation.Buildings.Count} buildings.");
+            state = world.ExportState();
+            var stock = state.Society.Society.Inventory;
+            foreach (var cost in workshop.BuildCosts)
+                stock = InventoryFixture.AddLot(stock, $"probe-workshop-{ordinal}-{cost.ResourceId}", cost.ResourceId,
+                    "household:camp-alpha", cost.Amount);
+            world.Dispose();
+            world = PrivateWorldRuntime.Restore(WithInventory(state, stock), _ => builder);
+            PlaceAtFirstLegal(world, "probe-workshop-" + ordinal, workshop, "household:camp-alpha", growRoads: true);
+        }
+        state = world.ExportState();
+        var food = state.Society.Society.Inventory;
+        foreach (var household in state.Society.Society.Households)
+        {
+            var house = state.WorldSimulation!.Buildings.FirstOrDefault(building => building.HouseholdId == household.Id &&
+                state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("house"));
+            if (house is not null)
+                food = InventoryFixture.AddLot(food, "probe-food-" + household.Id, "food", household.Id, 64, storageBuildingId: house.InstanceId);
+        }
+        world.Dispose();
+        world = PrivateWorldRuntime.Restore(WithInventory(state, food), _ => new DeterministicDecisionProvider());
+        world.Validate();
+        world.Resume();
+        while (world.WorldTick < startTick) RequireAdvance(await world.AdvanceOneTickNonBlockingAsync());
+        File.WriteAllBytes(Path.Combine(Path.GetDirectoryName(output)!, $"start-{size[0]}-{size[1]}.json"), PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        setupTimer.Stop();
+        if (profileGate.Length > 0)
+        {
+            File.WriteAllText(profileGate + ".ready", Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
+            while (!File.Exists(profileGate + ".go")) await Task.Delay(25);
+        }
+        var tickTimes = new List<double>();
+        var wallTimes = new List<double>();
+        var decisions = 0;
+        var fallbacks = 0;
+        var providers = new Dictionary<string, int>();
+        var actions = new Dictionary<string, int>();
+        for (var index = 0; index < samples; index++)
+        {
+            var timer = Stopwatch.StartNew();
+            var step = await world.AdvanceOneTickNonBlockingAsync();
+            timer.Stop();
+            RequireAdvance(step);
+            decisions += step.Decisions.Count;
+            foreach (var decision in step.Decisions)
+            {
+                if (decision.Admission.FellBack) fallbacks++;
+                var provider = decision.Admission.Intention?.Provider.ToString() ?? "none";
+                providers[provider] = providers.GetValueOrDefault(provider) + 1;
+                var family = decision.Admission.Intention?.CandidateId.Split(':', '|')[0] ?? "none";
+                actions[family] = actions.GetValueOrDefault(family) + 1;
+            }
+            var diagnostics = world.ExportStateWithDiagnostics().Diagnostics;
+            tickTimes.Add(diagnostics.LastTickMilliseconds ?? throw new InvalidOperationException("No committed tick readout."));
+            wallTimes.Add(timer.Elapsed.TotalMilliseconds);
+        }
+        var final = world.ExportState();
+        var result = new
+        {
+            RequestedResidents = size[0], RequestedRoads = size[1], Residents = world.Towns[0].ResidentIds.Count,
+            Roads = world.RoadTiles.Count, Buildings = world.WorldSimulation.Buildings.Count,
+            TownBuildings = world.Towns[0].AssignedBuildingIds.Count,
+            MapWidth = final.Map.Width, MapHeight = final.Map.Height, MapDigest = MapManifestCodec.Digest(final.Map),
+            NaturalResources = final.Map.Resources.Count, InventoryLots = final.Society.Society.Inventory.Lots.Count,
+            Houses = world.WorldSimulation.Buildings.Count(building => final.WorldContent!.Buildings.Single(definition =>
+                definition.CanonicalId == building.DefinitionId).Tags.Contains("house")), Market = market is not null,
+            StartTick = startTick, EndTick = world.WorldTick, Samples = samples, Decisions = decisions,
+            Fallbacks = fallbacks, DecisionProviders = providers, ActionFamilies = actions,
+            MedianTickMs = Percentile(tickTimes, .5), P95TickMs = Percentile(tickTimes, .95), MaxTickMs = tickTimes.Max(),
+            MedianWallMs = Percentile(wallTimes, .5), SetupSeconds = setupTimer.Elapsed.TotalSeconds,
+            TickMilliseconds = tickTimes, WallMilliseconds = wallTimes,
+        };
+        results.Add(result);
+        File.WriteAllText(output, JsonSerializer.Serialize(new
+        {
+            Commit = commit, ProbeDigest = probeDigest, Seed = seed, Runtime = RuntimeInformation.FrameworkDescription,
+            Schema = PrivateWorldRuntime.StateSchemaVersion,
+            OS = RuntimeInformation.OSDescription, Architecture = RuntimeInformation.ProcessArchitecture.ToString(),
+            CpuModel = OperatingSystem.IsLinux() ? File.ReadLines("/proc/cpuinfo").FirstOrDefault(line =>
+                line.StartsWith("model name", StringComparison.Ordinal))?.Split(':', 2)[1].Trim() : Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER"),
+            CpuQuota = File.Exists("/sys/fs/cgroup/cpu.max") ? File.ReadAllText("/sys/fs/cgroup/cpu.max").Trim() : null,
+            Processors = Environment.ProcessorCount, Results = results,
+        }, new JsonSerializerOptions { WriteIndented = true }));
+        Console.WriteLine(JsonSerializer.Serialize(new { result.Residents, result.Roads, result.TownBuildings,
+            result.Houses, result.Market, result.StartTick, result.EndTick, result.Decisions,
+            result.MedianTickMs, result.P95TickMs, result.MaxTickMs, result.SetupSeconds }));
+    }
+    finally { world.Dispose(); }
+}
+
+static double Percentile(List<double> values, double fraction) => values.Order().ElementAt((int)Math.Ceiling(values.Count * fraction) - 1);
+static void RequireAdvance(PrivateWorldStepResult step)
+{
+    if (!step.Advanced) throw new InvalidOperationException("The measurement tick did not advance: " + step.Outcome);
+}
+static PrivateWorldRuntimeState WithInventory(PrivateWorldRuntimeState state, InventoryCheckpoint inventory) =>
+    state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
+static void PlaceAtFirstLegal(PrivateWorldRuntime world, string id, BuildingDefinition definition, string household, bool growRoads = false)
+{
+    var state = world.ExportState();
+    var sites = Sites(state, definition);
+    if (growRoads)
+        sites = sites.OrderByDescending(point => state.RoadTiles!.Min(road => Math.Abs(road.X - point.X) + Math.Abs(road.Y - point.Y)));
+    foreach (var site in sites.Take(2048))
+    {
+        var placed = world.PlaceBuilding(id, definition.CanonicalId, site, household);
+        if (placed.Applied) return;
+        // The runtime also protects paid Market plazas and reserved project sites.
+        // Its own placement validator remains authoritative across old versions.
+        if (placed.Failure?.Contains("footprint overlaps", StringComparison.Ordinal) != true)
+            throw new InvalidOperationException(placed.Failure);
+    }
+    throw new InvalidOperationException("No lawful Town placement site was found.");
+}
+static IEnumerable<GridPoint> Sites(PrivateWorldRuntimeState state, BuildingDefinition definition)
+{
+    var taken = state.WorldSimulation!.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
+        state.WorldContent!.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building))
+        .Concat(state.Map.Resources.Select(resource => resource.Position)).Concat(state.Map.CampObjects.Select(item => item.Position))
+        .Concat(state.RoadTiles!).ToHashSet();
+    var border = state.Towns![0].BorderTiles.ToHashSet();
+    return state.Map.Tiles.Select(tile => tile.Position).Where(point =>
+        Enumerable.Range(0, definition.Height).SelectMany(y => Enumerable.Range(0, definition.Width)
+            .Select(x => new GridPoint(point.X + x, point.Y + y))).All(tile =>
+                Enumerable.Range(-1, 3).Any(dy => Enumerable.Range(-1, 3).Any(dx =>
+                    border.Contains(new GridPoint(tile.X + dx, tile.Y + dy))))) &&
+        Enumerable.Range(0, definition.Height).SelectMany(y => Enumerable.Range(0, definition.Width)
+            .Select(x => new GridPoint(point.X + x, point.Y + y))).All(tile => state.Map.IsBuildable(tile) && !taken.Contains(tile)))
+        .OrderBy(point => state.RoadTiles!.Min(road => Math.Abs(road.X - point.X) + Math.Abs(road.Y - point.Y)))
+        .ThenBy(point => point.Y).ThenBy(point => point.X);
+}
+static PrivateWorldRuntime CreateWorld(string seed, Func<string, IDecisionProvider> providers)
+{
+    var options = new GeographyOptions(seed, WorldSizePreset.Small);
+    var world = new PrivateWorldRuntime(seed, providers, startPace: WorldStartPace.FounderSetup, geographyOptions: options);
+    world.InitializeFirstTownContent();
+    world.AcceptFirstTownLayout(new(108, 53));
+    var state = world.ExportState();
+    var house = state.WorldContent!.Buildings.Single(definition => definition.LocalId == "house-1x1");
+    var sites = Sites(state, house).Take(4).ToArray();
+    for (var ordinal = 0; ordinal < 4; ordinal++) world.PlaceFounder($"founder:{ordinal + 1:D32}", sites[ordinal]);
+    world.StartWorld();
+    return world;
+}
+
+sealed class MarketBuilder : IDecisionProvider
+{
+    public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+    public long ProviderEpoch => 1;
+    public string? MarketLocalId { get; set; }
+    private bool proposed;
+    public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+    {
+        var observation = request.Observation;
+        var candidates = observation.Candidates;
+        var chosen = candidates.FirstOrDefault(candidate => candidate.DeterministicPriority <= 5 &&
+            candidate.Id is "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
+                "harvest_food" or "seek_food" or "wear_clothing" or "seek_warmth") ??
+            candidates.FirstOrDefault(candidate => candidate.Id.Contains("|yes|", StringComparison.Ordinal)) ??
+            candidates.FirstOrDefault(candidate => candidate.Id.Contains("|read|", StringComparison.Ordinal));
+        string? proposal = null;
+        if (chosen is null && !proposed && MarketLocalId is not null && observation.InhabitantId.EndsWith("01", StringComparison.Ordinal))
+        {
+            chosen = candidates.FirstOrDefault(candidate => candidate.Id.Contains("|project|" + MarketLocalId + "|", StringComparison.Ordinal));
+            if (chosen is not null) { proposed = true; proposal = "First Market"; }
+        }
+        foreach (var prefix in new[] { "town_project_deliver:", "town_project_supply:", "town_project_work:" })
+            chosen ??= candidates.FirstOrDefault(candidate => candidate.Id.StartsWith(prefix, StringComparison.Ordinal));
+        chosen ??= candidates.FirstOrDefault(candidate => candidate.Id.Contains("|visit|", StringComparison.Ordinal));
+        chosen ??= candidates.Single(candidate => candidate.Id == "safe_idle");
+        return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, observation.InhabitantId,
+            Kind, ProviderEpoch, observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest,
+            chosen.Id, 1, candidates.ToDictionary(candidate => candidate.Id, candidate => candidate.Id == chosen.Id ? 1d : 0d),
+            CivicProposal: proposal));
+    }
+}

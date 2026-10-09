@@ -117,6 +117,25 @@ public sealed class OwnerWorldApi
             action, deviceKey, cancellationToken);
     }
 
+    public Task<StartupRecoveryStatus> GetStartupRecoveryAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerControlAction, StartupRecoveryStatus>(
+            serverUri, authority, deviceId, "/api/v1/owner/recovery/status",
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("recovery-status"),
+            new("recovery-status"), deviceKey, cancellationToken);
+
+    public Task<StartupRecoveryReceipt> RecoverAutosaveAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId, string id,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerManualSaveAction("recover", id);
+        return pairing.SendSignedActionAsync<OwnerManualSaveAction, StartupRecoveryReceipt>(
+            serverUri, authority, deviceId, "/api/v1/owner/recovery/restore",
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.ManualSave(action),
+            action, deviceKey, cancellationToken);
+    }
+
     public Task<SaveTimelinePosition> GetSaveTimelinePositionAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
         IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
@@ -138,6 +157,14 @@ public sealed class OwnerWorldApi
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("autosave-status"),
             action, deviceKey, cancellationToken);
     }
+
+    public Task<SaveDiskSpaceStatus> GetSaveDiskSpaceAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerControlAction, SaveDiskSpaceStatus>(
+            serverUri, authority, deviceId, "/api/v1/owner/saves/disk-status",
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("save-disk-status"),
+            new OwnerControlAction("save-disk-status"), deviceKey, cancellationToken);
 
     public Task<WorldAutosaveSettings> ConfigureAutosaveAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,

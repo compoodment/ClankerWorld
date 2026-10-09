@@ -1,0 +1,1 @@
+- Adults can deliberately found a new Town on unclaimed land through their personal model. Their dependent Town care group follows membership, the new council starts from adult residents, and existing household property stays owned. Founding supplies no free House or materials; later visitors need admission.
