@@ -76,8 +76,9 @@ public sealed class FirstTownLayoutPlannerTests
             PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()))) : null;
         var target = restored ?? world;
         Assert.True(new OwnerWorldObservationStore(target).GetSnapshot().FounderSetup?.CanChooseTownSite);
+        // A neighbouring site whose plan really differs, so the redo is visible.
         var newSite = map.FootNeighbors(initialSite).First(point => point != initialSite &&
-            FirstTownLayoutPlanner.Plan(map, point) is not null);
+            FirstTownLayoutPlanner.Plan(map, point) is { } plan && !plan.RoadTiles.SequenceEqual(first.RoadTiles));
 
         var second = target.AcceptFirstTownLayout(newSite);
 

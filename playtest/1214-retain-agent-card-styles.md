@@ -1,0 +1,1 @@
+- Open an agent's Profile before and after panning with the keyboard and middle mouse button, then switch between Light and Dark in Game Settings. Check that its portrait frame and Speak controls use the chosen theme, keep their compact layout, and remain usable with the mouse and keyboard. ([#1214](https://github.com/compoodment/ClankerWorld/issues/1214))

@@ -8,6 +8,20 @@ public sealed class WorldEventTextTests
     private const string AgentId = "agent:00000000000000000000000000000099";
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
+    [Fact]
+    public void ModelLogKeepsOneContinuingProblemAndUsesTheCompleteDescendantIdentity()
+    {
+        OwnerWorldEvent Status(long id, string status) => new(id, id, "model_attempt_status", $"{ChildId}:{status}");
+        var events = new[] { Status(1, "waiting"), Status(2, "waiting"), Status(3, "ready"),
+            Status(4, "waiting"), Status(5, "timed_out"), Status(6, "timed_out"), Status(7, "waiting"),
+            Status(8, "timed_out"), Status(9, "canceled"), Status(10, "ready"), Status(11, "waiting"), Status(12, "timed_out") };
+        var rows = GameUiText.PlayerEvents(events.Reverse()).ToArray();
+        Assert.Equal(new long[] { 5, 12 }, rows.Select(item => item.EventId));
+        Assert.Equal("Aster could not get a model reply: the model reply timed out.",
+            WorldEventText.Describe(rows[0], Snapshot(Person(FounderId, "Mira"), Person(ChildId, "Aster"))));
+        Assert.Equal(rows, GameUiText.PlayerEvents(events).ToArray());
+    }
+
     [Theory]
     [InlineData("{")]
     [InlineData("null")]
@@ -67,6 +81,8 @@ public sealed class WorldEventTextTests
         {
             ("food_harvested", id + ":4", "gathered food"),
             ("food_consumed", id, "ate"),
+            ("child_collected_household", id + ":wood:4", "picked up a small household load to bring home"),
+            ("child_delivered_household", id + ":food:4:first-town-house-a", "brought a small household load to their House"),
             ("tree_planted", id + ":planted-tree-12-7:broadleaf", "planted a tree"),
             ("tree_replanted", id + ":tree-8-16:conifer", "replanted a tree"),
             ("inhabitant_slept", id, "slept"),
@@ -82,6 +98,7 @@ public sealed class WorldEventTextTests
         {
             var worldEvent = new OwnerWorldEvent(1, 1, kind, detail);
             Assert.Equal($"Aster {action}.", WorldEventText.Describe(worldEvent, snapshot));
+            if (kind.StartsWith("child_", StringComparison.Ordinal)) Assert.True(GameUiText.IsPlayerFacingEvent(kind));
             var renamed = snapshot with { Inhabitants = [Person(id, "Rowan", "dead")] };
             Assert.Equal($"Rowan {action}.", WorldEventText.Describe(worldEvent, renamed));
             Assert.Equal(detail, worldEvent.Detail);
