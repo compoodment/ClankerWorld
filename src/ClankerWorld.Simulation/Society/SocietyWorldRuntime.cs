@@ -23,7 +23,7 @@ public sealed record SocietyDispatchCycleResult(
 /// </summary>
 public sealed class SocietyWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 3;
+    public const int StateSchemaVersion = 4;
 
     private readonly SemaphoreSlim gate = new(1, 1);
     private SocietyCheckpoint society;

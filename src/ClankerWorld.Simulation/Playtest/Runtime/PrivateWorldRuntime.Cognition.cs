@@ -128,7 +128,7 @@ public sealed partial class PrivateWorldRuntime
                 compaction,
                 inhabitant.Id,
                 WorldTick,
-                candidates);
+                candidates, checkpoint);
             var observerGuidance = ObserverGuidanceFor(inhabitant.Id);
             var requiresPersonalProvider = checkpoint.Births.Any(birth => birth.ChildId == inhabitant.Id);
             var knownMapFacts = KnownMapFactsForCognition(inhabitant.Id);
@@ -185,14 +185,16 @@ public sealed partial class PrivateWorldRuntime
                             compaction,
                             inhabitant.Id,
                             WorldTick);
-                        if (memoryCandidates.Count > 0)
+                        var summaryOptions = PrivateWorldMemoryRetrieval.SummaryOptions(checkpoint, inhabitant.Id);
+                        if (memoryCandidates.Count > 0 || summaryOptions.Count > 0)
                         {
                             observation = observation with
                             {
                                 MemoryCompactionCandidates = memoryCandidates,
+                                MemorySummaryOptions = summaryOptions,
                                 ObservationDigest = ObservationDigest(
                                     inhabitant.Id, checkpoint.WorldId, physical, candidates, retrievedMemories,
-                                    memoryCandidates, knownMapFacts, self, observerGuidance),
+                                    memoryCandidates, knownMapFacts, self, observerGuidance, summaryOptions),
                             };
                         }
                     }
@@ -578,6 +580,12 @@ public sealed partial class PrivateWorldRuntime
 
     private void ApplyDecision(SocietyCognitionDispatchResult decision)
     {
+        if (decision.Admission.Accepted && !decision.Admission.FellBack &&
+            decision.Admission.Intention?.Provider is DecisionProviderKind.Jev or DecisionProviderKind.OpenAiDecisions &&
+            decision.Admission.MemorySummary is { } summary)
+        {
+            ApplyMemorySummary(decision.InhabitantId, summary);
+        }
         if (decision.Admission.Accepted && !decision.Admission.FellBack &&
             decision.Admission.Intention?.Provider is DecisionProviderKind.Jev or DecisionProviderKind.OpenAiDecisions &&
             decision.Admission.MemoryCompactionScores is { Count: > 0 } memoryScores)
@@ -1442,7 +1450,8 @@ public sealed partial class PrivateWorldRuntime
         IReadOnlyList<CognitionMemoryCompactionCandidate> compactionCandidates,
         IReadOnlyList<CognitionKnowledgeFact> knownMapFacts,
         CognitionSelfContext self,
-        IReadOnlyList<CognitionObserverGuidance> observerGuidance)
+        IReadOnlyList<CognitionObserverGuidance> observerGuidance,
+        IReadOnlyList<CognitionMemorySummaryOption>? summaryOptions = null)
     {
         var text = new StringBuilder()
             .Append("clankerworld.private-world-observation/v2|")
@@ -1465,6 +1474,8 @@ public sealed partial class PrivateWorldRuntime
                 .Append('|').Append(memory.IsCorrected)
                 .Append('|').Append(memory.ImportanceBasisPoints)
                 .Append('|').Append(memory.ImportanceConfidenceBasisPoints);
+        text.Append("|summaries=").Append(JsonSerializer.Serialize(summaryOptions ?? []));
+        text.Append("|summary_sources=").Append(JsonSerializer.Serialize(memories.Select(memory => memory.SummarySources)));
         foreach (var memory in compactionCandidates)
             text.Append('|').Append(memory.Kind)
                 .Append('|').Append(memory.Id.Length).Append(':').Append(memory.Id)

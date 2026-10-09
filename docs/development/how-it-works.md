@@ -1086,8 +1086,10 @@ turn count, latency and usage totals, including reported usage for rejected spee
 Personal requests retrieve at most four relevant own-memory/belief excerpts and
 sixteen recent own-map facts. An existing Jev routine call may score up to twelve
 previously unassessed records; only linked salience/confidence values are saved.
-It adds no separate paid request or generated prose. Local retrieval works with
-Jev off. On an unpaused world-day boundary, `SocietyMemoryArchiveRules` moves
+The same Jev or OpenAI Decisions request may include a `memory_summary`
+choice over source-derived recent, earliest or varied extracts, plus
+`keep_records`. It adds no separate paid request or free-form model prose.
+Local retrieval works with the helper off. On an unpaused world-day boundary, `SocietyMemoryArchiveRules` moves
 ordinary experiences and beliefs at least three world days old and below 2,500
 importance basis points out of the active ledger into required owner-private
 archive lists. Unscored records count as zero. These constants are provisional.
@@ -1108,7 +1110,26 @@ Its event contains only archived experience/belief counts. Deceased historical
 profiles inspect both ledgers without sharing that evidence with living agents.
 Authoritative life,
 relationship, skill and order state is unchanged. Automatic experience capture
-and narrative summarization are unfinished.
+remains unfinished.
+
+`SocietyMemorySummaryRules` offers four to twelve uncovered ordinary archived
+records owned by that actor, at least three world days old and below the same
+importance cutoff. Corrected, permanent and event-backed records are excluded.
+Each option combines two labeled excerpts into at most 160 characters and is
+shorter than its complete source batch. The helper chooses only an offered ID;
+the host saves its exact extract and canonical typed source links. It can decline
+or omit the choice. Invalid, failed, cancelled, stale or personal-model replies
+cannot write a summary. The host rechecks the batch and attribution before
+applying an awaited reply. No original record is deleted or replaced.
+
+Saved owner-private summaries compete with active source records for the same
+four-excerpt recall budget. Each recalled summary includes bounded source
+attribution: subject, firsthand/hearsay/inference, confidence, speaker, event and
+correction marker, resolved from the owner's original ledger. A later correction
+marks the source corrected without changing the saved extract. Switching the
+helper off prevents new summaries but preserves existing recall. The summary
+event contains only owner and source count. Timing and usefulness remain
+provisional; see the [memory summary playtest](../../playtest/1312-memory-summaries.md).
 
 Childhood talk, play and learning record owner-private experiences whose keys
 fit the same 128-character memory boundary used by recall and Jev scoring.

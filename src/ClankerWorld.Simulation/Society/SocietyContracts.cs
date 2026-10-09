@@ -434,6 +434,9 @@ public sealed record SocietyCheckpoint(
     public IReadOnlyList<SocietyAgentMemoryCompaction>? MemoryCompactions { get; init; }
 
     [JsonRequired]
+    public IReadOnlyList<SocietyAgentMemorySummary> MemorySummaries { get; init; } = [];
+
+    [JsonRequired]
     public IReadOnlyList<SocietyArchivedMemory> ArchivedMemories { get; init; } = [];
 
     [JsonRequired]
