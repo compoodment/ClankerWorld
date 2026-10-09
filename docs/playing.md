@@ -193,6 +193,12 @@ centers the camera on them, and back (or **Escape**) returns from the Profile
 to the small card. Inspection does not pause time, and reading private thoughts
 does not tell other agents.
 
+Agents learn building, farming, crafting or smithing by completing matching
+work or a practical lesson. A learned skill makes that kind of work finish
+sooner. The current bonus is 20%, rounded to whole ticks or progress units,
+for playtesting. Skills do not unlock recipes or replace tools and materials.
+Their model sees the skills they have learned.
+
 A small gold spark circles above an agent after its model has been waiting
 for two seconds. It disappears when the reply arrives or the world pauses.
 The spark is separate from the conversation bubble. Slow replies add no Event
