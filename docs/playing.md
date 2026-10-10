@@ -173,6 +173,12 @@ details.
 
 ## Look around
 
+A death leaves a wooden cross or rounded headstone on a fresh earth mound at
+close and mid zoom. The marker stays for one game year, then fades over the
+following game day. Water, Roads, buildings and occupied ground move it to the
+nearest clear tile; building over a marker relocates it rather than destroying
+it. Graves are decoration and do not block movement.
+
 Use the mouse wheel to zoom in an eased step lasting about a third of a second.
 **Find** and agent or building jumps glide there in about 0.7 seconds, slowing
 as they arrive. Another Find starts from the view already shown; wrapped

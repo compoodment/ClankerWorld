@@ -51,6 +51,9 @@ Proposals are mockups for computment's review. Approved art for content the
 game already has moves into `src/ClankerWorld.GodotClient/UI/`; art for
 content not built yet waits here until its feature lands.
 
+The approved cross and headstone are archived in `Approved/Graves.cs`.
+The `graves` baseline family renders the live client sprites on the reference map.
+`check` compares four exact sprites and four complete grave scenes at both atlases.
 The approved weather-fade B reference is archived in `Approved/WeatherFade.cs`.
 The `weatherfade` baseline uses the client transition envelope; `check` compares
 all 60 scene frames with the independent approved drawing. The precipitation

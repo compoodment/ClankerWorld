@@ -15,6 +15,7 @@ public partial class Main
 
     private void ResetDisplayedWorldContext()
     {
+        graveLayer.SetGraves([]);
         goldenHourLayer.Reset();
         terrainLayer.ResetGroundSnow();
         smokeLayer.SetBuildings([]);
@@ -206,6 +207,7 @@ public partial class Main
 
         if (!HasMap(snapshot))
         {
+            graveLayer.SetGraves([]);
             goldenHourLayer.Reset();
             terrainLayer.ResetGroundSnow();
             smokeLayer.SetBuildings([]);
@@ -248,6 +250,7 @@ public partial class Main
         worldOverview.SetFields(snapshot.Fields);
         terrainLayer.SetMarkets(snapshot.Towns);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects, snapshot.Towns);
+        graveLayer.SetGraves(GraveMarkers(snapshot, terrainMap!));
         var buildingLights = BuildingLights(snapshot);
         nightLightsLayer.SetBuildings(buildingLights);
         smokeLayer.SetBuildings(buildingLights);

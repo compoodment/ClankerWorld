@@ -257,7 +257,13 @@ default beneficiaries and adds, for an accepted will, the named heirs in order,
 the split, the exact quantity of each frozen lot each heir receives, and any
 final words. Frozen lots retain their original building storage when present,
 so escrow and communal inheritance cannot claim an unrelated House as storage.
-The deceased archive records the Town the agent lived in. Loading
+The deceased archive records the Town the agent lived in. It also retains the
+committed death tick and final physical position. The owner observation exposes
+that position and the `death-tick` decision factor; the client derives map grave
+markers from them. Marker selection uses SHA-256 parity of the saved person ID,
+placement uses current legal open ground, and expiry uses the reported calendar.
+No grave placement, fade state or removal event is saved. Reloading recomputes
+the display from the same death records without changing checkpoints or replay. Loading
 checks that only an accepted will has heirs and a division, that the division
 covers every frozen lot exactly with no other lots, that a held vessel's
 contents go to the vessel's heir, that person heirs are known agents and Town

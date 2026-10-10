@@ -155,6 +155,9 @@ public partial class Main
         storedStockLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         storedStockLayer.Follow(terrainLayer);
         mapStage.AddChild(storedStockLayer);
+        graveLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        graveLayer.Follow(terrainLayer);
+        mapStage.AddChild(graveLayer);
 
         // Night darkens the ground but not the labels, agents and weather above it.
         nightLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);

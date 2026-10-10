@@ -8,6 +8,7 @@ internal static class ArtContractChecks
 {
     public static void Run()
     {
+        CheckGraves();
         CheckWeatherFade();
         var current = new ArtSet();
         CheckApprovedSmoke();
@@ -58,6 +59,22 @@ internal static class ArtContractChecks
         if (SceneComposer.RoadLinksAt(crossing, 1, 2, true) != RoadLinks.None)
             throw new InvalidOperationException("A deck must not create a Road piece on an empty bank.");
         Console.WriteLine("Current-art contract checks passed.");
+    }
+
+    private static void CheckGraves()
+    {
+        foreach (var size in new[] { 16, 32 })
+            foreach (var headstone in new[] { false, true })
+            {
+                var expected = headstone ? Approved.GraveSprites.Headstone() : Approved.GraveSprites.Cross();
+                if (size != 32) expected.Resize(size, size, Image.Interpolation.Nearest);
+                Console.WriteLine($"Grave reference {headstone} {size}: {Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(expected.GetData()))}");
+                Equal(GraveArt.Sprite(headstone, size), expected, $"Approved grave {(headstone ? "B" : "A")} at {size} px.");
+                var scene = new Proposed.Polish.Canvas(Proposed.Polish.Polish.Scene(size, agents: true));
+                scene.Stamp(expected, 7 * size, 10 * size, size);
+                Equal(GraveClientPreview.Frame(headstone, size), scene.ToImage(), $"Approved grave scene at {size} px.");
+            }
+        Console.WriteLine("Approved graves: 4 exact RGBA sprites and 4 complete scenes.");
     }
 
     private static void CheckApprovedSmoke()

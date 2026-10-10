@@ -51,6 +51,8 @@ static class Baseline
         Directory.CreateDirectory(root);
         var families = new List<(string Family, List<Entry> Entries, Color? Backdrop, int Columns)>();
 
+        families.Add(("graves", new[] { 16, 32 }.SelectMany(size => new[] { false, true }.Select(headstone =>
+            new Entry("graves", $"{(headstone ? "b-headstone" : "a-cross")}-{size}", GraveClientPreview.Frame(headstone, size)))).ToList(), null, 2));
         families.Add(("smoke", new SmokeClientPreview().Render().ToList(), null, 2));
         families.Add(("stock", new StoredStockClientPreview().Render().ToList(), null, 3));
         families.Add(("weatherfade", new[] { 0.0, 1.4, 2.4, 3.9, 4.8 }

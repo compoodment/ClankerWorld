@@ -146,6 +146,10 @@ zooms in one step.
 
 ## 12 · Moments (`moments`)
 
+The approved second-round cross and headstone are integrated by #1476.
+The independent sprites are archived in `../Approved/Graves.cs`; the `graves`
+baseline renders the live client art. The earlier sketches remain review
+history below. Approved building completion is described below.
 Approved building-finish C is implemented in the client's
 `BuildingCompletionArt` and `Implemented/BuildingCompletion.cs`. Run
 `dotnet run -- completion out` for its unchanged stills and loops. It has
