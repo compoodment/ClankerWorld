@@ -1312,6 +1312,8 @@ including before the 256-source scan limit; ordinary sources retain their
 relevance and salience ranking. The owner's bounded 16-entry Memories projection
 also keeps permanent entries first and marks them Permanent. All rename source
 records remain saved; bounded lists do not archive or delete them.
+Excerpts use at most 160 UTF-16 units and keep complete Unicode characters;
+the saved source text and evidence stay unchanged.
 An existing Jev routine call may score up to twelve previously unassessed
 ordinary records; permanent entries are excluded from scoring and cannot fade
 through a low assessment. Only linked salience/confidence values are saved.
