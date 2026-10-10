@@ -64,9 +64,11 @@ marked as ways to work quickly, are advice.
 Several reviewers may be merging at the same time, so:
 
 - **Claim a pull request when you start reviewing it.** Search
-  `is:pr is:open draft:false base:main -label:"status:reviewing" -label:"status:blocked" sort:created-asc`
+  `is:pr is:open draft:false base:main -label:"status:reviewing" -label:"status:blocked" -label:"status:needs-decision" sort:created-asc`
   and take the first one at the highest priority; one with no priority label
-  counts as P2. Choose by priority, then age; don't pick easy pull requests to
+  counts as P2. Leave pull requests that wait on an owner decision alone,
+  even if they are marked ready: the owner answers decisions when they choose
+  to, not when a reviewer reaches them. Choose by priority, then age; don't pick easy pull requests to
   raise a merge count. Before a deep review, check its dependencies,
   duplicates, authors, current head, readiness and any existing claim. Add
   `status:reviewing` and comment with who is
@@ -201,7 +203,7 @@ not the pull request, and each later fix needs its own.
 If the author comments with a change they want after you claimed the pull
 request, include it or hand the pull request back. If the pull request needs
 an owner decision or a redesign, [hand it back](#hand-back-or-close) and move
-on.
+on. Don't ask the owner about it in chat or wait for an answer.
 
 ## Choose checks
 
@@ -371,6 +373,13 @@ convert it to draft and comment with what is needed.
   issues wait instead of rejoining the queue. Otherwise the issues it closes go
   back to the queue automatically, and the author, or any fixing agent, picks
   it up again.
+- Write an owner decision as a question the owner can answer without reading
+  the code: the options, what each changes for players and your
+  recommendation. Don't ask it in chat and don't wait for the answer; the
+  owner answers parked questions when they choose to, through
+  [design-decisions](../design-decisions/SKILL.md) or by asking what sessions
+  need from them (the owner's choice in chat, October 10). Your
+  [report](#report) lists the pull request in one line, as information.
 - If it closes no issue, update its `Refs` issues: for an owner decision, add
   `status:needs-decision` to them; otherwise replace `status:blocked` with
   `status:needs-pr`, naming the draft to continue.
@@ -404,6 +413,8 @@ whoever closes a pull request:
   squash commit, its issues closed and main's CI result. Add how long it took
   from claim to merge, and what it mostly waited on (review, fixes, CI, the
   queue, or main's CI).
+- List each pull request you handed back for an owner decision, one line
+  each, as information rather than a question.
 - Give a full timing breakdown only when the owner asks, or when you are
   working out why merging is slow. Then separate active work from waiting,
   and don't add up waits that overlapped.
