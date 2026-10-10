@@ -194,6 +194,10 @@ title, household use right, pending use request or dispute, the household that
 owns it, and anything on it, such as a tree, a field or goods left on the
 ground.
 
+When a building finishes on screen at close or mid zoom, a ring of dust
+settles around it and a few twinkles appear over the roof. The moment plays
+once, freezes while paused, and does not replay when you reopen the world.
+
 Snowfall gradually covers open ground in the regions you watch, with grass
 tips and greyer, trodden Roads still showing. Walking agents and animals leave
 prints that fade within a game hour. Cover melts after snow stops, and pausing
@@ -984,7 +988,10 @@ in gusts, and snowflake crosses drift sideways. The weather stays light enough
 to read the map and freezes with the world when paused.
 
 Game Settings controls the window, theme, weather effects, date/time format
-and the model-call limit.
+and the model-call limit. Rain, storms and snow fade in or out over about a
+second when regional weather changes. Pausing freezes a fade where it is;
+loading a world shows its existing weather at once.
+
 At close and mid zoom, autumn adds a few fallen leaves under mature broadleaf
 and fruiting or picked orchard trees. They stay off Roads and water and
 disappear when autumn ends. You cannot gather them.

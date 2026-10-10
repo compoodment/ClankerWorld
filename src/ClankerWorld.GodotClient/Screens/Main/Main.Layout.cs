@@ -173,6 +173,10 @@ public partial class Main
         nightLightsLayer.Follow(terrainLayer, nightLayer);
         mapStage.AddChild(nightLightsLayer);
 
+        buildingCompletionLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        buildingCompletionLayer.Follow(terrainLayer);
+        mapStage.AddChild(buildingCompletionLayer);
+
         objectLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         objectLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapStage.AddChild(objectLayer);

@@ -21,6 +21,7 @@ public partial class Main
         smokeLayer.SetBuildings([]);
         keyboardMapTile = null;
         storedStockLayer.SetPiles([]);
+        buildingCompletionLayer.Reset();
         knownEvents.Clear();
         eventsWorldId = null;
         lastSeenEventId = long.MinValue;
@@ -174,6 +175,7 @@ public partial class Main
             previous.MapLayersDigest != snapshot.MapLayersDigest ||
             previous.WrapsEastWest != snapshot.WrapsEastWest || MapDimensions(previous) != MapDimensions(snapshot))
         {
+            buildingCompletionLayer.Reset();
             handcartFacings.Clear();
             animalFacings.Clear();
             boatFacings.Clear();
@@ -210,6 +212,7 @@ public partial class Main
             terrainLayer.ResetGroundSnow();
             smokeLayer.SetBuildings([]);
             storedStockLayer.SetPiles([]);
+            buildingCompletionLayer.Reset();
             handcartFacings.Clear();
             animalFacings.Clear();
             boatFacings.Clear();
@@ -287,6 +290,7 @@ public partial class Main
             nightLayer.Settle();
         }
         UpdateMapGeometry(snapshot);
+        buildingCompletionLayer.Observe(snapshot);
         UpdateTownSiteGuidance(snapshot);
 
         foreach (var resource in snapshot.Resources)

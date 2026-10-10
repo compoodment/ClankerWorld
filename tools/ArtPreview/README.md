@@ -16,6 +16,7 @@ dotnet run -- scene out      # the reference Town and mountain-range scenes: cur
 dotnet run -- seasons out    # the same reference scenes in spring, summer, autumn and winter at 16 and 32 px
 dotnet run -- animate out weather  # proposals that move, such as weather, as numbered frames of each loop
 dotnet run -- movement out   # implemented glide/bob reference frames from the client's walking cadence
+dotnet run -- completion out # approved building-finish C stills and loops, sharing native pixel spans
 dotnet run -- goldenhour out # implemented rose dawn and gold dusk references
 dotnet run -- snow out       # implemented ground snow A and footprints, using the client pixel rules
 dotnet run -- check          # current scene contract checks in memory; writes no pictures
@@ -53,3 +54,7 @@ content not built yet waits here until its feature lands.
 The approved cross and headstone are archived in `Approved/Graves.cs`.
 The `graves` baseline family renders the live client sprites on the reference map.
 `check` compares four exact sprites and four complete grave scenes at both atlases.
+The approved weather-fade B reference is archived in `Approved/WeatherFade.cs`.
+The `weatherfade` baseline uses the client transition envelope; `check` compares
+all 60 scene frames with the independent approved drawing. The precipitation
+glyph integration is separate (#1427).

@@ -149,10 +149,14 @@ zooms in one step.
 The approved second-round cross and headstone are integrated by #1476.
 The independent sprites are archived in `../Approved/Graves.cs`; the `graves`
 baseline renders the live client art. The earlier sketches remain review
-history below. Building-completion integration is separate (#1468).
+history below. Approved building completion is described below.
+Approved building-finish C is implemented in the client's
+`BuildingCompletionArt` and `Implemented/BuildingCompletion.cs`. Run
+`dotnet run -- completion out` for its unchanged stills and loops. It has
+left the proposal list; A and B below remain review alternatives.
 
 - **Building finished A:** a ring of dust settling. **B:** dust, then a small
-  flag on the roof for a moment. **C:** dust and a few twinkles.
+  flag on the roof for a moment.
 - **Grave A:** a small wooden cross. **B:** a rounded headstone. **C:** an
   earth mound with flowers. The original review offered two lifetimes:
   until something is built there, or fading after a year. The chosen
@@ -160,7 +164,9 @@ history below. Building-completion integration is separate (#1468).
 
 ## 13 · Weather fading in and out (`weatherfade`)
 
-Clear, then rain in the approved look B arrives and leaves.
+Clear, then rain in the approved look B arrives and leaves. Option B is integrated
+by #1469; the independent review drawing is kept in
+`../Approved/WeatherFade.cs`, and the baseline uses the client fade envelope.
 
 - **A · Today:** the weather switches on and off at once.
 - **B · Fade:** the rain fades in and out over about a second.

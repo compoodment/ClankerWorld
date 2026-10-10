@@ -926,6 +926,28 @@ approved casts, colours and paint order at both atlas sizes. Drawing is bounded
 to visible tiles and wrapped copies; unchanged piles reuse their commands.
 No host fields, inventory transitions, saved state or collision rules change.
 
+### Building completion moments
+
+`BuildingCompletionLayer` follows accepted owner snapshots and the actual map
+camera. A new placed building must replace a previously observed construction
+site with the same definition and footprint, with its placement tick between
+the last and current observations. Only a visible close/mid-zoom completion
+starts the local three-second effect. Cancelled sites, existing buildings,
+paused authoring insertions and off-screen completions never queue a moment.
+The first observation is a quiet baseline. World, map or observer timeline
+changes, rewind and gaps over a game hour clear display history; removal
+clears that building's active effect.
+
+The layer draws above roofs and night lights, below objects, figures and
+weather. `BuildingCompletionArt` shares the approved C pixel spans with the
+art reference: fourteen C9AC7C dust puffs spread and settle over 1.4 seconds,
+and five FFF6D8 twinkles stop after 2.4 seconds. It uses native horizontal
+spans without particle nodes or textures generated per frame. Active moments
+are bounded to 128; the oldest leaves if a larger visible batch completes.
+The local clock freezes while paused, resumes from the held frame, follows
+zoom and wrapped copies, and hides at overview. No state, event, protocol,
+construction or replay rule changes.
+
 ## Model inputs, usage and memories
 
 The per-world routine helper is Off, Jev or OpenAI Decisions. Decisions uses
@@ -1710,9 +1732,14 @@ in eastward gusts, and wind-blown snowflake crosses. The review tool uses the
 same geometry, timing and ink. `WeatherLayer` caches seven tiny nearest-filtered
 textures and submits one command per particle, bounded by the camera. Its
 precipitation timing and particle count describe synchronous command creation;
-they exclude later layout, drawing and GPU work. Weather fields, soft regional
-edges, cloud haze, storm flashes, settings and the pause clock remain unchanged.
-Nothing new is saved or sent by the host.
+they exclude later layout, drawing and GPU work. Each weather kind keeps a
+soft spatial mask, while a local 1.2-second smooth transition changes its
+opacity. Outgoing precipitation survives until its fade finishes; retargeting
+starts from the last displayed amount. The linear masks retain full coverage
+at regional junctions without changing an unchanged neighbour when a fade ends.
+Pausing holds both clocks, and a new world shows its recorded weather at once.
+Cloud haze, storm flashes and their settings remain available. Nothing new is
+saved or sent by the host.
 
 The generator vendors [FastNoiseLite](../../src/ClankerWorld.Simulation/ThirdParty/FastNoiseLite/README.md).
 Its drainage approach draws on [Red Blob's noise guide](https://www.redblobgames.com/maps/terrain-from-noise/),
@@ -2430,6 +2457,11 @@ Household planning computes each prospective building's identity once per design
 before checking placed buildings for it. Each later query reads current reservations
 again. See [household plan query measurements](household-plan-query-measurements.md)
 for native candidate/state equivalence, repeated timings and allocation results.
+Layout and shared route searches reuse the step legality just established by
+`FootNeighbors` when computing Road costs. Public step costs and movement still
+validate the complete step; terrain, Road discounts, occupied corners and queue
+order retain their existing rules. See [route step cost measurements](route-step-cost-measurements.md)
+for matched native captures and timing limits.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household

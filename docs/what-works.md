@@ -1491,6 +1491,12 @@ zoomed out; their fittings stay unlit until construction finishes.
 The [Windows checklist](../playtest/1090-construction-sites.md) is
 pending.
 
+A building finishing on screen at close or mid zoom gets the approved ring
+of settling dust and roof twinkles once. Pause holds the frame; reopening a
+world or panning to an earlier off-screen completion stays quiet. It changes
+no building work or saved state. The [Windows checklist](../playtest/1468-building-completion-moment.md)
+is pending.
+
 ### Household building sizes
 
 Households can choose these additional sizes when planning a building they do
@@ -1629,6 +1635,10 @@ footprints that fade within an hour. Pause freezes both; reload, rewind and
 world changes clear this local display history. Water, buildings, trees and
 permanent snow retain their own artwork. Close/mid zoom and snowy walking
 still need [the Windows check](../playtest/1463-ground-snow-footprints.md).
+
+Rain, storms and snow fade in or out over 1.2 seconds when regional weather
+changes; pause freezes the transition. Loading a world shows its current
+weather immediately.
 
 The map uses the pixel art approved in the October 1 art review: every ground
 type, with mountains, peaks and hills drawn from the world's elevation as one

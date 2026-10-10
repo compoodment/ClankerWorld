@@ -25,6 +25,9 @@ switch (command)
     case "movement":
         MovementPreview.Run(Path.Combine(outRoot, "baseline", "movement"));
         break;
+    case "completion":
+        BuildingCompletionPreview.Run(Path.Combine(outRoot, "baseline", "completion"));
+        break;
     case "goldenhour":
         GoldenHourPreview.Run(Path.Combine(outRoot, "baseline", "goldenhour"));
         break;
@@ -35,7 +38,7 @@ switch (command)
         ArtContractChecks.Run();
         break;
     default:
-        Console.Error.WriteLine("usage: baseline|proposed|scene|seasons|movement|animate|snow|goldenhour <out dir> [proposal family] | check");
+        Console.Error.WriteLine("usage: baseline|proposed|scene|seasons|movement|animate|completion|snow|goldenhour <out dir> [proposal family] | check");
         return 2;
 }
 return 0;
@@ -52,6 +55,8 @@ static class Baseline
             new Entry("graves", $"{(headstone ? "b-headstone" : "a-cross")}-{size}", GraveClientPreview.Frame(headstone, size)))).ToList(), null, 2));
         families.Add(("smoke", new SmokeClientPreview().Render().ToList(), null, 2));
         families.Add(("stock", new StoredStockClientPreview().Render().ToList(), null, 3));
+        families.Add(("weatherfade", new[] { 0.0, 1.4, 2.4, 3.9, 4.8 }
+            .Select(time => new Entry("weatherfade", $"b-fade-{time:0.0}", WeatherFadeClientPreview.Frame(time))).ToList(), null, 5));
 
         // Ground tiles: both variants at 32 px and at the 16 px mid-zoom atlas.
         var terrain = new List<Entry>();
