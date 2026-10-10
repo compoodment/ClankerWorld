@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # How the game works
@@ -616,6 +616,22 @@ an affirmative choice. A replacement talk task also lets an already active
 conversation finish before sending its own invitation. Urgent survival remains available. Active links keep
 closed history from being pruned before completion is credited. The owner
 projection reports the actual phase and saved outcome to the card.
+
+`propose_marriage` recognizes "Propose marriage" and "Propose marriage to my
+partner" for adults. It reuses the conversation-order path, binds the current
+accepted partnership's other person, and checks `AgentMarriageRules.CanPropose`
+without changing eligibility. An initially missing partner leaves the order
+blocked; once selected, the target never changes to another partner. Only the
+addressed person's ordinary conversation request receives the bounded
+`RequestedActivity=propose_marriage` context. The invitation, marriage wrap-up
+and surname choices remain personal-model decisions. Speech changes no world
+state. Refusal is an honest completed attempt; an ordinary close without a
+marriage proposal records `not_proposed`. Accepted mutual marriage consent
+holds the task until the linked native surname session completes, then records
+`married` and one deterministic `marriage-order:` receipt. Active links retain
+the original consent conversation until credit. The owner projection follows
+surname status while consent is accepted but incomplete. Cancellation removes
+the task without undoing consent, renaming anyone or forcing resumption.
 
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses. Default gathering counts one harvest; explicit quantities
@@ -1248,8 +1264,11 @@ current search.
 An order search hands back only when its normal task candidate is usable,
 including actual observation or personal knowledge, source availability,
 tools, carrying room and an open route. An ordinary resource purpose likewise
-uses current observation or owned knowledge and the normal source checks; a
-terrain purpose finishes only on an actually reached matching tile. A full
+uses current observation or owned knowledge and the normal source checks.
+Project-material searches also require the harvested load to return to
+household storage or the actual worksite, so an unusable source across water
+does not suppress or finish the search. A terrain purpose finishes only on an
+actually reached matching tile. A full
 personal fact ledger does not block either observation or invent a saved fact. Finishing clears the
 outing path and purpose, retaining discoveries and recording
 `exploration_goal_found`; it awards no harvest progress. Return, blocked-return
@@ -1398,17 +1417,43 @@ the water. A river tile costs what its narrowest crossing costs: 200, half
 dry-ground speed, where one tile of water separates dry banks, and
 `SeededMap.TwoTileWadingFootCost` (300, a third of dry-ground speed) where it
 takes two. The two-tile speed is provisional. A third water tile in the line,
-or any lake or ocean tile, means there is no crossing there: wider rivers,
-lakes and the sea need boats. A two-tile line through a tile that also lies on
+or any lake or ocean tile, prevents wading. A two-tile line through a tile that also lies on
 a two-tile line across the other axis does not count either: that tile is a
 corner of a river one tile thick that runs diagonally, and wading it would turn
 inside the water and walk along the channel. Where a one-tile spur or a river's
 head meets a two-tile line, an agent can still turn once inside the water; no
-route crosses more than two water tiles, and such a turn records no bridge
+wading route crosses more than two water tiles, and such a turn records no bridge
 evidence. A built bridge makes its river tiles walkable at
 dry-ground speed, end to end along the bridge only (see
 [Roads and bridges](#roads-and-bridges)). Mountains are slower to cross and
 cannot be built on; peaks are impassable.
+
+Agent routing also allows cardinal swimming steps through wider rivers and
+lakes. `SwimmingRules` keeps those steps separate from ordinary foot movement,
+so carts, animals, Roads and building placement retain their terrain rules.
+Provisional swimming cost is 800 per step, with at least 75 warmth lost on each
+committed tick while swimming, including waiting between steps. Boat passengers
+receive ordinary weather exposure instead. A swimmer seeking shelter or heat
+must reach dry ground before that destination counts as arrived. Starting
+requires at least 6,000 warmth, illness below 2,500 and no more than four
+physically carried units, including vessel contents. Equipped clothing and
+carry aids follow the usual cargo exemptions. Pickups and whole harvests with
+a known delivery destination check the load after collection against the
+return route. A foot or cart return keeps its usual capacity; a freshwater-only
+return limits loose pickups to the remaining swimming capacity and keeps an
+oversized vessel family intact. Water collection also keeps room to return
+with the jug and its contents. A rider, an animal
+leader or a cart puller cannot start swimming, and moving dependants must also
+meet the starting conditions. Infants and adults carrying guardian-placement
+dependants cannot start. A swimmer whose condition changes can still leave
+the water. Occupancy, bridge entrances and ordinary wading restrictions remain
+authoritative; the sea cannot be swum. Task selection uses weakly cached
+freshwater connectivity keyed by immutable map identity, checking the agent's
+current swimming eligibility separately. Actual weighted route searches cache
+swimming eligibility alongside terrain, Roads and occupancy. Swimming is
+projected from the actual water position, and the map alternates existing approved poses and displays
+**Swimming** beside the agent. No sprite atlas or saved movement-mode field
+changes.
 
 Checkpoint map acceptance keeps a weak, derived camp-reachability cache for
 each map's current starting point. Before reuse it compares actual terrain,
@@ -2830,12 +2875,16 @@ offers the frozen lots as `item:1`… keys (at most 24, in lot-ID order) and up 
 sixteen living people as `will:heir:{id}` keys, family and household first, plus
 `will:town:{id}` for the archived Town when it has a Warehouse of its own. The
 candidates are `will:household` and, when anyone may inherit, `will:heirs`.
+The stable `will:household` key chooses default inheritance. Its description
+includes any supported Town share effective at death; candidate descriptions
+are bound into the request digest. The historical profile labels this outcome
+as default inheritance, since a Town law can change the household's share.
 The model's reply (`CognitionWillChoice`) is untrusted: the response must match
 the request, epochs and digest; the runtime maps only offered keys back to
 heirs and lots; and `SocietyFixture.ResolveWill` checks that every heir is a
 living person other than the deceased or an offered Town, that there are one
 to three distinct heirs, and that every listed lot is still frozen in this
-estate. Anything else resolves to the household default.
+estate. Anything else resolves to default inheritance.
 
 `ResolveWill` stores the exact division as `WillBequests` (lot, heir,
 quantity). "items" gives each listed lot whole to its heir. Every other lot,
@@ -2857,16 +2906,32 @@ room and stores that kind; the runtime passes each Town's Warehouse, free room
 and refused kinds (food, and handcarts, which stay on the ground) as
 `SocietyTownStore`. Food refusal and Warehouse validation use the inventory's
 food classifier, including eggs, milk, cooked eggs, milk porridge and rich
-meals. The refusal set is built from actual stock only when a Town bequest is
-due. Whatever the will cannot deliver (a share for an heir who
+meals. The refusal set is built from actual stock only when an estate is due.
+Whatever the will cannot deliver (a share for an heir who
 has since died, food, a handcart or goods beyond the room) follows the
 household default: an equal split between the living household
-beneficiaries, with the first in ID order taking leftovers, or communal stock
-when none remain. A vessel and its contents move as one family and keep their
+beneficiaries, with the first in ID order taking leftovers, or the deceased
+resident's recorded Town when none remain. In a default estate, that Town's
+Warehouse receives eligible goods while space remains. Undeliverable shares
+from an accepted will and overflow keep their original location and Town
+ownership, with separate lot IDs for Warehouse and ground portions.
+A vessel and its contents move as one family and keep their
 lot IDs: the Town takes a family only when the Warehouse accepts every kind in
 it and has room for all of it, otherwise the family follows the household
 default, where vessels rotate between the living beneficiaries. A quantity-one
-map or field record keeps its lot ID.
+map, field record or book keeps its lot ID.
+
+`TownEstateDefaultRule` is a typed Resident-duty law proposed and amended by
+the ordinary Council process, with 0%, 25%, 50%, 75% and 100% choices offered
+to personal models. Free-form law text cannot create or amend that effect.
+When settlement is due, `DefaultEstateDivisionsForDueEstates` derives the rule
+from the deceased resident's saved Town and the version in force at death,
+strictly after that version's adoption. Later amendment or repeal cannot
+retarget the estate. Accepted wills always retain priority. Without one, the
+Town share is rounded down per lot and bounded by eligible Warehouse capacity;
+the remainder follows the household path. A whole vessel family is eligible
+for the law's Town share only at 100%, with room for all its contents.
+No living person's ownership changes when the law passes.
 
 Final words are optional with either outcome. `CognitionWillChoice.NormalizeFinalWords`
 turns control and invisible formatting characters into spaces, collapses

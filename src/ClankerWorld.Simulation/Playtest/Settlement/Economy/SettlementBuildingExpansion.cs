@@ -144,7 +144,7 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Where(lot => CanReachSharedItem(actor, lot))
             .Concat(warehouseStock)
-            .Where(lot => !IsActiveTownProjectDelivery(lot.Id))
+            .Where(lot => !IsActiveTownProjectDelivery(lot.Id) && PickupCarryCapacity(actor, lot, building.Position) > 0)
             .FirstOrDefault();
     }
 
@@ -159,7 +159,7 @@ public sealed partial class PrivateWorldRuntime
         var inbound = ExpansionInboundQuantity(building, cost.ResourceId);
         var remaining = Math.Max(0, cost.Amount - alreadyAtSite - inbound);
         var quantity = Math.Min(HouseHaulLoadQuantity, Math.Min(remaining,
-            Math.Min(AvailableLotQuantity(source), FreeCarryCapacity(actor))));
+            Math.Min(AvailableLotQuantity(source), PickupCarryCapacity(actor, source, building.Position))));
         return (source, quantity);
     }
 
@@ -176,7 +176,7 @@ public sealed partial class PrivateWorldRuntime
 
         if (ExpansionSharedMaterialPickup(actor, building, cost).Quantity > 0)
             return true;
-        return MaterialSource(cost.ResourceId, actor) is { } source &&
+        return MaterialSource(cost.ResourceId, actor, building.Position) is { } source &&
             FreeCarryCapacity(actor) >= ProjectMaterialCarryUnits(actor, cost.ResourceId, source);
     }
 
@@ -433,8 +433,8 @@ public sealed partial class PrivateWorldRuntime
                         $"{actor}:{shared.Id}:{quantity}:{building.InstanceId}");
                 }
             }
-            else if (MaterialSource(missing.ResourceId, actor) is { } source)
-                GatherProjectMaterial(actor, state, missing.ResourceId, source);
+            else if (MaterialSource(missing.ResourceId, actor, building.Position) is { } source)
+                GatherProjectMaterial(actor, state, missing.ResourceId, source, returnTo: building.Position);
             return;
         }
         if (state.Position != building.Position) MoveToward(actor, state, building.Position, "building_expansion", 0);

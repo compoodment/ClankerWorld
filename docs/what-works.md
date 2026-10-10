@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # What works today
@@ -302,8 +302,7 @@ acceptance, suspension and the actual outcome. Finishing means the talk
 attempt ended, including refusal; it does not mean an agreement was applied.
 Queued work waits for that outcome. An accepted unfinished conversation loads
 stopped and needs both people's fresh resume choices. Unavailable people,
-models, allowances and routes leave useful blockers. Marriage proposals are
-outside this talk adapter. [The Windows check](../playtest/1222-talk-order.md)
+models, allowances and routes leave useful blockers. Marriage uses a separate proposal order. [The Windows check](../playtest/1222-talk-order.md)
 is written, but has not been run.
 
 Reading orders cover personally owned, carried field records, maps and books.
@@ -317,6 +316,19 @@ another person's reading teaches them separately. Queueing, cancellation,
 replacement, urgent survival and saving preserve the task and its actual
 progress. [The Windows reading-order check](../playtest/1223-reading-orders.md)
 is pending.
+
+"Propose marriage" and "Propose marriage to my partner" attempt the existing
+marriage conversation with the adult's eligible current partner. The order
+keeps the selected partner, normal travel and invitation rules, and each
+participant's own model choices. Only the addressed speaker receives the
+requested activity in their conversation context. Refusal and a conversation
+without a proposal finish an attempt with their actual outcome. Accepted
+marriage waits for the separate shared-surname conversation to finish. Pauses,
+failed calls and reload leave it unfinished, with two fresh resume choices
+required. Cancellation removes the task while preserving consent and surname
+progress; it never changes household admission. Missing or changed eligibility
+blocks rather than selecting another person. [The Windows checks](../playtest/1230-marriage-order.md)
+are pending.
 
 Orders currently cover eating carried food, collecting accessible household
 food to eat, going to a known food source or discovering one through ordinary
@@ -872,7 +884,7 @@ guidance without the caregiver household's private quantities. Ordinary food
 acquisition and cooking priorities still apply.
 
 When an agent with a personal model dies owning something, their model is
-asked once for a final will. It can leave everything to the household or name
+asked once for a final will. It can choose the default inheritance rules or name
 up to three heirs: living people of any age, including children, or the Town
 the agent lived in when that Town has a Warehouse. The will either shares every
 item equally or gives each item to one heir, and anything it leaves out is
@@ -886,12 +898,30 @@ holds. A Town keeps its share in its Warehouse while there is room. All food,
 including eggs, milk and their meals, follows the household path. So do
 handcarts, goods that do not fit, and shares for heirs who have died since, plus
 interrupted, unknown or invalid choices, so no goods are created or lost.
+The offered default choice describes the supported Town law effective at death,
+when there is one, rather than promising that the household receives everything.
+
+Through ordinary Council proposals and votes, residents can set a supported
+default estate law giving the Town 0%, 25%, 50%, 75% or 100% of each eligible
+lot when there is no valid will. Only deaths after adoption use that law;
+later changes or repeal do not change an estate already created. A valid will
+always wins. The Town share rounds down to whole units, and living household
+heirs share the rest, including anything its Warehouse cannot accept. A vessel
+and its contents go to the Town only with a 100% rule and room for the whole
+family; otherwise they stay together on the household path.
+
+When no household heir survives, the deceased resident's recorded Town owns
+the remaining goods. In a default estate, eligible non-food goods enter its
+Warehouse while there is room. Undeliverable shares from an accepted will and
+other goods keep their physical location. Goods owned by an abandoned
+Town can use its ordinary public salvage flow. Books, maps and field records
+keep their identity and recorded knowledge through inheritance.
 
 The will may also leave short final words. When the estate is divided, each
 person who inherits keeps them as a private memory, such as "Rowan Hale's final
 words were: 'Keep the orchard going.'" Nobody else learns them. The dead
 agent's profile shows the will, what it leaves each heir and the final words.
-Debts, conflicts with Town law and other guardianship cases remain unfinished.
+Debts, contested estates in hearings and other guardianship cases remain unfinished.
 Memories do not automatically pass to children.
 
 A Town becomes abandoned only when no recorded living residents remain. Children,
@@ -1269,7 +1299,11 @@ beside a House grants nothing, and a pending request grants no access to the
 household's food, stock or shelter. Once every adult agrees, the newcomer is a
 member of that household. The agent's profile and its own model request say
 the real blocker: no household, a House still to plan, missing materials, no
-legal site or an overcrowded House. Adults may leave without a vote and keep personal ownership of goods stored
+legal site or an overcrowded House. When a material-ready household building
+has no legal site, available household land requests and Council land claims
+explain that building need. The House blocker also points to those routes;
+no eligible plot still means waiting, and filing grants no land or household
+acceptance. Adults may leave without a vote and keep personal ownership of goods stored
 at the old House. Collection and returning borrowed work tools require travel
 and carrying space. A departure allocates up to two available, unreserved
 ready-to-eat portions once; collection and reload do not repeat that allowance.
@@ -1419,9 +1453,13 @@ Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
 diagonal steps and slower mountain travel. Agents wade straight across rivers
 one or two tiles wide, from bank to bank: a one-tile river at half walking
-speed, and a two-tile river at a provisional third of walking speed. Wider
-rivers, lakes and the sea cannot be crossed on foot. Communal boats travel
-between completed Ports over connected water. Wading two-tile rivers has not been checked in hands-on Windows play.
+speed, and a two-tile river at a provisional third of walking speed. Eligible
+agents can swim wider rivers and lakes much more slowly, losing warmth and
+carrying at most four units. Cold, ill or heavily loaded agents do not start
+swimming. Carts and animals stay on their existing land routes; the sea still
+requires a boat. Swimming has its own motion and label on the map. Communal boats
+travel between completed Ports over connected water. Swimming and two-tile
+wading still need hands-on Windows playtesting.
 Peaks are impassable; mountains and peaks cannot hold construction. Town
 streets take diagonals where the land allows.
 
