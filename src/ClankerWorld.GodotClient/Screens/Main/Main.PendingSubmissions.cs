@@ -269,13 +269,13 @@ public partial class Main
             }
             catch (System.Net.Http.HttpRequestException exception) when (exception.StatusCode is not null)
             {
+                SetStatus($"The world host did not accept that request · {FriendlyFailure(exception)}", good: false);
                 // A client refusal ends this request. A timeout or server error
                 // can follow a commit, so its exact retry must remain on disk.
                 if (retainedSubmission is not null && IsCurrentWorldRequest(generation) &&
                     (int)exception.StatusCode is >= 400 and < 500 &&
                     exception.StatusCode != System.Net.HttpStatusCode.RequestTimeout)
                     CompletePendingSubmission(retainedSubmission);
-                SetStatus($"The world host did not accept that request · {FriendlyFailure(exception)}", good: false);
             }
             catch (System.Net.Http.HttpRequestException exception)
             {

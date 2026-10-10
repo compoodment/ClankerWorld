@@ -94,7 +94,8 @@ public partial class Main
         void RequireCleared()
         {
             if (pendingSubmission is not null || TryCreatePendingSubmissionBinding(out var currentBinding) && pendingSubmissionStore.TryLoad(currentBinding) is not null ||
-                saveApiKeyButton.Disabled || buildingRemoveButton.Disabled || isOwnerAction)
+                saveApiKeyButton.Disabled || buildingRemoveButton.Disabled || isOwnerAction ||
+                !statusLabel.Text.StartsWith("The world host did not accept", StringComparison.Ordinal))
                 throw new InvalidOperationException("#1533: a definitive refusal must clear the disk retry and restore owner controls.");
         }
     }
