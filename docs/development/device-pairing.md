@@ -211,6 +211,12 @@ or origin boundary, and it can be explicitly forgotten. The record never
 contains a private key, signature, challenge, comparison code, or bearer
 credential.
 
+A definitive HTTP client refusal clears that request's local retry record and
+restores the owner controls, while keeping the refusal visible. HTTP 408,
+server errors, lost responses and unreadable receipts keep the exact record
+because the host may have committed the request. A late refusal from a previous
+world context cannot clear a retained request in the current world.
+
 ## Current scope
 
 Every paired device has the sole `owner` scope: world observation,
@@ -291,16 +297,21 @@ and no `--world-url` argument (`LocalHostCompanion`). It uses the fixed origin
 port 5189. It stores this pairing in `user://local-owner-device-registration.json`,
 apart from a server pairing. Before starting the host it checks the port: a
 running host of the exact same version and source revision, started by an
-earlier launch, is reused with the secret already in its file. Anything else on
+earlier launch, is reused only after a side-effect-free `GET /api/v1/local/companion`
+confirms the secret already in its file on the approval listener. Anything else on
 the port is refused with a message and never stopped. The host's output goes to
 `logs/host.log` in the player's data folder; saves, the owner authority and the
 provider files sit in separate folders there, never in the game folder.
 
-`POST /api/v1/local/shutdown` exists only on a companion host. It returns 202
-and stops the host. Whenever a private-world host stops, from this request,
-Ctrl+C or a service stop, it waits for the tick loop to finish, cancels hosted
-model work and writes the world's checkpoint before exiting (`host_shutdown`
-in the log). A world halted for inspection is left untouched. The server host
+`POST /api/v1/local/shutdown` exists only on a private-world companion host. It
+pauses the world, cancels hosted model work and writes its checkpoint before
+returning 202 and requesting process exit. If writing fails, it returns 503 and
+keeps the host alive and paused so the game can retry. Pending startup recovery
+returns 409 without rewriting the refused checkpoint. Whenever a private-world
+host stops, it waits for the tick loop to finish and writes a final checkpoint
+(`host_shutdown` in the log). Ctrl+C or a service stop also pauses a companion
+world; a failed final write is logged and sets a nonzero process exit status.
+A world halted for inspection is left untouched. The server host
 started without these settings behaves as before and cannot be stopped over
 HTTP.
 

@@ -72,9 +72,10 @@ public sealed partial class ManualWorldSaveStore
                     if (checkpoint.Society.Society.WorldId != worldId)
                         throw new InvalidDataException("Recovery identity does not match.");
                     stateFile.VerifyRequiredHistory(checkpoint);
+                    using var restored = PrivateWorldRuntime.Restore(checkpoint);
                     verified.Add((save, provenance));
                 }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException)
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or JsonException or ArgumentException)
                 {
                     // Unverifiable checkpoints remain available for recovery.
                     inventory.Add(save.Id + ":unverified");

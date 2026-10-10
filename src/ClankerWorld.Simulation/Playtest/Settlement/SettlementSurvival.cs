@@ -346,9 +346,11 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         if (RecheckGoods(SharedCollectionRequest(actor, item.OwnerId, kind), item.Id) is null) return;
-        // Every household work tool, of any tier, is borrowed rather than handed over.
+        // Personal equipment changes custody; household work tools are borrowed.
         var borrowedTool = item.ItemKind == "tool" || ToolProgressionRules.Find(item.ItemKind) is not null;
-        ApplyInventoryTransition(inventory => borrowedTool && item.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId
+        var keepOwner = item.OwnerId == actor ||
+            borrowedTool && item.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId;
+        ApplyInventoryTransition(inventory => keepOwner
             ? InventoryFixture.Relocate(inventory, $"equipment:{WorldTick}:{actor}:{kind}", item.Id, item.OwnerId, 1, actor)
             : InventoryFixture.Transfer(inventory, $"equipment:{WorldTick}:{actor}:{kind}",
                 item.OwnerId, actor, item.Id, 1, "equipment_collected"));
@@ -445,7 +447,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool NeedsRecipeOutput(RecipeDefinition recipe, string? ownerId = null, string? requestWorker = null) =>
-        HouseToolsContent.IsCrudeToolRecipe(recipe) ? NeedsHouseTool(recipe, ownerId) :
+        !HasUnsupportedWaterOutput(recipe) && (HouseToolsContent.IsCrudeToolRecipe(recipe) ? NeedsHouseTool(recipe, ownerId) :
         HasToolMakingDemand(recipe, ownerId, requestWorker) || recipe.Outputs.Any(output =>
     {
         if (output.ResourceId == KnowledgeContent.Paper)
@@ -464,7 +466,7 @@ public sealed partial class PrivateWorldRuntime
         var target = IsPreparedMeal(output.ResourceId) ? Math.Max(2, residentCount * 2)
             : output.ResourceId == "food" ? inhabitants.Count * 4 : Math.Max(1, inhabitants.Count);
         return available < target;
-    });
+    }));
 
     /// <summary>One usable family tool per adult, counting better tools and work already paid for.</summary>
     private bool NeedsHouseTool(RecipeDefinition recipe, string? householdId)

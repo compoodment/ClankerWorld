@@ -271,7 +271,8 @@ zip holds one folder named for the version with the Godot export, a
 self-contained `win-x64` host in `host/` (`dotnet publish`, no .NET install
 needed on the player's PC), a short `README.txt` and a `manifest.sha256` of
 every file. The script refuses an export that was not built from the current
-commit, and checks that the host assembly carries the same version and commit,
+commit, stages the host and version from committed inputs (excluding local
+edits), and checks that the host assembly carries the same version and commit,
 since the game reuses only a host of its own exact build
 ([Device pairing](device-pairing.md#host-started-by-the-game)). The Viewer and
 Simulation projects list `win-x64` in `RuntimeIdentifiers` so this publish

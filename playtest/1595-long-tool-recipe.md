@@ -1,0 +1,1 @@
+- In a world with an admitted custom Blacksmith tool recipe whose canonical ID exceeds 128 characters, let an inhabitant request that tool. Check that the world keeps ticking, save it, reload it and check that the same request remains and time can advance. [#1595](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1595)

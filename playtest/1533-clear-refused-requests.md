@@ -1,0 +1,1 @@
+- On the paired world: send an instruction to an agent that has become inactive since the last refresh. When the host refuses it, confirm that the refusal stays visible, the instruction text remains editable, and API key and building controls work without opening Developer tools or restarting. ([#1533](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1533))
