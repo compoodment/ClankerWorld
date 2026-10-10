@@ -147,6 +147,14 @@ the saved clock. Current-format roundtrips keep the flag and deadlines, and a
 replay from a postponed plan reaches the same plan and checkpoint. Older
 schemas are refused. No migration is added.
 
+The current continuity trigger counts eligible adult couples rather than
+non-elders, without changing the saved flag or deadline shape or the private
+schema version. A loaded world applies the current trigger on its next tick,
+records a transition only if the flag changes, and preserves deadlines for
+couples still held by the procedure. Historical headcount events keep their
+original explanation. Eligible-couple transitions, rejected ticks and replay
+are checked with the current save format.
+
 Private-world schema 48 adds independent saved Town governance. It records the
 current council and fallback cause, term/retry schedules, personal full-term or
 remainder-term candidacy agreements, proposal identity/windows/final votes,
