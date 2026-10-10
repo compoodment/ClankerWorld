@@ -66,6 +66,8 @@ public sealed class UnoccupiedRouteSearchTests
         var everywhere = map.Tiles.Select(tile => tile.Position).ToArray();
         // A pattern of Road tiles, so some steps are cheaper, as in a Town.
         Func<GridPoint, GridPoint, int> cost = (from, to) =>
+            IsRoad(from) && IsRoad(to) ? Math.Max(1, map.LegalFootStepCost(from, to) * 70 / 100) : map.LegalFootStepCost(from, to);
+        Func<GridPoint, GridPoint, int> validatedCost = (from, to) =>
             IsRoad(from) && IsRoad(to) ? Math.Max(1, map.FootStepCost(from, to) * 70 / 100) : map.FootStepCost(from, to);
 
         for (var round = 0; round < origins; round++)
@@ -94,7 +96,7 @@ public sealed class UnoccupiedRouteSearchTests
                 };
                 var range = random.Next(0, 3);
 
-                Assert.Equal(FreshRoute(map, origin, occupied, cost, destination, range),
+                Assert.Equal(FreshRoute(map, origin, occupied, validatedCost, destination, range),
                     shared.RouteTo(destination, range));
             }
         }

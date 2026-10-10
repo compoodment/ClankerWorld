@@ -227,23 +227,25 @@ public partial class Main
                     try
                     {
                         cameraZoom = 4;
-                        CenterCameraAt(new(0.5f, 0.5f));
+                        SetCameraAtImmediately(new(0.5f, 0.5f));
                         var expectedCamera = cameraCenterTiles;
-                        CenterCameraAt(new(3.5f, 3.5f));
+                        SetCameraAtImmediately(new(3.5f, 3.5f));
                         knownEvents.Clear();
-                        knownEvents[9001] = new OwnerWorldEvent(9001, 1, "food_consumed", people[0].Id, new(0, 0));
+                        // Find actions require visible events; routine meals are intentionally filtered out.
+                        knownEvents[9001] = new OwnerWorldEvent(9001, 1, "skill_learned", $"{people[0].Id}|building|work", new(0, 0));
                         RenderEventLog();
                         var find = KeyboardControls(eventRows).OfType<Button>().Single();
                         for (var step = 0; !find.HasFocus() && step <= KeyboardControls(panel).Length; step++)
                             await KeyboardKeyAsync(Key.Tab);
                         if (!find.HasFocus()) throw new InvalidOperationException("Tab must reach the event's Find action.");
-                        knownEvents[9002] = new OwnerWorldEvent(9002, 2, "food_consumed", people[1].Id, new(3, 3));
+                        knownEvents[9002] = new OwnerWorldEvent(9002, 2, "skill_learned", $"{people[1].Id}|building|work", new(3, 3));
                         RenderEventLog();
                         var restoredFind = GetViewport().GuiGetFocusOwner();
                         if (restoredFind is not Button || !restoredFind.HasMeta("keyboard_event_action") ||
                             restoredFind.GetMeta("keyboard_event_action").AsString() != "9001")
                             throw new InvalidOperationException("An arriving event must retain its focused Find action before activation.");
                         await KeyboardKeyAsync(Key.Enter);
+                        AdvanceCameraMotion(CameraEasing.MoveSeconds);
                         if (eventsPanel.Visible || cameraCenterTiles != expectedCamera)
                             throw new InvalidOperationException($"An arriving event must preserve the focused Find action and its destination: panel={eventsPanel.Visible}, expected={expectedCamera}, actual={cameraCenterTiles}, focus={GetViewport().GuiGetFocusOwner()?.GetPath()}, cursor={keyboardMapTile}.");
                     }

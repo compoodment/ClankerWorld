@@ -61,7 +61,7 @@ public partial class Main
         {
             CloseGameMenu();
             draggingMap = false;
-            CenterCameraAt(originalCenter);
+            SetCameraAtImmediately(originalCenter);
         }
     }
 
@@ -69,9 +69,13 @@ public partial class Main
 
     private async Task VerifyNewWorldCompatibilityMessageAsync()
     {
+        var previousRefreshing = isRefreshing;
         var previousRegistration = registration;
         var previousKey = deviceKey;
         var previousUrl = worldUrlInput.Text;
+        var previousModel = founderModelPicker.Model;
+        var previousCheckDisabled = founderModelSetupCheckButton.Disabled;
+        var previousCheckText = founderModelSetupCheckStatus.Text;
         var previousCi = System.Environment.GetEnvironmentVariable("CI");
         System.Environment.SetEnvironmentVariable("CI", "true");
         using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
@@ -85,6 +89,7 @@ public partial class Main
         listener.Start();
         try
         {
+            isRefreshing = true;
             var authority = new OwnerAuthorityIdentity("compatibility-smoke", "compatibility-world");
             registration = new(authority, "compatibility-device", signer.PublicKeyFingerprint, origin);
             deviceKey = signer;
@@ -93,28 +98,46 @@ public partial class Main
             worldSeedInput.Text = "compatibility-smoke";
             var response = Task.Run(async () =>
             {
-                var context = await listener.GetContextAsync().WaitAsync(TimeSpan.FromSeconds(5));
-                if (context.Request.Url!.AbsolutePath != OwnerPairingEndpoints.ChallengeIssue)
-                    throw new InvalidOperationException("New World must check an authenticated challenge first.");
-                context.Response.ContentType = "application/json";
-                await System.Text.Json.JsonSerializer.SerializeAsync(context.Response.OutputStream,
-                    new OwnerChallenge(authority, registration.DeviceId, "challenge-smoke", "nonce-smoke",
-                        DateTimeOffset.UtcNow.AddMinutes(1)), CompatibilitySmokeJsonOptions);
-                context.Response.Close();
+                for (var index = 0; index < 3; index++)
+                {
+                    var context = await listener.GetContextAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                    if (context.Request.Url!.AbsolutePath != OwnerPairingEndpoints.ChallengeIssue)
+                        throw new InvalidOperationException("Unsupported New World/model actions must stop after an authenticated challenge.");
+                    context.Response.ContentType = "application/json";
+                    await System.Text.Json.JsonSerializer.SerializeAsync(context.Response.OutputStream,
+                        new OwnerChallenge(authority, registration.DeviceId, $"challenge-smoke-{index}", "nonce-smoke",
+                            DateTimeOffset.UtcNow.AddMinutes(1)), CompatibilitySmokeJsonOptions);
+                    context.Response.Close();
+                }
             });
             await PreviewWorldAsync();
-            await response;
             if (!worldPreviewStatus.Text.Contains("matching updates", StringComparison.Ordinal) ||
                 !worldPreviewStatus.Text.Contains("pairing can stay", StringComparison.Ordinal) ||
                 worldPreviewStatus.Text.Contains("not allowed", StringComparison.Ordinal) ||
                 !worldCreateButton.Disabled || worldPreviewButton.Disabled || registration is null)
                 throw new InvalidOperationException("New World must show the update remedy, keep pairing and leave Create unavailable without a preview.");
+            await LoadModelListAsync(founderModelPicker, "anthropic", null, null);
+            if (!founderModelPicker.Problem.Contains("matching updates", StringComparison.Ordinal) ||
+                !founderModelPicker.Problem.Contains("pairing can stay", StringComparison.Ordinal))
+                throw new InvalidOperationException("An older host must leave update guidance in the Anthropic model picker.");
+            founderModelSetupCheckButton.Disabled = false;
+            await RunModelSetupCheckAsync(founderModelSetupCheckButton, founderModelSetupCheckStatus,
+                "openai", "test-model", new OwnerProviderSetupCheckAction("openai", "test-model", Thinking: "low"), () => 0);
+            await response;
+            if (!founderModelSetupCheckStatus.Text.Contains("matching updates", StringComparison.Ordinal) ||
+                !founderModelSetupCheckStatus.Text.Contains("Nothing was sent", StringComparison.Ordinal) ||
+                founderModelSetupCheckStatus.Text.Contains("Check paid-call usage", StringComparison.Ordinal) || registration is null)
+                throw new InvalidOperationException("Test model must explain the host update and that no paid request was sent, keeping pairing.");
         }
         finally
         {
+            isRefreshing = previousRefreshing;
             registration = previousRegistration;
             deviceKey = previousKey;
             worldUrlInput.Text = previousUrl;
+            founderModelPicker.SetModel(previousModel);
+            founderModelSetupCheckButton.Disabled = previousCheckDisabled;
+            founderModelSetupCheckStatus.Text = previousCheckText;
             System.Environment.SetEnvironmentVariable("CI", previousCi);
             listener.Stop();
         }
@@ -374,6 +397,42 @@ public partial class Main
             OpenConversationReader(conversationMap, thirdAgentId, "conversation:ui-interrupted");
             if (!conversationReaderStatus.Text.StartsWith("Interrupted · world paused", StringComparison.Ordinal))
                 throw new InvalidOperationException("An interrupted conversation must keep its pause reason visible in the summary.");
+
+            var unicodeFailures = new List<string>();
+            foreach (var limit in new[] { 150, 80 })
+                foreach (var (character, units) in new[] { ("e\u0301", 1), ("🇳🇿", 2), ("👨‍👩", 2), ("🌱", 1) })
+                {
+                    var prefix = new string('W', limit - units);
+                    var text = prefix + character + " public words";
+                    var unicodeConversation = conversations[0] with
+                    {
+                        Turns = conversations[0].Turns.Select((turn, index) => index == 6 ? turn with { Text = text } : turn).ToArray(),
+                    };
+                    var unicodeMap = conversationMap with { Conversations = [unicodeConversation] };
+                    RenderMap(unicodeMap);
+                    OpenConversationReader(unicodeMap, firstAgentId, unicodeConversation.Id);
+                    var preview = limit == 150 ? conversationReaderSummary.Text : inhabitantVisuals[firstAgentId].TooltipText;
+                    if (!preview.Contains(prefix + "...", StringComparison.Ordinal))
+                        unicodeFailures.Add($"{limit}-unit preview split {character}");
+                    conversationHistoryExpanded = true;
+                    RenderConversationReader(unicodeMap, unicodeConversation, firstAgentId, 0);
+                    if (!conversationHistoryText.Text.Contains(text, StringComparison.Ordinal))
+                        throw new InvalidOperationException("Shortening a preview must keep the complete heard public turn in expanded history.");
+                }
+            var shortSpeech = "Good 🌱";
+            var shortConversation = conversations[0] with
+            {
+                Turns = conversations[0].Turns.Select((turn, index) => index == 6 ? turn with { Text = shortSpeech } : turn).ToArray(),
+            };
+            var shortMap = conversationMap with { Conversations = [shortConversation] };
+            RenderMap(shortMap);
+            OpenConversationReader(shortMap, firstAgentId, shortConversation.Id);
+            if (!conversationReaderSummary.Text.Contains(shortSpeech, StringComparison.Ordinal) ||
+                !inhabitantVisuals[firstAgentId].TooltipText.Contains(shortSpeech, StringComparison.Ordinal))
+                throw new InvalidOperationException("A complete short public turn must remain intact in both previews.");
+            RenderMap(conversationMap);
+            if (unicodeFailures.Count > 0)
+                throw new InvalidOperationException("Conversation previews must retain whole visible characters: " + string.Join("; ", unicodeFailures));
 
             var surname = new OwnerWorldConversation("conversation:ui-surname", firstAgentId, "Aster Ash", secondAgentId, "Rowan Ash",
                 "closed", null, "surname_draw", 8, 12,
@@ -1880,7 +1939,7 @@ public partial class Main
             for (var frame = 0; frame < 3; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var placementFields = new Control[] { founderProviderChoice, founderCredentialChoice,
-                founderKeyLabelInput, founderApiKeyInput, founderModelPicker };
+                founderKeyLabelInput, founderApiKeyInput, founderModelPicker, founderThinkingChoice };
             var placementFieldRects = placementFields.Select(field => field.GetGlobalRect()).ToArray();
             void HoverPlacementTile(int x, int y)
             {
@@ -2639,6 +2698,28 @@ public partial class Main
             founderButton.Selected = false;
             if (!hoverNamed || !selectedNamed || founderButton.NameShown)
                 throw new InvalidOperationException("An agent's name must show only while it is hovered or selected.");
+            var nameplateFailures = new List<string>();
+            foreach (var (name, expectedNameplate) in new[]
+            {
+                ("Rowan Ash", "Rowan"),
+                (new string('W', 11) + "🇳🇿 Reed", new string('W', 11) + "🇳🇿"),
+                (string.Concat(Enumerable.Repeat("e\u0301", 12)) + " Reed", string.Concat(Enumerable.Repeat("e\u0301", 12))),
+                (new string('W', 11) + "👨‍👩 Reed", new string('W', 11) + "👨‍👩"),
+                (new string('W', 11) + "🌱 Reed", new string('W', 11) + "🌱"),
+                ("abcdefghijklmnop Reed", "a."),
+                (new string('W', 12) + "🇳🇿 Reed", "W."),
+            })
+            {
+                RenderMap(occupied with { Inhabitants = [founder with { DisplayName = name }] });
+                var namedMarker = inhabitantVisuals[founder.Id];
+                namedMarker.Selected = true;
+                for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (namedMarker.Caption != expectedNameplate || namedMarker.NameplateText != expectedNameplate)
+                    nameplateFailures.Add(name);
+            }
+            RenderMap(occupied);
+            if (nameplateFailures.Count > 0)
+                throw new InvalidOperationException("Map nameplates must draw the bounded whole given name or initial: " + string.Join("; ", nameplateFailures));
             if (terrainLayer.CampResourceSpriteCount == 0 || mapObjectVisuals["resource:wood"].Text.Contains('▰'))
                 throw new InvalidOperationException("Older camp resources such as the wood store must draw as sprites instead of glyphs.");
             if (terrainLayer.BuildingSpriteCount != occupied.PlacedBuildings.Count ||
@@ -3042,9 +3123,14 @@ public partial class Main
             if (mapObjectVisuals.ContainsKey("resource:wood")) throw new InvalidOperationException("Removed resource marker was retained.");
             if (mapObjectVisuals.ContainsKey("building:test-hall")) throw new InvalidOperationException("Removed building marker was retained.");
             await VerifyAgentPosesAsync(sample, founder);
+            await VerifyGlidingMarkersAsync();
             await VerifyMountainReliefAsync();
             await VerifyTerrainCacheRefreshAsync();
             await VerifyDesertAndSnowArtAsync();
+            await VerifyCameraMotionAsync(sample);
+            await VerifyGroundSnowAsync();
+            await VerifyRoofSnowAsync();
+            await VerifyAutumnLeavesAsync();
             VerifyOrchardSaplingAppearance(sample);
             var crowded = sample with
             {
@@ -3064,7 +3150,7 @@ public partial class Main
             {
                 cameraZoom = zoom;
                 RenderMap(crowded);
-                CenterCameraAt(new Vector2(2.5f, 2.5f));
+                SetCameraAtImmediately(new Vector2(2.5f, 2.5f));
                 var tileRect = new Rect2(new Vector2(2 * currentTileSize, 2 * currentTileSize),
                     new Vector2(currentTileSize, currentTileSize));
                 var markers = crowded.Inhabitants.Select(person => inhabitantVisuals[person.Id]).ToArray();
@@ -3080,6 +3166,7 @@ public partial class Main
             RenderMap(sample with { Resources = [], PlacedBuildings = [] });
             var smallMapTileSize = currentTileSize;
             HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.WheelUp, Pressed = true, Position = mapCanvas.Size / 2 });
+            AdvanceCameraMotion(CameraEasing.ZoomSeconds);
             if (currentTileSize <= smallMapTileSize)
                 throw new InvalidOperationException("Mouse-wheel zoom must work even when the small starter map reaches its fitted tile-size cap.");
             RenderMap(sample with
@@ -3101,6 +3188,7 @@ public partial class Main
             var fittedViewHeight = worldOverview.VisibleTiles.Size.Y;
             for (var index = 0; index < 2; index++)
                 HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.WheelUp, Pressed = true, Position = mapCanvas.Size / 2 });
+            AdvanceCameraMotion(CameraEasing.ZoomSeconds);
             if (currentTileSize <= fittedTileSize || worldOverview.VisibleTiles.Size.Y >= fittedViewHeight)
                 throw new InvalidOperationException($"Mouse-wheel zoom did not narrow the visible world area: tile={fittedTileSize}->{currentTileSize}, view={fittedViewHeight}->{worldOverview.VisibleTiles.Size.Y}.");
             var beforeOverviewClick = mapStage.Position;
@@ -3132,7 +3220,7 @@ public partial class Main
             if (mapStage.Position.DistanceTo(beforeKeyboardPan) < 1)
                 throw new InvalidOperationException("Keyboard panning did not move the world camera.");
             var eventDestination = cameraCenterTiles.X < 8 ? new OwnerWorldPosition(15, 11) : new OwnerWorldPosition(0, 0);
-            knownEvents[100] = new OwnerWorldEvent(100, 1, "food_consumed", "founder-scout", eventDestination);
+            knownEvents[100] = new OwnerWorldEvent(100, 1, "tree_planted", "founder-scout:planted-tree-1-1:broadleaf", eventDestination);
             RenderEventLog();
             eventLog.AddText("\nscroll-sentinel");
             RenderEventLog();
@@ -3140,9 +3228,10 @@ public partial class Main
                 throw new InvalidOperationException("An unchanged Event Log must not be rebuilt, which would reset its scroll position.");
             var beforeEventJump = cameraCenterTiles;
             eventLog.EmitSignal(RichTextLabel.SignalName.MetaClicked, "100");
+            AdvanceCameraMotion(CameraEasing.MoveSeconds);
             if (cameraCenterTiles.DistanceTo(beforeEventJump) < 0.5f)
                 throw new InvalidOperationException("Clicking a located event did not move the world camera.");
-            knownEvents[101] = new OwnerWorldEvent(101, 2, "food_consumed", "founder-scout", null);
+            knownEvents[101] = new OwnerWorldEvent(101, 2, "tree_planted", "founder-scout:planted-tree-1-1:broadleaf", null);
             RenderEventLog();
             var loggedDay = SplitClock(DisplayWorldClock(1)).Date;
             if (eventLog.GetParsedText().Split(loggedDay).Length != 2)
@@ -3154,7 +3243,7 @@ public partial class Main
             eventsPanel.Hide();
             UpdateUnreadEvents(eventsWorldId);
             var readBefore = unreadEvents;
-            knownEvents[102] = new OwnerWorldEvent(102, 3, "food_consumed", "founder-scout", null);
+            knownEvents[102] = new OwnerWorldEvent(102, 3, "tree_planted", "founder-scout:planted-tree-1-1:broadleaf", null);
             RenderEventLog();
             if (unreadEvents != readBefore + 1 || !eventsBadge.Visible ||
                 eventsBadge.Text != (readBefore + 1).ToString(CultureInfo.InvariantCulture))
@@ -3334,6 +3423,7 @@ public partial class Main
                 weatherLayer.CoverageAt(144, 80, "snow") > 0.1f || edgeColumns.Count < 10 ||
                 edgeColumns.Max() - edgeColumns.Min() < 3)
                 throw new InvalidOperationException($"Rain must fill its region and end in a wandering edge, not a square: edge={string.Join(',', edgeColumns)}.");
+            await VerifyWeatherStreaksAsync();
             // Lightning brightens softly and rarely: never a strobe.
             var (brightest, lit, flashes, wasLit) = (0f, 0, 0, false);
             for (var step = 0; step < 9000; step++)
@@ -3346,8 +3436,14 @@ public partial class Main
             }
             if (brightest > 0.31f || lit > 900 || flashes > 25)
                 throw new InvalidOperationException($"Lightning must stay soft and rare: peak={brightest}, lit samples={lit}, flashes={flashes}.");
+            await VerifyGravesAsync(largeMap);
+            await VerifyWeatherFadeAsync(largeMap);
             await VerifyNightWashAsync(largeMap);
             await VerifyNightLightsAsync(largeMap);
+            await VerifyGoldenHourAsync();
+            await VerifySmokeAsync(largeMap);
+            await VerifyStoredStockAsync(largeMap);
+            await VerifyBuildingCompletionAsync();
             var startedMap = largeMap with { FounderSetup = null };
             RenderWorldHud(startedMap);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -3400,7 +3496,7 @@ public partial class Main
             if (hoverReadout.Visible)
                 throw new InvalidOperationException("Leaving the map must hide the hover readout.");
             var beforeLargePan = worldOverview.VisibleTiles.Position;
-            CenterCameraAt(new Vector2(20, 20));
+            SetCameraAtImmediately(new Vector2(20, 20));
             if (worldOverview.VisibleTiles.Position.DistanceTo(beforeLargePan) < 1 ||
                 terrainLayer.VisibleTileCount >= largeTerrain.Length / 2)
                 throw new InvalidOperationException("Panning a large map must update the camera-bounded terrain view.");
@@ -3417,7 +3513,7 @@ public partial class Main
                     true, "available", 5, 10, 0, 0, "spring")],
             };
             RenderMap(wrappedMap);
-            CenterCameraAt(new Vector2(0.5f, 64));
+            SetCameraAtImmediately(new Vector2(0.5f, 64));
             if (worldOverview.VisibleTiles.Position.X >= 0 ||
                 terrainLayer.VisibleTileCount >= largeTerrain.Length / 2 ||
                 !worldOverview.WrapsEastWest ||
@@ -3452,7 +3548,7 @@ public partial class Main
             var overviewAtlasPosition = (worldOverview.Size - overviewAtlasSize) / 2;
             var overviewAtlasY = overviewAtlasPosition.Y + overviewAtlasSize.Y / 2;
             var overviewRightEdge = overviewAtlasPosition.X + overviewAtlasSize.X;
-            CenterCameraAt(new Vector2(254, 64));
+            SetCameraAtImmediately(new Vector2(254, 64));
             var eastDragStart = cameraCenterTiles.X;
             worldOverview._GuiInput(new InputEventMouseButton
             {
@@ -3476,7 +3572,7 @@ public partial class Main
                 throw new InvalidOperationException("Dragging past the wrapped overview's eastern edge must continue panning east.");
 
             var overviewLeftEdge = overviewAtlasPosition.X;
-            CenterCameraAt(new Vector2(2, 64));
+            SetCameraAtImmediately(new Vector2(2, 64));
             var westDragStart = cameraCenterTiles.X;
             worldOverview._GuiInput(new InputEventMouseButton
             {
@@ -3499,7 +3595,7 @@ public partial class Main
                 PositiveMod(westAfterFirstDrag - westAfterSecondDrag, 256) <= 2)
                 throw new InvalidOperationException("Dragging past the wrapped overview's western edge must continue panning west.");
 
-            CenterCameraAt(new Vector2(0.5f, 64));
+            SetCameraAtImmediately(new Vector2(0.5f, 64));
             var wrappedStride = currentTileSize + TileGap;
             var seamMarkerCellSample = mapStage.Position + new Vector2(
                 seamMarker.Position.X + Math.Min(seamMarker.Size.X / 2, wrappedStride / 2f),
@@ -3594,7 +3690,7 @@ public partial class Main
             if (mapObjectVisuals["resource:seam-wood"].Text.Contains('\n', StringComparison.Ordinal))
                 throw new InvalidOperationException("A map marker too small for its name must show its glyph instead of a clipped fragment.");
             RenderMap(largeMap);
-            CenterCameraAt(new Vector2(-5, 64));
+            SetCameraAtImmediately(new Vector2(-5, 64));
             if (worldOverview.VisibleTiles.Position.X < 0 || worldOverview.WrapsEastWest)
                 throw new InvalidOperationException("Non-wrapped worlds must retain bounded horizontal camera edges.");
 
@@ -3605,7 +3701,7 @@ public partial class Main
             var baselinePan = System.Diagnostics.Stopwatch.StartNew();
             for (var step = 0; step < 8; step++)
             {
-                CenterCameraAt(new Vector2(80 + step, 64));
+                SetCameraAtImmediately(new Vector2(80 + step, 64));
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             }
             baselinePan.Stop();
@@ -3636,7 +3732,7 @@ public partial class Main
             var widePan = System.Diagnostics.Stopwatch.StartNew();
             for (var step = 0; step < 8; step++)
             {
-                CenterCameraAt(new Vector2(80 + step, 64));
+                SetCameraAtImmediately(new Vector2(80 + step, 64));
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             }
             widePan.Stop();
@@ -3656,10 +3752,11 @@ public partial class Main
             }, waterCenter);
             if (emptyWorldFocus.DistanceTo(new Vector2(6.5f, 6.5f)) > 0.01f)
                 throw new InvalidOperationException($"A new world without a Town or agents must open over dry land: camera={emptyWorldFocus}.");
-            CenterCameraAt(new Vector2(80, 64));
+            SetCameraAtImmediately(new Vector2(80, 64));
             var zoomPointer = mapCanvas.Size * new Vector2(0.25f, 0.3f);
             var tileUnderPointer = (zoomPointer - mapStage.Position) / (currentTileSize + TileGap);
             HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.WheelUp, Pressed = true, Position = zoomPointer });
+            AdvanceCameraMotion(CameraEasing.ZoomSeconds);
             var tileUnderPointerAfterZoom = (zoomPointer - mapStage.Position) / (currentTileSize + TileGap);
             if (tileUnderPointerAfterZoom.DistanceTo(tileUnderPointer) > 0.1f)
                 throw new InvalidOperationException($"Mouse-wheel zoom must keep the pointed-at tile under the cursor: {tileUnderPointer} -> {tileUnderPointerAfterZoom}.");
@@ -3737,8 +3834,9 @@ public partial class Main
             if (!agentsWarning.Visible || inhabitantsButton.Text != "2" ||
                 !inhabitantsButton.TooltipText.Contains("hungry: Rowan", StringComparison.Ordinal))
                 throw new InvalidOperationException("The Agents button must count the living and flag anyone hungry.");
-            CenterCameraAt(new Vector2(40, 30));
+            SetCameraAtImmediately(new Vector2(40, 30));
             SelectInhabitantFromList(1);
+            AdvanceCameraMotion(CameraEasing.MoveSeconds);
             if (selectedInhabitantId != "roster-rowan" || cameraCenterTiles.DistanceTo(new Vector2(180.5f, 90.5f)) > 1.5f)
                 throw new InvalidOperationException($"Choosing a living agent in the roster must bring them into view: camera={cameraCenterTiles}.");
             selectedInhabitantId = null;
@@ -3850,6 +3948,7 @@ public partial class Main
                 throw new InvalidOperationException("The Event Log and the agent's Profile must remain available together.");
             var beforeDeathJump = cameraCenterTiles;
             eventLog.EmitSignal(RichTextLabel.SignalName.MetaClicked, "101");
+            AdvanceCameraMotion(CameraEasing.MoveSeconds);
             if (eventsPanel.Visible || cameraCenterTiles.DistanceTo(beforeDeathJump) < 0.5f)
                 throw new InvalidOperationException("A death in the Event Log must jump to its location.");
             var parentPosition = new OwnerWorldPosition(1, 1);
@@ -4014,15 +4113,19 @@ public partial class Main
             await VerifyDeveloperToolsAsync(occupied, founder);
             await VerifyAuthoringCoordinatesAsync(occupied);
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Minus, Pressed = true });
+            AdvanceCameraMotion(CameraEasing.ZoomSeconds);
             var zoomedOutTile = currentTileSize;
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Equal, Pressed = true });
+            AdvanceCameraMotion(CameraEasing.ZoomSeconds);
             if (currentTileSize <= zoomedOutTile)
                 throw new InvalidOperationException("The + key must zoom in after - zoomed out.");
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.N, Pressed = true });
+            AdvanceCameraMotion(CameraEasing.MoveSeconds);
             if (selectedInhabitantId != founder.Id ||
                 !mapCanvas.GetGlobalRect().Encloses(inhabitantVisuals[founder.Id].GetGlobalRect()))
                 throw new InvalidOperationException($"N must select the next living agent and bring them into view: selected={selectedInhabitantId} marker={inhabitantVisuals[founder.Id].GetGlobalRect()}.");
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.N, Pressed = true });
+            AdvanceCameraMotion(CameraEasing.MoveSeconds);
             if (selectedInhabitantId != founder.Id)
                 throw new InvalidOperationException("N with a single living agent must keep them selected.");
             ClearTileSelection();
@@ -4109,8 +4212,8 @@ public partial class Main
         };
         OwnerWorldEvent[] events =
         [
-            new(1, 1, "food_harvested", founderId + ":4"),
-            new(2, 1, "food_consumed", "founder-scout"),
+            new(1, 1, "tree_planted", founderId + ":planted-tree-3-4:broadleaf"),
+            new(2, 1, "field_prepared", "founder-scout:field-2-2:"),
             new(3, 1, "child_born", childId),
             new(4, 1, "inhabitant_removed", agentId),
             new(5, 1, "town_resident_joined", "town:first:" + founderId + ":founder_joined:residents:4"),
@@ -4126,7 +4229,7 @@ public partial class Main
                 throw new InvalidOperationException("Event Log name fixture was rejected: " + failure);
             foreach (var worldEvent in events) knownEvents[worldEvent.EventId] = worldEvent;
             RenderEventLog();
-            string[] expected = ["Rowan gathered food.", "Scout ate.", "Mira was born.", "Aster died.",
+            string[] expected = ["Rowan planted a tree.", "Scout tilled a field.", "Mira was born.", "Aster died.",
                 "Rowan joined First Town.", "Aster left First Town."];
             if (expected.Any(text => !eventLog.GetParsedText().Contains(text, StringComparison.Ordinal)))
                 throw new InvalidOperationException("The Event Log must show full living, deceased and descendant names for normal IDs.");
@@ -4139,7 +4242,7 @@ public partial class Main
             if (!observationSession.TryAccept(new(handshake, baseline), 0, out failure))
                 throw new InvalidOperationException("Renamed Event Log fixture was rejected: " + failure);
             RenderEventLog();
-            if (!eventLog.GetParsedText().Contains("Renamed Rowan gathered food.", StringComparison.Ordinal))
+            if (!eventLog.GetParsedText().Contains("Renamed Rowan planted a tree.", StringComparison.Ordinal))
                 throw new InvalidOperationException("An existing Event Log entry must resolve the current agent name after rename.");
         }
         finally

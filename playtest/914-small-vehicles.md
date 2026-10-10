@@ -1,0 +1,2 @@
+- Zoom out from close zoom to medium zoom while a loaded handcart is pulled along a Road. It should keep looking like the same cart, turned the way it moves, instead of switching to the cart icon, and switch back cleanly when you zoom in. ([#914](https://github.com/compoodment/ClankerWorld/issues/914))
+- At medium zoom, watch a boat row out of a Port and moor again. It should keep a clear small rowing-boat look in every direction, with its oars out while rowing and shipped at rest. ([#914](https://github.com/compoodment/ClankerWorld/issues/914))

@@ -1,0 +1,117 @@
+using System.Security.Cryptography;
+using System.Text.Json;
+using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Content;
+using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
+using ClankerWorld.Simulation.World;
+
+var results = new List<object>();
+foreach (var scenario in new[] { "control", "resident-move", "shared-stock", "household-land", "road-remove", "building-remove" })
+foreach (var personal in new[] { false, true })
+{
+    var state = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(args[0]));
+    state = state with { Inhabitants = state.Inhabitants.Select(person => person with { LastDecisionContext = null }).ToArray() };
+    var marketTiles = state.Towns!.SelectMany(town => town.Markets.SelectMany(market => MarketContent.SiteTiles(market.Site))).ToHashSet();
+    var actor = state.Inhabitants.Single(person => person.InhabitantId == "agent:00000000000000000000000000000005");
+    var household = state.Society.Society.GetInhabitant(actor.InhabitantId).HouseholdId!;
+    if (scenario == "resident-move")
+    {
+        var site = state.Map.FootNeighbors(actor.Position).First(point => state.Map.IsBuildable(point) &&
+            !state.Inhabitants.Any(person => person.Position == point));
+        state = state with { Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor.InhabitantId
+            ? person with { Position = site } : person).ToArray() };
+    }
+    if (scenario == "shared-stock")
+    {
+        var house = state.WorldSimulation!.Buildings.First(building => building.HouseholdId == household &&
+            state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("house"));
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "mutation-shared-axe", "stone_axe", household, 1,
+            storageBuildingId: house.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "mutation-build-wood", "wood", household, 24);
+        inventory = InventoryFixture.AddLot(inventory, "mutation-build-stone", "stone", household, 24);
+        state = state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
+    }
+    if (scenario == "household-land")
+    {
+        var tile = state.TownLandTitles![0].Tiles.First(point => state.Map.IsBuildable(point) && !marketTiles.Contains(point) &&
+            !state.HouseholdLandUseRights!.Any(right => right.Tiles.Contains(point)) &&
+            !state.RoadTiles!.Contains(point) && !state.Map.Resources.Any(resource => resource.Position == point) &&
+            !state.WorldSimulation!.Buildings.Any(building => building.Position == point));
+        state = state with { HouseholdLandUseRights = state.HouseholdLandUseRights!.Append(new HouseholdLandUseRight(
+            "mutation-land", state.Towns![0].Id, household, [tile], state.Society.Society.WorldTick, "controlled-probe")).ToArray() };
+    }
+    if (scenario == "road-remove")
+        {
+        // This Road is the entrance of an actually offered native lantern proposal.
+        var removed = new GridPoint(110, 46);
+        if (!state.RoadTiles!.Contains(removed) || marketTiles.Contains(removed)) throw new InvalidOperationException("Expected native lantern Road is absent.");
+        state = state with { RoadTiles = state.RoadTiles!.Where(point => point != removed).ToArray() };
+    }
+    var recorder = new Recorder(personal);
+    using var world = PrivateWorldRuntime.Restore(state, _ => recorder);
+    world.Validate();
+    if (scenario == "building-remove")
+    {
+        var removed = false;
+        foreach (var building in world.WorldSimulation.Buildings.Where(building => building.InstanceId.StartsWith("probe-workshop-", StringComparison.Ordinal))
+                     .OrderBy(building => state.Map.FootDistance(new GridPoint(109, 46), building.Position)))
+            if (world.RemoveBuilding(building.InstanceId, building.TownId, building.HouseholdId).Applied) { removed = true; break; }
+        if (!removed) throw new InvalidOperationException("No native workshop removal succeeded.");
+    }
+    world.Resume();
+    for (var i = 0; i < 3; i++)
+    {
+        var step = await world.AdvanceOneTickAsync();
+        if (!step.Advanced || step.Decisions.Any(decision => decision.Admission.FellBack)) throw new InvalidOperationException("Invalid native admission.");
+    }
+    if (!recorder.RequestedResidents.Contains(actor.InhabitantId))
+        throw new InvalidOperationException("The mutated resident was not queried.");
+    world.Validate();
+    var beforeRefusal = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+    var refused = await world.AdvanceOneTickAsync(() => false);
+    if (refused.Advanced || !beforeRefusal.AsSpan().SequenceEqual(PrivateWorldRuntimeCodec.Encode(world.ExportState())))
+        throw new InvalidOperationException("Refused prepared tick changed the checkpoint.");
+    var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+    var afterLoadRecorder = new Recorder(personal);
+    using var loaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => afterLoadRecorder);
+    loaded.Validate();
+    loaded.Resume();
+    var reloadedStep = await loaded.AdvanceOneTickAsync();
+    if (!reloadedStep.Advanced || reloadedStep.Decisions.Any(decision => decision.Admission.FellBack))
+        throw new InvalidOperationException("Reload tick failed or fell back.");
+    loaded.Validate();
+    var pairedStep = await world.AdvanceOneTickAsync();
+    if (!pairedStep.Advanced || pairedStep.Decisions.Any(decision => decision.Admission.FellBack))
+        throw new InvalidOperationException("Paired tick failed or fell back.");
+    var final = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+    if (!final.AsSpan().SequenceEqual(PrivateWorldRuntimeCodec.Encode(loaded.ExportState())))
+        throw new InvalidOperationException("Reload continuation differs.");
+    var prefix = args[1] + "-" + scenario + (personal ? "-personal" : "-builtin");
+    var requestBytes = JsonSerializer.SerializeToUtf8Bytes(recorder.Requests);
+    File.WriteAllBytes(prefix + "-requests.json", requestBytes);
+    File.WriteAllBytes(prefix + "-final.json", final);
+    var result = new { Scenario = scenario, Personal = personal, Requests = recorder.Requests.Count,
+        CandidateDigest = Convert.ToHexStringLower(SHA256.HashData(requestBytes)), FinalDigest = Convert.ToHexStringLower(SHA256.HashData(final)) };
+    results.Add(result);
+    File.WriteAllText(args[1] + "-results.json", JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true }));
+    Console.WriteLine(JsonSerializer.Serialize(result));
+}
+
+sealed class Recorder(bool personal) : IDecisionProvider
+{
+    public DecisionProviderKind Kind => personal ? DecisionProviderKind.LargeLanguageModel : DecisionProviderKind.Deterministic;
+    public long ProviderEpoch => 0;
+    public List<object> Requests { get; } = [];
+    public HashSet<string> RequestedResidents { get; } = new(StringComparer.Ordinal);
+    private readonly DeterministicDecisionProvider builtin = new();
+    public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+    {
+        RequestedResidents.Add(request.Observation.InhabitantId);
+        Requests.Add(new { request.Observation.WorldTick, request.Observation.InhabitantId, request.Observation.Candidates });
+        var response = await builtin.DecideAsync(request, cancellationToken);
+        return response with { Provider = Kind };
+    }
+}

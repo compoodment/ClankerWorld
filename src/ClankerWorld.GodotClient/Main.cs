@@ -60,6 +60,7 @@ public partial class Main : Control
     private readonly OptionButton cognitionProviderChoice = new();
     private readonly OptionButton cognitionCredentialChoice = new();
     private readonly ModelPicker cognitionModelPicker = new();
+    private readonly OptionButton cognitionThinkingChoice = new();
     private readonly LineEdit cognitionApiKeyInput = new();
     private readonly LineEdit cognitionCredentialLabelInput = new();
     private readonly Label cognitionConfigurationStatus = new();
@@ -93,7 +94,12 @@ public partial class Main : Control
     private readonly WorldTerrainLayer terrainLayer = new();
     private readonly WeatherLayer weatherLayer = new();
     private readonly NightLayer nightLayer = new();
+    private readonly BuildingCompletionLayer buildingCompletionLayer = new();
+    private readonly GoldenHourLayer goldenHourLayer = new();
+    private readonly GraveLayer graveLayer = new();
     private readonly NightLightsLayer nightLightsLayer = new();
+    private readonly SmokeLayer smokeLayer = new();
+    private readonly StoredStockLayer storedStockLayer = new();
     private WorldTerrainMap? terrainMap;
     private string? terrainWorldId;
     private OwnerWorldPackedTerrain? terrainPackedTerrain;

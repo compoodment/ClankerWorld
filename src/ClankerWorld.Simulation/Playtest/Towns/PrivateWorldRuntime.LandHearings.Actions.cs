@@ -154,7 +154,7 @@ public sealed partial class PrivateWorldRuntime
         var propertyRecord = item.Property is null ? [] : item.Evidence.Where(evidence => known.Contains(evidence.Id) &&
             evidence.SourceRecordId == TownPropertyRules.RecordId(item, revision.Number)).Take(1).ToArray();
         var evidence = item.Evidence.Where(evidence => known.Contains(evidence.Id)).TakeLast(4).Concat(propertyRecord).DistinctBy(evidence => evidence.Id).Select(evidence =>
-            evidence.Id + "=" + evidence.Kind + " from " + evidence.SourceAgentId + ": " + evidence.Text[..Math.Min(evidence.Text.Length, 160)]);
+            evidence.Id + "=" + evidence.Kind + " from " + evidence.SourceAgentId + ": " + NonviolentExcerpt(evidence.Text, 160));
         return "Requested result: " + revision.RequestedOutcome.Kind + " " + revision.RequestedOutcome.HouseholdId +
             ". Affected households: " + string.Join(", ", LandHearingParties(town, revision.Tiles, item)
                 .Where(party => party.HouseholdId is not null).Select(party => party.HouseholdId)) +

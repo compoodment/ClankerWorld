@@ -1240,6 +1240,7 @@ public static partial class SocietyFixture
         }
         ValidateAgentBeliefs(checkpoint);
         ValidateAgentMemoryCompactions(checkpoint);
+        ValidateMemorySummaries(checkpoint);
         EnsureCanonicalIds(checkpoint.Estates.Select(item => item.Id), "estates");
         EnsureCanonicalIds(checkpoint.Births.Select(item => item.RequestId), "births");
         foreach (var birth in checkpoint.Births)
