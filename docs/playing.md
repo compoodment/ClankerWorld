@@ -184,6 +184,12 @@ title, household use right, pending use request or dispute, the household that
 owns it, and anything on it, such as a tree, a field or goods left on the
 ground.
 
+Snowfall gradually covers open ground in the regions you watch, with grass
+tips and greyer, trodden Roads still showing. Walking agents and animals leave
+prints that fade within a game hour. Cover melts after snow stops, and pausing
+holds it still. Reopening a world starts this local weather history again;
+permanent snowy ground keeps its usual picture.
+
 **Filters** turns map overlays on and off: Town borders, household property,
 Town land title, household land use and disputed land. Each one says what it
 draws, and all start off. Town borders show as a pale dashed line. While you
@@ -646,6 +652,14 @@ In a paired world, **Change owner** keeps your selected owner and an open
 menu's keyboard highlight as the world updates, including when owner names
 change order. Press **Enter** to select the highlighted owner. If that owner
 becomes unavailable, the menu closes so you can choose from the current list.
+
+At close and mid zoom, stored goods show as log, crate and sack piles beside
+store doors where clear Town ground allows it. Empty stores show none; piles
+use the fuller drawing when recorded storage reaches 80% of its limit. Logs
+show wood, sacks show bulk food, crops, seeds, fiber and herbs, and crates show
+other goods. They are visual groups; click the building to read exact contents.
+Piles avoid Roads, doorsteps, buildings and the Town edge. If there is no clear
+space beside a door, its piles stay hidden.
 
 A building's storage-space bar shows how much of its recorded limit is used,
 with exact used/limit numbers. It counts all stored goods, including materials

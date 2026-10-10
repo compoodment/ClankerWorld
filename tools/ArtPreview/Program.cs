@@ -28,11 +28,14 @@ switch (command)
     case "goldenhour":
         GoldenHourPreview.Run(Path.Combine(outRoot, "baseline", "goldenhour"));
         break;
+    case "snow":
+        SnowMarksPreview.Run(Path.Combine(outRoot, "baseline", "snow"));
+        break;
     case "check":
         ArtContractChecks.Run();
         break;
     default:
-        Console.Error.WriteLine("usage: baseline|proposed|scene|seasons|movement|animate|goldenhour <out dir> [proposal family] | check");
+        Console.Error.WriteLine("usage: baseline|proposed|scene|seasons|movement|animate|snow|goldenhour <out dir> [proposal family] | check");
         return 2;
 }
 return 0;
@@ -46,6 +49,7 @@ static class Baseline
         var families = new List<(string Family, List<Entry> Entries, Color? Backdrop, int Columns)>();
 
         families.Add(("smoke", new SmokeClientPreview().Render().ToList(), null, 2));
+        families.Add(("stock", new StoredStockClientPreview().Render().ToList(), null, 3));
 
         // Ground tiles: both variants at 32 px and at the 16 px mid-zoom atlas.
         var terrain = new List<Entry>();

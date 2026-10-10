@@ -118,6 +118,7 @@ public partial class WorldTerrainLayer : Control
     public void SetWorld(WorldTerrainMap map)
     {
         world = map;
+        ResetGroundSnow();
         ResetResourceAppearanceInputs();
         ResetRelief();
         townSiteGuidanceTexture = null;
@@ -871,6 +872,7 @@ public partial class WorldTerrainLayer : Control
         DrawFields(bounds, stride);
         DrawTownSiteGuidance(bounds, stride);
         DrawRoads(bounds, stride);
+        DrawGroundSnow(bounds, stride);
         DrawBridges(bounds, stride);
         DrawAutumnLeaves(bounds, stride);
         DrawBuildings(bounds, stride);

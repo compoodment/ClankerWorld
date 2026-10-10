@@ -908,6 +908,24 @@ camera-visible sources (including wrapped copies), and steps the existing
 weather clock at 12 frames per second. Pausing freezes that clock. Smoke adds
 no host fields, fuel use, heating rules or saved state.
 
+`StoredStockLayer` draws approved stock A below the night wash and below map
+labels, agents and weather. `StoredStockPiles` reads accepted per-building
+`StoredItems`, `StoredQuantity` and `StorageCapacity`; it never infers stored
+contents from household totals or ground stock. Wood uses logs, listed bulk
+food/crop/seed/fiber/herb kinds use sacks, and other kinds use crates. Positive
+contents use the some drawing, or the full drawing at 80% of a known capacity.
+Unknown capacity stays at some. These are visual fullness bands, not physical
+container counts or new capacity rules.
+
+Each group takes a distinct known Town tile within two cardinal steps of the
+recorded entrance, on the front or nearest side wall. Roads, every building's
+entrance and footprint, bridges, resources, fields, ground stock and construction
+sites are excluded, along with water, mountains and unknown ground. No suitable
+tile means no pile for that group. Native world-pixel primitives preserve the
+approved casts, colours and paint order at both atlas sizes. Drawing is bounded
+to visible tiles and wrapped copies; unchanged piles reuse their commands.
+No host fields, inventory transitions, saved state or collision rules change.
+
 ## Model inputs, usage and memories
 
 The per-world routine helper is Off, Jev or OpenAI Decisions. Decisions uses
@@ -1497,6 +1515,29 @@ writes do not increment the in-memory total or dispatch a model call. This does
 not promise directory-fsync power-loss durability or provider-invoice parity.
 
 ## Maps, movement and terrain
+
+The client's `WorldTerrainLayer` keeps unsaved regional ground-snow cover
+from accepted owner observations. Only regions seen snowing get an entry;
+the interval until the next observation uses that last reported weather.
+One game hour of snowfall fills the cover and two hours without snow melt it.
+Calendar pace converts ticks to hours; local frame time never ages it. A new
+view begins empty, including when a checkpoint is loaded. World, map and
+timeline changes and tick rewinds clear the history. It adds no host fields,
+saved state, events or movement effects.
+
+Short observed outdoor agent and animal moves leave pressed footprints on
+that cover, using the shortest east-west path on wrapped maps. Spawns, moves
+over three tiles, repeated observations and paused authoring moves make no
+trail. Prints fade in one game hour; at most 4,096 are held, and small overview
+zooms keep their positions without drawing tiny marks. The visible ground
+pass draws the approved snow colours after Roads and before bridges,
+buildings, trees and moving markers. It skips water, permanent snow and
+building/construction tiles. Up to 256 generated snow-overlay textures are
+cached, independent of map area; overview uses up to 256 small 32-tile chunk
+textures instead of a draw command per snowy tile. Changes to buildings,
+construction, bridges and Roads invalidate that overview cache. Cover itself
+is indexed by weather region.
+
 Small and Medium generated maps are connected to the normal world path. The
 older tiny map remains a compatibility fixture/world; generation is no longer
 merely a separate primitive. Large/Huge/Mega generator outputs do not imply

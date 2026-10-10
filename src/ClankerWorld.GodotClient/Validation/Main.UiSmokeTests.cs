@@ -3079,6 +3079,7 @@ public partial class Main
             await VerifyMountainReliefAsync();
             await VerifyTerrainCacheRefreshAsync();
             await VerifyDesertAndSnowArtAsync();
+            await VerifyGroundSnowAsync();
             await VerifyAutumnLeavesAsync();
             VerifyOrchardSaplingAppearance(sample);
             var crowded = sample with
@@ -3386,6 +3387,7 @@ public partial class Main
             await VerifyNightLightsAsync(largeMap);
             await VerifyGoldenHourAsync();
             await VerifySmokeAsync(largeMap);
+            await VerifyStoredStockAsync(largeMap);
             var startedMap = largeMap with { FounderSetup = null };
             RenderWorldHud(startedMap);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

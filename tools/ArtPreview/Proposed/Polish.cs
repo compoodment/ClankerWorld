@@ -223,8 +223,7 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
         {
             yield return new(Family, $"roof-snow-a-{size}", RoofSnow(size, blanket: false), "Roof snow A: a dusting, roofs still show through");
             yield return new(Family, $"roof-snow-b-{size}", RoofSnow(size, blanket: true), "Roof snow B: roofs covered, edges and chimneys still dark");
-            yield return new(Family, $"ground-snow-a-{size}", SnowyTown(size, patchy: false), "Ground snow A: open ground covered, grass tips and trodden Roads showing");
-            yield return new(Family, $"ground-snow-b-{size}", SnowyTown(size, patchy: true), "Ground snow B: patchy cover that thins and melts unevenly");
+            yield return new(Family, $"ground-snow-b-{size}", SnowMarksPreview.Scene(size, patchy: true), "Ground snow B: patchy cover that thins and melts unevenly");
             yield return new(Family, $"puddles-a-{size}", Puddles(size, wetGround: false), "Puddles A: small puddles on Roads and bare ground");
             yield return new(Family, $"puddles-b-{size}", Puddles(size, wetGround: true), "Puddles B: puddles plus darker, wet-looking ground");
             yield return new(Family, $"roof-snow-a2-{size}", RoofSnowFollowingSlopes(size), "Roof snow A, second round: the shaded slope covered, the sunny slope keeping snow near the ridge, following each roof's shape");
@@ -237,14 +236,12 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
 
     public IEnumerable<(string Id, IReadOnlyList<Image> Frames)> Animate()
     {
-        foreach (var size in new[] { 32, 16 })
-            yield return ($"footprints-{size}", Polish.Loop(5, t => Footprints(size, t)));
         foreach (var look in PuddleLooks)
             yield return ($"puddles-r3-{look}-rain-32", Polish.Loop(2.4, t => Puddles(32, look, t + 0.001)));
     }
 
     /// <summary>Building pixels: where the scene with buildings differs from the scene without them, inside each footprint.</summary>
-    private static bool[] Roofs(int size)
+    internal static bool[] Roofs(int size)
     {
         var with = Polish.Scene(size);
         var without = Polish.Scene(size, buildings: false);
@@ -257,7 +254,7 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
     }
 
     /// <summary>The world's winter: the approved 30% desaturation on everything, standing in for the seasonal palette.</summary>
-    private static Canvas Winter(int size)
+    internal static Canvas Winter(int size)
     {
         var canvas = new Canvas(Polish.Scene(size, agents: true));
         for (var y = 0; y < canvas.Height; y++)
@@ -682,62 +679,7 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
     private static bool Ground(SceneSpec spec, int x, int y) =>
         spec.Roads.Contains(new(x, y)) || spec.Hydrology[y * spec.Width + x] == 0 && !spec.Buildings.Any(b => b.Footprint.HasPoint(new(x, y)));
 
-    /// <summary>A Town after snowfall: lying snow on open ground and Roads, and snow on roofs.</summary>
-    private static Image SnowyTown(int size, bool patchy)
-    {
-        var canvas = Winter(size);
-        GroundSnow(canvas, size, patchy);
-        var roofs = Roofs(size);
-        for (var y = 0; y < canvas.Height; y++)
-            for (var x = 0; x < canvas.Width; x++)
-            {
-                if (!roofs[y * canvas.Width + x]) continue;
-                var c = canvas.Get(x, y);
-                var luma = c.R * 0.3f + c.G * 0.59f + c.B * 0.11f;
-                if (luma < 0.2f) continue;
-                canvas.Set(x, y, c.Lerp(SnowShade.Lerp(Snow, Math.Clamp((luma - 0.2f) * 2.2f, 0, 1)), patchy ? 0.45f : 0.6f));
-            }
-        return canvas.ToImage();
-    }
-
-    /// <summary>
-    /// Snow lying on the ground: open land turns white while its darker motifs
-    /// (grass tufts, stones) still show a little; Roads stay greyer where feet
-    /// and carts tread it down. Trees, bushes, people and water are untouched.
-    /// Patchy cover thins along a slow noise so it melts unevenly.
-    /// </summary>
-    private static void GroundSnow(Canvas canvas, int size, bool patchy, bool agents = true)
-    {
-        var spec = SceneSpec.TownCorner();
-        var roofs = Roofs(size);
-        var withThings = Polish.Scene(size, agents: agents);
-        var withoutAgents = Polish.Scene(size, agents: false, buildings: true, nature: false);
-        for (var y = 0; y < canvas.Height; y++)
-            for (var x = 0; x < canvas.Width; x++)
-            {
-                var tx = x / size; var ty = y / size;
-                if (spec.Hydrology[ty * spec.Width + tx] != 0 || spec.Bridges.ContainsKey(new(tx, ty))) continue;
-                // Roofs get their own snow; yards, shadows and doorsteps get ground snow.
-                if (roofs[y * canvas.Width + x]) continue;
-                // Skip anything standing on the ground: trees, plants and agents.
-                if (withThings.GetPixel(x, y) != withoutAgents.GetPixel(x, y)) continue;
-                var c = canvas.Get(x, y);
-                // Within a Road tile only the packed dirt is trodden; its grassy edges snow over like any ground.
-                var road = spec.Roads.Contains(new(tx, ty)) && c.R > c.G - 0.02f;
-                var luma = c.R * 0.3f + c.G * 0.59f + c.B * 0.11f;
-                var amount = road ? 0.72f : 0.9f - Math.Clamp(0.35f - luma, 0, 0.35f) * 0.9f;
-                if (patchy)
-                {
-                    var n = Noise(x / (1.1f * size), y / (1.1f * size));
-                    amount *= Polish.Smooth((n - 0.38f) / 0.18f);
-                }
-                if (amount <= 0) continue;
-                var snow = SnowShade.Lerp(Snow, Math.Clamp(luma * 1.8f, 0, 1));
-                canvas.Set(x, y, c.Lerp(road ? snow.Lerp(new Color("B7BCBF"), 0.3f) : snow, amount));
-            }
-    }
-
-    private static float Noise(float x, float y)
+    internal static float Noise(float x, float y)
     {
         int ix = (int)MathF.Floor(x), iy = (int)MathF.Floor(y);
         float fx = x - ix, fy = y - iy;
@@ -810,34 +752,6 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
         return canvas.ToImage();
     }
 
-    /// <summary>An agent crossing snowy ground leaves prints that fade over a few seconds (a game hour or so).</summary>
-    private static Image Footprints(int size, double t)
-    {
-        // Snow lying on open ground, as the world reports it for a snowy region.
-        var canvas = new Canvas(Polish.Scene(size));
-        GroundSnow(canvas, size, patchy: false, agents: false);
-        var speed = 1.6;
-        var x0 = 6 * size + size / 2f;
-        var y = 9.4f * size;
-        var traveled = (float)(t * speed * size);
-        var stride = size * 0.28f;
-        var dot = Math.Max(1, size / 16);
-        for (var n = 0; n * stride < traveled; n++)
-        {
-            var age = (traveled - n * stride) / (float)(speed * size);
-            var alpha = 0.9f * (1 - Polish.Smooth(age / 3.6f));
-            var px = x0 + n * stride;
-            var py = y + (n % 2 == 0 ? -2.5f : 2.5f) * size / 32f;
-            // A pressed print: a shaded hollow with its lit north-west lip.
-            canvas.Fill((int)px, (int)py, dot * 3, dot * 2, new Color("7D8B99") with { A = alpha });
-            canvas.Fill((int)px, (int)py, dot * 3, dot, new Color("98A6B3") with { A = alpha * 0.8f });
-        }
-        var drawn = (int)MathF.Round(size * SceneComposer.AgentSpriteScale);
-        var agent = AgentSprites.Sprite(2, AgentSprites.StageIndex("adult"), AgentSprites.FacingToward(1, 0),
-            (int)(t * 4) % 2 == 0 ? AgentFrame.Walk1 : AgentFrame.Walk2, drawn >= 24 ? 32 : 16);
-        canvas.Stamp(agent, (int)(x0 + traveled - drawn / 2f), (int)(y - drawn * 0.62f), drawn);
-        return canvas.ToImage();
-    }
 }
 
 /// <summary>
@@ -883,91 +797,6 @@ public sealed class GoldenHourProposal : IArtProposal, IAnimatedArtProposal
                 }
         canvas.Multiply(Night, 0.45f * night);
         return canvas.ToImage();
-    }
-}
-
-/// <summary>
-/// Idea 9, stock you can see: log, crate and sack piles beside the
-/// Warehouse and between the Farmhouse and Silo, growing with what is stored.
-/// </summary>
-public sealed class StockProposal : IArtProposal
-{
-    public string Family => "stock";
-
-    public IEnumerable<Entry> Render()
-    {
-        foreach (var size in new[] { 32, 16 })
-            foreach (var placement in new[] { "a-at-door", "b-along-wall" })
-                foreach (var (level, name) in new[] { (0, "empty"), (1, "some"), (2, "full") })
-                    yield return new(Family, $"{placement}-{name}-{size}", Frame(placement, level, size),
-                        (placement == "a-at-door" ? "A: piles on the ground beside the building" : "B: stacks against the building's wall") + $", {name}");
-    }
-
-    private static Image Frame(string placement, int level, int size)
-    {
-        var canvas = new Canvas(Polish.Scene(size, agents: true));
-        if (level == 0) return canvas.ToImage();
-        var unit = size / 32f;
-        // Warehouse at (6,2) 2×2: wood and crates south of it. Farmhouse (2,7) and Silo (4,8): grain sacks at (3,8).
-        if (placement == "a-at-door")
-        {
-            Logs(canvas, new Vector2(6.1f * size, 4.15f * size), unit, level == 2 ? 5 : 2);
-            Crates(canvas, new Vector2(7.05f * size, 4.15f * size), unit, level == 2 ? 4 : 1);
-            Sacks(canvas, new Vector2(3.05f * size, 8.1f * size), unit, level == 2 ? 6 : 2);
-        }
-        else
-        {
-            Logs(canvas, new Vector2(6.05f * size, 3.98f * size), unit, level == 2 ? 4 : 2, row: true);
-            Crates(canvas, new Vector2(7.0f * size, 3.95f * size), unit, level == 2 ? 3 : 1, row: true);
-            Sacks(canvas, new Vector2(3.02f * size, 7.85f * size), unit, level == 2 ? 5 : 2, row: true);
-        }
-        return canvas.ToImage();
-    }
-
-    private static void Shadow(Canvas c, float x, float y, float w, float h, float unit) =>
-        c.Fill((int)(x + 2 * unit), (int)(y + 2 * unit), (int)MathF.Max(1, w), (int)MathF.Max(1, h), new Color(0.05f, 0.08f, 0.05f, 0.28f));
-
-    private static void Logs(Canvas c, Vector2 at, float unit, int rows, bool row = false)
-    {
-        var len = 15 * unit; var th = 4 * unit;
-        for (var r = 0; r < rows; r++)
-        {
-            var x = at.X + (row ? 0 : (r % 2) * 3 * unit); var y = at.Y + r * (row ? th * 0.7f : th + unit * 0.5f);
-            Shadow(c, x, y, len, th, unit);
-            c.Fill((int)x, (int)y, (int)len, (int)MathF.Max(1, th), new Color("6E4E31"));
-            c.Fill((int)x, (int)y, (int)len, (int)MathF.Max(1, th * 0.4f), new Color("8A6440"));
-            c.Fill((int)(x + len - th), (int)y, (int)MathF.Max(1, th), (int)MathF.Max(1, th), new Color("D2AC77"));
-            c.Put((int)(x + len - th / 2), (int)(y + th / 2), new Color("8A6440"));
-        }
-    }
-
-    private static void Crates(Canvas c, Vector2 at, float unit, int count, bool row = false)
-    {
-        var s = 9 * unit;
-        for (var n = 0; n < count; n++)
-        {
-            var x = at.X + (row ? n * (s + unit) : (n % 2) * (s + unit));
-            var y = at.Y + (row ? 0 : (n / 2) * (s + unit)) - (row ? 0 : 0);
-            Shadow(c, x, y, s, s, unit);
-            c.Fill((int)x, (int)y, (int)s, (int)s, new Color("3F2A1A"));
-            c.Fill((int)(x + unit), (int)(y + unit), (int)MathF.Max(1, s - 2 * unit), (int)MathF.Max(1, s - 2 * unit), new Color("A77C52"));
-            c.Fill((int)(x + unit), (int)(y + s / 2), (int)MathF.Max(1, s - 2 * unit), (int)MathF.Max(1, unit), new Color("6E4E31"));
-            c.Put((int)(x + unit), (int)(y + unit), new Color("D2AC77"));
-        }
-    }
-
-    private static void Sacks(Canvas c, Vector2 at, float unit, int count, bool row = false)
-    {
-        var r = 3.8f * unit;
-        for (var n = 0; n < count; n++)
-        {
-            var centre = at + new Vector2(r + (row ? n * (2 * r + unit * 0.5f) : (n % 2) * (2 * r)), r + (row ? 0 : (n / 2) * (1.6f * r)));
-            c.Disc(centre + new Vector2(2 * unit, 2 * unit), r, new Color(0.05f, 0.08f, 0.05f, 0.28f));
-            c.Disc(centre, r, new Color("7E6E4A"));
-            c.Disc(centre, MathF.Max(0.6f, r - unit), new Color("C8B78C"));
-            c.Disc(centre - new Vector2(r * 0.35f, r * 0.35f), MathF.Max(0.5f, r * 0.35f), new Color("E3D6B5"));
-            c.Put((int)centre.X, (int)(centre.Y - r + unit), new Color("7E6E4A"));
-        }
     }
 }
 

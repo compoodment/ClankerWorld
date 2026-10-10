@@ -121,6 +121,13 @@ a soft grey column of smoke that rises, leans east and fades. Empty Houses
 and idle forges emit none; pausing freezes the smoke. The appearance still
 needs a Windows hands-on check.
 
+Stores show approved log, crate and sack piles on clear Town ground beside
+their doors at close and mid zoom. Their empty, some and full drawings follow
+recorded contents and capacity; the full drawing starts at 80% of a known
+limit. Unknown limits use the some drawing. Piles never replace recorded goods
+or block movement, and stay hidden where safe beside-door space is unavailable.
+The appearance still needs a Windows hands-on check.
+
 Buildings in use glow: light falls on the ground from the windows on a
 building's front and sides and from its open door, never from its roof. A House
 is lit only while someone is inside; a Farmhouse, Store, Tailor Shop, Workshop
@@ -1599,6 +1606,14 @@ actually move between regions yet.
 Grass and tree canopies use the approved seasonal colours: brighter in spring,
 base colours in summer, warmer in autumn and desaturated in winter. Existing
 snow follows the world state; changing season adds no snow by itself.
+
+Observed snowfall now leaves white cover on open ground in that region,
+keeping grass tips and trodden Roads visible. Cover builds over a game hour
+and melts over two hours after snow stops. Walking agents and animals leave
+footprints that fade within an hour. Pause freezes both; reload, rewind and
+world changes clear this local display history. Water, buildings, trees and
+permanent snow retain their own artwork. Close/mid zoom and snowy walking
+still need [the Windows check](../playtest/1463-ground-snow-footprints.md).
 
 The map uses the pixel art approved in the October 1 art review: every ground
 type, with mountains, peaks and hills drawn from the world's elevation as one

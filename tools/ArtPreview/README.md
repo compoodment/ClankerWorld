@@ -17,6 +17,7 @@ dotnet run -- seasons out    # the same reference scenes in spring, summer, autu
 dotnet run -- animate out weather  # proposals that move, such as weather, as numbered frames of each loop
 dotnet run -- movement out   # implemented glide/bob reference frames from the client's walking cadence
 dotnet run -- goldenhour out # implemented rose dawn and gold dusk references
+dotnet run -- snow out       # implemented ground snow A and footprints, using the client pixel rules
 dotnet run -- check          # current scene contract checks in memory; writes no pictures
 python3 build_review.py --baseline out/baseline --proposed out/proposed --scene out/scene \
   --style ../../docs/development/art-style.md --notes Proposed --out out/art-review.html
@@ -39,6 +40,9 @@ out.
 - `Approved/Smoke.cs`: the original smoke review drawings, retained independently
   for exact comparisons. Baseline smoke and the `smoke-client` animation use
   the live client generator; `check` compares all 36 frames at both zoom levels.
+- `Approved/StoredStock.cs`: independent original stock review drawings. Baseline
+  stock and the `stock-client` family use the live client painter; `check` compares
+  empty, some and full scenes at both atlas sizes.
 - `Scene.cs`: the hand-laid reference Town and the composer that draws it
   the way the map layer does.
 
