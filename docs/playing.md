@@ -184,6 +184,12 @@ title, household use right, pending use request or dispute, the household that
 owns it, and anything on it, such as a tree, a field or goods left on the
 ground.
 
+Snowfall gradually covers open ground in the regions you watch, with grass
+tips and greyer, trodden Roads still showing. Walking agents and animals leave
+prints that fade within a game hour. Cover melts after snow stops, and pausing
+holds it still. Reopening a world starts this local weather history again;
+permanent snowy ground keeps its usual picture.
+
 **Filters** turns map overlays on and off: Town borders, household property,
 Town land title, household land use and disputed land. Each one says what it
 draws, and all start off. Town borders show as a pale dashed line. While you

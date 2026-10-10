@@ -1601,6 +1601,14 @@ Grass and tree canopies use the approved seasonal colours: brighter in spring,
 base colours in summer, warmer in autumn and desaturated in winter. Existing
 snow follows the world state; changing season adds no snow by itself.
 
+Observed snowfall now leaves white cover on open ground in that region,
+keeping grass tips and trodden Roads visible. Cover builds over a game hour
+and melts over two hours after snow stops. Walking agents and animals leave
+footprints that fade within an hour. Pause freezes both; reload, rewind and
+world changes clear this local display history. Water, buildings, trees and
+permanent snow retain their own artwork. Close/mid zoom and snowy walking
+still need [the Windows check](../playtest/1463-ground-snow-footprints.md).
+
 The map uses the pixel art approved in the October 1 art review: every ground
 type, with mountains, peaks and hills drawn from the world's elevation as one
 landform spanning many tiles, and snow that thins into frost at its edges;
