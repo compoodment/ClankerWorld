@@ -360,6 +360,17 @@ test('scope prints whether to run the code checks and the test suite', () => {
   assert.equal(main(['scope'], 'src/ClankerWorld.GodotClient/UI/Theme/GameUiText.cs\n'), 'code=true\ntests=true');
 });
 
+test('the workflow also runs on merge-queue batches, which run everything', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '..', 'workflows', 'ci.yml'), 'utf8');
+  const triggers = workflow.slice(workflow.indexOf('\non:'), workflow.indexOf('\npermissions:'));
+  assert.match(triggers, /\n  merge_group:/);
+  assert.match(triggers, /\n  pull_request:/);
+  // Only a pull request lists its changed files; anything else plans a full run.
+  const scope = workflow.slice(workflow.indexOf('\n  scope:'), workflow.indexOf('\n  checks:'));
+  assert.match(scope, /if \[ "\$EVENT" = pull_request \]; then/);
+  assert.deepEqual(planScope([], new Set()), { code: true, tests: true });
+});
+
 test('the workflow runs the test suite only when scope asks for it', () => {
   const workflow = fs.readFileSync(path.join(__dirname, '..', 'workflows', 'ci.yml'), 'utf8');
   assert.match(workflow, /tests: \$\{\{ steps\.plan\.outputs\.tests \}\}/);

@@ -8,6 +8,25 @@ public static class WorldEventText
 {
     public const string ContinuityRisk = "The world is at risk of dying out.";
 
+    private static string DescribeContinuity(bool active, string detail)
+    {
+        var fields = detail.Split('|');
+        if (fields.Length == 4 && fields[0] == "eligible_couples" && fields[2] == "threshold" &&
+            int.TryParse(fields[1], NumberStyles.None, CultureInfo.InvariantCulture, out var couples) &&
+            int.TryParse(fields[3], NumberStyles.None, CultureInfo.InvariantCulture, out var threshold) && threshold > 0)
+            return active
+                ? $"The continuity rule is on because fewer than {threshold} couples of adults who are not close relatives can have children ({couples} now). " +
+                    "Couples may put off having a child for up to two days but cannot refuse."
+                : $"The continuity rule is off because at least {threshold} couples of adults who are not close relatives can have children ({couples} now). " +
+                    "Couples may decide against having a child again.";
+        // Older saved events retain the reason recorded by their head-count rule.
+        return active
+            ? "The continuity rule is on because fewer than eight people who are not elders are alive. " +
+                "Couples may put off having a child for up to two days but cannot refuse."
+            : "The continuity rule is off because eight or more people who are not elders are alive. " +
+                "Couples may decide against having a child again.";
+    }
+
     private static string DescribeDeveloperEdit(string detail, OwnerWorldSnapshot? snapshot)
     {
         try
@@ -44,7 +63,7 @@ public static class WorldEventText
         if (worldEvent.Kind == "marriage_accepted")
             return worldEvent.Detail.Replace("; their shared surname is still undecided.",
                 ". They haven't chosen a shared surname yet.", StringComparison.Ordinal);
-        if (worldEvent.Kind is "marriage_surname_agreed" or "marriage_surname_draw")
+        if (worldEvent.Kind is "marriage_surname_agreed" or "marriage_surname_draw" or "marriage_ended")
             return worldEvent.Detail;
         if (worldEvent.Kind == "marriage_surname_blocked")
             return "The shared surname would make a name too long. Shorten the agent's name and resume the surname conversation; both names are unchanged.";
@@ -85,7 +104,7 @@ public static class WorldEventText
             "horse_dismounted" => $"An adult dismounted {animalName}; spare cargo stays at the actual position.",
             "animal_permission_changed" => $"{animalName}'s named care or riding permission changed.",
             "animal_trade_offered" => $"A household offered {animalName}; the receiving adult must agree.",
-            "animal_transferred" => $"{animalName} now belongs to {GameUiText.PartyName(snapshot, Field(worldEvent.Detail.Replace(':', '|'), 2))}.",
+            "animal_transferred" => $"{animalName} now belongs to {GameUiText.PartyName(snapshot, worldEvent.Detail.Split(':', 3).ElementAtOrDefault(2) ?? string.Empty)}.",
             "animal_yard_supplied" => "Feed or jug water reached an animal yard.",
             "milk_drunk" => $"{Name(snapshot, worldEvent.Detail)} drank milk and kept the reusable jug.",
             "spoiled_milk_emptied" => "An adult poured away spoiled milk and kept the reusable jug.",
@@ -117,6 +136,7 @@ public static class WorldEventText
             "field_harvested" => $"{LeadingName(snapshot, worldEvent.Detail)} harvested {ThingAt(parts.Length - 1).ToLowerInvariant()}.",
             "field_ready" => "A field is ready to harvest.",
             "field_work_interrupted" => "Work on a field stopped before it was finished.",
+            "field_returned_to_grass" => "A field nobody worked for a season went back to grass.",
             "crop_weather_loss" => $"{(parts[^1] == "snow" ? "Snow" : "A storm")} damaged a crop, so its harvest will be smaller.",
             "crop_moisture_effect" when parts.Length >= 3 => parts[^2] == "wet"
                 ? "Damp soil gave a crop a bigger harvest."
@@ -128,29 +148,31 @@ public static class WorldEventText
             "inhabitant_slept" => $"{Name(snapshot, worldEvent.Detail)} slept.",
             "child_born" => DescribeBirth(snapshot, worldEvent.Detail),
             "inhabitant_removed" => $"{Name(snapshot, worldEvent.Detail)} died.",
-            "estate_will_accepted" => $"{EstateOwner(snapshot, worldEvent.Detail)}'s will was carried out, and their belongings went to the people it names.",
-            "estate_will_default" => $"{EstateOwner(snapshot, worldEvent.Detail)} left no usable will, so their belongings went to their household.",
+            "estate_will_accepted" => $"{EstateOwner(snapshot, worldEvent.Detail)}'s will was accepted for their estate.",
+            "estate_will_default" => $"{EstateOwner(snapshot, worldEvent.Detail)}'s estate will use default inheritance.",
             "partnership_accepted" => Partner(snapshot, worldEvent.Detail, worldEvent.WorldTick) is { } partner
                 ? $"{Name(snapshot, worldEvent.Detail)} and {partner} became partners."
                 : $"{Name(snapshot, worldEvent.Detail)} formed a partnership.",
             "partnership_ended" => $"{Name(snapshot, worldEvent.Detail)}'s partnership ended.",
-            "continuity_rule_on" => "Fewer than eight people who aren't elders are alive, so couples must now have children. They can wait up to two days.",
-            "continuity_rule_off" => "Eight or more people who aren't elders are alive again, so couples can choose not to have children.",
-            "caregiver_assigned" => Carer(snapshot, worldEvent.Detail, worldEvent.WorldTick) is { } carer
+            "continuity_rule_on" => DescribeContinuity(true, worldEvent.Detail),
+            "continuity_rule_off" => DescribeContinuity(false, worldEvent.Detail),
+            "caregiver_assigned" => Carer(snapshot, worldEvent.Detail, worldEvent.WorldTick + 1) is { } carer
                 ? $"{carer} is now caring for {Name(snapshot, worldEvent.Detail)}."
                 : $"{Name(snapshot, worldEvent.Detail)} has a new caregiver.",
-            "guardian_needed" => $"{Name(snapshot, worldEvent.Detail)} needs a guardian. No adult has offered to look after them yet.",
+            "guardian_needed" => $"{Name(snapshot, worldEvent.Detail)} needs a guardian. No adult has agreed to look after them yet.",
             "guardian_assigned" => Carer(snapshot, worldEvent.Detail, worldEvent.WorldTick) is { } guardian
                 ? $"{guardian} agreed to look after {Name(snapshot, worldEvent.Detail)}."
                 : $"An adult agreed to look after {Name(snapshot, worldEvent.Detail)}.",
-            "guardian_placement_pending" => $"{Name(snapshot, worldEvent.Detail)} has a guardian and will move into their House soon.",
+            "guardian_placement_pending" => $"{Name(snapshot, worldEvent.Detail)} has a guardian and is waiting to move into their House.",
             "guardian_placement_completed" => $"{LeadingName(snapshot, worldEvent.Detail)} moved into their guardian's House.",
             "guardian_placement_cancelled" => $"{Name(snapshot, worldEvent.Detail)}'s move to their guardian's House was called off.",
             "medical_care_allowed" => $"{LeadingName(snapshot, worldEvent.Detail)} agreed to let {AfterMarker(snapshot, worldEvent.Detail, ":medical_caregiver:", "someone")} treat them.",
-            "medical_care_revoked" => $"{LeadingName(snapshot, worldEvent.Detail)} no longer wants medical care.",
+            "medical_care_revoked" => $"{LeadingName(snapshot, worldEvent.Detail)} no longer lets {AfterMarker(snapshot, worldEvent.Detail, ":medical_caregiver:", "that caregiver")} treat them.",
             "medical_treatment_started" => $"{LeadingName(snapshot, worldEvent.Detail)} began a course of medicine.",
             "medical_treatment_completed" => $"{Name(snapshot, worldEvent.Detail)} finished a course of medicine.",
             "medical_treatment_interrupted" => $"{Name(snapshot, worldEvent.Detail)}'s treatment stopped partway. Medicine already taken is used up.",
+            "child_collected_household" => $"{LeadingName(snapshot, worldEvent.Detail)} picked up a small household load to bring home.",
+            "child_delivered_household" => $"{LeadingName(snapshot, worldEvent.Detail)} brought a small household load to their House.",
             "empty_vessel_picked_up" => $"{LeadingName(snapshot, worldEvent.Detail)} picked up an empty container to bring home.",
             "ornament_worn" => $"{LeadingName(snapshot, worldEvent.Detail)} put on an ornament.",
             "ornament_removed" => $"{LeadingName(snapshot, worldEvent.Detail)} took off an ornament.",
@@ -190,6 +212,7 @@ public static class WorldEventText
                 "agent_knowledge_artifact_collected" or "agent_knowledge_artifact_stored" =>
                 DescribeWrittenKnowledge(worldEvent, snapshot),
             "skill_learned" => DescribeSkill(worldEvent.Detail, snapshot),
+            "agent_recipe_learned" => $"{Name(snapshot, worldEvent.Detail.Split('|')[0])} learned a recipe through practice.",
             "inhabitant_building_proposed" => $"{LeadingName(snapshot, worldEvent.Detail)} suggested a new building design.",
             "instruction_not_understood" => $"{Name(snapshot, BeforeLastField(worldEvent.Detail))} didn't understand your order. " +
                 "Try one of the listed tasks, or use Suggest instead.",
@@ -263,6 +286,7 @@ public static class WorldEventText
             "town_admission_lapsed" => $"{Name(snapshot, Field(worldEvent.Detail, 1))} didn't join {civicTownName}: the approval no longer fits their situation.",
             "town_building_assigned" => DescribeTownBuilding(snapshot, worldEvent.Detail),
             "town_border_expanded" => $"{Sentence(TownNamed(snapshot, worldEvent.Detail, null) ?? "the Town")}'s border grew.",
+            "town_founded" when worldEvent.Detail.Contains('|') => $"{Name(snapshot, Field(worldEvent.Detail, 1))} founded {civicTownName}.",
             "town_founded" => TownNamed(snapshot, worldEvent.Detail, null) is { } founded
                 ? $"{founded}, your first Town, was founded." : "Your first Town was founded.",
             "bridge_built" when parts.Length > 0 && parts[0] == "road" => "A bridge was built where a new Road crosses the river.",
@@ -290,6 +314,7 @@ public static class WorldEventText
             "paused" => "The world was paused.",
             "resumed" => "The world resumed.",
             "model_call_warning" => DescribeModelCallWarning(parts),
+            "model_attempt_status" => DescribeModelFailure(worldEvent.Detail, snapshot),
             _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
         };
     }
@@ -306,7 +331,7 @@ public static class WorldEventText
             "law_case_response" => $"{actor ?? "Someone"} answered a case in {town}.",
             "law_case_inspected" => $"{actor ?? "Someone"} read the file for a case in {town}.",
             "law_case_relayed" => $"{actor ?? "Someone"} told someone nearby about a case.",
-            "law_case_judge_consent" => $"An adult in {town} offered to judge a case.",
+            "law_case_judge_consent" => $"An adult in {town} changed their willingness to judge a case.",
             "law_case_judge_election" => $"{town}'s vote on who will judge a case has news. See the Towns page.",
             "law_case_judge_assigned" => $"{town} chose a judge for a case.",
             "law_case_finding" => $"{town} reached a decision in a case. See the Towns page for the reasons.",
@@ -357,12 +382,19 @@ public static class WorldEventText
             "land_case_opened" => $"{townName} opened {subject}. Current land rights stay in place until it's decided.",
             "land_case_notice" => $"{townName} posted notice for {subject}. See the Towns page for the deadline.",
             "land_case_evidence" => $"New evidence was added to {subject}.",
-            "land_case_response" => action == "waive" ? $"{actor ?? "Someone"} chose not to answer {subject}." : $"{actor ?? "Someone"} answered {subject}.",
+            "land_case_response" => $"{actor ?? "An affected adult"} " +
+                (action switch
+                {
+                    "waive" => "explicitly waived their own response",
+                    "property_accept" => "personally agreed to the property transfer",
+                    "property_refuse" => "refused the property transfer",
+                    _ => "recorded an answer"
+                }) + $" in {subject}.",
             "land_case_judge_consent" => $"{actor ?? "An adult resident"} " + (action switch
             {
-                "judge_withdraw" => "withdrew their offer to act as mayor",
-                "judge_resign" => "resigned as acting mayor",
-                _ => "agreed to act as mayor",
+                "judge_withdraw" => "withdrew their offer to judge the case",
+                "judge_resign" => "resigned from judging the case",
+                _ => "agreed to judge the case",
             }) + $" for {subject}.",
             "land_case_judge_election" => $"{townName}'s vote for {subject} has news. See the Towns page.",
             "land_case_judge_assigned" => $"{actor ?? "A judge"} will judge {subject}.",
@@ -449,18 +481,18 @@ public static class WorldEventText
             : $"{Name(snapshot, childId)} was born to {string.Join(" and ", parents)}.";
     }
 
-    /// <summary>The partner whose partnership with this agent began at the event's tick, so a later partner never stands in.</summary>
+    /// <summary>The partner whose accepted partnership became effective on the tick after the event, so a later partner never stands in.</summary>
     private static string? Partner(OwnerWorldSnapshot? snapshot, string agentId, long tick) =>
-        RelatedAt(snapshot, agentId, tick, "partnership");
+        RelatedAt(snapshot, agentId, tick + 1, "partnership");
 
-    /// <summary>The adult who began caring for a child at the event's tick, as a caregiver or legal guardian.</summary>
+    /// <summary>The accepted adult carer at the supplied effective tick; infant care begins one tick after its event, new guardianship at the event tick.</summary>
     private static string? Carer(OwnerWorldSnapshot? snapshot, string childId, long tick) =>
         RelatedAt(snapshot, childId, tick, "caregiver", "legal_guardian");
 
     private static string? RelatedAt(OwnerWorldSnapshot? snapshot, string agentId, long tick, params string[] types)
     {
         var other = snapshot?.Inhabitants.FirstOrDefault(person => person.Id == agentId)?.Relationships
-            .FirstOrDefault(item => types.Contains(item.Type) && item.EffectiveTick == tick)?.OtherPartyId;
+            .FirstOrDefault(item => types.Contains(item.Type) && item.State == "accepted" && item.EffectiveTick == tick)?.OtherPartyId;
         return other is null ? null : snapshot?.Inhabitants.FirstOrDefault(person => person.Id == other)?.DisplayName;
     }
 
@@ -571,7 +603,7 @@ public static class WorldEventText
         var recipient = Name(snapshot, fields.ElementAtOrDefault(1) ?? string.Empty);
         return worldEvent.Kind switch
         {
-            "agent_knowledge_artifact_read" => $"{recipient} read a written work and learned about new places.",
+            "agent_knowledge_artifact_read" => $"{recipient} learned from a written work.",
             "agent_knowledge_shared" => $"{author} shared written knowledge with {recipient}.",
             "agent_knowledge_artifact_collected" => $"{author} picked up a written work.",
             "agent_knowledge_artifact_stored" => $"{author} stored a written work.",
@@ -592,6 +624,22 @@ public static class WorldEventText
         snapshot?.Inhabitants.FirstOrDefault(person => person.Id == id)?.DisplayName
         ?? (string.IsNullOrEmpty(id) || id.Contains(':', StringComparison.Ordinal)
             ? "Someone" : GameUiText.HumanizeIdentifier(id));
+
+    private static string DescribeModelFailure(string detail, OwnerWorldSnapshot? snapshot)
+    {
+        var separator = detail.LastIndexOf(':');
+        if (separator <= 0) return "A model reply failed.";
+        var name = Name(snapshot, detail[..separator]);
+        var reason = detail[(separator + 1)..] switch
+        {
+            "missing_key" => "the model key is missing",
+            "usage_limit" => "the usage limit was reached",
+            "unusable_reply" => "the model sent an unusable reply",
+            "timed_out" => "the model reply timed out",
+            _ => "the model is unavailable",
+        };
+        return $"{name} could not get a model reply: {reason}.";
+    }
 
     private static string LeadingName(OwnerWorldSnapshot? snapshot, string detail)
     {

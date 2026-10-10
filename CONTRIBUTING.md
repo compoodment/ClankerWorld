@@ -74,7 +74,7 @@ one and what the label workflows do on their own. Never create a label by hand.
 | Area | `area:agents` (models, memories, personality, families, conversations), `area:towns` (buildings, households, land, work, trade), `area:world` (map, terrain, weather, plants, survival, time), `area:saves`, `area:interface` (screens, controls, art), `area:server` (host, pairing, keys, deployment), `area:tooling` (CI, tests, build, workflow) |
 | Priority | `priority:p0` to `priority:p3`; see [Priorities](#priorities) |
 | Issue status | `status:needs-pr` (agreed and unblocked; only on issues that need a pull request, never on decisions or owner tasks), `status:in-progress` ([claimed](#claims)), `status:has-pr` (a pull request closes it), `status:parked` (closed for a later stage) |
-| Pull request status | `status:needs-review` (ready for review), `status:reviewing` ([claimed by a reviewer](#claims)), `status:merging` ([taking its turn to merge](skills/review-merge/SKILL.md#take-turns-for-the-final-run)) |
+| Pull request status | `status:needs-review` (ready for review), `status:reviewing` ([claimed by a reviewer](#claims)) |
 | Either | `status:needs-decision` (waiting on the owner), `status:blocked` (waiting on something its description names, such as `Blocked by #123`) |
 | Other | `owner-task` (only computment can do it), `owner-priority` (the owner chose this priority), `regression`, `from:playtest`, `accessibility` |
 
@@ -84,7 +84,7 @@ issues, its areas, a priority if it is not P2 and any status that applies;
 they become true; and `status:parked` when closing agreed work for later. The
 workflows set a pull request's priority, type, areas and `status:needs-review`,
 and move `status:has-pr`, `status:needs-pr` and `status:in-progress` on the
-issues it closes; claim, merging, blocked and decision labels stay manual.
+issues it closes; claim, blocked and decision labels stay manual.
 
 ### Priorities
 
@@ -149,8 +149,8 @@ steps.
   ([how](AGENTS.md#take-over-work-only-when-the-owner-asks)).
 - **One claim at a time.** A fixing session holds one issue claim, except for
   combined work covered by one pull request or stack. A reviewing session holds
-  one review claim, except for a second while the first waits on CI or its
-  merging turn. A session's subagents share its claims.
+  one review claim, except for a second while the first waits on CI or in the
+  merge queue. A session's subagents share its claims.
 - **Only pushes keep a claim.** Every 30 minutes a workflow releases any claim
   with nothing pushed for 1.5 hours since its label was added or its last push.
   Comments, edits and other label changes do not count. Pushes to ready pull
@@ -217,9 +217,13 @@ owner explicitly asks and a session that is not an author has already reviewed
 the current head, or to revert a commit that broke main. A merged change does
 not need a release; see the [release policy](docs/development/releasing.md).
 
+- **Pull requests merge only through GitHub's merge queue,** which tests each
+  batch on top of main before merging it
+  ([how](skills/review-merge/SKILL.md#add-it-to-the-merge-queue)).
 - **If main's CI breaks,** the session that merged the first failing commit
-  reverts or fixes it as a P0. Until main is green, nobody merges main into
-  other pull requests or copies the pending fix: wait for it to merge.
+  reverts or fixes it as a P0. Until main is green, nobody adds other pull
+  requests to the queue, merges main into them or copies the pending fix:
+  wait for it to merge.
 - **Never delete a branch by hand** while open pull requests target it: GitHub
   closes them. GitHub deletes a merged pull request's branch itself.
 

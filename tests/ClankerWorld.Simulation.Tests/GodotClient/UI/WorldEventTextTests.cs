@@ -8,6 +8,20 @@ public sealed class WorldEventTextTests
     private const string AgentId = "agent:00000000000000000000000000000099";
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
+    [Fact]
+    public void ModelLogKeepsOneContinuingProblemAndUsesTheCompleteDescendantIdentity()
+    {
+        OwnerWorldEvent Status(long id, string status) => new(id, id, "model_attempt_status", $"{ChildId}:{status}");
+        var events = new[] { Status(1, "waiting"), Status(2, "waiting"), Status(3, "ready"),
+            Status(4, "waiting"), Status(5, "timed_out"), Status(6, "timed_out"), Status(7, "waiting"),
+            Status(8, "timed_out"), Status(9, "canceled"), Status(10, "ready"), Status(11, "waiting"), Status(12, "timed_out") };
+        var rows = GameUiText.PlayerEvents(events.Reverse()).ToArray();
+        Assert.Equal(new long[] { 5, 12 }, rows.Select(item => item.EventId));
+        Assert.Equal("Aster could not get a model reply: the model reply timed out.",
+            WorldEventText.Describe(rows[0], Snapshot(Person(FounderId, "Mira"), Person(ChildId, "Aster"))));
+        Assert.Equal(rows, GameUiText.PlayerEvents(events).ToArray());
+    }
+
     [Theory]
     [InlineData("{")]
     [InlineData("null")]
@@ -67,6 +81,8 @@ public sealed class WorldEventTextTests
         {
             ("food_harvested", id + ":4", "gathered food"),
             ("food_consumed", id, "ate"),
+            ("child_collected_household", id + ":wood:4", "picked up a small household load to bring home"),
+            ("child_delivered_household", id + ":food:4:first-town-house-a", "brought a small household load to their House"),
             ("tree_planted", id + ":planted-tree-12-7:broadleaf", "planted a tree"),
             ("tree_replanted", id + ":tree-8-16:conifer", "replanted a tree"),
             ("inhabitant_slept", id, "slept"),
@@ -82,6 +98,7 @@ public sealed class WorldEventTextTests
         {
             var worldEvent = new OwnerWorldEvent(1, 1, kind, detail);
             Assert.Equal($"Aster {action}.", WorldEventText.Describe(worldEvent, snapshot));
+            if (kind.StartsWith("child_", StringComparison.Ordinal)) Assert.True(GameUiText.IsPlayerFacingEvent(kind));
             var renamed = snapshot with { Inhabitants = [Person(id, "Rowan", "dead")] };
             Assert.Equal($"Rowan {action}.", WorldEventText.Describe(worldEvent, renamed));
             Assert.Equal(detail, worldEvent.Detail);
@@ -300,12 +317,12 @@ public sealed class WorldEventTextTests
             [
                 new("parent-1", FounderId, "biological_parentage", "accepted", "family", 5, "child"),
                 new("parent-2", AgentId, "biological_parentage", "accepted", "family", 5, "child"),
-                new("care-1", AgentId, "caregiver", "accepted", "family", 30),
+                new("care-1", AgentId, "caregiver", "accepted", "family", 31),
             ],
         };
         var aster = Person(AgentId, "Aster") with
         {
-            Relationships = [new("partner-1", FounderId, "partnership", "accepted", "private", 20, "partner")],
+            Relationships = [new("proposal-1", ChildId, "partnership", "proposed", "private", 21, "partner"), new("partner-1", FounderId, "partnership", "accepted", "private", 21, "partner")],
         };
         var snapshot = Snapshot(aster, Person(FounderId, "Mira"), child);
         string Line(long tick, string kind, string detail) => WorldEventText.Describe(new(1, tick, kind, detail), snapshot);
@@ -317,17 +334,33 @@ public sealed class WorldEventTextTests
         Assert.Equal("Aster's partnership ended.", Line(40, "partnership_ended", AgentId));
         Assert.Equal("Aster is now caring for Corin.", Line(30, "caregiver_assigned", ChildId));
         Assert.Equal("Corin has a new caregiver.", Line(31, "caregiver_assigned", ChildId));
-        Assert.Equal("Aster agreed to look after Corin.", Line(30, "guardian_assigned", ChildId));
-        Assert.Equal("Corin needs a guardian. No adult has offered to look after them yet.", Line(1, "guardian_needed", ChildId));
+        Assert.Equal("Aster agreed to look after Corin.", Line(31, "guardian_assigned", ChildId));
+        Assert.Equal("Corin needs a guardian. No adult has agreed to look after them yet.", Line(1, "guardian_needed", ChildId));
         Assert.Equal("Aster agreed to take over caring for Corin.", Line(1, "replacement_care_accepted", AgentId + "|" + ChildId));
-        Assert.Equal("Aster's will was carried out, and their belongings went to the people it names.",
+        Assert.Equal("Aster's will was accepted for their estate.",
             Line(1, "estate_will_accepted", "estate:" + AgentId + ":44:even:2"));
-        Assert.Equal("Aster left no usable will, so their belongings went to their household.",
+        Assert.Equal("Aster's estate will use default inheritance.",
             Line(1, "estate_will_default", "estate:" + AgentId + ":44:invalid_estate_or_heir"));
         Assert.Equal("Aster agreed to let Mira treat them.", Line(1, "medical_care_allowed", AgentId + ":medical_caregiver:" + FounderId));
+        Assert.Equal("Aster's estate will use default inheritance.",
+            Line(1, "estate_will_default", "estate:" + AgentId + ":44:household_selected"));
+        Assert.Equal("Aster no longer lets Mira treat them.", Line(1, "medical_care_revoked", AgentId + ":medical_caregiver:" + FounderId));
         Assert.Equal("Aster gave their handcart and its load to Mira.", Line(1, "handcart_transferred", AgentId + ":cart-1:" + FounderId));
         Assert.Equal("Aster's handcart can't go this way. Park it or choose another route; its load is safe.",
             Line(1, "handcart_blocked", AgentId + ":steep"));
+    }
+
+    [Fact]
+    public void AnimalTransferNamesTheHouseholdWithItsCompleteIdentifier()
+    {
+        var snapshot = Snapshot() with
+        {
+            Animals = [new("animal-7", "Bess", "cow", "female", 300, "adult", new(0, 0),
+                "household:camp-alpha", "Mira's household", "cared", null, 0, null, null, null, null, false, [], [])],
+            Stockpiles = [new("household:camp-alpha", "Mira's household", [])],
+        };
+        Assert.Equal("Bess now belongs to Mira's household.", WorldEventText.Describe(
+            new(1, 1, "animal_transferred", "animal-offer-abc:animal-7:household:camp-alpha"), snapshot));
     }
 
     [Theory]

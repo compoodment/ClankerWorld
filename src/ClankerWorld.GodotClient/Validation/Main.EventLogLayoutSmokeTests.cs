@@ -140,6 +140,23 @@ public partial class Main
             if (EventRows().Single().GetChildren().OfType<Label>().Last().GetLineCount() != 1)
                 throw new InvalidOperationException("The ordinary short Event Log control must remain one line.");
             CheckShortHistory("with one ordinary row");
+            knownEvents.Clear();
+            knownEvents[2_000] = new(2_000, 0, "model_attempt_status", "founder-scout:waiting");
+            knownEvents[2_001] = new(2_001, 1, "model_attempt_status", "founder-scout:ready");
+            renderedEventLog = null;
+            RenderEventLog();
+            await Settle();
+            if (EventRows().Length != 0) throw new InvalidOperationException("A slow successful model reply must add no Event Log row.");
+            knownEvents[2_002] = new(2_002, 2, "model_attempt_status", "founder-scout:timed_out");
+            knownEvents[2_003] = new(2_003, 3, "model_attempt_status", "founder-scout:waiting");
+            knownEvents[2_004] = new(2_004, 4, "model_attempt_status", "founder-scout:timed_out");
+            RenderEventLog();
+            await Settle();
+            var failureRow = EventRows().Single();
+            if (!failureRow.GetChildren().OfType<Label>().Last().Text.Contains("model reply timed out", StringComparison.Ordinal))
+                throw new InvalidOperationException("An actual model failure must have one readable Event Log row.");
+            RenderEventLog();
+            if (EventRows().Single() != failureRow) throw new InvalidOperationException("An unchanged failure refresh must retain its row.");
         }
         finally
         {
