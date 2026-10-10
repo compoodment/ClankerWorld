@@ -51,7 +51,7 @@ public sealed partial class PrivateWorldRuntime
             .Select(ecology => ecology.Id).ToHashSet(StringComparer.Ordinal);
         return map.Resources
             .Where(resource => TreeGrowthRules.IsWoodTree(resource.TreeKind) && resource.IsRenewable &&
-                depleted.Contains(resource.Id) && map.IsReachableOnFoot(origin, resource.Position))
+                depleted.Contains(resource.Id) && CanReachByFootOrSwimming(actor, origin, resource.Position))
             .OrderBy(resource => map.FootDistance(origin, resource.Position))
             .ThenBy(resource => resource.Id, StringComparer.Ordinal)
             .FirstOrDefault(resource => IsWithinInteractionRange(origin, resource.Position, ResourceInteractionRange) ||
@@ -217,7 +217,7 @@ public sealed partial class PrivateWorldRuntime
                 if (map.WrapsEastWest) x = (x % map.Width + map.Width) % map.Width;
                 var point = new GridPoint(x, origin.Y + dy);
                 if (!map.Contains(point) || townTiles.Contains(point) ||
-                    PlantingSiteRefusal(point, obstacles) is not null || !map.IsReachableOnFoot(origin, point))
+                    PlantingSiteRefusal(point, obstacles) is not null || !CanReachByFootOrSwimming(actor, origin, point))
                     continue;
                 sites.Add(point);
             }

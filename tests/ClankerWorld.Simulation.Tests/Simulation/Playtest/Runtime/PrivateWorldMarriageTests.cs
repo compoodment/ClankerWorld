@@ -299,6 +299,8 @@ public sealed partial class PrivateWorldConversationTests
         public bool DisagreeOnSurname { get; init; }
         public bool UseAllowedSurnameOptions { get; init; }
         public int SurnameFailuresRemaining { get; set; }
+        public string TalkTargetId { get; init; } = InviteeId;
+        public bool EndPartnership { get; set; }
         public bool CanSpeakAs(string agentId) => agentId == ownerId;
 
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
@@ -306,11 +308,13 @@ public sealed partial class PrivateWorldConversationTests
             request.Validate();
             Assert.Equal(ownerId, request.Observation.InhabitantId);
             var observation = request.Observation;
-            var selected = observation.Candidates.FirstOrDefault(candidate =>
+            var selected = observation.Candidates.FirstOrDefault(candidate => EndPartnership &&
+                candidate.Id.StartsWith("partner_leave:", StringComparison.Ordinal)) ??
+                observation.Candidates.FirstOrDefault(candidate =>
                 candidate.Id.StartsWith("conversation_wrapup_accept:", StringComparison.Ordinal) ||
                 candidate.Id.StartsWith("conversation_resume:", StringComparison.Ordinal) ||
                 candidate.Id.StartsWith("conversation_accept:", StringComparison.Ordinal)) ??
-                observation.Candidates.FirstOrDefault(candidate => ownerId == InitiatorId && candidate.Id == $"talk:{InviteeId}") ??
+                observation.Candidates.FirstOrDefault(candidate => ownerId == InitiatorId && candidate.Id == $"talk:{TalkTargetId}") ??
                 observation.Candidates.First(candidate => candidate.Id == "safe_idle");
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, ownerId, Kind, ProviderEpoch,
                 observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest, selected.Id, 1d,

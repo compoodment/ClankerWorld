@@ -259,11 +259,11 @@ public sealed partial class PrivateWorldRuntime
                 throw new ArgumentException("Choose a valid name.", nameof(name));
             if (InhabitantNameRules.IsTaken(society.Checkpoint, agentId, name))
                 throw new InhabitantNameTakenException();
-            if (marriages.SingleOrDefault(item => item.CompletedTick is null && item.SurnameReceipt is null &&
+            if (marriages.SingleOrDefault(item => item.EndReceipt is null && item.CompletedTick is null && item.SurnameReceipt is null &&
                     AgentMarriageRules.HasParticipant(item, agentId)) is { } pendingMarriage &&
                 !AgentMarriageRules.CanKeepSurnameChoices(pendingMarriage, name))
                 throw new ArgumentException("Choose a shorter first or middle name so the marriage's surname choices still fit.", nameof(name));
-            var marriageIndex = marriages.FindIndex(item => item.CompletedTick is not null && AgentMarriageRules.HasParticipant(item, agentId));
+            var marriageIndex = marriages.FindIndex(item => item.EndReceipt is null && item.CompletedTick is not null && AgentMarriageRules.HasParticipant(item, agentId));
             var result = marriageIndex < 0
                 ? society.Apply(checkpoint => RenameFromPlayer(checkpoint, agentId, name))
                 : RenameSpouses(marriages[marriageIndex], agentId, name, fromPlayer: true);
