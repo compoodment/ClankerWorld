@@ -23,6 +23,8 @@ public sealed class HouseToolsBootstrapTests
         var paidHouseTick = world.WorldTick;
         foreach (var kind in new[] { HouseToolsContent.CrudeWoodenAxe, HouseToolsContent.CrudeWoodenPickaxe })
         {
+            Assert.Equal(kind == HouseToolsContent.CrudeWoodenPickaxe,
+                (Physical(world).Skills ?? []).Any(skill => skill.Kind == SettlementSkillKind.Crafting));
             chooser.Target = kind;
             var recipe = world.WorldContent.Recipes.Single(item => item.Outputs.Any(output => output.ResourceId == kind));
             await Until(world, () => Physical(world).Project is { WorkDone: > 0, JobId: null } project &&
@@ -40,7 +42,8 @@ public sealed class HouseToolsBootstrapTests
             await Until(world, () => world.WorldSimulation.ProductionJobs.Any(job =>
                 job.RecipeId == recipe.CanonicalId && job.State == WorldProductionJobState.Running), chooser);
             var running = Assert.Single(world.WorldSimulation.ProductionJobs, job => job.RecipeId == recipe.CanonicalId);
-            Assert.Equal((Actor, household, house.InstanceId, 24L),
+            var workTicks = kind == HouseToolsContent.CrudeWoodenAxe ? 24L : 19L;
+            Assert.Equal((Actor, household, house.InstanceId, workTicks),
                 (running.WorkerId, running.OwnerId, running.BuildingInstanceId, running.CompletionTick - running.StartedTick));
             Assert.Equal(3, running.InputReservationIds.Sum(id => world.Society.Inventory.GetReservation(id).Quantity));
             Assert.All(running.InputReservationIds, id =>

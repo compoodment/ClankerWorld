@@ -28,9 +28,11 @@ public sealed class BlacksmithGatherReachabilityTests
         var smith = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-blacksmith");
         var actor = state.Society.Society.Inhabitants.First(person => person.HouseholdId == smith.HouseholdId).Id;
         var position = kind == "wood" ? new GridPoint(111, 62) : new GridPoint(60, 50);
-        var remote = kind == "wood" ? new GridPoint(238, 85) : new GridPoint(103, 47);
+        var remote = kind == "wood" ? new GridPoint(238, 85) : state.Map.Tiles.Select(tile => tile.Position)
+            .First(point => state.Map.IsBuildable(point) && !SwimmingRules.IsReachable(state.Map, position, point));
         Assert.True(state.Map.IsBuildable(remote));
         Assert.False(state.Map.IsReachableFromCampOnFoot(remote));
+        Assert.False(SwimmingRules.IsReachable(state.Map, position, remote));
         Assert.True(state.Map.IsReachableFromCampOnFoot(position));
         var inventory = state.Society.Society.Inventory with
         {

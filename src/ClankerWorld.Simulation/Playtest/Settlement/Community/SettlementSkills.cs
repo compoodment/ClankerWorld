@@ -16,6 +16,21 @@ public sealed record SettlementSkill(SettlementSkillKind Kind, long LearnedTick,
 public sealed partial class PrivateWorldRuntime
 {
     private const int SkillsSchemaVersion = 31;
+    // Provisional for playtesting. Round down to whole ticks, with at least one.
+    private const int SkillWorkReductionPercent = 20;
+
+    private int SkilledWorkTicks(string actor, SettlementSkillKind skill, int ticks) =>
+        HasSkill(actor, skill) ? Math.Max(1, (int)((long)ticks * (100 - SkillWorkReductionPercent) / 100)) : ticks;
+
+    private int SkilledWorkProgress(string actor, SettlementSkillKind skill, int done, int work)
+    {
+        if (!HasSkill(actor, skill)) return done + work;
+        // Keep progress in its existing full-work units, including completion
+        // receipts. Convert back with a ceiling so a whole tick always advances.
+        var rate = 100 - SkillWorkReductionPercent;
+        var elapsed = ((long)done * rate + 99) / 100;
+        return (int)((elapsed + work) * 100 / rate);
+    }
 
     private bool HasSkill(string actor, SettlementSkillKind skill) =>
         inhabitants.TryGetValue(actor, out var person) && person.Skills?.Any(item => item.Kind == skill) == true;

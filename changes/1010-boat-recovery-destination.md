@@ -1,0 +1,1 @@
+- Keep Towns-page boat trip rows pointed at the current arrival Port during recovery, and show when a boat is returning or waiting for a safe arrival.

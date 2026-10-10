@@ -15,6 +15,9 @@ public partial class Main
     private readonly VBoxContainer townExtras = new();
     private readonly MarginContainer townsGap = new() { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
     private string? renderedWorldStats;
+    private string? renderedWorldToday;
+    private PanelContainer? worldTodayCard;
+    private VBoxContainer? worldCounts;
     private string? renderedTownExtras;
     private const int ResidentPortraitLimit = 10;
 
@@ -59,18 +62,58 @@ public partial class Main
         var (width, height) = MapDimensions(snapshot);
         var weather = WeatherAtCamera(snapshot);
         var moisture = WeatherRegionAtCamera(snapshot)?.SoilMoisture;
-        var signature = string.Join("|", DisplayWorldClock(snapshot.WorldTick), snapshot.Authoring?.Season, weather, moisture,
-            snapshot.CalendarPace?.DaysPerYear, LivingPopulation(snapshot), snapshot.Towns.Count, snapshot.Stockpiles.Count,
+        RenderWorldToday(snapshot, weather, moisture);
+        var signature = string.Join("|", LivingPopulation(snapshot), snapshot.Towns.Count, snapshot.Stockpiles.Count,
             snapshot.PlacedBuildings.Count, snapshot.RoadTiles.Count, snapshot.Bridges.Count, snapshot.Resources.Count,
             width, height, UiTheme.Current.Name);
         if (signature == renderedWorldStats) return;
         renderedWorldStats = signature;
-        foreach (var child in worldStatsPage.GetChildren())
+        if (worldCounts is not null)
         {
-            worldStatsPage.RemoveChild(child);
-            child.QueueFree();
+            worldStatsPage.RemoveChild(worldCounts);
+            worldCounts.QueueFree();
         }
+        worldCounts = new VBoxContainer();
+        worldCounts.AddThemeConstantOverride("separation", 8);
+        worldStatsPage.AddChild(worldCounts);
 
+        var grid = new GridContainer { Columns = 4 };
+        grid.AddThemeConstantOverride("h_separation", 6);
+        grid.AddThemeConstantOverride("v_separation", 6);
+        var p = UiTheme.Current;
+        static string Count(int value) => value.ToString("N0", CultureInfo.InvariantCulture);
+        static string Plural(int value, string one, string many) => value == 1 ? one : many;
+        var living = LivingPopulation(snapshot);
+        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Person, p.Ink, BuiltAccent, 1), Count(living), Plural(living, "living agent", "living agents")));
+        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Flag, p.Ink, p.Primary, 1), Count(snapshot.Towns.Count), Plural(snapshot.Towns.Count, "Town", "Towns")));
+        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Heart, p.Partner, p.Partner, 1), Count(snapshot.Stockpiles.Count), Plural(snapshot.Stockpiles.Count, "household", "households")));
+        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.House, p.Ink, BuiltAccent, 1), Count(snapshot.PlacedBuildings.Count), Plural(snapshot.PlacedBuildings.Count, "building", "buildings")));
+        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Road, p.Ink, BuiltAccent, 1), Count(snapshot.RoadTiles.Count), Plural(snapshot.RoadTiles.Count, "road tile", "road tiles")));
+        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Bridge, p.Ink, p.Name == "dark" ? new Color("7FB4E0") : new Color("2F6FA3"), 1), Count(snapshot.Bridges.Count), Plural(snapshot.Bridges.Count, "bridge", "bridges")));
+        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Leaf, p.Ink, p.Primary, 1), Count(snapshot.Resources.Count), Plural(snapshot.Resources.Count, "resource site", "resource sites")));
+        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Globe, p.Ink, p.Primary, 1), $"{width} × {height}", "map tiles"));
+        worldCounts.AddChild(grid);
+
+        var hint = new HBoxContainer();
+        hint.AddThemeConstantOverride("separation", 6);
+        hint.AddChild(Keycap("F1"));
+        hint.AddChild(new Label { Text = "All keyboard and mouse controls", ThemeTypeVariation = "DimLabel", SizeFlagsVertical = Control.SizeFlags.ShrinkCenter });
+        worldCounts.AddChild(hint);
+        if (worldStatsPage.Visible) worldInfoPanel.ResetSize();
+    }
+
+    /// <summary>Clock and local conditions change independently of the world counts.</summary>
+    private void RenderWorldToday(OwnerWorldSnapshot snapshot, string weather, int? moisture)
+    {
+        var signature = string.Join("|", DisplayWorldClock(snapshot.WorldTick), snapshot.Authoring?.Season, weather, moisture,
+            snapshot.CalendarPace?.DaysPerYear, DatesShowSeason, UiTheme.Current.Name);
+        if (signature == renderedWorldToday) return;
+        renderedWorldToday = signature;
+        if (worldTodayCard is not null)
+        {
+            worldStatsPage.RemoveChild(worldTodayCard);
+            worldTodayCard.QueueFree();
+        }
         var today = new PanelContainer { ThemeTypeVariation = "InsetPanel" };
         var todayRow = new HBoxContainer();
         todayRow.AddThemeConstantOverride("separation", 10);
@@ -91,30 +134,9 @@ public partial class Main
         if (snapshot.Authoring is not null)
             todayRow.AddChild(new TextureRect { Texture = PixelIcons.Weather(weather, 2), StretchMode = TextureRect.StretchModeEnum.KeepCentered, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter });
         today.AddChild(todayRow);
+        worldTodayCard = today;
         worldStatsPage.AddChild(today);
-
-        var grid = new GridContainer { Columns = 4 };
-        grid.AddThemeConstantOverride("h_separation", 6);
-        grid.AddThemeConstantOverride("v_separation", 6);
-        var p = UiTheme.Current;
-        static string Count(int value) => value.ToString("N0", CultureInfo.InvariantCulture);
-        static string Plural(int value, string one, string many) => value == 1 ? one : many;
-        var living = LivingPopulation(snapshot);
-        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Person, p.Ink, BuiltAccent, 1), Count(living), Plural(living, "living agent", "living agents")));
-        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Flag, p.Ink, p.Primary, 1), Count(snapshot.Towns.Count), Plural(snapshot.Towns.Count, "Town", "Towns")));
-        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Heart, p.Partner, p.Partner, 1), Count(snapshot.Stockpiles.Count), Plural(snapshot.Stockpiles.Count, "household", "households")));
-        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.House, p.Ink, BuiltAccent, 1), Count(snapshot.PlacedBuildings.Count), Plural(snapshot.PlacedBuildings.Count, "building", "buildings")));
-        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Road, p.Ink, BuiltAccent, 1), Count(snapshot.RoadTiles.Count), Plural(snapshot.RoadTiles.Count, "road tile", "road tiles")));
-        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Bridge, p.Ink, p.Name == "dark" ? new Color("7FB4E0") : new Color("2F6FA3"), 1), Count(snapshot.Bridges.Count), Plural(snapshot.Bridges.Count, "bridge", "bridges")));
-        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Leaf, p.Ink, p.Primary, 1), Count(snapshot.Resources.Count), Plural(snapshot.Resources.Count, "resource site", "resource sites")));
-        grid.AddChild(StatTile(PixelIcons.Texture(PixelGlyph.Globe, p.Ink, p.Primary, 1), $"{width} × {height}", "map tiles"));
-        worldStatsPage.AddChild(grid);
-
-        var hint = new HBoxContainer();
-        hint.AddThemeConstantOverride("separation", 6);
-        hint.AddChild(Keycap("F1"));
-        hint.AddChild(new Label { Text = "All keyboard and mouse controls", ThemeTypeVariation = "DimLabel", SizeFlagsVertical = Control.SizeFlags.ShrinkCenter });
-        worldStatsPage.AddChild(hint);
+        worldStatsPage.MoveChild(today, 0);
         if (worldStatsPage.Visible) worldInfoPanel.ResetSize();
     }
 

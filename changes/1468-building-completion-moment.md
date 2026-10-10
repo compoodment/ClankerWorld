@@ -1,0 +1,1 @@
+- Buildings finishing on screen show a ring of settling dust and a few roof twinkles once at close and mid zoom. Pause holds the moment, and reopening the world does not replay it.

@@ -24,6 +24,9 @@ unblock has Implementation issues.
   for a whole sweep. List each choice marked **Still to decide**, **Leaning
   toward** or **Suggestion**, wording such as "remains open", "not decided" or
   "later", and the README's list of still-open topics.
+- Add the questions sessions parked for the owner: open issues and pull
+  requests labelled `status:needs-decision`. Reviewers write theirs on the
+  pull request instead of asking in chat.
 - For each one, check whether it is really open:
   - **Already answered:** read the closed Decision issues on the topic and
     their comments. An answer recorded in only one chapter is often still
