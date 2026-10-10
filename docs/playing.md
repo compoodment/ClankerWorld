@@ -1211,7 +1211,7 @@ horses near wild greens and fresh water.
 
 Click an animal's tile for its name, age, household, care, ready product and
 permissions. If the animal is inside a building, open that building's **Details**
-to see the animals standing there. Use its exact unique name or ID in a Must do order, for example
+to see the animals standing there. Use its exact unique name or ID in an Order, for example
 **Tame Moss**, **Lead home Moss**, **Care for Moss**, or **Collect from Moss**.
 **Repeat care for Moss** and **Repeat collect from Moss** keep the task active
 until cancelled. When the animal is elsewhere in the yard, the adult picks up
