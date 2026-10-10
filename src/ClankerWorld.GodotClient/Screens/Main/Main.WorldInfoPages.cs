@@ -272,7 +272,7 @@ public partial class Main
     /// <summary>What the resident portraits show, so the Town list is redrawn when one changes.</summary>
     private static string ResidentPortraitsKey(OwnerWorldSnapshot snapshot, OwnerWorldTown town) =>
         string.Join(",", town.ResidentIds.Take(ResidentPortraitLimit).Select(id => snapshot.Inhabitants.FirstOrDefault(person => person.Id == id) is { } person
-            ? $"{id}:{IsLiving(person)}:{person.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail}"
+            ? $"{id}:{person.DisplayName.Length}:{person.DisplayName}:{IsLiving(person)}:{person.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail}"
             : id));
 
     /// <summary>Every label and tooltip on a World Info page, for checks and assistive reading.</summary>

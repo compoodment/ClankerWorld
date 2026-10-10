@@ -765,8 +765,9 @@ portraits, its council, its current and latest settled election, eight recent
 proposal results and a **Show** button that moves the map there. Below the list
 are each household's stores, the projects under way and how far they have got,
 the household council and recent social activity; the page scrolls once it is
-long. **World** shows today's date, the season and weather where you are
-looking and the year length, then counts of agents, Towns, households,
+long. Hover a resident portrait for their current name; an accepted rename
+appears there with the next observation. **World** shows today's date, the
+season and weather where you are looking and the year length, then counts of agents, Towns, households,
 buildings, road tiles, bridges, resource sites and the map size.
 
 Residents with a personal model can propose a supported default estate law

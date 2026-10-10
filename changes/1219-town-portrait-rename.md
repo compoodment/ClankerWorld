@@ -1,0 +1,1 @@
+- Town resident portrait tooltips now show an accepted rename at the next refresh, while keeping the list scroll position and reusing unchanged portraits.

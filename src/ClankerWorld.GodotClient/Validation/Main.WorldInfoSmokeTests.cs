@@ -67,6 +67,7 @@ public partial class Main
                 show.Icon != PixelIcons.Themed(PixelGlyph.Find, UiTheme.Current.Primary, 1) ||
                 show.Size.Y >= ((Control)show.GetParent()).Size.Y)
                 throw new InvalidOperationException($"Each Town must show its residents' portraits and a Find button sized to its text: portraits={portraits.Length}.");
+            await VerifyTownPortraitRefreshAsync(snapshot, ilya);
             var towns = PageText(townsPage);
             if (towns.Contains("Town borders", StringComparison.Ordinal))
                 throw new InvalidOperationException("The Towns page must not repeat the map filter state.");
@@ -103,6 +104,70 @@ public partial class Main
             worldInfoPanel.Visible = wasVisible;
         }
     }
+
+    private async Task VerifyTownPortraitRefreshAsync(OwnerWorldSnapshot snapshot, OwnerWorldInhabitant resident)
+    {
+        var child = resident with { DisplayName = "Robin0 Vale", DecisionFactors = [new("age-band", "child")] };
+        var catalog = snapshot with
+        {
+            Inhabitants = [.. snapshot.Inhabitants.Where(person => person.Id != child.Id), child],
+            Towns = [snapshot.Towns[0], .. Enumerable.Range(1, 20).Select(index =>
+                snapshot.Towns[0] with { Id = $"town:portrait-{index}", Name = $"Portrait Town {index}", ResidentIds = [] })],
+        };
+        var scrollBefore = townsScroll.ScrollVertical;
+        TextureRect Portrait(string name) => townList.FindChildren("*", nameof(TextureRect), true, false)
+            .OfType<TextureRect>().Single(picture => picture.TooltipText == name);
+        static byte[] Pixels(TextureRect picture)
+        {
+            using var image = ((ImageTexture)picture.Texture!).GetImage();
+            return image.GetData();
+        }
+        async Task Settle()
+        {
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        try
+        {
+            RenderTownList(catalog); await Settle();
+            townsScroll.ScrollVertical = 80; await Settle();
+            var scroll = townsScroll.ScrollVertical;
+            if (scroll <= 0) throw new InvalidOperationException("The rename check needs an actually scrolled Town list.");
+            var before = Portrait(child.DisplayName);
+            var beforeId = before.GetInstanceId();
+            var childPixels = Pixels(before);
+            RenderTownList(catalog);
+            if (Portrait(child.DisplayName).GetInstanceId() != beforeId)
+                throw new InvalidOperationException("An unchanged Town observation must reuse its resident portrait.");
+            child = child with { DisplayName = "Liora Vale" };
+            catalog = catalog with { Inhabitants = [.. catalog.Inhabitants.Select(person => person.Id == child.Id ? child : person)] };
+            RenderTownList(catalog); await Settle();
+            var renamed = Portrait("Liora Vale");
+            if (renamed.GetInstanceId() == beforeId || !Pixels(renamed).SequenceEqual(childPixels) ||
+                townsScroll.ScrollVertical != scroll || townList.FindChildren("*", nameof(TextureRect), true, false)
+                    .OfType<TextureRect>().Any(picture => picture.TooltipText == "Robin0 Vale"))
+                throw new InvalidOperationException("A child rename must refresh its tooltip, preserve its portrait art and keep Town scrolling.");
+            RenderTownList(catalog);
+            if (Portrait("Liora Vale").GetInstanceId() != renamed.GetInstanceId())
+                throw new InvalidOperationException("After a rename, unchanged observations must reuse the refreshed portrait.");
+            child = child with { DecisionFactors = [new("age-band", "adult")] };
+            catalog = catalog with { Inhabitants = [.. catalog.Inhabitants.Select(person => person.Id == child.Id ? child : person)] };
+            RenderTownList(catalog);
+            var adultPixels = Pixels(Portrait("Liora Vale"));
+            if (adultPixels.SequenceEqual(childPixels)) throw new InvalidOperationException("A resident's changed age band must still refresh the portrait art.");
+            child = child with { Lifecycle = "deceased" };
+            catalog = catalog with { Inhabitants = [.. catalog.Inhabitants.Select(person => person.Id == child.Id ? child : person)] };
+            RenderTownList(catalog);
+            if (Pixels(Portrait("Liora Vale")).SequenceEqual(adultPixels))
+                throw new InvalidOperationException("A resident's death must still refresh the portrait background.");
+            GD.Print("NATIVE_TOWN_PORTRAIT_RENAME tooltipArtScrollUnchangedReuseAgeLiving=passed");
+        }
+        finally
+        {
+            RenderTownList(snapshot);
+            townsScroll.ScrollVertical = scrollBefore;
+        }
+    }
+
     private async Task VerifyWorldStatsRefreshAsync(OwnerWorldSnapshot initial)
     {
         ulong[] TileIds() => worldStatsPage.FindChildren("*", nameof(PanelContainer), recursive: true, owned: false)
