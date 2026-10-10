@@ -29,6 +29,7 @@ public partial class Main
         BuildDeveloperTools(uiLayer);
         FitFloatingPanelsToContents();
         BuildStatusToast(uiLayer);
+        BuildSaveDiskWarning(uiLayer);
         AddChild(menuLayer);
         BuildMainMenu();
         BuildManualSavesPanel();
@@ -82,6 +83,7 @@ public partial class Main
         worldSettingsContent.Visible = worldSpecific;
         SelectSettingsCategory(worldSpecific ? worldSettingsCategoryButton : gameSettingsCategoryButton);
         settingsScroll.Show();
+        if (worldSpecific) RenderGenerationSettings(observationSession.Current?.Baseline.Snapshot);
         if (worldSpecific && registration is not null)
         {
             _ = RefreshWorldSettingsAsync();
@@ -150,6 +152,9 @@ public partial class Main
         mapCanvas.AddChild(uiLayer);
 
         mapStage.AddChild(terrainLayer);
+        storedStockLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        storedStockLayer.Follow(terrainLayer);
+        mapStage.AddChild(storedStockLayer);
         graveLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         graveLayer.Follow(terrainLayer);
         mapStage.AddChild(graveLayer);
@@ -158,6 +163,10 @@ public partial class Main
         nightLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         nightLayer.Follow(terrainLayer);
         mapStage.AddChild(nightLayer);
+
+        goldenHourLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        goldenHourLayer.Follow(terrainLayer);
+        mapStage.AddChild(goldenHourLayer);
 
         // Lit windows, doors and fires warm the ground back up through the wash.
         nightLightsLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
@@ -176,6 +185,10 @@ public partial class Main
         entityLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapStage.AddChild(entityLayer);
 
+        smokeLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        smokeLayer.Follow(terrainLayer, weatherLayer);
+        mapStage.AddChild(smokeLayer);
+
         // Weather falls over buildings and agents alike.
         weatherLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         weatherLayer.CloudsEnabled = displayPreferences.CloudHaze;
@@ -186,7 +199,7 @@ public partial class Main
         BuildAgentCards();
         BuildBuildingCards();
 
-        worldOverview.CenterRequested += CenterCameraAt;
+        worldOverview.CenterRequested += tileCenter => CenterKeyboardCameraAt(tileCenter, immediately: true);
         var overviewBody = new VBoxContainer();
         overviewBody.AddThemeConstantOverride("separation", 6);
         overviewBody.AddChild(worldOverview);
@@ -197,8 +210,16 @@ public partial class Main
         worldOverviewPanel.Hide();
         uiLayer.AddChild(worldOverviewPanel);
         mapCanvas.GuiInput += HandleMapInput;
+        mapCanvas.FocusMode = FocusModeEnum.All;
+        mapCanvas.FocusEntered += BeginKeyboardMapSelection;
+        mapCanvas.FocusExited += () =>
+        {
+            terrainLayer.SetHoveredTile(null);
+            UpdateHoverReadout(null, null);
+        };
         mapCanvas.MouseExited += () =>
         {
+            if (mapCanvas.HasFocus()) return;
             terrainLayer.SetHoveredTile(null);
             UpdateHoverReadout(null, null);
             if (placingAddedAgent) ResetAddAgentPlacementHint();
@@ -412,6 +433,7 @@ public partial class Main
         gameSettingsContent.AddChild(SettingsBox("Date and time",
             DisplaySettingRow("Time display", clockFormatChoice), DisplaySettingRow("Date display", dateFormatChoice)));
 
+        BuildGenerationSettings();
         BuildAutosaveSettings();
 
         BuildRoutineHelperSettings();
@@ -528,6 +550,9 @@ public partial class Main
         label.BbcodeEnabled = false;
         label.FitContent = false;
         label.ScrollActive = true;
+        // The built-in scrollbar defaults to accessibility-only focus.
+        // Long readers need ordinary Tab/arrow navigation as well.
+        ConfigureKeyboardScrollBar(label.GetVScrollBar());
         label.SetMeta(TextPanelLimit, maximumHeight);
         // A new width rewraps the text, but only after the resized signal, so
         // measure it once this frame's layout is done.

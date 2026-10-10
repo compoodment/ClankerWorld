@@ -65,20 +65,32 @@ public static class TownGovernmentValidation
                         ending.Status != "passed" || ending.SettledTick != ended))
                     throw new InvalidDataException("A Town law's saved version history is invalid.");
                 TownBoatAccessRules.Validate(version.BoatAccess, version.Subject, version.Rule, version.Scope, known);
+                TownEstateDefaultRules.Validate(version.EstateDefault, version.Subject, version.Rule, version.Scope);
+                if (version.BoatAccess is not null && version.EstateDefault is not null)
+                    throw new InvalidDataException("One supported law cannot combine unrelated typed effects.");
                 recorded.Add(version.ProposalId!);
                 if (version.EndedByProposalId is { } endedBy) recorded.Add(endedBy);
             }
         }
+        var estateVersions = state.Laws.SelectMany(law => law.Versions.Where(version => version.EstateDefault is not null))
+            .OrderBy(version => version.AdoptedTick).ToArray();
+        for (var index = 1; index < estateVersions.Length; index++)
+            if (estateVersions[index - 1].EndedTick is not { } ended || ended > estateVersions[index].AdoptedTick)
+                throw new InvalidDataException("Supported default estate laws cannot overlap in time.");
         if (state.LawDrafts.Any(d => d is null) ||
             state.LawDrafts.Select(d => d.ProposalId).Distinct(StringComparer.Ordinal).Count() != state.LawDrafts.Count)
             throw new InvalidDataException("A Town's saved law proposals are invalid.");
         foreach (var draft in state.LawDrafts)
         {
             TownBoatAccessRules.Validate(draft.BoatAccess, draft.Subject, draft.Rule, draft.Scope, known);
+            TownEstateDefaultRules.Validate(draft.EstateDefault, draft.Subject, draft.Rule, draft.Scope);
             var law = draft.LawId is null ? null : state.Laws.SingleOrDefault(l => l.Id == draft.LawId);
             if (!proposals.TryGetValue(draft.ProposalId, out var proposal) || proposal.Kind != "law" ||
                 draft.Action is not ("adopt" or "amend" or "repeal") || draft.SiteTiles is null ||
-                draft.Action == "amend" && (draft.BoatAccess is not null || law is not null && TownLawRules.Current(law).BoatAccess is not null) ||
+                draft.BoatAccess is not null && draft.EstateDefault is not null ||
+                draft.Action == "amend" && (draft.BoatAccess is not null || law is not null && TownLawRules.Current(law).BoatAccess is not null ||
+                    law is not null && draft.BaseVersion is { } estateVersion && estateVersion > 0 && estateVersion <= law.Versions.Count &&
+                    (law.Versions[estateVersion - 1].EstateDefault is null) != (draft.EstateDefault is null)) ||
                 !TownLawRules.TryParse(TownLawRules.Text(draft.Subject ?? "", draft.Rule ?? ""), out var subject, out var rule) ||
                 subject != draft.Subject || rule != draft.Rule || !TownLawRules.IsScope(draft.Scope) ||
                 draft.Scope == TownLawRules.Site != draft.SiteTiles.Count > 0 ||
@@ -112,14 +124,14 @@ public static class TownGovernmentValidation
             {
                 var source = drafts[version.ProposalId];
                 if (source.LawId != law.Id || source.Subject != version.Subject || source.Rule != version.Rule ||
-                    source.Scope != version.Scope || source.BoatAccess != version.BoatAccess || !source.SiteTiles.SequenceEqual(version.SiteTiles) ||
+                    source.Scope != version.Scope || source.BoatAccess != version.BoatAccess || source.EstateDefault != version.EstateDefault || !source.SiteTiles.SequenceEqual(version.SiteTiles) ||
                     (version.Version == 1 ? source.Action != "adopt" : source.Action != "amend" || source.BaseVersion != version.Version - 1))
                     throw new InvalidDataException("A law version must match the exact wording and scope approved by its Council.");
                 if (version.EndedByProposalId is not { } endId) continue;
                 var ending = drafts[endId];
                 if (ending.LawId != law.Id || ending.BaseVersion != version.Version || ending.Action is not ("amend" or "repeal") ||
                     ending.Action == "amend" && (version.Version >= law.Versions.Count || law.Versions[version.Version].ProposalId != endId) ||
-                    ending.Action == "repeal" && (version.Version != law.Versions.Count || ending.Subject != version.Subject || ending.Rule != version.Rule || ending.BoatAccess != version.BoatAccess))
+                    ending.Action == "repeal" && (version.Version != law.Versions.Count || ending.Subject != version.Subject || ending.Rule != version.Rule || ending.BoatAccess != version.BoatAccess || ending.EstateDefault != version.EstateDefault))
                     throw new InvalidDataException("An ended law version needs the exact amendment or repeal of that version.");
             }
     }

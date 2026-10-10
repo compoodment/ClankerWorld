@@ -168,7 +168,6 @@ public sealed class MovementProposal : IArtProposal, IAnimatedArtProposal
     [
         ("a-today", "A: today, jumping a tile at each update"),
         ("b-glide", "B: gliding steadily between tiles, walk frames every quarter second"),
-        ("c-glide-bob", "C: gliding, with a one-pixel bob on each step"),
     ];
 
     public IEnumerable<Entry> Render()
@@ -192,7 +191,7 @@ public sealed class MovementProposal : IArtProposal, IAnimatedArtProposal
         var walkFrame = look == "a-today"
             ? (step % 2 == 0 ? AgentFrame.Walk1 : AgentFrame.Walk2)
             : ((int)(t * 4) % 2 == 0 ? AgentFrame.Walk1 : AgentFrame.Walk2);
-        var bob = look == "c-glide-bob" && (int)(t * 4) % 2 == 1 ? -1 : 0;
+        const int bob = 0;
 
         var drawn = (int)MathF.Round(size * SceneComposer.AgentSpriteScale);
         var agentX = (look == "a-today" ? 8 + step : 8 + step + within) * size + size / 2f;
@@ -203,87 +202,7 @@ public sealed class MovementProposal : IArtProposal, IAnimatedArtProposal
         var cowX = (look == "a-today" ? 9 + step : 9 + step + within) * size;
         var cowStep = look == "a-today" ? (step % 2 + 1) : ((int)(t * 4) % 2 + 1);
         var cow = AnimalSprites.Sprite("cow", east, young: false, mounted: false, size: size, step: cowStep);
-        canvas.Stamp(cow, (int)MathF.Round(cowX), 10 * size + (look == "c-glide-bob" ? bob : 0), size);
-        return canvas.ToImage();
-    }
-}
-
-/// <summary>
-/// Idea 3, chimney smoke from buildings someone is using: two Houses and the
-/// Blacksmith's forge here, while the other Houses stand empty and smokeless.
-/// </summary>
-public sealed class SmokeProposal : IArtProposal, IAnimatedArtProposal
-{
-    private const double Seconds = 3;
-    public string Family => "smoke";
-    private static readonly Color SootColour = new("2A2622");
-    private static readonly Color[] Embers = [new("E0662A"), new("F5A742"), new("FFE08A")];
-
-    private static readonly (string Id, string Note)[] Looks =
-    [
-        ("a-wisps", "A: thin wisps, three small puffs drifting east and fading"),
-        ("b-column", "B: a fuller rising column that leans with the wind"),
-        ("c-puffs", "C: one round puff now and then"),
-    ];
-
-    public IEnumerable<Entry> Render()
-    {
-        foreach (var size in new[] { 32, 16 })
-            foreach (var (id, note) in Looks) yield return new(Family, $"{id}-{size}", Frame(id, size, 1.2), note);
-    }
-
-    public IEnumerable<(string Id, IReadOnlyList<Image> Frames)> Animate()
-    {
-        foreach (var size in new[] { 32, 16 })
-            foreach (var (id, _) in Looks) yield return ($"{id}-{size}", Polish.Loop(Seconds, t => Frame(id, size, t)));
-    }
-
-    /// <summary>The chimneys of the buildings in use: two Houses by their flue, the Blacksmith by its forge.</summary>
-    private static List<Vector2> Sources(int size)
-    {
-        var scene = Polish.Scene(size);
-        var sources = new List<Vector2>();
-        foreach (var building in Polish.Buildings)
-        {
-            var origin = building.Footprint.Position;
-            if (building.Kind == BuildingKind.House && origin is { X: 9, Y: 2 } or { X: 13, Y: 7 } &&
-                Polish.Find(scene, building.Footprint, size, SootColour) is { } flue)
-                sources.Add(flue);
-            if (building.Kind == BuildingKind.Blacksmith && Polish.Find(scene, building.Footprint, size, Embers) is { } forge)
-                sources.Add(forge);
-        }
-        return sources;
-    }
-
-    private static Image Frame(string look, int size, double t)
-    {
-        var canvas = new Canvas(Polish.Scene(size));
-        var unit = size / 32f;
-        var index = 0;
-        foreach (var source in Sources(size))
-        {
-            var (count, life, radius, rise, drift) = look switch
-            {
-                "b-column" => (9, 2.6, 3.4f, 26f, 11f),
-                "c-puffs" => (2, 3.0, 4.2f, 18f, 7f),
-                _ => (4, 2.2, 2.6f, 22f, 10f),
-            };
-            for (var p = 0; p < count; p++)
-            {
-                // Each puff repeats every loop, offset so the stream is seamless.
-                var age = ((t / Seconds + p / (double)count + index * 0.37) % 1.0) * Seconds;
-                if (age > life) continue;
-                var k = (float)(age / life);
-                var wobble = MathF.Sin((float)age * 3.1f + p) * 1.2f * unit;
-                var centre = source + new Vector2(drift * k * unit + wobble, -rise * k * unit - unit);
-                var r = MathF.Max(0.6f, (radius * (0.6f + 0.8f * k)) * unit);
-                var alpha = 0.78f * (1 - k * k) * Polish.Smooth(k * 6);
-                canvas.Disc(centre + new Vector2(0.6f * unit, 0.6f * unit), r, new Color(0.25f, 0.24f, 0.24f, alpha * 0.35f));
-                canvas.Disc(centre, r, new Color(0.84f, 0.84f, 0.82f, alpha));
-                canvas.Disc(centre - new Vector2(r * 0.35f, r * 0.35f), r * 0.45f, new Color(0.95f, 0.95f, 0.93f, alpha * 0.7f));
-            }
-            index++;
-        }
+        canvas.Stamp(cow, (int)MathF.Round(cowX), 10 * size, size);
         return canvas.ToImage();
     }
 }
@@ -305,8 +224,7 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
         {
             yield return new(Family, $"roof-snow-a-{size}", RoofSnow(size, blanket: false), "Roof snow A: a dusting, roofs still show through");
             yield return new(Family, $"roof-snow-b-{size}", RoofSnow(size, blanket: true), "Roof snow B: roofs covered, edges and chimneys still dark");
-            yield return new(Family, $"ground-snow-a-{size}", SnowyTown(size, patchy: false), "Ground snow A: open ground covered, grass tips and trodden Roads showing");
-            yield return new(Family, $"ground-snow-b-{size}", SnowyTown(size, patchy: true), "Ground snow B: patchy cover that thins and melts unevenly");
+            yield return new(Family, $"ground-snow-b-{size}", SnowMarksPreview.Scene(size, patchy: true), "Ground snow B: patchy cover that thins and melts unevenly");
             yield return new(Family, $"puddles-a-{size}", Puddles(size, wetGround: false), "Puddles A: small puddles on Roads and bare ground");
             yield return new(Family, $"puddles-b-{size}", Puddles(size, wetGround: true), "Puddles B: puddles plus darker, wet-looking ground");
             yield return new(Family, $"roof-snow-a2-{size}", RoofSnowFollowingSlopes(size), "Roof snow A, second round: the shaded slope covered, the sunny slope keeping snow near the ridge, following each roof's shape");
@@ -319,14 +237,12 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
 
     public IEnumerable<(string Id, IReadOnlyList<Image> Frames)> Animate()
     {
-        foreach (var size in new[] { 32, 16 })
-            yield return ($"footprints-{size}", Polish.Loop(5, t => Footprints(size, t)));
         foreach (var look in PuddleLooks)
             yield return ($"puddles-r3-{look}-rain-32", Polish.Loop(2.4, t => Puddles(32, look, t + 0.001)));
     }
 
     /// <summary>Building pixels: where the scene with buildings differs from the scene without them, inside each footprint.</summary>
-    private static bool[] Roofs(int size)
+    internal static bool[] Roofs(int size)
     {
         var with = Polish.Scene(size);
         var without = Polish.Scene(size, buildings: false);
@@ -339,7 +255,7 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
     }
 
     /// <summary>The world's winter: the approved 30% desaturation on everything, standing in for the seasonal palette.</summary>
-    private static Canvas Winter(int size)
+    internal static Canvas Winter(int size)
     {
         var canvas = new Canvas(Polish.Scene(size, agents: true));
         for (var y = 0; y < canvas.Height; y++)
@@ -482,20 +398,20 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
             case RoofShape.GableNorthSouth:
                 return px >= w / 2 ? shaded : Sunlit(px, w / 2, py);
             case RoofShape.Cone:
-            {
-                float dx = px - w / 2, dy = py - h / 2, r = MathF.Sqrt(dx * dx + dy * dy), radius = w / 2;
-                if (dx - dy > 0) return shaded;
-                return Sunlit(radius - r, radius, MathF.Atan2(dy, dx) * radius);
-            }
+                {
+                    float dx = px - w / 2, dy = py - h / 2, r = MathF.Sqrt(dx * dx + dy * dy), radius = w / 2;
+                    if (dx - dy > 0) return shaded;
+                    return Sunlit(radius - r, radius, MathF.Atan2(dy, dx) * radius);
+                }
             default:
-            {
-                // A hipped roof at 45 degrees: the nearest eave names the face.
-                float north = py, south = h - py, west = px, east = w - px;
-                var depth = MathF.Min(w, h) / 2;
-                var nearest = MathF.Min(MathF.Min(north, south), MathF.Min(west, east));
-                if (nearest == north || nearest == east) return shaded;
-                return nearest == south ? Sunlit(south, depth, px) : Sunlit(west, depth, py);
-            }
+                {
+                    // A hipped roof at 45 degrees: the nearest eave names the face.
+                    float north = py, south = h - py, west = px, east = w - px;
+                    var depth = MathF.Min(w, h) / 2;
+                    var nearest = MathF.Min(MathF.Min(north, south), MathF.Min(west, east));
+                    if (nearest == north || nearest == east) return shaded;
+                    return nearest == south ? Sunlit(south, depth, px) : Sunlit(west, depth, py);
+                }
         }
     }
 
@@ -574,8 +490,14 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
         var withAgents = Polish.Scene(size, agents: true);
         return new PuddleField
         {
-            Spec = SceneSpec.TownCorner(), WithAgents = withAgents, Plain = Polish.Scene(size), Bare = Polish.Scene(size, nature: false),
-            Size = size, Width = withAgents.GetWidth(), Height = withAgents.GetHeight(), Scale = 32f / size,
+            Spec = SceneSpec.TownCorner(),
+            WithAgents = withAgents,
+            Plain = Polish.Scene(size),
+            Bare = Polish.Scene(size, nature: false),
+            Size = size,
+            Width = withAgents.GetWidth(),
+            Height = withAgents.GetHeight(),
+            Scale = 32f / size,
             Water = new float[withAgents.GetWidth() * withAgents.GetHeight()],
         };
     }
@@ -603,124 +525,124 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
         switch (look)
         {
             case "mirror":
-            {
-                NoisePools(f, 0.6f, 0.65f, smooth: true);
-                var blobs = f.Blobs(60);
-                var deep = new Color("2E5878"); var shallow = new Color("4F82A6"); var skyBand = new Color("9CCBE6"); var cloud = new Color("EEF6FA");
-                for (var y = 0; y < f.Height; y++)
-                    for (var x = 0; x < f.Width; x++)
-                    {
-                        var d = f.Water[y * f.Width + x];
-                        if (d <= 0) { if (Near(f, x, y, 1) && f.Open(x, y)) canvas.Set(x, y, canvas.Get(x, y).Lerp(new Color("3B2C1E"), 0.35f)); continue; }
-                        var (wx, wy) = f.World(x, y);
-                        var colour = shallow.Lerp(deep, d);
-                        // The sky mirrored in a soft diagonal band, brightest across the middle.
-                        var band = MathF.Abs(((wx * 0.45f + wy) % 22f) - 11f);
-                        if (band < 2.2f) colour = colour.Lerp(skyBand, 0.75f);
-                        else if (band < 3.4f) colour = colour.Lerp(skyBand, 0.35f);
-                        if (!f.Wet(x, y - 1) || !f.Wet(x - 1, y)) colour = new Color("1F3D55"); // the bank's shadow
-                        canvas.Set(x, y, colour);
-                    }
-                // One small cloud mirrored in each big pool.
-                foreach (var blob in blobs.Where(b => b.Count > 140 / (f.Scale * f.Scale)))
                 {
-                    var cx = (int)blob.Average(i => i % f.Width); var cy = (int)blob.Average(i => i / f.Width);
-                    for (var dy = -1; dy <= 1; dy++)
-                        for (var dx = -3; dx <= 3; dx++)
+                    NoisePools(f, 0.6f, 0.65f, smooth: true);
+                    var blobs = f.Blobs(60);
+                    var deep = new Color("2E5878"); var shallow = new Color("4F82A6"); var skyBand = new Color("9CCBE6"); var cloud = new Color("EEF6FA");
+                    for (var y = 0; y < f.Height; y++)
+                        for (var x = 0; x < f.Width; x++)
                         {
-                            if (Math.Abs(dx) + Math.Abs(dy) * 2 > 3 || size < 32 && (Math.Abs(dx) > 1 || dy != 0)) continue;
-                            if (f.Wet(cx + dx, cy + dy) && f.Wet(cx + dx - 1, cy + dy - 1)) canvas.Set(cx + dx, cy + dy, cloud);
+                            var d = f.Water[y * f.Width + x];
+                            if (d <= 0) { if (Near(f, x, y, 1) && f.Open(x, y)) canvas.Set(x, y, canvas.Get(x, y).Lerp(new Color("3B2C1E"), 0.35f)); continue; }
+                            var (wx, wy) = f.World(x, y);
+                            var colour = shallow.Lerp(deep, d);
+                            // The sky mirrored in a soft diagonal band, brightest across the middle.
+                            var band = MathF.Abs(((wx * 0.45f + wy) % 22f) - 11f);
+                            if (band < 2.2f) colour = colour.Lerp(skyBand, 0.75f);
+                            else if (band < 3.4f) colour = colour.Lerp(skyBand, 0.35f);
+                            if (!f.Wet(x, y - 1) || !f.Wet(x - 1, y)) colour = new Color("1F3D55"); // the bank's shadow
+                            canvas.Set(x, y, colour);
                         }
+                    // One small cloud mirrored in each big pool.
+                    foreach (var blob in blobs.Where(b => b.Count > 140 / (f.Scale * f.Scale)))
+                    {
+                        var cx = (int)blob.Average(i => i % f.Width); var cy = (int)blob.Average(i => i / f.Width);
+                        for (var dy = -1; dy <= 1; dy++)
+                            for (var dx = -3; dx <= 3; dx++)
+                            {
+                                if (Math.Abs(dx) + Math.Abs(dy) * 2 > 3 || size < 32 && (Math.Abs(dx) > 1 || dy != 0)) continue;
+                                if (f.Wet(cx + dx, cy + dy) && f.Wet(cx + dx - 1, cy + dy - 1)) canvas.Set(cx + dx, cy + dy, cloud);
+                            }
+                    }
+                    break;
                 }
-                break;
-            }
             case "muddy":
-            {
-                // Wide, shallow pools that spread over most of a Road's width.
-                NoisePools(f, 0.55f, 0.62f, smooth: false);
-                f.Blobs(40);
-                var murk = new Color("5A4836"); var silt = new Color("8A7556"); var glint = new Color("E0D2B0");
-                for (var y = 0; y < f.Height; y++)
-                    for (var x = 0; x < f.Width; x++)
-                    {
-                        var d = f.Water[y * f.Width + x];
-                        var c = canvas.Get(x, y);
-                        if (d <= 0)
+                {
+                    // Wide, shallow pools that spread over most of a Road's width.
+                    NoisePools(f, 0.55f, 0.62f, smooth: false);
+                    f.Blobs(40);
+                    var murk = new Color("5A4836"); var silt = new Color("8A7556"); var glint = new Color("E0D2B0");
+                    for (var y = 0; y < f.Height; y++)
+                        for (var x = 0; x < f.Width; x++)
                         {
-                            if (!f.Open(x, y)) continue;
-                            if (Near(f, x, y, 1)) canvas.Set(x, y, c.Lerp(new Color("3E2C1B"), 0.45f));
-                            else if (Near(f, x, y, 3) && Polish.Hash01(x, y, 71) < 0.12f) canvas.Set(x, y, c.Lerp(new Color("4A3420"), 0.6f)); // mud flecks
-                            continue;
+                            var d = f.Water[y * f.Width + x];
+                            var c = canvas.Get(x, y);
+                            if (d <= 0)
+                            {
+                                if (!f.Open(x, y)) continue;
+                                if (Near(f, x, y, 1)) canvas.Set(x, y, c.Lerp(new Color("3E2C1B"), 0.45f));
+                                else if (Near(f, x, y, 3) && Polish.Hash01(x, y, 71) < 0.12f) canvas.Set(x, y, c.Lerp(new Color("4A3420"), 0.6f)); // mud flecks
+                                continue;
+                            }
+                            var (mx, my) = f.World(x, y);
+                            var colour = c.Lerp(silt.Lerp(murk, d), 0.85f);
+                            // A dull, milky sheen drifting across the murk.
+                            if (Noise(mx / 7f + 13, my / 2.5f + 3) > 0.66f) colour = colour.Lerp(glint, 0.35f);
+                            if (!f.Wet(x, y - 1) || !f.Wet(x - 1, y)) colour = new Color("3A2A1A");
+                            else if (!f.Wet(x, y + 1) || !f.Wet(x + 1, y)) colour = colour.Lerp(glint, 0.5f);
+                            canvas.Set(x, y, colour);
                         }
-                        var (mx, my) = f.World(x, y);
-                        var colour = c.Lerp(silt.Lerp(murk, d), 0.85f);
-                        // A dull, milky sheen drifting across the murk.
-                        if (Noise(mx / 7f + 13, my / 2.5f + 3) > 0.66f) colour = colour.Lerp(glint, 0.35f);
-                        if (!f.Wet(x, y - 1) || !f.Wet(x - 1, y)) colour = new Color("3A2A1A");
-                        else if (!f.Wet(x, y + 1) || !f.Wet(x + 1, y)) colour = colour.Lerp(glint, 0.5f);
-                        canvas.Set(x, y, colour);
-                    }
-                break;
-            }
+                    break;
+                }
             case "outlined":
-            {
-                // Chunky rounded puddles, one to three per Road tile, plus the dips and fields.
-                foreach (var tile in f.Spec.Roads)
                 {
-                    if (f.Spec.Bridges.ContainsKey(tile) || Polish.Hash01(tile.X, tile.Y, 7) > 0.5f) continue;
-                    var count = 1 + (int)(Polish.Hash01(tile.X, tile.Y, 29) * 3);
-                    for (var n = 0; n < count; n++)
+                    // Chunky rounded puddles, one to three per Road tile, plus the dips and fields.
+                    foreach (var tile in f.Spec.Roads)
                     {
-                        var centre = new Vector2(tile.X + 0.2f + 0.6f * Polish.Hash01(tile.X * 3 + n, tile.Y, 9), tile.Y + 0.35f + 0.3f * Polish.Hash01(tile.X, tile.Y * 3 + n, 11)) * size;
-                        var rx = (3.5f + 4f * Polish.Hash01(tile.X + n, tile.Y, 13)) * unit; var ry = rx * (0.55f + 0.25f * Polish.Hash01(tile.X, tile.Y + n, 17));
-                        for (var y = (int)(centre.Y - ry - 1); y <= centre.Y + ry + 1; y++)
-                            for (var x = (int)(centre.X - rx - 1); x <= centre.X + rx + 1; x++)
-                                if (f.Dirt(x, y) && MathF.Pow((x + 0.5f - centre.X) / rx, 2) + MathF.Pow((y + 0.5f - centre.Y) / ry, 2) <= 1) f.Water[y * f.Width + x] = 1;
+                        if (f.Spec.Bridges.ContainsKey(tile) || Polish.Hash01(tile.X, tile.Y, 7) > 0.5f) continue;
+                        var count = 1 + (int)(Polish.Hash01(tile.X, tile.Y, 29) * 3);
+                        for (var n = 0; n < count; n++)
+                        {
+                            var centre = new Vector2(tile.X + 0.2f + 0.6f * Polish.Hash01(tile.X * 3 + n, tile.Y, 9), tile.Y + 0.35f + 0.3f * Polish.Hash01(tile.X, tile.Y * 3 + n, 11)) * size;
+                            var rx = (3.5f + 4f * Polish.Hash01(tile.X + n, tile.Y, 13)) * unit; var ry = rx * (0.55f + 0.25f * Polish.Hash01(tile.X, tile.Y + n, 17));
+                            for (var y = (int)(centre.Y - ry - 1); y <= centre.Y + ry + 1; y++)
+                                for (var x = (int)(centre.X - rx - 1); x <= centre.X + rx + 1; x++)
+                                    if (f.Dirt(x, y) && MathF.Pow((x + 0.5f - centre.X) / rx, 2) + MathF.Pow((y + 0.5f - centre.Y) / ry, 2) <= 1) f.Water[y * f.Width + x] = 1;
+                        }
                     }
+                    NoisePools(f, 2f, 0.68f, smooth: true);
+                    for (var i = 0; i < f.Water.Length; i++) if (f.Water[i] > 0) f.Water[i] = 1;
+                    var blobs = f.Blobs(14);
+                    var outline = new Color("26343E"); var fill = new Color("5E93B4"); var light = new Color("8FC0DA"); var shine = new Color("F4FAFC");
+                    for (var y = 0; y < f.Height; y++)
+                        for (var x = 0; x < f.Width; x++)
+                        {
+                            if (!f.Wet(x, y)) { if (f.Open(x, y) && Near(f, x, y, 1)) canvas.Set(x, y, outline); continue; }
+                            canvas.Set(x, y, fill);
+                        }
+                    foreach (var blob in blobs)
+                    {
+                        int x0 = blob.Min(i => i % f.Width), x1 = blob.Max(i => i % f.Width), y0 = blob.Min(i => i / f.Width), y1 = blob.Max(i => i / f.Width);
+                        // The lighter upper-left part, then a shine dash.
+                        foreach (var i in blob)
+                        {
+                            int x = i % f.Width, y = i / f.Width;
+                            if ((x - x0) / (float)Math.Max(1, x1 - x0) + (y - y0) / (float)Math.Max(1, y1 - y0) < 0.75f && f.Wet(x - 1, y - 1)) canvas.Set(x, y, light);
+                        }
+                        var sx = x0 + (x1 - x0) / 4 + 1; var sy = y0 + (y1 - y0) / 3;
+                        for (var k = 0; k < Math.Max(1, 3 * size / 32); k++) if (f.Wet(sx + k, sy)) canvas.Set(sx + k, sy, shine);
+                    }
+                    break;
                 }
-                NoisePools(f, 2f, 0.68f, smooth: true);
-                for (var i = 0; i < f.Water.Length; i++) if (f.Water[i] > 0) f.Water[i] = 1;
-                var blobs = f.Blobs(14);
-                var outline = new Color("26343E"); var fill = new Color("5E93B4"); var light = new Color("8FC0DA"); var shine = new Color("F4FAFC");
-                for (var y = 0; y < f.Height; y++)
-                    for (var x = 0; x < f.Width; x++)
-                    {
-                        if (!f.Wet(x, y)) { if (f.Open(x, y) && Near(f, x, y, 1)) canvas.Set(x, y, outline); continue; }
-                        canvas.Set(x, y, fill);
-                    }
-                foreach (var blob in blobs)
-                {
-                    int x0 = blob.Min(i => i % f.Width), x1 = blob.Max(i => i % f.Width), y0 = blob.Min(i => i / f.Width), y1 = blob.Max(i => i / f.Width);
-                    // The lighter upper-left part, then a shine dash.
-                    foreach (var i in blob)
-                    {
-                        int x = i % f.Width, y = i / f.Width;
-                        if ((x - x0) / (float)Math.Max(1, x1 - x0) + (y - y0) / (float)Math.Max(1, y1 - y0) < 0.75f && f.Wet(x - 1, y - 1)) canvas.Set(x, y, light);
-                    }
-                    var sx = x0 + (x1 - x0) / 4 + 1; var sy = y0 + (y1 - y0) / 3;
-                    for (var k = 0; k < Math.Max(1, 3 * size / 32); k++) if (f.Wet(sx + k, sy)) canvas.Set(sx + k, sy, shine);
-                }
-                break;
-            }
             default: // sheen
-            {
-                NoisePools(f, 0.7f, 0.74f, smooth: true);
-                f.Blobs(24);
-                for (var y = 0; y < f.Height; y++)
-                    for (var x = 0; x < f.Width; x++)
-                    {
-                        var c = canvas.Get(x, y);
-                        if (f.Wet(x, y)) { canvas.Set(x, y, new Color("3C5F76").Lerp(new Color("B7D3E0"), f.Wet(x, y - 1) && f.Wet(x - 1, y) ? 0 : 0.6f)); continue; }
-                        if (!f.Dirt(x, y)) continue;
-                        // Wet, darker, cooler dirt, with short streaks of light along it.
-                        var (wx, wy) = f.World(x, y);
-                        var wet = c.Lerp(new Color("3A3029"), 0.5f);
-                        var streak = Noise(wx / 4f + 50, wy / 1f + 20);
-                        if (streak > 0.66f) wet = wet.Lerp(new Color("D6E2E8"), Math.Min(0.6f, (streak - 0.66f) * 4f));
-                        canvas.Set(x, y, wet);
-                    }
-                break;
-            }
+                {
+                    NoisePools(f, 0.7f, 0.74f, smooth: true);
+                    f.Blobs(24);
+                    for (var y = 0; y < f.Height; y++)
+                        for (var x = 0; x < f.Width; x++)
+                        {
+                            var c = canvas.Get(x, y);
+                            if (f.Wet(x, y)) { canvas.Set(x, y, new Color("3C5F76").Lerp(new Color("B7D3E0"), f.Wet(x, y - 1) && f.Wet(x - 1, y) ? 0 : 0.6f)); continue; }
+                            if (!f.Dirt(x, y)) continue;
+                            // Wet, darker, cooler dirt, with short streaks of light along it.
+                            var (wx, wy) = f.World(x, y);
+                            var wet = c.Lerp(new Color("3A3029"), 0.5f);
+                            var streak = Noise(wx / 4f + 50, wy / 1f + 20);
+                            if (streak > 0.66f) wet = wet.Lerp(new Color("D6E2E8"), Math.Min(0.6f, (streak - 0.66f) * 4f));
+                            canvas.Set(x, y, wet);
+                        }
+                    break;
+                }
         }
         if (t > 0) Ripples(canvas, f, t);
         return canvas.ToImage();
@@ -758,62 +680,7 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
     private static bool Ground(SceneSpec spec, int x, int y) =>
         spec.Roads.Contains(new(x, y)) || spec.Hydrology[y * spec.Width + x] == 0 && !spec.Buildings.Any(b => b.Footprint.HasPoint(new(x, y)));
 
-    /// <summary>A Town after snowfall: lying snow on open ground and Roads, and snow on roofs.</summary>
-    private static Image SnowyTown(int size, bool patchy)
-    {
-        var canvas = Winter(size);
-        GroundSnow(canvas, size, patchy);
-        var roofs = Roofs(size);
-        for (var y = 0; y < canvas.Height; y++)
-            for (var x = 0; x < canvas.Width; x++)
-            {
-                if (!roofs[y * canvas.Width + x]) continue;
-                var c = canvas.Get(x, y);
-                var luma = c.R * 0.3f + c.G * 0.59f + c.B * 0.11f;
-                if (luma < 0.2f) continue;
-                canvas.Set(x, y, c.Lerp(SnowShade.Lerp(Snow, Math.Clamp((luma - 0.2f) * 2.2f, 0, 1)), patchy ? 0.45f : 0.6f));
-            }
-        return canvas.ToImage();
-    }
-
-    /// <summary>
-    /// Snow lying on the ground: open land turns white while its darker motifs
-    /// (grass tufts, stones) still show a little; Roads stay greyer where feet
-    /// and carts tread it down. Trees, bushes, people and water are untouched.
-    /// Patchy cover thins along a slow noise so it melts unevenly.
-    /// </summary>
-    private static void GroundSnow(Canvas canvas, int size, bool patchy, bool agents = true)
-    {
-        var spec = SceneSpec.TownCorner();
-        var roofs = Roofs(size);
-        var withThings = Polish.Scene(size, agents: agents);
-        var withoutAgents = Polish.Scene(size, agents: false, buildings: true, nature: false);
-        for (var y = 0; y < canvas.Height; y++)
-            for (var x = 0; x < canvas.Width; x++)
-            {
-                var tx = x / size; var ty = y / size;
-                if (spec.Hydrology[ty * spec.Width + tx] != 0 || spec.Bridges.ContainsKey(new(tx, ty))) continue;
-                // Roofs get their own snow; yards, shadows and doorsteps get ground snow.
-                if (roofs[y * canvas.Width + x]) continue;
-                // Skip anything standing on the ground: trees, plants and agents.
-                if (withThings.GetPixel(x, y) != withoutAgents.GetPixel(x, y)) continue;
-                var c = canvas.Get(x, y);
-                // Within a Road tile only the packed dirt is trodden; its grassy edges snow over like any ground.
-                var road = spec.Roads.Contains(new(tx, ty)) && c.R > c.G - 0.02f;
-                var luma = c.R * 0.3f + c.G * 0.59f + c.B * 0.11f;
-                var amount = road ? 0.72f : 0.9f - Math.Clamp(0.35f - luma, 0, 0.35f) * 0.9f;
-                if (patchy)
-                {
-                    var n = Noise(x / (1.1f * size), y / (1.1f * size));
-                    amount *= Polish.Smooth((n - 0.38f) / 0.18f);
-                }
-                if (amount <= 0) continue;
-                var snow = SnowShade.Lerp(Snow, Math.Clamp(luma * 1.8f, 0, 1));
-                canvas.Set(x, y, c.Lerp(road ? snow.Lerp(new Color("B7BCBF"), 0.3f) : snow, amount));
-            }
-    }
-
-    private static float Noise(float x, float y)
+    internal static float Noise(float x, float y)
     {
         int ix = (int)MathF.Floor(x), iy = (int)MathF.Floor(y);
         float fx = x - ix, fy = y - iy;
@@ -853,6 +720,7 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
 
     private static Image Leaves(int size, bool carpet)
     {
+        if (!carpet) return AutumnLeavesReview.Draw(size);
         var spec = SceneSpec.TownCorner();
         var canvas = new Canvas(Polish.Scene(size, agents: true));
         canvas.Multiply(new Color("E8C9A0"), 0.12f); // the approved autumn warmth, standing in for the palette
@@ -885,34 +753,6 @@ public sealed class WeatherMarksProposal : IArtProposal, IAnimatedArtProposal
         return canvas.ToImage();
     }
 
-    /// <summary>An agent crossing snowy ground leaves prints that fade over a few seconds (a game hour or so).</summary>
-    private static Image Footprints(int size, double t)
-    {
-        // Snow lying on open ground, as the world reports it for a snowy region.
-        var canvas = new Canvas(Polish.Scene(size));
-        GroundSnow(canvas, size, patchy: false, agents: false);
-        var speed = 1.6;
-        var x0 = 6 * size + size / 2f;
-        var y = 9.4f * size;
-        var traveled = (float)(t * speed * size);
-        var stride = size * 0.28f;
-        var dot = Math.Max(1, size / 16);
-        for (var n = 0; n * stride < traveled; n++)
-        {
-            var age = (traveled - n * stride) / (float)(speed * size);
-            var alpha = 0.9f * (1 - Polish.Smooth(age / 3.6f));
-            var px = x0 + n * stride;
-            var py = y + (n % 2 == 0 ? -2.5f : 2.5f) * size / 32f;
-            // A pressed print: a shaded hollow with its lit north-west lip.
-            canvas.Fill((int)px, (int)py, dot * 3, dot * 2, new Color("7D8B99") with { A = alpha });
-            canvas.Fill((int)px, (int)py, dot * 3, dot, new Color("98A6B3") with { A = alpha * 0.8f });
-        }
-        var drawn = (int)MathF.Round(size * SceneComposer.AgentSpriteScale);
-        var agent = AgentSprites.Sprite(2, AgentSprites.StageIndex("adult"), AgentSprites.FacingToward(1, 0),
-            (int)(t * 4) % 2 == 0 ? AgentFrame.Walk1 : AgentFrame.Walk2, drawn >= 24 ? 32 : 16);
-        canvas.Stamp(agent, (int)(x0 + traveled - drawn / 2f), (int)(y - drawn * 0.62f), drawn);
-        return canvas.ToImage();
-    }
 }
 
 /// <summary>
@@ -929,7 +769,6 @@ public sealed class GoldenHourProposal : IArtProposal, IAnimatedArtProposal
     [
         ("a-amber", "A: an amber wash, up to 22%, at dawn and dusk"),
         ("b-amber-glow", "B: the amber wash, plus warm light catching bright roofs and Roads"),
-        ("c-rose-gold", "C: rose at dawn, gold at dusk"),
     ];
 
     public IEnumerable<Entry> Render()
@@ -943,25 +782,11 @@ public sealed class GoldenHourProposal : IArtProposal, IAnimatedArtProposal
         foreach (var (id, _) in Looks) yield return ($"{id}-day-32", Polish.Loop(Seconds, t => Frame(id, 32, t)));
     }
 
-    /// <summary>
-    /// The loop: day (0–1 s), dusk glow building (1–2.5), into night (2.5–4),
-    /// night (4–5), dawn glow (5–6.5) and back to day (6.5–8).
-    /// </summary>
-    private static (float Night, float Gold, bool Dawn) Light(double t) => t switch
-    {
-        < 1 => (0, 0, false),
-        < 2.5 => (0, Polish.Smooth((float)(t - 1) / 1.5f), false),
-        < 4 => (Polish.Smooth((float)(t - 2.5) / 1.5f), 1 - Polish.Smooth((float)(t - 2.5) / 1.5f), false),
-        < 5 => (1, 0, true),
-        < 6.5 => (1 - Polish.Smooth((float)(t - 5) / 1.5f), Polish.Smooth((float)(t - 5) / 1.5f), true),
-        _ => (0, 1 - Polish.Smooth((float)(t - 6.5) / 1.5f), true),
-    };
-
     private static Image Frame(string look, int size, double t)
     {
         var canvas = new Canvas(Polish.Scene(size, agents: true));
-        var (night, gold, dawn) = Light(t);
-        var warm = look == "c-rose-gold" ? (dawn ? new Color("E9A3A0") : new Color("F2B160")) : new Color("F0B066");
+        var (night, gold, dawn) = GoldenHourPreview.Light(t);
+        var warm = new Color("F0B066");
         canvas.Multiply(warm, 0.22f * gold);
         if (look == "b-amber-glow" && gold > 0)
             for (var y = 0; y < canvas.Height; y++)
@@ -973,131 +798,6 @@ public sealed class GoldenHourProposal : IArtProposal, IAnimatedArtProposal
                 }
         canvas.Multiply(Night, 0.45f * night);
         return canvas.ToImage();
-    }
-}
-
-/// <summary>
-/// Idea 9, stock you can see: log, crate and sack piles beside the
-/// Warehouse and between the Farmhouse and Silo, growing with what is stored.
-/// </summary>
-public sealed class StockProposal : IArtProposal
-{
-    public string Family => "stock";
-
-    public IEnumerable<Entry> Render()
-    {
-        foreach (var size in new[] { 32, 16 })
-            foreach (var placement in new[] { "a-at-door", "b-along-wall" })
-                foreach (var (level, name) in new[] { (0, "empty"), (1, "some"), (2, "full") })
-                    yield return new(Family, $"{placement}-{name}-{size}", Frame(placement, level, size),
-                        (placement == "a-at-door" ? "A: piles on the ground beside the building" : "B: stacks against the building's wall") + $", {name}");
-    }
-
-    private static Image Frame(string placement, int level, int size)
-    {
-        var canvas = new Canvas(Polish.Scene(size, agents: true));
-        if (level == 0) return canvas.ToImage();
-        var unit = size / 32f;
-        // Warehouse at (6,2) 2×2: wood and crates south of it. Farmhouse (2,7) and Silo (4,8): grain sacks at (3,8).
-        if (placement == "a-at-door")
-        {
-            Logs(canvas, new Vector2(6.1f * size, 4.15f * size), unit, level == 2 ? 5 : 2);
-            Crates(canvas, new Vector2(7.05f * size, 4.15f * size), unit, level == 2 ? 4 : 1);
-            Sacks(canvas, new Vector2(3.05f * size, 8.1f * size), unit, level == 2 ? 6 : 2);
-        }
-        else
-        {
-            Logs(canvas, new Vector2(6.05f * size, 3.98f * size), unit, level == 2 ? 4 : 2, row: true);
-            Crates(canvas, new Vector2(7.0f * size, 3.95f * size), unit, level == 2 ? 3 : 1, row: true);
-            Sacks(canvas, new Vector2(3.02f * size, 7.85f * size), unit, level == 2 ? 5 : 2, row: true);
-        }
-        return canvas.ToImage();
-    }
-
-    private static void Shadow(Canvas c, float x, float y, float w, float h, float unit) =>
-        c.Fill((int)(x + 2 * unit), (int)(y + 2 * unit), (int)MathF.Max(1, w), (int)MathF.Max(1, h), new Color(0.05f, 0.08f, 0.05f, 0.28f));
-
-    private static void Logs(Canvas c, Vector2 at, float unit, int rows, bool row = false)
-    {
-        var len = 15 * unit; var th = 4 * unit;
-        for (var r = 0; r < rows; r++)
-        {
-            var x = at.X + (row ? 0 : (r % 2) * 3 * unit); var y = at.Y + r * (row ? th * 0.7f : th + unit * 0.5f);
-            Shadow(c, x, y, len, th, unit);
-            c.Fill((int)x, (int)y, (int)len, (int)MathF.Max(1, th), new Color("6E4E31"));
-            c.Fill((int)x, (int)y, (int)len, (int)MathF.Max(1, th * 0.4f), new Color("8A6440"));
-            c.Fill((int)(x + len - th), (int)y, (int)MathF.Max(1, th), (int)MathF.Max(1, th), new Color("D2AC77"));
-            c.Put((int)(x + len - th / 2), (int)(y + th / 2), new Color("8A6440"));
-        }
-    }
-
-    private static void Crates(Canvas c, Vector2 at, float unit, int count, bool row = false)
-    {
-        var s = 9 * unit;
-        for (var n = 0; n < count; n++)
-        {
-            var x = at.X + (row ? n * (s + unit) : (n % 2) * (s + unit));
-            var y = at.Y + (row ? 0 : (n / 2) * (s + unit)) - (row ? 0 : 0);
-            Shadow(c, x, y, s, s, unit);
-            c.Fill((int)x, (int)y, (int)s, (int)s, new Color("3F2A1A"));
-            c.Fill((int)(x + unit), (int)(y + unit), (int)MathF.Max(1, s - 2 * unit), (int)MathF.Max(1, s - 2 * unit), new Color("A77C52"));
-            c.Fill((int)(x + unit), (int)(y + s / 2), (int)MathF.Max(1, s - 2 * unit), (int)MathF.Max(1, unit), new Color("6E4E31"));
-            c.Put((int)(x + unit), (int)(y + unit), new Color("D2AC77"));
-        }
-    }
-
-    private static void Sacks(Canvas c, Vector2 at, float unit, int count, bool row = false)
-    {
-        var r = 3.8f * unit;
-        for (var n = 0; n < count; n++)
-        {
-            var centre = at + new Vector2(r + (row ? n * (2 * r + unit * 0.5f) : (n % 2) * (2 * r)), r + (row ? 0 : (n / 2) * (1.6f * r)));
-            c.Disc(centre + new Vector2(2 * unit, 2 * unit), r, new Color(0.05f, 0.08f, 0.05f, 0.28f));
-            c.Disc(centre, r, new Color("7E6E4A"));
-            c.Disc(centre, MathF.Max(0.6f, r - unit), new Color("C8B78C"));
-            c.Disc(centre - new Vector2(r * 0.35f, r * 0.35f), MathF.Max(0.5f, r * 0.35f), new Color("E3D6B5"));
-            c.Put((int)centre.X, (int)(centre.Y - r + unit), new Color("7E6E4A"));
-        }
-    }
-}
-
-/// <summary>
-/// Idea 11, a smoother camera: Find moves the view from the Farmhouse to the
-/// east Houses, then the view zooms in one step.
-/// </summary>
-public sealed class CameraProposal : IAnimatedArtProposal
-{
-    private const double Seconds = 4;
-    public string Family => "camera";
-
-    public IEnumerable<(string Id, IReadOnlyList<Image> Frames)> Animate()
-    {
-        foreach (var look in new[] { "a-today", "b-ease", "c-ease-settle" })
-            yield return ($"{look}-32", Polish.Loop(Seconds, t => Frame(look, t)));
-    }
-
-    private static float Ease(string look, float k) => look switch
-    {
-        "a-today" => k > 0 ? 1 : 0,
-        "b-ease" => 1 - MathF.Pow(1 - Math.Clamp(k, 0, 1), 3),
-        // A slower start and a soft settle that overshoots by about 4%.
-        _ => Math.Clamp(k, 0, 1) is var x ? 1 + 2.2f * MathF.Pow(x - 1, 3) + 1.2f * MathF.Pow(x - 1, 2) : 0,
-    };
-
-    private static Image Frame(string look, double t)
-    {
-        const int size = 32, viewW = 320, viewH = 192;
-        var scene = new Canvas(Polish.Scene(size, agents: true));
-        var from = new Vector2(4.5f, 6.5f) * size;
-        var to = new Vector2(14.5f, 7.0f) * size;
-        var move = Ease(look, (float)(t - 0.6) / 0.7f);
-        var centre = from.Lerp(to, move);
-        var zoom = 1f + 0.5f * Ease(look, (float)(t - 2.2) / 0.35f);
-        if (t < 0.6) centre = from;
-        var w = viewW / zoom; var h = viewH / zoom;
-        var x = (int)Math.Clamp(MathF.Round(centre.X - w / 2), 0, scene.Width - w);
-        var y = (int)Math.Clamp(MathF.Round(centre.Y - h / 2), 0, scene.Height - h);
-        return scene.Crop(new Rect2I(x, y, (int)w, (int)h), viewW, viewH).ToImage();
     }
 }
 

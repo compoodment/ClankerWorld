@@ -21,7 +21,7 @@ public partial class Main
         Vector2I Canonical(Vector2I tile) => map.WrapsEastWest
             ? new((tile.X % map.Width + map.Width) % map.Width, tile.Y) : tile;
         Vector2I Tile(OwnerWorldPosition point) => Canonical(new(point.X, point.Y));
-        var forbidden = snapshot.RoadTiles.Concat(snapshot.Bridges.SelectMany(bridge => bridge.Span))
+        var forbidden = snapshot.RoadTiles.Concat(snapshot.Bridges.SelectMany(bridge => bridge.Span.Concat(bridge.Entrances)))
             .Concat(snapshot.Resources.Select(resource => resource.Position)).Concat(snapshot.Objects.Select(item => item.Position))
             .Concat(snapshot.Fields.Select(field => field.Position)).Concat(snapshot.GroundStocks.Select(stock => stock.Position))
             .Select(Tile).ToHashSet();
@@ -37,6 +37,7 @@ public partial class Main
                 for (var x = site.Site.X; x < site.Site.X + site.Width; x++) forbidden.Add(Canonical(new(x, y)));
         bool Open(Vector2I tile) => tile.X >= 0 && tile.X < map.Width && tile.Y >= 0 && tile.Y < map.Height &&
             !forbidden.Contains(tile) && map.At(tile.X, tile.Y) is 1 or 7 or 8 or 9 &&
+            (map.ElevationAt(tile.X, tile.Y) is not { } elevation || elevation < 215) &&
             map.StyleAt(tile.X, tile.Y) is not (TerrainStyle.Mountain or TerrainStyle.Peak or TerrainStyle.Unknown or
                 TerrainStyle.Ocean or TerrainStyle.Lake or TerrainStyle.River or TerrainStyle.ShallowWater);
         var directions = new[] { Vector2I.Up, Vector2I.Left, Vector2I.Right, Vector2I.Down };

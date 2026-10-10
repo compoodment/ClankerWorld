@@ -341,7 +341,7 @@ public partial class Main
     /// </summary>
     private void UpdateUnreadEvents(string? worldId)
     {
-        var ids = knownEvents.Values.Where(worldEvent => GameUiText.IsPlayerFacingEvent(worldEvent.Kind))
+        var ids = GameUiText.PlayerEvents(knownEvents.Values)
             .Select(worldEvent => worldEvent.EventId).ToArray();
         var newest = ids.Length == 0 ? long.MinValue : ids.Max();
         if (!string.Equals(eventsWorldId, worldId, StringComparison.Ordinal))
@@ -603,7 +603,8 @@ public partial class Main
         var lines = new List<string>();
         foreach (var project in town.Projects)
         {
-            lines.Add($"{project.Name} · {project.DisplayName} · {Pretty(project.Stage)}");
+            var status = project.RemovedTick is not null ? "Built, later removed" : Pretty(project.Stage);
+            lines.Add($"{project.Name} · {project.DisplayName} · {status}");
             lines.Add($"Proposed by {project.ProposerName} · {project.Width} × {project.Height} tiles at ({project.Site.X}, {project.Site.Y})");
             var neighbour = StreetLanternLight.IsLantern(project.Tags) ? "Road beside the post" : "Entrance";
             lines.Add($"{neighbour}: ({project.Entrance.X}, {project.Entrance.Y})");
@@ -612,8 +613,15 @@ public partial class Main
             lines.Add($"Provisional work: {project.WorkDone} / {project.WorkRequired} units");
             lines.Add($"Council approval: {project.Approval.Yes} yes / {project.Approval.No} no · {project.Approval.RequiredYes} yes needed");
             if (project.Blocker is { } blocker) lines.Add((project.Stage == "cancelled" ? "Not built: " : "Waiting: ") + blocker);
-            if (project.CompletedBoatId is not null) lines.Add("Built · select the moored boat on the map for details.");
-            if (project.CompletedBuildingId is not null) lines.Add($"Built · select the {project.DisplayName} on the map for details.");
+            if (project.Stage == "blocked")
+                lines.Add("Work retries when the approved site is usable and reachable, and the required materials are available.");
+            if (project.RemovedTick is not null)
+                lines.Add("The building was removed; its construction record is kept here.");
+            else
+            {
+                if (project.CompletedBoatId is not null) lines.Add("Built · select the moored boat on the map for details.");
+                if (project.CompletedBuildingId is not null) lines.Add($"Built · select the {project.DisplayName} on the map for details.");
+            }
         }
         return GameUiText.PlainEllipses(string.Join("\n", lines));
     }
@@ -745,6 +753,6 @@ public partial class Main
             if (snapshot.WrapsEastWest && Math.Abs(dx) > width / 2) dx -= Math.Sign(dx) * width;
             sum += new Vector2(anchor.X + dx, tile.Y);
         }
-        CenterCameraAt(sum / town.BorderTiles.Count + new Vector2(0.5f, 0.5f));
+        CenterKeyboardCameraAt(sum / town.BorderTiles.Count + new Vector2(0.5f, 0.5f));
     }
 }

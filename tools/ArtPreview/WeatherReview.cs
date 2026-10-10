@@ -7,7 +7,7 @@ namespace ArtPreview.Proposed.Weather;
 /// <summary>The four overlay looks for the weather review (#1325).</summary>
 public enum WeatherLook
 {
-    /// <summary>A: the overlay the game draws today, redrawn here pixel by pixel from WeatherLayer.</summary>
+    /// <summary>A: the previous game overlay, redrawn here pixel by pixel from WeatherLayer.</summary>
     Current,
     /// <summary>B: crisp one-pixel streaks on exact pixel slopes, small bursts instead of rings, cross-shaped flakes.</summary>
     Streaks,
@@ -18,7 +18,7 @@ public enum WeatherLook
 }
 
 /// <summary>
-/// Weather overlay options for the next art review: the current overlay and
+/// Completed weather review: the previous overlay and
 /// three alternatives, each for rain, storm and snow, drawn over the
 /// reference Town corner at 32 and 16 px per tile. The weather covers the
 /// scene except a clear north-west corner, with the same softened, wandering
@@ -61,7 +61,7 @@ public sealed class WeatherProposal : IArtProposal, IAnimatedArtProposal
 
     private static string Note(WeatherLook look, string kind) => (look, kind) switch
     {
-        (WeatherLook.Current, _) => "A: today's overlay",
+        (WeatherLook.Current, _) => "A: previous overlay",
         (WeatherLook.Streaks, "rain") => "B: straight pixel streaks, small bursts",
         (WeatherLook.Streaks, "storm") => "B: stepped slanting streaks in gusts",
         (WeatherLook.Streaks, _) => "B: cross flakes blown by wind",
@@ -76,6 +76,7 @@ public sealed class WeatherProposal : IArtProposal, IAnimatedArtProposal
     /// <summary>The scene with one look's weather drawn over it at a moment in the loop.</summary>
     public static Image Frame(WeatherLook look, string kind, int size, double time, bool flash)
     {
+        time = ((time % LoopSeconds) + LoopSeconds) % LoopSeconds;
         if (!Scenes.TryGetValue(size, out var scene))
             Scenes[size] = scene = SceneComposer.Render(Spec, new ArtSet(), size);
         var canvas = new Canvas(scene, size);
@@ -215,7 +216,9 @@ public sealed class WeatherProposal : IArtProposal, IAnimatedArtProposal
         /// </summary>
         public void Haze(double time)
         {
-            var drift = new Vector2((float)(time * 0.22), (float)(time * 0.06));
+            // Keep the game's cloud pattern, with a closed drift for this short review loop.
+            var phase = time / LoopSeconds * Math.Tau;
+            var drift = new Vector2((float)(Math.Sin(phase) * 0.22), (float)((1 - Math.Cos(phase)) * 0.06));
             Wash((x, y) =>
             {
                 var tile = new Vector2((x + 0.5f) / Size, (y + 0.5f) / Size);
@@ -230,7 +233,7 @@ public sealed class WeatherProposal : IArtProposal, IAnimatedArtProposal
         private static float CloudAlpha(float u, float v)
         {
             const int Texels = 128;
-            cloud ??= Enumerable.Range(0, Texels * Texels).Select(index =>
+            var pattern = cloud ??= Enumerable.Range(0, Texels * Texels).Select(index =>
             {
                 var x = index % Texels;
                 var y = index / Texels;
@@ -242,7 +245,7 @@ public sealed class WeatherProposal : IArtProposal, IAnimatedArtProposal
             v -= 0.5f;
             var x0 = (int)MathF.Floor(u);
             var y0 = (int)MathF.Floor(v);
-            float At(int x, int y) => cloud[(((y % Texels) + Texels) % Texels) * Texels + ((x % Texels) + Texels) % Texels];
+            float At(int x, int y) => pattern[(((y % Texels) + Texels) % Texels) * Texels + ((x % Texels) + Texels) % Texels];
             var fx = u - x0;
             var fy = v - y0;
             return Lerp(Lerp(At(x0, y0), At(x0 + 1, y0), fx), Lerp(At(x0, y0 + 1), At(x0 + 1, y0 + 1), fx), fy);
@@ -273,7 +276,7 @@ public sealed class WeatherProposal : IArtProposal, IAnimatedArtProposal
         public double Spread => ((Seed >> 10) & 255) / 255.0;
     }
 
-    /// <summary>A: WeatherLayer as it is, redrawn into the picture.</summary>
+    /// <summary>A: the previous WeatherLayer, redrawn into the picture.</summary>
     internal static class Current
     {
         public const float DropCell = 34f;
@@ -371,89 +374,25 @@ public sealed class WeatherProposal : IArtProposal, IAnimatedArtProposal
     /// </summary>
     internal static class Streaks
     {
-        private const float Cell = 26f;
-        private static readonly Color Rain = new("DDEBFF");
-        private static readonly Color Snow = new("FFFFFF");
-
         public static void Draw(Canvas canvas, string kind, double time)
         {
-            var size = canvas.Size;
-            var tint = kind switch
-            {
-                "storm" => new Color("1B2433") with { A = 0.36f },
-                "rain" => new Color("2B4A66") with { A = 0.12f },
-                _ => new Color("E8F0FF") with { A = 0.1f },
-            };
+            var weather = kind switch { "storm" => 's', "rain" => 'r', _ => 'n' };
+            var tint = WeatherStreaks.Tint(weather);
             canvas.Wash((x, y) => tint with { A = tint.A * canvas.CoverageAt(x, y) });
-            var slots = kind == "storm" ? 3 : 2;
-            for (var cy = -2; cy <= canvas.Height / Cell + 1; cy++)
-                for (var cx = -1; cx <= canvas.Width / Cell + 2; cx++)
+            var cell = WeatherStreaks.Cell;
+            var slots = weather == 's' ? 3 : 2;
+            for (var cy = -2; cy <= canvas.Height / cell + 1; cy++)
+                for (var cx = -1; cx <= canvas.Width / cell + 2; cx++)
                     for (var slot = 0; slot < slots; slot++)
                     {
-                        var period = kind switch { "storm" => 0.4, "rain" => 0.6, _ => 3.0 };
-                        var probe = Particle.At(cx, cy, slot, 0, period, Cell, 7);
-                        var particle = Particle.At(cx, cy, slot, time, period * (1 + probe.Spread * 0.5), Cell, 7);
-                        var (px, py) = (particle.Landing.X, particle.Landing.Y);
-                        var here = canvas.CoverageAt(px, py);
-                        if (kind == "storm")
-                        {
-                            // Gusts: denser bands that sweep east across the storm.
-                            var gust = 0.55f + 0.45f * MathF.Sin((float)((px / (size * 6f)) - time * 2 * Math.PI / LoopSeconds) * MathF.Tau);
-                            here *= gust;
-                        }
+                        var particle = WeatherStreaks.ParticleAt(cx, cy, slot, time, weather);
+                        var here = canvas.CoverageAt(particle.Landing.X, particle.Landing.Y);
+                        if (weather == 's') here *= WeatherStreaks.Gust(particle.Landing.X, canvas.Size, time);
                         if (here <= particle.Threshold) continue;
-                        switch (kind)
-                        {
-                            case "rain": RainStreak(canvas, px, py, particle.Progress, size); break;
-                            case "storm": StormStreak(canvas, px, py, particle.Progress, size); break;
-                            default: Flake(canvas, px, py, particle.Progress, particle.Seed, size); break;
-                        }
+                        var frame = WeatherStreaks.Frame(weather, particle, canvas.Size);
+                        foreach (var pixel in WeatherStreaks.Shape(frame.Shape).Pixels)
+                            canvas.Pixel(frame.X + pixel.X, frame.Y + pixel.Y, pixel.Color with { A = pixel.Color.A * frame.Opacity });
                     }
-        }
-
-        private static void RainStreak(Canvas canvas, float px, float py, float progress, int size)
-        {
-            const float LandsAt = 0.8f;
-            var length = size >= 24 ? 5 : 3;
-            var x = (int)px;
-            if (progress < LandsAt)
-            {
-                var top = (int)(py - size * 1.4f * (1 - progress / LandsAt)) - length;
-                for (var i = 0; i < length; i++)
-                    canvas.Pixel(x, top + i, Rain with { A = i == 0 ? 0.35f : 0.78f });
-                return;
-            }
-            // A three-pixel burst for two frames, then gone.
-            var fade = 1 - (progress - LandsAt) / (1 - LandsAt);
-            var y = (int)py;
-            canvas.Pixel(x, y, Rain with { A = 0.8f * fade });
-            canvas.Pixel(x - 1, y - 1, Rain with { A = 0.5f * fade });
-            canvas.Pixel(x + 1, y - 1, Rain with { A = 0.5f * fade });
-        }
-
-        private static void StormStreak(Canvas canvas, float px, float py, float progress, int size)
-        {
-            var length = size >= 24 ? 12 : 8;
-            var fall = (int)(size * 2.4f * (1 - progress));
-            // Two pixels down for every one across: a clean pixel staircase.
-            var startX = (int)px + fall / 2 + length / 2;
-            var startY = (int)py - fall - length;
-            for (var i = 0; i < length; i++)
-                canvas.Pixel(startX - (i + 1) / 2, startY + i, Rain with { A = i < 2 ? 0.3f : 0.62f });
-        }
-
-        private static void Flake(Canvas canvas, float px, float py, float progress, uint seed, int size)
-        {
-            var fall = Cell * 1.4f * (1 - progress);
-            var wind = fall * 0.5f;
-            var sway = MathF.Sin((progress * 2 + (seed >> 26) / 64f) * MathF.Tau) * 1.5f;
-            var x = (int)MathF.Round(px - wind + sway);
-            var y = (int)MathF.Round(py - fall);
-            var fade = Math.Min(1, Math.Min(progress / 0.12f, (1 - progress) / 0.2f));
-            canvas.Pixel(x, y, Snow with { A = 0.95f * fade });
-            if (size < 24 && (seed & 3) != 0) return;
-            foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
-                canvas.Pixel(x + dx, y + dy, Snow with { A = 0.45f * fade });
         }
     }
 

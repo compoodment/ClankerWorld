@@ -1,0 +1,1 @@
+- During storms, residents without a House can take shelter in their own Town's completed Town Hall. The Hall gives building cover without household stock or fire access.

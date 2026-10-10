@@ -35,6 +35,8 @@ public static class HousingBlockers
     public const string NoHousehold = "no_household";
     public const string NoAuthorizedHome = "no_authorized_home";
     public const string NoLegalSite = "no_legal_site";
+    public const string LandRecoveryGuidance =
+        "Ask for household land use or a Council land claim where those choices are available. Approval is required.";
     public const string MissingMaterials = "missing_materials";
     public const string AwaitingAnswer = "awaiting_answer";
     public const string Overcrowded = "overcrowded";
@@ -382,7 +384,8 @@ public sealed partial class PrivateWorldRuntime
             HousingBlockers.MissingMaterials =>
                 "You have no home. Your household holds no House and lacks the materials to build one.",
             HousingBlockers.NoLegalSite =>
-                "You have no home. Your household has the materials for a House but no legal site to build it.",
+                "You have no home. Your household has the materials for a House but no legal site to build it. " +
+                HousingBlockers.LandRecoveryGuidance,
             HousingBlockers.Overcrowded =>
                 "Your household's House is over its completed resident capacity and takes no new residents until it has room.",
             _ => null,

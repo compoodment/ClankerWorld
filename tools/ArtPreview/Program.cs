@@ -19,11 +19,23 @@ switch (command)
     case "animate":
         Animations.Run(Path.Combine(outRoot, "animated"), args.Length > 2 ? args[2] : null);
         break;
+    case "seasons":
+        SeasonalScenes.Run(Path.Combine(outRoot, "seasons"));
+        break;
+    case "movement":
+        MovementPreview.Run(Path.Combine(outRoot, "baseline", "movement"));
+        break;
+    case "goldenhour":
+        GoldenHourPreview.Run(Path.Combine(outRoot, "baseline", "goldenhour"));
+        break;
+    case "snow":
+        SnowMarksPreview.Run(Path.Combine(outRoot, "baseline", "snow"));
+        break;
     case "check":
         ArtContractChecks.Run();
         break;
     default:
-        Console.Error.WriteLine("usage: baseline|proposed|scene|animate <out dir> [proposal family] | check");
+        Console.Error.WriteLine("usage: baseline|proposed|scene|seasons|movement|animate|snow|goldenhour <out dir> [proposal family] | check");
         return 2;
 }
 return 0;
@@ -38,6 +50,8 @@ static class Baseline
 
         families.Add(("graves", new[] { 16, 32 }.SelectMany(size => new[] { false, true }.Select(headstone =>
             new Entry("graves", $"{(headstone ? "b-headstone" : "a-cross")}-{size}", GraveClientPreview.Frame(headstone, size)))).ToList(), null, 2));
+        families.Add(("smoke", new SmokeClientPreview().Render().ToList(), null, 2));
+        families.Add(("stock", new StoredStockClientPreview().Render().ToList(), null, 3));
 
         // Ground tiles: both variants at 32 px and at the 16 px mid-zoom atlas.
         var terrain = new List<Entry>();
@@ -259,7 +273,7 @@ static class Baseline
     }
 }
 
-/// <summary>Proposed art: any class implementing <see cref="IArtProposal"/> under Proposed/ is rendered.</summary>
+/// <summary>Proposed art: any class implementing <see cref="IArtProposal"/> is rendered, including archived review drawings.</summary>
 public interface IArtProposal
 {
     string Family { get; }

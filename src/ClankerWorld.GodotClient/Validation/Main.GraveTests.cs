@@ -110,6 +110,16 @@ public partial class Main
             await Settle();
             if (Markers(blocked).Single().Tile != new Vector2I(10, 11))
                 throw new InvalidOperationException("A grave on a Road must choose the nearest legal ground, skipping water, the building and its tree.");
+            var bridgeApproach = snapshot with
+            {
+                Inhabitants = [dead],
+                Bridges = [new("grave-traffic-bridge", "plank_span_1", "traffic", "east_west",
+                    [new(10, 10), new(12, 10)], [new(11, 10)], 0)],
+            };
+            RenderMap(bridgeApproach);
+            await Settle();
+            if (Markers(bridgeApproach).Single().Tile != new Vector2I(10, 9))
+                throw new InvalidOperationException("A grave must avoid a traffic bridge approach even when no Road tile marks its entrance.");
             var layerLength = 256 * 128;
             var hydrology = new byte[layerLength];
             var surface = new byte[layerLength];
@@ -117,6 +127,8 @@ public partial class Main
             hydrology[10 * 256 + 10] = 3; // river, despite the v1 packed meadow projection
             surface[9 * 256 + 10] = 4; // shallow water without hydrology
             elevation[10 * 256 + 9] = 250; // peak to the west
+            var vegetation = new byte[layerLength];
+            vegetation[10 * 256 + 9] = 2; // forest styling must not conceal peak elevation
             var layered = snapshot with
             {
                 Inhabitants = [dead],
@@ -125,7 +137,7 @@ public partial class Main
                 PackedMapLayers = new(256, 128, "map-layers-v1",
                     Convert.ToBase64String(Enumerable.Repeat((byte)2, layerLength).ToArray()),
                     Convert.ToBase64String(elevation), Convert.ToBase64String(hydrology),
-                    Convert.ToBase64String(surface), Convert.ToBase64String(new byte[layerLength])),
+                    Convert.ToBase64String(surface), Convert.ToBase64String(vegetation)),
             };
             RenderMap(layered);
             await Settle();
