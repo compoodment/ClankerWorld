@@ -616,17 +616,25 @@ public sealed partial class ToolMakingRequestTests
         Assert.Contains(choices.Offered, item => item.Id == choice && item.DestinationId == shop.InstanceId);
         state = PrivateWorldRuntimeCodec.Decode(host.Saved());
         Assert.Equal(request, Assert.Single(state.ToolMakingRequests!));
-        using var reloaded = Restore(state, buyer, seller, new RequestChoices(), new RequestChoices());
-        using var replayHost = new ToolRequestCheckpointHost(reloaded);
+        // Pause cancels live personal calls. Both continuations must start
+        // from that same checkpoint and receive the same synchronous inputs;
+        // independent background reply arrival is not a replay input.
         world.Pause();
-        reloaded.Pause();
-        world.Resume();
+        state = Roundtrip(world);
+        using var continuing = PrivateWorldRuntime.Restore(state,
+            _ => new RequestChoices(DecisionProviderKind.Deterministic));
+        using var reloaded = PrivateWorldRuntime.Restore(state,
+            _ => new RequestChoices(DecisionProviderKind.Deterministic));
+        using var continuationHost = new ToolRequestCheckpointHost(continuing);
+        using var replayHost = new ToolRequestCheckpointHost(reloaded);
+        Assert.Equal(continuationHost.Saved(), replayHost.Saved());
+        continuing.Resume();
         reloaded.Resume();
         for (var step = 0; step < 3; step++)
         {
-            await host.Advance();
+            await continuationHost.Advance();
             await replayHost.Advance();
-            Assert.Equal(host.Saved(), replayHost.Saved());
+            Assert.Equal(continuationHost.Saved(), replayHost.Saved());
         }
         state = Roundtrip(reloaded);
         using var withdrawing = Restore(state, buyer, seller, new RequestChoices("tool_request_withdraw:"), new RequestChoices());
