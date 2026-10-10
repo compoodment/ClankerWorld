@@ -22,7 +22,6 @@
     { "name": "status:has-pr", "color": "0052cc", "description": "An open pull request closes this issue (Closes, Fixes or Resolves). Added automatically.", "aliases": [] },
     { "name": "status:needs-review", "color": "e4b429", "description": "Pull request is ready and waiting for review. Added automatically.", "aliases": [] },
     { "name": "status:reviewing", "color": "8250df", "description": "A reviewer has claimed this pull request; other reviewers skip it.", "aliases": [] },
-    { "name": "status:merging", "color": "1a7f37", "description": "Taking its turn to merge: in its final CI run on current main. Others wait to merge.", "aliases": [] },
     { "name": "status:parked", "color": "cfd3d7", "description": "Closed for now; agreed work for a later stage. Search closed issues to find it again.", "aliases": [] },
     { "name": "owner-task", "color": "5319e7", "description": "Work only computment can do, such as a repository setting or key. Playtest checks go in playtest/.", "aliases": [] },
     { "name": "owner-priority", "color": "5319e7", "description": "The owner chose this priority in chat; nobody else moves it.", "aliases": [] },
