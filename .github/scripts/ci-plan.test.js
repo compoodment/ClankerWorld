@@ -181,7 +181,8 @@ echo trx > "$out/test-timings-1/timings.trx"
   assert.deepEqual(fs.readdirSync(path.join(dir, 'main')).sort(), ['11', '33']);
   assert.match(result.stdout, /Could not download the timings of run 22/);
   const calls = fs.readFileSync(path.join(dir, 'calls.txt'), 'utf8');
-  assert.match(calls, /^api repos\/owner\/repo\/actions\/workflows\/ci\.yml\/runs\?branch=main&event=push&status=success&per_page=3 /m);
+  // The merge queue's green runs: main moves to the commits they tested, and pushes don't test again.
+  assert.match(calls, /^api repos\/owner\/repo\/actions\/workflows\/ci\.yml\/runs\?event=merge_group&status=success&per_page=3 /m);
   assert.match(calls, /^run download 33 --repo owner\/repo --pattern test-timings-\* --dir .*\/main\/33$/m);
 });
 
@@ -358,6 +359,49 @@ test('scope prints whether to run the code checks and the test suite', () => {
   assert.equal(main(['scope'], 'docs/playing.md\nglobal.json\n'), 'code=true\ntests=true');
   assert.equal(main(['scope'], 'src/ClankerWorld.GodotClient/Main.tscn\n'), 'code=true\ntests=false');
   assert.equal(main(['scope'], 'src/ClankerWorld.GodotClient/UI/Theme/GameUiText.cs\n'), 'code=true\ntests=true');
+});
+
+test('the workflow also runs on merge-queue batches, which run everything', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '..', 'workflows', 'ci.yml'), 'utf8');
+  const triggers = workflow.slice(workflow.indexOf('\non:'), workflow.indexOf('\npermissions:'));
+  assert.match(triggers, /\n  merge_group:/);
+  assert.match(triggers, /\n  pull_request:/);
+  // Only a pull request lists its changed files; anything else plans a full run.
+  const scope = workflow.slice(workflow.indexOf('\n  scope:'), workflow.indexOf('\n  checks:'));
+  assert.match(scope, /if \[ "\$EVENT" = pull_request \]; then/);
+  assert.deepEqual(planScope([], new Set()), { code: true, tests: true });
+});
+
+test('a push of a commit the merge queue already passed runs nothing but scope and verify', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '..', 'workflows', 'ci.yml'), 'utf8');
+  const job = name => workflow.slice(workflow.indexOf(`\n  ${name}:\n`)).split(/\n  [a-z-]+:\n/)[1];
+  // Only a push looks for the queue's run, and only a green run of this exact commit counts.
+  assert.match(job('scope'), /\n        if: github\.event_name == 'push'\n/);
+  assert.match(job('scope'), /runs\?event=merge_group&status=success&head_sha=\$\{GITHUB_SHA\}/);
+  assert.match(job('scope'), /queue-run: \$\{\{ steps\.queue\.outputs\.run \}\}/);
+  for (const name of ['checks', 'tests', 'windows-documentation', 'windows-provider-storage']) {
+    assert.match(job(name), /^    if: [^\n]*needs\.scope\.outputs\.queue-run == ''$/m, name);
+  }
+  assert.match(job('windows-documentation'), /^    needs: scope$/m);
+  assert.match(job('verify'), /test "\$SCOPE" = success\n\s+if \[ -n "\$QUEUE_RUN" \]; then [^\n]*exit 0; fi/);
+});
+
+test('a merge-queue run cancels only older runs of the same pull request', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '..', 'workflows', 'ci.yml'), 'utf8');
+  const job = workflow.slice(workflow.indexOf('\n  cancel-stale-queue-runs:\n'));
+  assert.match(job, /\n    if: github\.event_name == 'merge_group'\n/);
+  assert.match(job, /\n      actions: write\n/);
+  assert.match(job, /select\(\.id < \$\{RUN_ID\} and \(\.head_branch \| startswith\(\\"\$\{prefix\}\\"\)\)\)/);
+  // The prefix keeps the pull request's number but not the base commit, which a rebuild changes.
+  const lines = job.match(/\n {10}(prefix=[^\n]+)\n {10}(prefix=[^\n]+)\n/).slice(1).join('\n');
+  const prefix = ref => spawnSync('bash', ['-c', `${lines}\nprintf %s "$prefix"`], {
+    encoding: 'utf8',
+    env: { ...process.env, HEAD_REF: ref },
+  }).stdout;
+  assert.equal(prefix('refs/heads/gh-readonly-queue/main/pr-1460-934286caa08bfd411ac5a95668191b386d387753'),
+    'gh-readonly-queue/main/pr-1460-');
+  assert.ok('gh-readonly-queue/main/pr-1460-cf1f6bcb'.startsWith(prefix('refs/heads/gh-readonly-queue/main/pr-1460-934286ca')));
+  assert.ok(!'gh-readonly-queue/main/pr-1460-cf1f6bcb'.startsWith(prefix('refs/heads/gh-readonly-queue/main/pr-146-934286ca')));
 });
 
 test('the workflow runs the test suite only when scope asks for it', () => {

@@ -1,0 +1,1 @@
+- Give an adult with room to carry supplies a mandatory order to care for a household cow. Keep two grain at the House and two usable jugs there, each holding one water. The adult collects the supplies, cares for the cow and finishes the order once; both jugs remain. Repeat with one of the jugs already carried. ([#1209](https://github.com/compoodment/ClankerWorld/issues/1209))

@@ -15,7 +15,9 @@ the same soft storm flash, so only the weather itself differs.
 
 `dotnet run -- proposed out weather` draws a still of each;
 `dotnet run -- animate out weather` writes each as a three-second loop of
-numbered frames at 12 frames a second, which repeats without a jump.
+numbered frames at 12 frames a second, which repeats without a jump. For this
+short review loop, the shared cloud haze follows a small closed drift while
+keeping the game's cloud pattern, sampling and opacity.
 
 Every option follows style rule E3: weather stays an animated, sparse overlay
 with no opaque shapes. None changes the weather rules, where weather falls or

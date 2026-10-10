@@ -147,6 +147,36 @@ public partial class Main
             AdvanceMapMarkers(1);
             if (agent.Frame != AgentFrame.Still || animalSprite.Step != 0 || agent.Position != relocated)
                 throw new InvalidOperationException("A paused authoring relocation must display its reported tile at once, without starting a frozen glide.");
+            // Crowd layout changes must share the glide, including the bounded hit target's size.
+            person = person with { Position = new(120, 60) };
+            var neighbour = PanelSmokeAgent("glide-neighbour", "Ash", new(121, 60));
+            map = map with
+            {
+                WorldId = "gliding-crowd-smoke",
+                Authoring = map.Authoring! with { IsPaused = false },
+                Inhabitants = [person, neighbour],
+                Animals = [],
+                Handcarts = [],
+                Boats = []
+            };
+            Show();
+            foreach (var x in new[] { 121, 122 })
+            {
+                var before = agent.Position;
+                var sizeBefore = agent.Size;
+                person = person with { Position = new(x, 60) };
+                map = map with { WorldTick = map.WorldTick + 1, Inhabitants = [person, neighbour] };
+                Show();
+                if (agent.Position != before || agent.Size != sizeBefore)
+                    throw new InvalidOperationException("Entering or leaving a crowded tile must start at the current drawing and hit bounds, without a layout jump.");
+                AdvanceMapMarkers(0.5);
+                var half = agent.Position;
+                var halfSize = agent.Size;
+                AdvanceMapMarkers(0.5);
+                if (half.DistanceTo(before.Lerp(agent.Position, 0.5f)) > 0.01f ||
+                    halfSize.DistanceTo(sizeBefore.Lerp(agent.Size, 0.5f)) > 0.01f || agent.Frame != AgentFrame.Still)
+                    throw new InvalidOperationException("Crowd offsets and hit bounds must interpolate with the authoritative tile move and finish together.");
+            }
             map = map with { Inhabitants = [], Animals = [], Handcarts = [], Boats = [] };
             Show();
             if (markerMotions.Count != 0)

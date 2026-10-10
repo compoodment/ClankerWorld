@@ -1,0 +1,2 @@
+- Agents can look for needed food, project materials, forests or mountains. Untargeted gathering orders remember what they are searching for and resume the real task after a usable discovery.
+- Earlier alpha saves no longer load; their files are kept.

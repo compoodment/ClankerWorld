@@ -80,7 +80,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 var tile = map.WrapColumn(new GridPoint(board.X + dx, board.Y + dy));
                 if (map.Contains(tile) && IsWithinInteractionRange(tile, board, ResourceInteractionRange) &&
-                    map.IsReachableOnFoot(position, tile))
+                    CanReachByFootOrSwimming(actor, position, tile))
                     return true;
             }
         return false;
