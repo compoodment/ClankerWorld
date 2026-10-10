@@ -1,0 +1,1 @@
+- In a disposable world during a storm, compare an agent without clothing under trees with one in their House. Trees should reduce cooling less than the House; a cold agent should walk from trees to a reachable permitted House and stay there unless better usable heat is available. ([#1304](https://github.com/compoodment/ClankerWorld/issues/1304))

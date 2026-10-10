@@ -62,7 +62,9 @@ public sealed partial class PrivateWorldRuntimeTests
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             _ => new CountingSelectingProvider(DecisionProviderKind.Deterministic, chooseIdle: true));
         world.Validate();
-        var text = nameResource ? $"gather berries from {target.Id}" : $"gather berries at ({target.Position.X},{target.Position.Y})";
+        // Name the food the far site actually grows.
+        var food = target.NaturalObjectKind == "wild_greens" ? "wild greens" : "berries";
+        var text = nameResource ? $"gather {food} from {target.Id}" : $"gather {food} at ({target.Position.X},{target.Position.Y})";
         var receipt = world.SubmitInstruction(new OwnerInstructionRequest("private-food", "owner:test",
             HarvestInstructionActor, OwnerInstructionKind.MustDo, text));
         world.Resume();
@@ -71,7 +73,7 @@ public sealed partial class PrivateWorldRuntimeTests
         var order = final.Instructions!.Single(item => item.InstructionId == receipt.InstructionId).Order!;
         Assert.Equal(0, order.CompletedUnits);
         Assert.DoesNotContain(receipt.InstructionId, final.CompletedInstructionIds!);
-        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.OwnerId == HarvestInstructionActor && lot.ItemKind == "berries");
+        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.OwnerId == HarvestInstructionActor && lot.ItemKind is "berries" or "wild_greens");
         Assert.DoesNotContain(final.Knowledge!.Facts, fact => fact.OwnerId == HarvestInstructionActor && fact.Position == target.Position);
         Assert.Equal(nameResource ? target.Id : null, order.TargetResourceId);
         Assert.Equal(nameResource ? null : target.Position, order.TargetPosition);
