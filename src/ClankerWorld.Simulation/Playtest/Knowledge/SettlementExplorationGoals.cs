@@ -56,6 +56,7 @@ public sealed partial class PrivateWorldRuntime
 
     private IEnumerable<MapResource> KnownExplorationSources(string actor, PlaytestInhabitantState person, string target)
     {
+        var projectReturn = ExplorationProjectReturn(actor, person, target);
         var positions = knowledge.Facts.Where(fact => fact.OwnerId == actor &&
                 (target == "food" ? fact.ResourceKinds.Any(kind => kind is "berries" or "wild_greens" or "fruit")
                     : fact.ResourceKinds.Contains(target, StringComparer.Ordinal) ||
@@ -73,7 +74,46 @@ public sealed partial class PrivateWorldRuntime
                 : CanGatherFromSource(actor, target, source, tools) &&
                   ProjectMaterialCarryUnits(actor, target, source) <= FreeCarryCapacity(actor))
             .Where(source => IsWithinInteractionRange(person.Position, source.Position, ResourceInteractionRange) ||
-                FindUnoccupiedRoute(actor, person.Position, source.Position, ResourceInteractionRange).Count > 0);
+                FindUnoccupiedRoute(actor, person.Position, source.Position, ResourceInteractionRange).Count > 0)
+            .Where(source => projectReturn is not { } route || route.Destination is { } destination &&
+                CanReturnWithHarvest(actor, target, source, destination, route.Range, useHarvestBonus: false));
+    }
+
+    private (GridPoint? Destination, int Range)? ExplorationProjectReturn(string actor,
+        PlaytestInhabitantState person, string target)
+    {
+        if (!PrivateWorldInstructionOrderParser.IsMaterialKind(target))
+            return null;
+        if (person.Project is not
+            {
+                JobId: null, OrderInstructionId: null, ToolMakingRequestId: null,
+                Stage: not ("completed" or "cancelled" or "waiting")
+            } project || !TownConstructionCandidateIds.TryParse(project.CandidateId, out var selection))
+            return null;
+        var building = selection.IsBuilding
+            ? worldContent.Buildings.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId) : null;
+        var recipe = selection.IsBuilding
+            ? null : worldContent.Recipes.FirstOrDefault(item => item.CanonicalId == selection.DefinitionId);
+        var inputs = building?.BuildCosts ?? recipe?.Inputs;
+        if (inputs is null || !inputs.Any(input => input.ResourceId == target))
+            return null;
+        PlacedBuilding? recipeBuilding = null;
+        GridPoint? workSite = selection.SitePosition;
+        if (recipe is not null)
+        {
+            workSite = TryFindRecipeSite(recipe, out var site, out var position, actor) ? position : null;
+            recipeBuilding = worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == site);
+        }
+        var owner = building is not null ? BuildingConstructionOwner(actor, building)
+            : IsHandcartRecipe(recipe!) ? actor : ProductionOwnerFor(recipeBuilding, actor);
+        if (owner == actor && workSite is null && building is not null)
+        {
+            var sites = TownLayoutService.RankConstructionSites(CreateTownLayoutContext(actor, null, building), building);
+            if (sites.Count > 0) workSite = sites[0].Position;
+        }
+        var house = HouseForHousehold(owner);
+        return (owner == actor ? workSite : house?.Position ?? SettlementStoragePosition,
+            owner == actor || house is not null ? 0 : ResourceInteractionRange);
     }
 
     private bool ExplorationGoalReached(string actor, PlaytestInhabitantState person, SettlementExplorationGoal goal)

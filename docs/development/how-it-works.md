@@ -617,6 +617,22 @@ conversation finish before sending its own invitation. Urgent survival remains a
 closed history from being pruned before completion is credited. The owner
 projection reports the actual phase and saved outcome to the card.
 
+`propose_marriage` recognizes "Propose marriage" and "Propose marriage to my
+partner" for adults. It reuses the conversation-order path, binds the current
+accepted partnership's other person, and checks `AgentMarriageRules.CanPropose`
+without changing eligibility. An initially missing partner leaves the order
+blocked; once selected, the target never changes to another partner. Only the
+addressed person's ordinary conversation request receives the bounded
+`RequestedActivity=propose_marriage` context. The invitation, marriage wrap-up
+and surname choices remain personal-model decisions. Speech changes no world
+state. Refusal is an honest completed attempt; an ordinary close without a
+marriage proposal records `not_proposed`. Accepted mutual marriage consent
+holds the task until the linked native surname session completes, then records
+`married` and one deterministic `marriage-order:` receipt. Active links retain
+the original consent conversation until credit. The owner projection follows
+surname status while consent is accepted but incomplete. Cancellation removes
+the task without undoing consent, renaming anyone or forcing resumption.
+
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses. Default gathering counts one harvest; explicit quantities
 count goods acquired or food consumed. Food-source travel finishes on arrival within
@@ -1248,8 +1264,11 @@ current search.
 An order search hands back only when its normal task candidate is usable,
 including actual observation or personal knowledge, source availability,
 tools, carrying room and an open route. An ordinary resource purpose likewise
-uses current observation or owned knowledge and the normal source checks; a
-terrain purpose finishes only on an actually reached matching tile. A full
+uses current observation or owned knowledge and the normal source checks.
+Project-material searches also require the harvested load to return to
+household storage or the actual worksite, so an unusable source across water
+does not suppress or finish the search. A terrain purpose finishes only on an
+actually reached matching tile. A full
 personal fact ledger does not block either observation or invent a saved fact. Finishing clears the
 outing path and purpose, retaining discoveries and recording
 `exploration_goal_found`; it awards no harvest progress. Return, blocked-return
@@ -1398,17 +1417,43 @@ the water. A river tile costs what its narrowest crossing costs: 200, half
 dry-ground speed, where one tile of water separates dry banks, and
 `SeededMap.TwoTileWadingFootCost` (300, a third of dry-ground speed) where it
 takes two. The two-tile speed is provisional. A third water tile in the line,
-or any lake or ocean tile, means there is no crossing there: wider rivers,
-lakes and the sea need boats. A two-tile line through a tile that also lies on
+or any lake or ocean tile, prevents wading. A two-tile line through a tile that also lies on
 a two-tile line across the other axis does not count either: that tile is a
 corner of a river one tile thick that runs diagonally, and wading it would turn
 inside the water and walk along the channel. Where a one-tile spur or a river's
 head meets a two-tile line, an agent can still turn once inside the water; no
-route crosses more than two water tiles, and such a turn records no bridge
+wading route crosses more than two water tiles, and such a turn records no bridge
 evidence. A built bridge makes its river tiles walkable at
 dry-ground speed, end to end along the bridge only (see
 [Roads and bridges](#roads-and-bridges)). Mountains are slower to cross and
 cannot be built on; peaks are impassable.
+
+Agent routing also allows cardinal swimming steps through wider rivers and
+lakes. `SwimmingRules` keeps those steps separate from ordinary foot movement,
+so carts, animals, Roads and building placement retain their terrain rules.
+Provisional swimming cost is 800 per step, with at least 75 warmth lost on each
+committed tick while swimming, including waiting between steps. Boat passengers
+receive ordinary weather exposure instead. A swimmer seeking shelter or heat
+must reach dry ground before that destination counts as arrived. Starting
+requires at least 6,000 warmth, illness below 2,500 and no more than four
+physically carried units, including vessel contents. Equipped clothing and
+carry aids follow the usual cargo exemptions. Pickups and whole harvests with
+a known delivery destination check the load after collection against the
+return route. A foot or cart return keeps its usual capacity; a freshwater-only
+return limits loose pickups to the remaining swimming capacity and keeps an
+oversized vessel family intact. Water collection also keeps room to return
+with the jug and its contents. A rider, an animal
+leader or a cart puller cannot start swimming, and moving dependants must also
+meet the starting conditions. Infants and adults carrying guardian-placement
+dependants cannot start. A swimmer whose condition changes can still leave
+the water. Occupancy, bridge entrances and ordinary wading restrictions remain
+authoritative; the sea cannot be swum. Task selection uses weakly cached
+freshwater connectivity keyed by immutable map identity, checking the agent's
+current swimming eligibility separately. Actual weighted route searches cache
+swimming eligibility alongside terrain, Roads and occupancy. Swimming is
+projected from the actual water position, and the map alternates existing approved poses and displays
+**Swimming** beside the agent. No sprite atlas or saved movement-mode field
+changes.
 
 Checkpoint map acceptance keeps a weak, derived camp-reachability cache for
 each map's current starting point. Before reuse it compares actual terrain,
