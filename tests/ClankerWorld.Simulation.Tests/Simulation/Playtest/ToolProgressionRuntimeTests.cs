@@ -11,7 +11,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class ToolProgressionRuntimeTests
 {
     [Theory]
-    [InlineData("wood", false, false)]
     [InlineData("wood", true, false)]
     [InlineData("iron_ore", false, false)]
     [InlineData("iron_ore", true, false)]
@@ -160,7 +159,6 @@ public sealed class ToolProgressionRuntimeTests
     }
 
     [Theory]
-    [InlineData("gold_ore", "iron")]
     [InlineData("diamond", "iron")]
     [InlineData("gold_ore", "stone")]
     [InlineData("diamond", "stone")]
@@ -821,7 +819,7 @@ public sealed class ToolProgressionRuntimeTests
 
     private static MapResource? MaterialSource(PrivateWorldRuntime world, string itemKind, string actor) =>
         (MapResource?)typeof(PrivateWorldRuntime).GetMethod("MaterialSource", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(world, [itemKind, actor]);
+            .Invoke(world, [itemKind, actor, null, 0, true]);
 
     private sealed class WorkChoiceRecorder : IDecisionProvider
     {

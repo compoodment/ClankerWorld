@@ -20,13 +20,14 @@ public sealed partial class PrivateWorldRuntime
         if (KnowledgeWritingFor(actor) is { } project)
             return project.Kind == kind && MatchesKnowledgeSource(instruction.Order!, project.SourceArtifactId, project.OrderInstructionId is not null) &&
                 (project.OrderInstructionId is null || IsCurrentKnowledgeOrderProject(project))
-                ? new(instruction.Order!.Action, "Continue the requested writing using its reserved materials and learned sites.", 0) : null;
+                ? new(instruction.Order!.Action, "Continue the requested writing using its reserved materials and learned contents.", 0) : null;
         if (instruction.Order!.Action == "copy_knowledge")
             return MayMakeKnowledgeArtifact(actor) && KnowledgeCopySourceFor(instruction) is not null && CanSupplyWriting(actor, kind)
-                ? new("copy_knowledge", "Prepare a paid copy from the held source and sites you already know.", 0) : null;
+                ? new("copy_knowledge", "Prepare a paid copy from the held source and contents you already know.", 0) : null;
         var facts = FactsToWrite(actor, kind);
-        return MayMakeKnowledgeArtifact(actor) && facts.Length > 0 && !AlreadyWrote(actor, kind, facts) && CanSupplyWriting(actor, kind)
-            ? new("write_knowledge", "Prepare and write the requested item using real materials and personally learned sites.", 0) : null;
+        var recipes = RecipesToWrite(actor, kind);
+        return MayMakeKnowledgeArtifact(actor) && facts.Length + recipes.Length > 0 && !AlreadyWrote(actor, kind, facts, recipes) && CanSupplyWriting(actor, kind)
+            ? new("write_knowledge", "Prepare and write the requested item using real materials and personally learned contents.", 0) : null;
     }
 
     private string KnowledgeOrderBlockedReason(OwnerQueuedInstruction instruction)
@@ -41,9 +42,10 @@ public sealed partial class PrivateWorldRuntime
         if (!MayMakeKnowledgeArtifact(actor)) return "The writing limit has been reached.";
         if (instruction.Order!.Action == "copy_knowledge") return KnowledgeCopyBlockedReason(instruction);
         var facts = FactsToWrite(actor, kind);
-        if (facts.Length == 0) return "Waiting for personally learned sites to write about.";
-        if (KnowledgeWritingFor(actor) is null && AlreadyWrote(actor, kind, facts))
-            return "These sites have already been written. Waiting to learn something new.";
+        var recipes = RecipesToWrite(actor, kind);
+        if (facts.Length + recipes.Length == 0) return "Waiting for personally learned sites or recipes to write about.";
+        if (KnowledgeWritingFor(actor) is null && AlreadyWrote(actor, kind, facts, recipes))
+            return "These contents have already been written. Waiting to learn something new.";
         return kind == "book"
             ? "Waiting for permitted paper and cloth, a reachable supply and carrying space."
             : "Waiting for permitted paper, a reachable supply and carrying space.";

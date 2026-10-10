@@ -5,11 +5,12 @@ namespace ClankerWorld.GodotClient.UI;
 /// <summary>
 /// The eighteen approved 32 px handcart drawings from the building art review:
 /// empty and loaded in eight directions, plus loaded carts being pulled east
-/// and south-east. The independent proposal remains the pixel reference.
+/// and south-east, and their approved 16 px versions for medium zoom (#914),
+/// halved from them. The independent proposal remains the pixel reference.
 /// </summary>
 public static class HandcartSprites
 {
-    private static readonly Dictionary<(int Facing, bool Loaded, bool Pulled), Texture2D> Textures = [];
+    private static readonly Dictionary<(int Facing, bool Loaded, bool Pulled, int Size), Texture2D> Textures = [];
     private static readonly Facing[] Facings =
         [Facing.South, Facing.SouthWest, Facing.West, Facing.NorthWest, Facing.North, Facing.NorthEast, Facing.East, Facing.SouthEast];
     private static readonly Ramp Timber = Ramp.Of("3F2A1A", "6E4E31", "8A6440", "A77C52", "D2AC77");
@@ -17,20 +18,25 @@ public static class HandcartSprites
     private static readonly Ramp Cloth = Ramp.Of("75674D", "A09170", "CABC99", "E8DCC0", "FFF5DF");
     private static readonly Color SmallShadow = new(0.05f, 0.08f, 0.05f, 0.28f);
 
-    /// <summary>Facings use <see cref="AgentSprites"/> order. Unsupported pulled poses use the parked drawing.</summary>
-    public static Image Sprite(int facing, bool loaded, bool pulled)
+    /// <summary>
+    /// Facings use <see cref="AgentSprites"/> order. Unsupported pulled poses use the parked drawing.
+    /// Sizes below 24 px get the approved 16 px drawing.
+    /// </summary>
+    public static Image Sprite(int facing, bool loaded, bool pulled, int size = 32)
     {
         var pose = Normalize(facing, loaded, pulled);
-        return Handcart(Facings[pose.Facing], pose.Loaded, pose.Pulled);
+        var approved = Handcart(Facings[pose.Facing], pose.Loaded, pose.Pulled);
+        return size >= 24 ? approved : PixelArt.HalveSprite(approved);
     }
 
-    /// <summary>One cached texture for each approved drawing, at its original 32 px size.</summary>
-    public static Texture2D Texture(int facing, bool loaded, bool pulled)
+    /// <summary>One cached texture for each approved drawing, at 32 px or 16 px.</summary>
+    public static Texture2D Texture(int facing, bool loaded, bool pulled, int size = 32)
     {
         var pose = Normalize(facing, loaded, pulled);
-        if (Textures.TryGetValue(pose, out var texture)) return texture;
-        texture = ImageTexture.CreateFromImage(Handcart(Facings[pose.Facing], pose.Loaded, pose.Pulled));
-        Textures.Add(pose, texture);
+        var key = (pose.Facing, pose.Loaded, pose.Pulled, size >= 24 ? 32 : 16);
+        if (Textures.TryGetValue(key, out var texture)) return texture;
+        texture = ImageTexture.CreateFromImage(Sprite(pose.Facing, pose.Loaded, pose.Pulled, key.Item4));
+        Textures.Add(key, texture);
         return texture;
     }
 

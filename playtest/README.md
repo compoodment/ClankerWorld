@@ -44,7 +44,7 @@ need to edit anything yourself. You can also ask an agent for the list.
 A new file looks like this:
 
 ````markdown
-- Give an adult next to a fruiting orchard a Direct order to harvest food. Once the food is gathered, the order shows as done. ([#431](https://github.com/compoodment/ClankerWorld/issues/431))
+- Give an adult next to a fruiting orchard an Order to harvest food. Once the food is gathered, the order shows as done. ([#431](https://github.com/compoodment/ClankerWorld/issues/431))
 ````
 
 When a check needs the private server, start its bullet with "On the paired
