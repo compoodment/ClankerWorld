@@ -90,7 +90,9 @@ public sealed partial class TownMembershipTests
             var placed = runtime.PlaceBuilding("nearest-town-first-house", house.CanonicalId, site, household);
             Assert.True(placed.Applied, placed.Failure);
             Assert.Equal(state.Society.Society.WorldTick, runtime.Towns.Single(item => item.Id == town.Id).FirstBuildingCompletedTick);
-            var events = runtime.ExportState().Events;
+            var recordedEvents = runtime.ExportState().Events;
+            Assert.Equal(state.Events, recordedEvents.Take(state.Events.Count));
+            var events = recordedEvents.Skip(state.Events.Count).ToArray();
             if (protectedLand || remoteBlockedTarget)
             {
                 Assert.DoesNotContain(events, item => item.Kind == "town_road_linked");
@@ -121,7 +123,7 @@ public sealed partial class TownMembershipTests
         foreach (var runtime in new[] { world, replay })
             Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
-        Assert.Equal(protectedLand || remoteBlockedTarget ? 0 : 1, world.ExportState().Events.Count(item => item.Kind == "town_road_linked"));
+        Assert.Equal(protectedLand || remoteBlockedTarget ? 0 : 1, world.ExportState().Events.Skip(state.Events.Count).Count(item => item.Kind == "town_road_linked"));
         Assert.True(world.RemoveBuilding("nearest-town-first-house", town.Id, household).Applied);
         Assert.Empty(world.Towns.Single(item => item.Id == town.Id).AssignedBuildingIds);
         var replacement = world.ExportState();
