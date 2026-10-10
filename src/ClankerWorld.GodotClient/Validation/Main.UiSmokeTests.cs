@@ -3385,6 +3385,7 @@ public partial class Main
                 throw new InvalidOperationException($"Lightning must stay soft and rare: peak={brightest}, lit samples={lit}, flashes={flashes}.");
             await VerifyNightWashAsync(largeMap);
             await VerifyNightLightsAsync(largeMap);
+            await VerifyGoldenHourAsync();
             await VerifySmokeAsync(largeMap);
             await VerifyStoredStockAsync(largeMap);
             var startedMap = largeMap with { FounderSetup = null };

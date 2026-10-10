@@ -693,6 +693,11 @@ goods are fetched. Nights are colder outdoors, so an agent with no clothing,
 shelter or fire loses warmth, and their warmth bar shows it. New worlds start
 in the morning; loading a saved world keeps its recorded time.
 
+Dawn adds a soft rose glow to the ground and dusk adds a gold one, following
+the season's changing night length. Names, people, panels, lit windows and
+weather keep their own colours. The glow fades away in full daylight and
+full night, and pausing holds its transition still.
+
 At close and mid zoom, occupied Houses and working Blacksmith forges give off
 soft grey smoke that rises and drifts east. Empty Houses and idle forges give
 off none. Smoke freezes while the world is paused.

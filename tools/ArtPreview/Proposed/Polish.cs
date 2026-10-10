@@ -768,7 +768,6 @@ public sealed class GoldenHourProposal : IArtProposal, IAnimatedArtProposal
     [
         ("a-amber", "A: an amber wash, up to 22%, at dawn and dusk"),
         ("b-amber-glow", "B: the amber wash, plus warm light catching bright roofs and Roads"),
-        ("c-rose-gold", "C: rose at dawn, gold at dusk"),
     ];
 
     public IEnumerable<Entry> Render()
@@ -782,25 +781,11 @@ public sealed class GoldenHourProposal : IArtProposal, IAnimatedArtProposal
         foreach (var (id, _) in Looks) yield return ($"{id}-day-32", Polish.Loop(Seconds, t => Frame(id, 32, t)));
     }
 
-    /// <summary>
-    /// The loop: day (0–1 s), dusk glow building (1–2.5), into night (2.5–4),
-    /// night (4–5), dawn glow (5–6.5) and back to day (6.5–8).
-    /// </summary>
-    private static (float Night, float Gold, bool Dawn) Light(double t) => t switch
-    {
-        < 1 => (0, 0, false),
-        < 2.5 => (0, Polish.Smooth((float)(t - 1) / 1.5f), false),
-        < 4 => (Polish.Smooth((float)(t - 2.5) / 1.5f), 1 - Polish.Smooth((float)(t - 2.5) / 1.5f), false),
-        < 5 => (1, 0, true),
-        < 6.5 => (1 - Polish.Smooth((float)(t - 5) / 1.5f), Polish.Smooth((float)(t - 5) / 1.5f), true),
-        _ => (0, 1 - Polish.Smooth((float)(t - 6.5) / 1.5f), true),
-    };
-
     private static Image Frame(string look, int size, double t)
     {
         var canvas = new Canvas(Polish.Scene(size, agents: true));
-        var (night, gold, dawn) = Light(t);
-        var warm = look == "c-rose-gold" ? (dawn ? new Color("E9A3A0") : new Color("F2B160")) : new Color("F0B066");
+        var (night, gold, dawn) = GoldenHourPreview.Light(t);
+        var warm = new Color("F0B066");
         canvas.Multiply(warm, 0.22f * gold);
         if (look == "b-amber-glow" && gold > 0)
             for (var y = 0; y < canvas.Height; y++)
