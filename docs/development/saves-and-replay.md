@@ -676,6 +676,16 @@ Cancellation and replay preserve actual consent without duplicating task or
 marriage effects; rejected ticks admit neither. The number is provisional until
 merge. Older alpha saves are refused and preserved without migration.
 
+Private-world schema 118 adds typed default estate laws to Town law drafts
+and version history. The bounded Town share, exact prospective wording,
+Resident-duty scope, Council proposal and historical version must agree;
+missing shares, mismatched effects and overlapping rules are refused.
+At settlement, the deceased resident's saved Town and the law history at their
+death derive the default division. No extra mutable estate-policy snapshot is
+saved. A valid will wins, and adoption, later amendment or repeal cannot change
+an earlier death's division. The number is provisional until merge; schema 117
+and older alpha saves are refused and preserved without migration.
+
 Private-world schema 84 adds required marriage records and conversation kinds.
 Each marriage retains its accepted partnership snapshot and the ordinary
 conversation's separate mutual marriage consent. Its surname session admits
@@ -988,7 +998,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 117. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 118. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -1499,18 +1509,30 @@ Death cancels only open barter offers through the ordinary cancellation
 transition, releasing both parties' reservations. Completed trades and unrelated
 surviving reservations remain.
 A persisted pending will is not reissued on restore; interrupted work resolves
-to the household default on the next active tick. Failure/deadline does likewise.
+to the default on the next active tick. Failure/deadline does likewise; a
+supported Town inheritance law effective at the death can change this default.
 Estate settlement waits for the pending will and commits once. An accepted will
 may divide lots between up to three heirs, including children or the deceased
 person's Town. Positive personal recipients alone receive its final words.
-Inheritance changes ownership while retaining ground, House storage or a living
-carrier's custody; goods carried by the deceased are dropped at their last tile.
-Town shares use the Town's current Warehouse while it can accept them.
+Personal inheritance changes ownership while retaining ground, House storage or
+a living carrier's custody; goods carried by the deceased are dropped at their
+last tile. Eligible Town shares move into the Town's current Warehouse, clearing
+their earlier location and carrier, while it can accept them.
 Warehouse validation and estate refusal share the inventory food classifier:
 eggs, milk and their meals follow the household default, with vessels and
 contents kept together. Current-format checkpoints that place food in a
 Town Warehouse are invalid; refusal preserves the saved file without migration.
-Debts and Town-law conflicts remain separate work. Inheritance does not decide guardianship.
+Without a valid will, a typed law can allocate a bounded Town share before
+the living household heirs' equal split. Whole units round down per lot; a
+vessel family goes to the Town only at 100% and with room for all of it.
+If no household beneficiary survives, fallback ownership uses the deceased
+resident's recorded Town. In a default estate, eligible goods enter its Warehouse
+while space remains. Undeliverable shares from an accepted will, overflow and
+refused kinds retain their physical location as Town stock. Warehouse and ground portions stay separate, preventing overflow from
+being merged into stored stock. Quantity-one artifacts keep their IDs and
+provenance. Settlement remains once-only across reload and refused ticks.
+Debts and contested estates in hearings remain separate work.
+Inheritance does not decide guardianship.
 
 A quantity-one physical map, field record or book retains its lot ID when inherited.
 Ownership and location change; its creator, discovery facts and artifact link

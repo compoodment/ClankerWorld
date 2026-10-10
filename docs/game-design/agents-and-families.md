@@ -201,7 +201,7 @@ everything that is available in the current build. See [what works today](../wha
   established inheritance rule can change the default household distribution.
 - **What a will may do, agreed on October 1
   ([#645](https://github.com/compoodment/ClankerWorld/issues/645)):** a will
-  may leave the estate to the household default, or name **up to three** living
+  may use default inheritance, or name **up to three** living
   heirs or the Town, item by item or in equal shares. Children can inherit;
   their goods stay where they are stored, as their personal property. The dying
   agent may also leave **short final words**. The people who inherit hear them
@@ -216,7 +216,7 @@ everything that is available in the current build. See [what works today](../wha
   arrive within 30 seconds of unpaused world time (about two hours on the game
   clock). A request cut short by loading a save is not asked again. The game
   checks the will against what the agent really owned and against the law, and
-  uses the household default if the model is unavailable or gives no valid
+  uses default inheritance if the model is unavailable or gives no valid
   will. The estate is held for seven world days, then divided. With no valid
   will and no household left, the goods go to the Town's communal stock.
 - **Town law and debts, agreed on October 8
