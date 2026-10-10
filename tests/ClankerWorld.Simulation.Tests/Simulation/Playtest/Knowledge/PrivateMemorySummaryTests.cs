@@ -63,7 +63,7 @@ public sealed class PrivateMemorySummaryTests
         Assert.All(summary.SummarySources!, source => Assert.Equal(summary.SubjectId, source.SubjectId));
         var observation = new InhabitantObservation(owner, 4, 0, 1, "sha256:long-summary", 10_000, candidates) { RetrievedMemories = memories };
         var scheduler = new SocietyCognitionScheduler(society.Inhabitants);
-        Assert.True(scheduler.Enqueue(new("long-summary-recall", owner, 1, 4, [], observation)));
+        Assert.True(scheduler.Enqueue(new("long-summary-recall", owner, 1, 4, ["memory-recall"], observation)));
         scheduler.Validate();
     }
 
