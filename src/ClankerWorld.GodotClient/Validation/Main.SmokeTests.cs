@@ -54,12 +54,12 @@ public partial class Main
         if (BuildingSprites.AtlasTileSize(terrainLayer.TileSize) != 16 || Frame().Length == 0)
             throw new InvalidOperationException("Chimney smoke must also draw at mid zoom with its 16px atlas.");
         cameraZoom = maximumCameraZoom;
-        RenderMap(occupied with { Inhabitants = [], ProductionJobs = [] });
+        RenderMap(occupied with { Inhabitants = [], ProductionJobs = [occupied.ProductionJobs[1]] });
         await Settle();
-        if (Frame().Length != 0) throw new InvalidOperationException("Smoke must stop when the House empties and the forge stops.");
+        if (Frame().Length != 0) throw new InvalidOperationException("An empty House must not smoke even with a running job; the idle forge must also stop.");
         foreach (var absent in new[] { person with { IsDraft = true }, person with { Lifecycle = "deceased" } })
         {
-            RenderMap(occupied with { Inhabitants = [absent], ProductionJobs = [] });
+            RenderMap(occupied with { Inhabitants = [absent], ProductionJobs = [occupied.ProductionJobs[1]] });
             await Settle();
             if (Frame().Length != 0) throw new InvalidOperationException("Draft and deceased inhabitants must not make a House smoke.");
         }

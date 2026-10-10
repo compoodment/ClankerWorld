@@ -10,6 +10,12 @@ internal static class ArtContractChecks
     {
         var current = new ArtSet();
         CheckApprovedSmoke();
+        foreach (var size in new[] { 16, 32 })
+            foreach (var badge in new[] { false, true })
+                for (var frame = 0; frame < 8; frame++)
+                    Equal(Proposed.WaitingMarker.WaitingMarkerProposal.Frame('c', size, frame, badge),
+                        Proposed.WaitingMarker.WaitingMarkerProposal.Frame('c', size, frame, badge, clientArt: true),
+                        $"Approved circling spark frame {frame}, badge {badge}, must match at {size} px.");
         CheckApprovedBuildings(current);
         CheckApprovedNature(current);
         CheckApprovedItems();

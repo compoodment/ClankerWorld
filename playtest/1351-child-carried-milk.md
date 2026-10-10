@@ -1,0 +1,1 @@
+- On the paired world: when a hungry child carries a usable jug of fresh milk that has no reservation or delivery assignment, let their personal model choose drinking. Their fullness rises, one portion is spent, and the jug remains intact. Adult drinking and the child's ordinary bread eating should also work. ([#1351](https://github.com/compoodment/ClankerWorld/issues/1351))

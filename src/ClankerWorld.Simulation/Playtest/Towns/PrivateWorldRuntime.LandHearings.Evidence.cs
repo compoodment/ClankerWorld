@@ -48,7 +48,12 @@ public sealed partial class PrivateWorldRuntime
             .Concat(LandHearingApplicableLaws(town, item).Select(pair => (LandHearingLawToken(pair.Law, pair.Version),
                 TownLandHearingRules.LawVersion(pair.Version), TownLawRules.Text(pair.Version.Subject, pair.Version.Rule))))
             .Concat(item.Rulings.Select(ruling => (ruling.Id, TownLandHearingRules.Digest(JsonSerializer.Serialize(ruling)),
-                LandHearingRulingText(ruling))));
+                LandHearingRulingText(ruling))))
+            .Concat(item.Property is { } property ? property.Snapshots.Where(snapshot => snapshot.Revision == revision.Number)
+                .Select(snapshot => (TownPropertyRules.RecordId(item, snapshot.Revision), TownLandHearingRules.RecordVersion(snapshot),
+                    "Recorded property: " + snapshot.Building.InstanceId + "; owner " + (property.Request.SourceHouseholdId ?? town.Id) +
+                    "; shared goods lots " + snapshot.SharedLots.Count + "; living former members " +
+                    snapshot.LivingFormerMemberIds.Count + "; receiving adults " + snapshot.RecipientAdultIds.Count + ".")) : []);
         return records.Where(record => !item.Evidence.Any(evidence => evidence.Revision == revision.Number && evidence.Kind == "record" &&
             evidence.SourceRecordId == record.Item1 && evidence.SourceVersion == record.Item2)).ToArray();
     }

@@ -29,16 +29,20 @@ public sealed partial class PrivateWorldRuntime
     {
         var inventory = society.Checkpoint.Inventory;
         var animals = animalWorld.Animals.Where(animal => animal.DiedTick is null && animal.YardId == yard.InstanceId && MayCareForAnimal(actor, animal)).ToArray();
-        var sources = inventory.Lots.Where(lot => lot.ContainerLotId is null && lot.DeliveryBuildingId is null &&
-            lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0 && AvailableLotQuantity(lot) > 0 &&
+        var kinds = new GoodsKinds(["grain", "wild_greens", "cultivated_greens", "water_jug", "saddle"]);
+        var request = new GoodsRequest(GoodsUse.Collect, actor, new GoodsOwners([actor, household]), kinds);
+        var sources = FindGoods(request).Matches.Select(match => match.Lot).Where(lot => lot.ContainerLotId is null &&
+            !HasActiveContainerReservation(inventory, lot.Id) &&
             (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) || lot.OwnerId == household &&
-                (lot.CarrierId is null || PersonalEquipmentRules.IsCarried(lot, actor)) && (HouseholdFor(actor) == household ||
-                    lot.StorageBuildingId == yard.InstanceId || PersonalEquipmentRules.IsCarried(lot, actor))) &&
-            !HasActiveContainerReservation(inventory, lot.Id) && (lot.StorageBuildingId is null || CanRemoveWorkstationStock(inventory, lot, 1)))
-            .OrderBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+                (HouseholdFor(actor) == household || lot.StorageBuildingId == yard.InstanceId || PersonalEquipmentRules.IsCarried(lot, actor))) &&
+            (lot.StorageBuildingId is null || CanRemoveWorkstationStock(inventory, lot, 1))).ToArray();
         foreach (var animal in animals.OrderBy(animal => animal.Id, StringComparer.Ordinal))
         {
             var definition = AnimalRules.Definition(animal.Species);
+            var carriedWater = AnimalSuppliesAtHand(actor, animal).Where(lot =>
+                lot.ItemKind == InventoryContainerRules.FreshWater && lot.ContainerLotId is { } container &&
+                inventory.GetLot(container).ConditionBasisPoints > 0 &&
+                PersonalEquipmentRules.IsPhysicallyCarried(inventory, lot, actor)).Sum(AvailableLotQuantity);
             var actions = new List<string>();
             if (!AnimalRules.HasCare(animal, WorldTick)) actions.Add("care");
             if (animal.ReadyProductLotId is not null && animal.Species == "cow") actions.Add("collect");
@@ -46,23 +50,22 @@ public sealed partial class PrivateWorldRuntime
             foreach (var action in actions)
                 foreach (var root in sources.Where(lot => !PersonalEquipmentRules.IsCarried(lot, actor)))
                 {
+                    var productQuantity = action == "collect" ? inventory.GetLot(animal.ReadyProductLotId!).Quantity : 0;
                     var wanted = action switch
                     {
                         "collect" => root.ItemKind == InventoryContainerRules.WaterJug && root.OwnerId == household &&
                             inventory.Lots.Where(content => content.ContainerLotId == root.Id).All(content => content.ItemKind == "milk") &&
-                            ContainerContentsQuantity(inventory, root.Id) <= InventoryContainerRules.WaterJugCapacity - 2 ? 1 : 0,
+                            ContainerContentsQuantity(inventory, root.Id) <= InventoryContainerRules.WaterJugCapacity - productQuantity ? 1 : 0,
                         "saddle" => root.ItemKind == "saddle" && root.OwnerId == household ? 1 : 0,
                         _ => AnimalRules.IsFeed(root.ItemKind) ? Math.Max(0, definition.DailyFeed - AnimalSuppliesAtHand(actor, animal)
                             .Where(lot => AnimalRules.IsFeed(lot.ItemKind) && PersonalEquipmentRules.IsPhysicallyCarried(inventory, lot, actor)).Sum(AvailableLotQuantity)) :
                             root.ItemKind == InventoryContainerRules.WaterJug && inventory.Lots.Any(content => content.ContainerLotId == root.Id &&
-                                content.ItemKind == InventoryContainerRules.FreshWater && AvailableLotQuantity(content) >= definition.DailyWater) &&
-                            !AnimalSuppliesAtHand(actor, animal).Any(lot => PersonalEquipmentRules.IsPhysicallyCarried(inventory, lot, actor) && lot.ItemKind == InventoryContainerRules.FreshWater &&
-                                AvailableLotQuantity(lot) >= definition.DailyWater) ? 1 : 0,
+                                content.ItemKind == InventoryContainerRules.FreshWater && AvailableLotQuantity(content) > 0) &&
+                            carriedWater < definition.DailyWater ? 1 : 0,
                     };
                     var quantity = Math.Min(wanted, Math.Min(AvailableLotQuantity(root), FreeCarryCapacity(actor)));
-                    if (quantity <= 0 || !VesselFits(root, FreeCarryCapacity(actor)) ||
-                        AnimalRules.IsFeed(root.ItemKind) && !AnimalFeedMayBeSpent(actor, animal, root, quantity) ||
-                        !CanReachAnimalSupply(actor, root)) continue;
+                    if (quantity <= 0 || !VesselFits(root, FreeCarryCapacity(actor) - productQuantity) ||
+                        AnimalRules.IsFeed(root.ItemKind) && !AnimalFeedMayBeSpent(actor, animal, root, quantity)) continue;
                     yield return new(root, yard, quantity, animal.Id, action);
                 }
         }
@@ -80,14 +83,10 @@ public sealed partial class PrivateWorldRuntime
             if (!PersonalEquipmentRules.IsCarried(root, actor)) quantity = Math.Min(quantity, FreeCarryCapacity(actor));
             if (quantity <= 0 || !VesselFits(root, StorageRoom(yard.InstanceId)) ||
                 !PersonalEquipmentRules.IsCarried(root, actor) && !VesselFits(root, FreeCarryCapacity(actor)) ||
-                AnimalRules.IsFeed(root.ItemKind) && !AnimalFeedMayBeSpent(actor, animals[0], root, quantity) ||
-                !CanReachAnimalSupply(actor, root)) continue;
+                AnimalRules.IsFeed(root.ItemKind) && !AnimalFeedMayBeSpent(actor, animals[0], root, quantity)) continue;
             yield return new(root, yard, quantity);
         }
     }
-
-    private bool CanReachAnimalSupply(string actor, InventoryLot root) => PersonalEquipmentRules.IsCarried(root, actor) ||
-        root.CarrierId is null && (inhabitants[actor].Position == HouseholdStockPosition(root) || CanReachSharedItem(actor, root));
 
     private void AddAnimalSupplyCandidates(List<CognitionCandidate> candidates, string actor)
     {
@@ -145,6 +144,9 @@ public sealed partial class PrivateWorldRuntime
             if (!IsWithinInteractionRange(inhabitants[actor].Position, position, HouseholdStockInteractionRange(source)))
             { MoveToward(actor, inhabitants[actor], position, "animal_supply_pickup", HouseholdStockInteractionRange(source)); return true; }
         }
+        var pickupRequest = new GoodsRequest(GoodsUse.Collect, actor,
+            GoodsOwners.One(source.OwnerId), GoodsKinds.One(source.ItemKind));
+        if (RecheckGoods(pickupRequest, source.Id) is not { } pickup || pickup.Quantity < choice.Quantity) return true;
         // The trip follows the chosen physical load, including when it was already carried.
         if (!carried || choice.Quantity < source.Quantity)
         {

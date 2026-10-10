@@ -2,8 +2,8 @@
 
 On October 9 computment picked eight ideas from a list of visual additions
 that would make the map feel more alive. This proposal draws options for
-each over the reference Town corner, as stills at 32 px (close) and 16 px
-(mid zoom) and as short loops. None changes a game rule; each only shows
+each over the reference Town corner, as stills and short loops at close
+and mid zoom where applicable. None changes a game rule; each only shows
 what the world already records, more clearly.
 
 ## What computment chose
@@ -17,7 +17,7 @@ computment answered the review on October 9:
 | 7 · Ground snow | **A**, covered, with footprints |
 | 7 · Fallen leaves | **A**, a few |
 | 7 · Roof snow | **A**, redrawn to follow each roof's slopes (approved on the second look) |
-| 7 · Puddles | not settled yet: see below |
+| 7 · Puddles | postponed: see below |
 | 8 · Golden hour | **C**, rose at dawn and gold at dusk |
 | 9 · Stock | **A**, at the door |
 | 11 · Camera | **B**, ease |
@@ -36,13 +36,13 @@ Three pieces went back for better drawing at computment's request:
   the eaves. Building shadows and the forge yard stay clear.
 - **Graves** (`grave-a2-cross`, `grave-b2-stone`), approved: the wooden cross
   and the headstone, redrawn as 32 px sprites on a fresh earth mound.
-- **Puddles**, still open: the first redraw was bigger and see-through, but
-  computment asked for "total different vibes". The third round
+- **Puddles**, postponed: the first redraw was bigger and see-through,
+  then computment asked for "total different vibes", and a third round
   (`puddles-r3-<look>`, with `-rain` loops showing rings while rain falls)
-  offers four moods: **mirror** (glassy pools mirroring the sky),
-  **muddy** (murky brown pools), **outlined** (chunky puddles drawn like
-  the sprites) and **sheen** (the whole Road dark and glistening, with a
-  few small pools).
+  offered four moods: **mirror**, **muddy**, **outlined** and **sheen**.
+  None matched what computment has in mind, so puddles are postponed, and
+  whether they belong in the game at all is open. The drawings stay here
+  for whoever picks the idea up again.
 
 ## Drawing the pictures
 
@@ -78,8 +78,8 @@ night-lights rule for when a building is lit.
 
 ## 7 · Weather that leaves a mark (`weathermarks`)
 
-Today snowfall never whitens the ground: the only white ground is the
-permanent snow terrain of cold climates. These marks would follow the
+The snow mockups compare cover after snowfall with permanent snow terrain.
+These marks would follow the
 weather the world records for each region, and fade after it passes.
 
 - **Ground snow A:** open ground covered, grass tips and trodden Roads
@@ -123,8 +123,9 @@ zooms in one step.
 - **Building finished A:** a ring of dust settling. **B:** dust, then a small
   flag on the roof for a moment. **C:** dust and a few twinkles.
 - **Grave A:** a small wooden cross. **B:** a rounded headstone. **C:** an
-  earth mound with flowers. How long a grave stays is a question for the
-  review: until something is built there, or fading after a year.
+  earth mound with flowers. The original review offered two lifetimes:
+  until something is built there, or fading after a year. The chosen
+  lifetime is recorded above.
 
 ## 13 · Weather fading in and out (`weatherfade`)
 

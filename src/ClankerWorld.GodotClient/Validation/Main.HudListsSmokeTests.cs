@@ -5,6 +5,147 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    /// <summary>Real key input browses the roster, keeps its row through refreshes and activates the chosen profile.</summary>
+    private async Task VerifyRosterKeyboardAsync()
+    {
+        var original = renderedMapSnapshot ?? throw new InvalidOperationException("Roster input checks need a rendered world.");
+        var previousReconnect = observationSession.Current;
+        var previousSelection = selectedInhabitantId;
+        var wasVisible = rosterPanel.Visible;
+        string? restorationFailure = null;
+        var people = Enumerable.Range(0, 3).Select(index =>
+            PanelSmokeAgent($"roster-keyboard-{index}", $"Agent {index:D2}", new OwnerWorldPosition(index + 1, 1))).ToArray();
+        var snapshot = original with { Inhabitants = people, LatestEventId = 0 };
+        var handshake = new OwnerWorldHandshake(new(1, 1),
+            ["owner-observation.read.v1", "inhabitant-inspection.read.v1", "spatial-knowledge.read.v1",
+                "owner-control.request.v1", "paused-authoring.request.v1"], []);
+        async Task LayoutAsync()
+        {
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        async Task KeyAsync(Key key)
+        {
+            Input.ParseInputEvent(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = true });
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Input.ParseInputEvent(new InputEventKey { Keycode = key, PhysicalKeycode = key, Pressed = false });
+            await LayoutAsync();
+        }
+        async Task ClickAsync(int row, bool doubleClick)
+        {
+            var card = rosterCards.GetChild(0).GetChildren().OfType<PanelContainer>().ElementAt(row);
+            var position = card.GetGlobalRect().GetCenter();
+            Input.ParseInputEvent(new InputEventMouseMotion { Position = position, GlobalPosition = position });
+            Input.ParseInputEvent(new InputEventMouseButton
+            {
+                ButtonIndex = MouseButton.Left,
+                Pressed = true,
+                DoubleClick = doubleClick,
+                Position = position,
+                GlobalPosition = position,
+            });
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Input.ParseInputEvent(new InputEventMouseButton
+            {
+                ButtonIndex = MouseButton.Left,
+                Pressed = false,
+                Position = position,
+                GlobalPosition = position,
+            });
+            await LayoutAsync();
+        }
+        void ExpectBrowsing(string id, string reason)
+        {
+            var rows = rosterCards.GetSelectedItems();
+            if (!rosterPanel.Visible || !rosterCards.HasFocus() || selectedInhabitantId != id ||
+                rows.Length != 1 || rosterCardIds[rows[0]] != id)
+                throw new InvalidOperationException($"{reason} must keep the focused Agents list open on {id}: " +
+                    $"visible={rosterPanel.Visible}, focus={rosterCards.HasFocus()}, selected={selectedInhabitantId}.");
+        }
+        void AcceptSnapshot()
+        {
+            observationSession.ResetAfterLoad();
+            if (!observationSession.TryAccept(new(handshake, new(snapshot, new(0, 0, []))), 0, out var failure))
+                throw new InvalidOperationException("Roster input observation was refused: " + failure);
+        }
+        try
+        {
+            AcceptSnapshot();
+            selectedInhabitantId = null;
+            RenderMap(snapshot);
+            RenderInhabitantList(snapshot);
+            RenderSelectedInhabitantCard(snapshot);
+            rosterPanel.Show();
+            await LayoutAsync();
+            rosterCards.GrabFocus();
+            await KeyAsync(Key.Down);
+            ExpectBrowsing(people[0].Id, "The first Down press");
+            await KeyAsync(Key.Down);
+            ExpectBrowsing(people[1].Id, "A second Down press");
+            await KeyAsync(Key.Up);
+            ExpectBrowsing(people[0].Id, "An Up press");
+            await KeyAsync(Key.Up);
+            ExpectBrowsing(people[0].Id, "An Up press at the first row");
+            await KeyAsync(Key.Down);
+            await KeyAsync(Key.Down);
+            ExpectBrowsing(people[2].Id, "Browsing to the last row");
+            await KeyAsync(Key.Down);
+            ExpectBrowsing(people[2].Id, "A Down press at the last row");
+            RenderInhabitantList(snapshot);
+            await LayoutAsync();
+            ExpectBrowsing(people[2].Id, "An ordinary refresh");
+            snapshot = snapshot with
+            {
+                Inhabitants = [PanelSmokeAgent("roster-keyboard-new", "Agent -1", new(1, 2)), .. people],
+            };
+            AcceptSnapshot();
+            RenderInhabitantList(snapshot);
+            await LayoutAsync();
+            ExpectBrowsing(people[2].Id, "A new row above the selection");
+            await KeyAsync(Key.Enter);
+            if (!agentProfilePanel.Visible || selectedInhabitantId != people[2].Id ||
+                !selectedActorNameLabel.Text.Contains(people[2].DisplayName, StringComparison.Ordinal))
+                throw new InvalidOperationException("Enter must open the keyboard-selected agent's Profile.");
+            agentProfileRequested = false;
+            RenderSelectedInhabitantCard(snapshot);
+            rosterPanel.Show();
+            await LayoutAsync();
+            await ClickAsync(0, doubleClick: false);
+            if (rosterPanel.Visible || selectedInhabitantId != "roster-keyboard-new")
+                throw new InvalidOperationException("A mouse click must still close the Agents list and find its agent.");
+            rosterPanel.Show();
+            await LayoutAsync();
+            await ClickAsync(1, doubleClick: true);
+            if (!agentProfilePanel.Visible || selectedInhabitantId != people[0].Id ||
+                !selectedActorNameLabel.Text.Contains(people[0].DisplayName, StringComparison.Ordinal))
+                throw new InvalidOperationException("A double-click must still open the clicked agent's Profile.");
+            agentProfileRequested = false;
+            RenderSelectedInhabitantCard(snapshot);
+            rosterPanel.Show();
+            await LayoutAsync();
+            rosterCards.GrabFocus();
+            await KeyAsync(Key.Down);
+            await KeyAsync(Key.Up);
+            ExpectBrowsing(people[0].Id, "Returning to a row with the keyboard before a double-click");
+            await ClickAsync(1, doubleClick: true);
+            if (!agentProfilePanel.Visible || selectedInhabitantId != people[0].Id ||
+                !selectedActorNameLabel.Text.Contains(people[0].DisplayName, StringComparison.Ordinal))
+                throw new InvalidOperationException("Double-clicking the keyboard-selected row must open that agent's Profile.");
+        }
+        finally
+        {
+            observationSession.ResetAfterLoad();
+            if (previousReconnect is not null)
+                observationSession.TryAccept(previousReconnect, 0, out restorationFailure);
+            selectedInhabitantId = previousSelection;
+            RenderMap(original);
+            RenderInhabitantList(original);
+            RenderSelectedInhabitantCard(original);
+            rosterPanel.Visible = wasVisible;
+        }
+        if (!string.IsNullOrEmpty(restorationFailure))
+            throw new InvalidOperationException("The previous roster observation could not be restored: " + restorationFailure);
+    }
+
     /// <summary>Refreshing the roster preserves browsing position; changing the selection still reveals its card.</summary>
     private async Task VerifyRosterRefreshScrollAsync()
     {
@@ -35,6 +176,22 @@ public partial class Main
             await LayoutAsync();
             if (rosterCards.ScrollVertical != 500)
                 throw new InvalidOperationException("The roster scroll check needs enough visible cards to browse lower rows.");
+            var existingCards = rosterCards.GetChild(0).GetChildren().OfType<PanelContainer>().ToArray();
+            var cardIds = existingCards.Select(card => card.GetInstanceId()).ToArray();
+            var portraitIds = existingCards.Select(card => card.FindChildren("*", nameof(TextureRect), recursive: true, owned: false)
+                .OfType<TextureRect>().Single().Texture!.GetInstanceId()).ToArray();
+            rosterPanel.Hide();
+            RenderInhabitantList(snapshot);
+            var refreshedCards = rosterCards.GetChild(0).GetChildren().OfType<PanelContainer>().ToArray();
+            var refreshedCardIds = refreshedCards.Select(card => card.GetInstanceId()).ToArray();
+            var refreshedPortraitIds = refreshedCards.Select(card => card.FindChildren("*", nameof(TextureRect), recursive: true, owned: false)
+                .OfType<TextureRect>().Single().Texture!.GetInstanceId()).ToArray();
+            GD.Print($"ROSTER_REFRESH_PROOF rows={cardIds.Length} hidden={!rosterPanel.Visible} " +
+                $"replacedCards={cardIds.Zip(refreshedCardIds).Count(pair => pair.First != pair.Second)} " +
+                $"replacedPortraits={portraitIds.Zip(refreshedPortraitIds).Count(pair => pair.First != pair.Second)}");
+            if (!cardIds.SequenceEqual(refreshedCardIds) || !portraitIds.SequenceEqual(refreshedPortraitIds))
+                throw new InvalidOperationException("An unchanged hidden roster must retain its native cards and portrait textures.");
+            rosterPanel.Show();
             await RefreshWithoutMovingAsync(snapshot, "An identical snapshot refresh");
             await RefreshWithoutMovingAsync(snapshot, "A repeated snapshot refresh");
 
@@ -70,12 +227,68 @@ public partial class Main
             if (selectedInhabitantId is not null || rosterCards.GetSelectedItems().Length != 0)
                 throw new InvalidOperationException("Removing the selected agent must clear the selection.");
             await RefreshWithoutMovingAsync(snapshot, "Refreshing without a selection");
+            VerifyRosterPresentationChanges(snapshot);
         }
         finally
         {
             selectedInhabitantId = originalSelection;
             RenderInhabitantList(original);
             rosterPanel.Visible = wasVisible;
+        }
+    }
+
+    /// <summary>Presentation reuse must notice every visible field while ignoring unrelated observation changes.</summary>
+    private void VerifyRosterPresentationChanges(OwnerWorldSnapshot snapshot)
+    {
+        var person = snapshot.Inhabitants.First(item => !item.IsDraft && IsLiving(item));
+        PanelContainer Card() => rosterCards.GetChild(0).GetChildren().OfType<PanelContainer>()
+            .ElementAt(rosterCardIds.IndexOf(person.Id));
+        byte[] Pixels() => Card().FindChildren("*", nameof(TextureRect), recursive: true, owned: false)
+            .OfType<TextureRect>().Single().Texture!.GetImage().GetData();
+        void Change(OwnerWorldInhabitant changed, string expected, bool changedPixels = false)
+        {
+            RenderInhabitantList(snapshot);
+            var before = Card().GetInstanceId();
+            var pixels = Pixels();
+            RenderInhabitantList(snapshot with
+            {
+                Inhabitants = snapshot.Inhabitants.Select(item => item.Id == person.Id ? changed : item).ToArray(),
+            });
+            var text = string.Join(" ", Card().FindChildren("*", nameof(Label), recursive: true, owned: false)
+                .OfType<Label>().Select(label => label is FittedLabel fitted ? fitted.FullText : label.Text));
+            if (Card().GetInstanceId() == before || !text.Contains(expected, StringComparison.OrdinalIgnoreCase) ||
+                changedPixels && pixels.SequenceEqual(Pixels()))
+                throw new InvalidOperationException($"A changed roster presentation must show {expected}: text={text}; reusedCard={Card().GetInstanceId() == before}.");
+        }
+        Change(person with { PublicIntention = new("seek_food", "looking for food", "deterministic", 1) }, "Looking for food");
+        Change(person with { DecisionFactors = [.. person.DecisionFactors, new("decision-pending", "waiting")] }, "Deciding what to do");
+        Change(person with { HungerBasisPoints = 1_500 }, "Hungry");
+        Change(person with { Survival = new(3_000, 0, false, false, 10_000, null) }, "Cold");
+        Change(person with { Survival = new(10_000, 2_000, false, false, 10_000, null) }, "Ill");
+        Change(person with { DecisionFactors = [new("age-band", "child")] }, string.Empty, changedPixels: true);
+        Change(person with { Lifecycle = "dead" }, "Died", changedPixels: true);
+        RenderInhabitantList(snapshot);
+        var unchanged = Card().GetInstanceId();
+        RenderInhabitantList(snapshot with
+        {
+            WorldTick = snapshot.WorldTick + 1,
+            Inhabitants = snapshot.Inhabitants.Select(item => item with { Position = new(item.Position.X + 1, item.Position.Y) }).Reverse().ToArray(),
+        });
+        if (Card().GetInstanceId() != unchanged)
+            throw new InvalidOperationException("Clock, position and input array order alone must retain the sorted roster presentation.");
+        var originalTheme = UiTheme.Current;
+        var originalPixels = Pixels();
+        try
+        {
+            UiTheme.Apply(GetTree().Root, originalTheme.Name == "dark" ? UiTheme.Light : UiTheme.Dark);
+            RenderInhabitantList(snapshot);
+            if (originalPixels.SequenceEqual(Pixels()))
+                throw new InvalidOperationException("A theme change must immediately recolor cached roster portraits.");
+        }
+        finally
+        {
+            UiTheme.Apply(GetTree().Root, originalTheme);
+            RenderInhabitantList(snapshot);
         }
     }
 
