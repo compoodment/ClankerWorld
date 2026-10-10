@@ -39,6 +39,13 @@ that version mismatch. You can still reconnect to the existing world.
 
 Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. Once grown, those children can collect their own belongings left in the former House, even if the caregiver has died. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
 
+If a household has building materials but no legal site, its agent can ask for
+household use of available Town land or ask the Council to claim adjoining
+unclaimed land. Those choices appear only when eligible land exists. The
+House waiting message explains these routes. Filing does not grant land: a
+Council approval and, for household use, every current adult's acceptance are
+still required.
+
 When a child loses their last caregiver, relatives are asked first, then adults
 in the child's household and Town. Until someone accepts, the child shows
 **Needs a guardian**. Accepting care does not mean the child has moved in: a
@@ -659,7 +666,9 @@ then scrolls. It adjusts when the window changes size. Opening the log
 marks its new entries read; the ones that were new keep a small dot while it
 stays open. While the continuity rule
 is on, the top of the log offers **Add a newcomer**, which opens Add Agent.
-Opening the offer adds nobody and makes no paid model call. **Agents** lists
+The rule counts eligible adult partnerships, so adding an unpartnered newcomer
+does not itself turn it off. Opening the offer adds nobody and makes no paid
+model call. **Agents** lists
 everyone with their portrait and what they are doing, and tags anyone
 **Hungry**, **Cold** or **Ill**. Click a row to find that agent, or
 double-click it to open their Profile. With the list focused, use **Up** and
@@ -685,6 +694,19 @@ the household council and recent social activity; the page scrolls once it is
 long. **World** shows today's date, the season and weather where you are
 looking and the year length, then counts of agents, Towns, households,
 buildings, road tiles, bridges, resource sites and the map size.
+
+Residents with a personal model can propose a supported default estate law
+through their Town's ordinary Council. Its proposal names the Town's share:
+0%, 25%, 50%, 75% or 100%. It needs the Council's usual majority. The law
+applies only to residents who die after adoption without a valid will; a valid
+will keeps priority. Read the proposal and recorded law in Towns. Changing or
+repealing it later leaves earlier estates under their original rule.
+The final will's default choice describes the law effective at that death;
+choosing it uses default inheritance rather than overriding the Town share.
+The Town keeps eligible goods in its Warehouse while there is room, and living
+household heirs share the rest. Whole vessels stay together. With no living
+household heir, goods belong to the deceased resident's Town; non-food goods
+in an abandoned Town's Warehouse can be salvaged through the usual choice.
 
 Town residents make civic choices through their normal personal-model turns.
 Adults can agree to stand for election, visit their Town's public notice place
