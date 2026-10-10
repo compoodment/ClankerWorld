@@ -235,7 +235,7 @@ public static class WorldEventText
             "town_civic_proposal" => $"A proposal was submitted to {civicTownName}'s council.",
             // Rulings and household transfers post their outcome as a result notice, but no council decided them.
             "town_civic_result" when Field(worldEvent.Detail, 1).StartsWith("land-ruling:", StringComparison.Ordinal) =>
-                $"{civicTownName} posted the result of a land ruling. See the Towns page for what changed and why.",
+                DescribeLandRulingResult(worldEvent, snapshot, civicTownName),
             "town_civic_result" when Field(worldEvent.Detail, 1).StartsWith("land-transfer:", StringComparison.Ordinal) =>
                 $"{civicTownName} posted the outcome of a land handover between households. See the Towns page.",
             "town_civic_result" => $"{civicTownName}'s council made a decision. See the Towns page for the result.",
@@ -342,6 +342,21 @@ public static class WorldEventText
             "law_case_remedy_effect" => $"{actor ?? "Someone"} did their part of an agreed settlement in {town}.",
             _ => $"{town} turned down a request in a case. Nothing was imposed.",
         };
+    }
+
+    private static string DescribeLandRulingResult(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot, string townName)
+    {
+        var town = snapshot?.Towns.FirstOrDefault(item => item.Id == Field(worldEvent.Detail, 0));
+        var rulingId = Field(worldEvent.Detail, 1);
+        var hearing = town?.LandHearings.FirstOrDefault(item => item.Rulings.Any(ruling => ruling.Id == rulingId));
+        var subject = hearing?.Kind == "property" ? "property ruling" : "land ruling";
+        var outcome = hearing?.Kind switch
+        {
+            "property" => "ownership outcome",
+            "dispute" or "expiry" => "permission change",
+            _ => "outcome",
+        };
+        return $"{townName} posted the result of a {subject}. See the Towns page for its {outcome} and reasons.";
     }
 
     private static string DescribeLandTransfer(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
