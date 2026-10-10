@@ -138,11 +138,18 @@ public sealed partial class GrownAgentHelperMemoryTests
                 },
             },
         };
+        return await GrowLaterFamilyAsync(state, 2, 3);
+    }
+
+    private static async Task<byte[]> GrowLaterFamilyAsync(PrivateWorldRuntimeState state, int firstGeneration, int lastGeneration)
+    {
+        Assert.Equal(firstGeneration - 1, state.Society.Society.Births.Count);
         var choices = new LaterFamilyChoices();
         using var world = PrivateWorldRuntime.Restore(state, _ => choices);
         world.Resume();
-        var parent = Assert.Single(world.Society.Births).ChildId;
-        for (var generation = 2; generation <= 3; generation++)
+        var parent = world.Society.Births.OrderBy(item => item.CommittedTick).Last().ChildId;
+        var society = state.Society.Society;
+        for (var generation = firstGeneration; generation <= lastGeneration; generation++)
         {
             var mate = "agent:" + generation.ToString("D32", System.Globalization.CultureInfo.InvariantCulture);
             var household = world.Society.GetInhabitant(parent).HouseholdId!;
@@ -177,7 +184,7 @@ public sealed partial class GrownAgentHelperMemoryTests
             });
             choices.First = parent;
             choices.Second = mate;
-            choices.Names[mate] = generation == 2 ? "Ori" : "Elin";
+            choices.Names[mate] = generation switch { 2 => "Ori", 3 => "Elin", 4 => "Daro", 5 => "Fia", _ => throw new ArgumentOutOfRangeException(nameof(lastGeneration)) };
             world.Resume();
             for (var tick = 0; tick < 20 && world.Inhabitants.Single(item => item.InhabitantId == parent).Parenthood?.Stage != "preparing"; tick++)
                 Assert.True((await world.AdvanceOneTickAsync()).Advanced);
@@ -222,7 +229,7 @@ public sealed partial class GrownAgentHelperMemoryTests
             Assert.Contains(world.ExportState().Events, item => item.Kind == "child_born" && item.Detail == birth.ChildId);
             parent = birth.ChildId;
             choices.First = choices.Second = null;
-            choices.Names[parent] = generation == 2 ? "Lina" : "Nara";
+            choices.Names[parent] = generation switch { 2 => "Lina", 3 => "Nara", 4 => "Rian", 5 => "Tess", _ => throw new ArgumentOutOfRangeException(nameof(lastGeneration)) };
             world.Pause();
             world.SetLifePace(365);
             world.Resume();
@@ -244,7 +251,7 @@ public sealed partial class GrownAgentHelperMemoryTests
             Assert.False(world.Society.GetInhabitant(parent).NeedsName);
         }
         world.Pause();
-        Assert.Equal(3, world.Society.Births.Count);
+        Assert.Equal(lastGeneration, world.Society.Births.Count);
         Assert.True(parent.Length > 256);
         world.Validate();
         return PrivateWorldRuntimeCodec.Encode(world.ExportState());

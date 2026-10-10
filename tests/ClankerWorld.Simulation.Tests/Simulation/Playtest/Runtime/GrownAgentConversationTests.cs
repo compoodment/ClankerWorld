@@ -13,6 +13,7 @@ public sealed partial class GrownAgentHelperMemoryTests
 {
     private static readonly string[] ConversationModels = ["initiator-model", "invitee-model"];
     private static readonly Lazy<Task<byte[]>> ConversationAdult = new(CreateConversationAdultAsync);
+    private static readonly Lazy<Task<byte[]>> ConversationLaterAdults = new(CreateConversationLaterAdultsAsync);
 
     [Theory]
     [InlineData("initiator", false)]
@@ -22,7 +23,7 @@ public sealed partial class GrownAgentHelperMemoryTests
     [InlineData("invitee", true)]
     public async Task NativeBornAdultCanTakeEitherConversationRoleThroughOwnConfiguredModel(string role, bool laterGeneration)
     {
-        var state = PrivateWorldRuntimeCodec.Decode(await (laterGeneration ? LaterAdult : ConversationAdult).Value);
+        var state = PrivateWorldRuntimeCodec.Decode(await (laterGeneration ? ConversationLaterAdults : ConversationAdult).Value);
         var birth = laterGeneration
             ? state.Society.Society.Births.OrderBy(item => item.CommittedTick).Last()
             : Assert.Single(state.Society.Society.Births);
@@ -31,7 +32,11 @@ public sealed partial class GrownAgentHelperMemoryTests
         var actor = role == "initiator" ? child : birth.PrimaryCaregiverId;
         var partner = role == "initiator" ? birth.PrimaryCaregiverId : role == "invitee" ? child :
             state.Society.Society.Inhabitants.First(person => person.Id != child && person.Id != actor).Id;
-        if (laterGeneration) Assert.True(actor.Length + partner.Length > 512);
+        if (laterGeneration)
+        {
+            Assert.True(actor.Length + partner.Length > 512);
+            Assert.True(child.Length > 512);
+        }
         var occupied = state.Map.CampObjects.Select(item => item.Position)
             .Concat(state.Map.Resources.Select(item => item.Position)).ToHashSet();
         var land = state.Map.Tiles.Select(tile => tile.Position)
@@ -203,6 +208,9 @@ public sealed partial class GrownAgentHelperMemoryTests
         world.Pause();
         return PrivateWorldRuntimeCodec.Encode(world.ExportState());
     }
+
+    private static async Task<byte[]> CreateConversationLaterAdultsAsync() =>
+        await GrowLaterFamilyAsync(PrivateWorldRuntimeCodec.Decode(await LaterAdult.Value), 4, 5);
 
     private static async Task AwaitConversationRequestsAsync(PrivateWorldRuntime world)
     {

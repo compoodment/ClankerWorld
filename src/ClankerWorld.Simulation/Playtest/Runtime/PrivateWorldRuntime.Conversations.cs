@@ -86,9 +86,10 @@ public sealed partial class PrivateWorldRuntime
     private string? ConversationChoiceContextFor(string agentId)
     {
         var conversation = ConversationFor(agentId);
-        return conversation is null || !ShouldDispatchConversationChoice(agentId)
-            ? null
-            : $"{agentId}|{conversation.Id}|{conversation.Revision}|{conversation.Status}";
+        if (conversation is null || !ShouldDispatchConversationChoice(agentId)) return null;
+        var context = JsonSerializer.Serialize(new object[]
+            { agentId, conversation.Id, conversation.Revision, conversation.Status });
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(context)));
     }
 
     private long CurrentConversationWorldDay =>
