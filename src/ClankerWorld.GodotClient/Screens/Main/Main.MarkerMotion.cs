@@ -12,6 +12,7 @@ public partial class Main
         public Control Marker { get; } = marker;
         public bool Agent { get; } = agent;
         public bool Bob { get; } = bob;
+        public Vector2 Offset { get; set; }
         public Vector2 Size { get; private set; }
         public Vector2 Tile { get; private set; }
         public bool Moving { get; private set; }
@@ -94,16 +95,17 @@ public partial class Main
         if (!markerMotions.TryGetValue(id, out var motion))
             markerMotions.Add(id, motion = new(marker, agent, bob));
         var stride = currentTileSize + TileGap;
+        motion.Offset = agent ? Vector2.Zero : offset;
         motion.Observe(snapshot.WorldId, position, MapDimensions(snapshot).Width, snapshot.WrapsEastWest, snap,
-            snapshot.Authoring?.IsPaused == true, offset / stride, marker.Size / stride);
+            snapshot.Authoring?.IsPaused == true, agent ? offset / stride : Vector2.Zero, agent ? marker.Size / stride : Vector2.Zero);
         ApplyMarkerMotion(id, motion, snapshot);
     }
 
     private void ApplyMarkerMotion(string id, MapMarkerMotion motion, OwnerWorldSnapshot snapshot)
     {
         var stride = currentTileSize + TileGap;
-        var canonical = motion.Tile * stride;
-        motion.Marker.Size = motion.Size * stride;
+        var canonical = motion.Tile * stride + motion.Offset;
+        if (motion.Agent) motion.Marker.Size = motion.Size * stride;
         var bob = motion.Moving && motion.Bob ? WalkingMotion.BobAt(motion.WalkingSeconds) : 0;
         motion.Marker.Position = new(WrappedMarkerX(canonical.X, MapDimensions(snapshot).Width, stride, snapshot.WrapsEastWest), canonical.Y + bob);
         if (motion.Agent)
