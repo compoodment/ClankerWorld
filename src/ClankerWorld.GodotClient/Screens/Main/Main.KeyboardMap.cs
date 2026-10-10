@@ -45,9 +45,9 @@ public partial class Main
         {
             keyboardMapTile = tile = BoundKeyboardMapTile(snapshot, tile);
             var point = KeyboardMapCanvasPoint(tile);
-            if (!new Rect2(Vector2.Zero, mapCanvas.Size).Grow(-8).HasPoint(point))
+            if (!CameraMoving && !new Rect2(Vector2.Zero, mapCanvas.Size).Grow(-8).HasPoint(point))
             {
-                CenterCameraAt(new Vector2(tile.X + 0.5f, tile.Y + 0.5f));
+                SetCameraAtImmediately(new Vector2(tile.X + 0.5f, tile.Y + 0.5f));
                 point = KeyboardMapCanvasPoint(tile);
             }
             UpdateTileHover(point, keyboard: true);
@@ -56,11 +56,12 @@ public partial class Main
         finally { refreshingKeyboardMapSelection = false; }
     }
 
-    private void CenterKeyboardCameraAt(Vector2 tileCenter)
+    private void CenterKeyboardCameraAt(Vector2 tileCenter, bool immediately = false)
     {
         if (keyboardNavigation && renderedMapSnapshot is { } snapshot && terrainMap is not null)
             keyboardMapTile = BoundKeyboardMapTile(snapshot, new Vector2I((int)tileCenter.X, (int)tileCenter.Y));
-        CenterCameraAt(tileCenter);
+        if (immediately) SetCameraAtImmediately(tileCenter);
+        else CenterCameraAt(tileCenter);
     }
 
     private bool HandleKeyboardMapInput(InputEvent input, OwnerWorldSnapshot snapshot)
@@ -80,6 +81,7 @@ public partial class Main
         };
         if (direction != Vector2I.Zero)
         {
+            CancelCameraMotion();
             keyboardMapTile = BoundKeyboardMapTile(snapshot, tile + direction);
             RefreshKeyboardMapSelection();
             return true;

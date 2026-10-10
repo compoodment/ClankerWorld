@@ -55,6 +55,9 @@ public partial class Main
                     .FirstOrDefault(cap => cap.GetChildCount() == 1 && cap.GetChild(0) is Label { Text: "F1" }) is null)
                 throw new InvalidOperationException("The World page must point to the controls list with an F1 keycap.");
 
+            await VerifyWorldStatsRefreshAsync(snapshot);
+            RenderWorldInfo(snapshot);
+
             ShowWorldInfoPage(towns: true);
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var portraits = townList.FindChildren("*", nameof(TextureRect), recursive: true, owned: false)
@@ -64,6 +67,7 @@ public partial class Main
                 show.Icon != PixelIcons.Themed(PixelGlyph.Find, UiTheme.Current.Primary, 1) ||
                 show.Size.Y >= ((Control)show.GetParent()).Size.Y)
                 throw new InvalidOperationException($"Each Town must show its residents' portraits and a Find button sized to its text: portraits={portraits.Length}.");
+            await VerifyTownPortraitRefreshAsync(snapshot, ilya);
             var towns = PageText(townsPage);
             if (towns.Contains("Town borders", StringComparison.Ordinal))
                 throw new InvalidOperationException("The Towns page must not repeat the map filter state.");
@@ -94,12 +98,185 @@ public partial class Main
         }
         finally
         {
-            RenderWorldInfo(shown);
+            Render(shown, []);
             RenderTownExtras(shown);
             ShowWorldInfoPage(showedTowns);
             worldInfoPanel.Visible = wasVisible;
         }
     }
+
+    private async Task VerifyTownPortraitRefreshAsync(OwnerWorldSnapshot snapshot, OwnerWorldInhabitant resident)
+    {
+        var child = resident with { DisplayName = "Robin0 Vale", DecisionFactors = [new("age-band", "child")] };
+        var catalog = snapshot with
+        {
+            Inhabitants = [.. snapshot.Inhabitants.Where(person => person.Id != child.Id), child],
+            Towns = [snapshot.Towns[0], .. Enumerable.Range(1, 20).Select(index =>
+                snapshot.Towns[0] with { Id = $"town:portrait-{index}", Name = $"Portrait Town {index}", ResidentIds = [] })],
+        };
+        var scrollBefore = townsScroll.ScrollVertical;
+        TextureRect Portrait(string name) => townList.FindChildren("*", nameof(TextureRect), true, false)
+            .OfType<TextureRect>().Single(picture => picture.TooltipText == name);
+        static byte[] Pixels(TextureRect picture)
+        {
+            using var image = ((ImageTexture)picture.Texture!).GetImage();
+            return image.GetData();
+        }
+        async Task Settle()
+        {
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        try
+        {
+            RenderTownList(catalog); await Settle();
+            townsScroll.ScrollVertical = 80; await Settle();
+            var scroll = townsScroll.ScrollVertical;
+            if (scroll <= 0) throw new InvalidOperationException("The rename check needs an actually scrolled Town list.");
+            var before = Portrait(child.DisplayName);
+            var beforeId = before.GetInstanceId();
+            var childPixels = Pixels(before);
+            RenderTownList(catalog);
+            if (Portrait(child.DisplayName).GetInstanceId() != beforeId)
+                throw new InvalidOperationException("An unchanged Town observation must reuse its resident portrait.");
+            child = child with { DisplayName = "Liora Vale" };
+            catalog = catalog with { Inhabitants = [.. catalog.Inhabitants.Select(person => person.Id == child.Id ? child : person)] };
+            RenderTownList(catalog); await Settle();
+            var renamed = Portrait("Liora Vale");
+            if (renamed.GetInstanceId() == beforeId || !Pixels(renamed).SequenceEqual(childPixels) ||
+                townsScroll.ScrollVertical != scroll || townList.FindChildren("*", nameof(TextureRect), true, false)
+                    .OfType<TextureRect>().Any(picture => picture.TooltipText == "Robin0 Vale"))
+                throw new InvalidOperationException("A child rename must refresh its tooltip, preserve its portrait art and keep Town scrolling.");
+            RenderTownList(catalog);
+            if (Portrait("Liora Vale").GetInstanceId() != renamed.GetInstanceId())
+                throw new InvalidOperationException("After a rename, unchanged observations must reuse the refreshed portrait.");
+            child = child with { DecisionFactors = [new("age-band", "adult")] };
+            catalog = catalog with { Inhabitants = [.. catalog.Inhabitants.Select(person => person.Id == child.Id ? child : person)] };
+            RenderTownList(catalog);
+            var adultPixels = Pixels(Portrait("Liora Vale"));
+            if (adultPixels.SequenceEqual(childPixels)) throw new InvalidOperationException("A resident's changed age band must still refresh the portrait art.");
+            child = child with { Lifecycle = "deceased" };
+            catalog = catalog with { Inhabitants = [.. catalog.Inhabitants.Select(person => person.Id == child.Id ? child : person)] };
+            RenderTownList(catalog);
+            if (Pixels(Portrait("Liora Vale")).SequenceEqual(adultPixels))
+                throw new InvalidOperationException("A resident's death must still refresh the portrait background.");
+            GD.Print("NATIVE_TOWN_PORTRAIT_RENAME tooltipArtScrollUnchangedReuseAgeLiving=passed");
+        }
+        finally
+        {
+            RenderTownList(snapshot);
+            townsScroll.ScrollVertical = scrollBefore;
+        }
+    }
+
+    private async Task VerifyWorldStatsRefreshAsync(OwnerWorldSnapshot initial)
+    {
+        ulong[] TileIds() => worldStatsPage.FindChildren("*", nameof(PanelContainer), recursive: true, owned: false)
+            .OfType<PanelContainer>().Where(tile => tile.ThemeTypeVariation == "InsetRow")
+            .Select(tile => tile.GetInstanceId()).ToArray();
+        var latest = initial;
+        foreach (var (panelVisible, worldVisible) in new[] { (false, false), (true, false), (true, true) })
+        {
+            worldInfoPanel.Visible = panelVisible;
+            ShowWorldInfoPage(towns: !worldVisible);
+            var ids = TileIds();
+            latest = latest with
+            {
+                WorldTick = latest.WorldTick + 90,
+                Authoring = new(false, 0, 0, 0, latest.MapManifestDigest, latest.MapManifestDigest, "cloudy", "autumn", []),
+                WeatherRegionSize = 16,
+                WeatherRegions = [new(Math.Max(0, (int)MathF.Floor(cameraCenterTiles.X / 16)),
+                    Math.Max(0, (int)MathF.Floor(cameraCenterTiles.Y / 16)), "rain", 73)],
+                CalendarPace = new(360, 48),
+            };
+            Render(latest, []);
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var text = PageText(worldStatsPage);
+            if (!ids.SequenceEqual(TileIds()) || !text.Contains(DisplayWorldClock(latest.WorldTick), StringComparison.Ordinal) ||
+                !text.Contains("Rain here", StringComparison.Ordinal) || !text.Contains("Soil moisture here: 73%", StringComparison.Ordinal) ||
+                !text.Contains("48-day years", StringComparison.Ordinal))
+                throw new InvalidOperationException("Clock and local-condition updates must preserve all eight count tiles, even when the World page or panel is hidden.");
+            worldInfoPanel.Show();
+            ShowWorldInfoPage(towns: false);
+            if (!ids.SequenceEqual(TileIds()) || !PageText(worldStatsPage).Contains(DisplayWorldClock(latest.WorldTick), StringComparison.Ordinal))
+                throw new InvalidOperationException("Opening the hidden World page must immediately show the latest date without replacing its tiles.");
+        }
+        var savedCamera = cameraCenterTiles;
+        try
+        {
+            latest = latest with { WeatherRegionSize = 1, WeatherRegions = [new(0, 0, "clear", 18), new(1, 0, "snow", 92)] };
+            cameraCenterTiles = new(0, 0);
+            RenderWorldStats(latest);
+            var cameraTiles = TileIds();
+            cameraCenterTiles = new(1, 0);
+            RenderWorldStats(latest);
+            var local = PageText(worldStatsPage);
+            if (!cameraTiles.SequenceEqual(TileIds()) || !local.Contains("Snow here", StringComparison.Ordinal) ||
+                !local.Contains("Soil moisture here: 92%", StringComparison.Ordinal) || local.Contains("Clear here", StringComparison.Ordinal))
+                throw new InvalidOperationException("Panning into another weather region must refresh local conditions without replacing count tiles.");
+        }
+        finally { cameraCenterTiles = savedCamera; }
+        var counts = TileIds();
+        latest = latest with { Authoring = null, WeatherRegions = [], CalendarPace = null };
+        Render(latest, []);
+        if (!counts.SequenceEqual(TileIds()) || !PageText(worldStatsPage).Contains("Season and weather not reported", StringComparison.Ordinal) ||
+            PageText(worldStatsPage).Contains("Soil moisture here", StringComparison.Ordinal) || PageText(worldStatsPage).Contains("-day years", StringComparison.Ordinal))
+            throw new InvalidOperationException("Missing conditions must remove stale date-card details without replacing unchanged counts.");
+
+        // Each independently changing count must invalidate its derived grid.
+        Func<OwnerWorldSnapshot, OwnerWorldSnapshot>[] changes =
+        [
+            value => value with { Inhabitants = [value.Inhabitants[0]] },
+            value => value with { Towns = [] },
+            value => value with { Stockpiles = [] },
+            value => value with { PlacedBuildings = [.. value.PlacedBuildings, new("world-info-building", "test-building", new(0, 0), 0)] },
+            value => value with { RoadTiles = [.. value.RoadTiles, new(0, 0)] },
+            value => value with { Bridges = [.. value.Bridges, new("world-info-bridge", "footbridge", "river", "east-west", [], [], 0)] },
+            value => value with { Resources = [.. value.Resources, new("world-info-resource", "wood", new(0, 0), true, "available")] },
+            value => value with { PackedTerrain = new(MapDimensions(value).Width + 1, MapDimensions(value).Height, "terrain-kind-v1",
+                Convert.ToBase64String(new byte[(MapDimensions(value).Width + 1) * MapDimensions(value).Height])) },
+        ];
+        foreach (var change in changes)
+        {
+            RenderWorldStats(initial);
+            var before = TileIds();
+            var changed = change(initial);
+            RenderWorldStats(changed);
+            if (before.SequenceEqual(TileIds()) || TileIds().Length != 8)
+                throw new InvalidOperationException("A changed authoritative world count must refresh the eight-tile grid.");
+            var changedIds = TileIds();
+            RenderWorldStats(changed);
+            if (!changedIds.SequenceEqual(TileIds()))
+                throw new InvalidOperationException("An unchanged authoritative count snapshot must reuse its grid.");
+            var text = PageText(worldStatsPage);
+            if (!text.Contains($"{LivingPopulation(changed)} living agent", StringComparison.Ordinal) ||
+                !text.Contains($"{changed.Towns.Count} Town", StringComparison.Ordinal) ||
+                !text.Contains($"{changed.Stockpiles.Count} household", StringComparison.Ordinal) ||
+                !text.Contains($"{changed.PlacedBuildings.Count} building", StringComparison.Ordinal) ||
+                !text.Contains($"{changed.RoadTiles.Count} road tile", StringComparison.Ordinal) ||
+                !text.Contains($"{changed.Bridges.Count} bridge", StringComparison.Ordinal) ||
+                !text.Contains($"{changed.Resources.Count} resource site", StringComparison.Ordinal) ||
+                !text.Contains($"{MapDimensions(changed).Width} × {MapDimensions(changed).Height}", StringComparison.Ordinal))
+                throw new InvalidOperationException("The refreshed grid must display the current authoritative counts.");
+        }
+        var savedTheme = UiTheme.Current;
+        try
+        {
+            RenderWorldStats(initial);
+            var before = TileIds();
+            UiTheme.Apply(GetTree().Root, ReferenceEquals(savedTheme, UiTheme.Dark) ? UiTheme.Light : UiTheme.Dark);
+            RenderWorldStats(initial);
+            if (before.SequenceEqual(TileIds()) || TileIds().Length != 8)
+                throw new InvalidOperationException("A theme change must redraw the statistic icons in the current palette.");
+            var personIcon = worldStatsPage.FindChildren("*", nameof(TextureRect), recursive: true, owned: false)
+                .OfType<TextureRect>().FirstOrDefault(icon => ReferenceEquals(icon.Texture,
+                    PixelIcons.Texture(PixelGlyph.Person, UiTheme.Current.Ink, BuiltAccent, 1)));
+            if (personIcon is null)
+                throw new InvalidOperationException("The statistic grid must use the current theme's icon palette.");
+        }
+        finally { UiTheme.Apply(GetTree().Root, savedTheme); }
+        Render(initial, []);
+    }
+
     private void VerifyTownProjectHistory(OwnerWorldSnapshot snapshot)
     {
         var project = new OwnerWorldTownProject("town:river:proposal:1:construction", "proposal:1",

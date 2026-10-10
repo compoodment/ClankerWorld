@@ -1,0 +1,1 @@
+- On Windows, in a disposable world, create a save named with 59 `W`s, `🌱`, then 19 `W`s, overwrite it and reopen Load Save. Its recovery copy should end after the `W`s with no replacement character; load that copy and confirm the earlier checkpoint is available. ([#1013](https://github.com/compoodment/ClankerWorld/issues/1013))

@@ -30,7 +30,7 @@ public sealed partial class PrivateWorldRuntime
             }
             else
             {
-                shared = new SharedRouteSearch(new UnoccupiedRouteSearch(map, origin, occupied, swimming ? AgentStepCost : RoadStepCost,
+                shared = new SharedRouteSearch(new UnoccupiedRouteSearch(map, origin, occupied, swimming ? AgentStepCost : LegalRoadStepCost,
                     swimming ? point => SwimmingRules.Neighbors(map, point) : null),
                     roadTiles, roadTiles.Count, roadBridgeDecks, swimming);
                 if (routeSearches.Count == SharedRouteSearchLimit)

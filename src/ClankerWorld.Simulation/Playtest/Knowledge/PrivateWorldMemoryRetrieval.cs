@@ -24,13 +24,23 @@ internal static class PrivateWorldMemoryRetrieval
         SocietyAgentMemoryCompaction? compaction,
         string ownerId,
         long worldTick,
-        IReadOnlyList<CognitionCandidate> candidates)
+        IReadOnlyList<CognitionCandidate> candidates,
+        SocietyCheckpoint? checkpoint = null)
     {
         var contextTerms = Terms(string.Join(' ', candidates.Select(candidate =>
             $"{candidate.Id} {candidate.Description} {candidate.DestinationId}")));
         var importance = (compaction?.Sources ?? [])
             .ToDictionary(item => $"{ToWireKind(item.Kind)}:{item.SourceId}", StringComparer.Ordinal);
-        return SourceRecords(socialMemories, beliefs, ownerId, worldTick)
+        var summaryRecords = (checkpoint?.MemorySummaries ?? []).Where(item => item.OwnerId == ownerId)
+            .Select(item => new SourceRecord(item.Id, ownerId, CognitionAgentId(ownerId), item.Text, item.CreatedTick,
+                "summary", "private", null, null, null, null,
+                Attribution(checkpoint!, ownerId, item.Sources).Any(source => source.IsCorrected)));
+        return summaryRecords.Concat(SourceRecords(socialMemories, beliefs, ownerId, worldTick))
+            .OrderByDescending(item => item.Permanent)
+            .ThenByDescending(item => item.SourceTick)
+            .ThenByDescending(item => item.Permanent ? item.Id : string.Empty, StringComparer.Ordinal)
+            .ThenBy(item => item.Kind, StringComparer.Ordinal)
+            .ThenBy(item => item.Id, StringComparer.Ordinal)
             .Take(MaximumScanned)
             .Select(source =>
             {
@@ -67,8 +77,32 @@ internal static class PrivateWorldMemoryRetrieval
                 item.Source.SourceEventId,
                 item.Source.IsCorrected,
                 item.Importance,
-                item.ImportanceConfidence))
+                item.ImportanceConfidence,
+                item.Source.Kind == "summary" ? Attribution(checkpoint!, ownerId,
+                    checkpoint!.MemorySummaries.Single(summary => summary.Id == item.Source.Id).Sources) : null))
             .ToArray();
+    }
+
+    internal static IReadOnlyList<CognitionMemorySummaryOption> SummaryOptions(SocietyCheckpoint checkpoint, string ownerId) =>
+        SocietyMemorySummaryRules.Options(checkpoint, ownerId).Select(option => new CognitionMemorySummaryOption(
+            ownerId, option.Choice, option.Text, Attribution(checkpoint, ownerId, option.Sources))).ToArray();
+
+    private static CognitionMemorySummarySource[] Attribution(SocietyCheckpoint checkpoint, string ownerId,
+        IReadOnlyList<SocietyMemorySummarySource> sources)
+    {
+        var records = SourceRecords(checkpoint.AllMemories(), checkpoint.AllBeliefs(), ownerId, checkpoint.WorldTick)
+            .ToDictionary(item => item.Kind + ":" + item.Id, StringComparer.Ordinal);
+        // Tombstoned experiences remain evidence but must be marked corrected in later recall.
+        return sources.Select(source =>
+        {
+            var kind = ToWireKind(source.Kind);
+            if (records.TryGetValue(kind + ":" + source.Id, out var record))
+                return new CognitionMemorySummarySource(source.Id, kind, source.SourceTick, record.SubjectId,
+                    record.Provenance, record.ConfidenceBasisPoints, record.SourceAgentId, record.SourceEventId, record.IsCorrected);
+            var memory = checkpoint.AllMemories().Single(item => item.OwnerId == ownerId && item.Id == source.Id);
+            return new CognitionMemorySummarySource(source.Id, kind, source.SourceTick, CognitionAgentId(memory.SubjectId),
+                null, null, null, null, true);
+        }).ToArray();
     }
 
     internal static IReadOnlyList<CognitionMemoryCompactionCandidate> Unassessed(
@@ -189,10 +223,15 @@ internal static class PrivateWorldMemoryRetrieval
         ? null
         : Bounded(value, limit);
 
-    private static string Bounded(string value, int limit) =>
-        string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)) is { } normalized
-            ? normalized[..Math.Min(limit, normalized.Length)]
-            : string.Empty;
+    private static string Bounded(string value, int limit)
+    {
+        var normalized = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var length = Math.Min(limit, normalized.Length);
+        if (length > 0 && length < normalized.Length &&
+            char.IsHighSurrogate(normalized[length - 1]) && char.IsLowSurrogate(normalized[length]))
+            length--;
+        return normalized[..length];
+    }
 
     private static HashSet<string> Terms(string text)
     {

@@ -1,0 +1,1 @@
+- Guardians keep complete characters in shortened placement notes when a renamed child's name includes emoji.
