@@ -84,11 +84,17 @@ night-lights rule for when a building is lit.
 
 ## 7 · Weather that leaves a mark (`weathermarks`)
 
-The snow mockups compare cover after snowfall with permanent snow terrain.
-These marks would follow the
-weather the world records for each region, and fade after it passes.
+Ground snow A and footprints are implemented in `Implemented/Snow.cs`, using
+the client’s `GroundSnowSprites`. `dotnet run -- snow out` writes the approved
+stills and loops. Roof dusting in the still remains review context; client roof
+snow is separate. Cover follows observed regional snowfall and melts afterwards;
+footprints fade within a game hour.
 
-- **Ground snow A:** open ground covered, grass tips and trodden Roads
+The snow mockups compare cover after snowfall with permanent snow terrain.
+The remaining proposals would follow the weather the world records for each
+region, and fade after it passes.
+
+- **Ground snow A, implemented:** open ground covered, grass tips and trodden Roads
   showing. **Ground snow B:** patchy cover that thins and melts unevenly.
 - **Roof snow A:** snow on the north half of each roof. **B:** roofs covered,
   edges and chimneys still dark.
@@ -98,7 +104,8 @@ weather the world records for each region, and fade after it passes.
   autumn. Its approved drawing is now in the client and the completed
   [autumn leaf review](../AutumnLeavesReview.md). **B:** a carpet of leaves
   around them, retained here as an unchosen comparison.
-- **Footprints:** an agent crossing snow leaves prints that fade.
+- **Footprints, implemented:** agents and animals crossing snow leave prints
+  that fade.
 
 ## 8 · Golden hour (`goldenhour`)
 
