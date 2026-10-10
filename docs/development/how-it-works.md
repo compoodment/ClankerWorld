@@ -3921,7 +3921,11 @@ drinking consumes one portion and preserves the jug. Infant self-feeding and
 adult-only animal work remain age restricted.
 
 Milk stock travels as an actual household jug to a held Store or borrowed Market
-stall, with a stock receipt at a stall. Fresh seller and buyer personal choices
+stall, with a stock receipt at a stall. Restocking leaves household jugs on
+actively borrowed Market stalls in place; after the seller leaves, the same
+jug and milk can be collected for a normal Store delivery. Offers and execution
+recheck current borrowing, including during an already accepted restocking walk.
+Fresh seller and buyer personal choices
 exchange one held portion into the buyer's real carried jug for the named
 personal payment. Each pending offer has a distinct milk source lot, even
 when the lot contains several available portions. Candidate generation and
