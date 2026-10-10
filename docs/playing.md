@@ -97,7 +97,12 @@ name. A child's chosen surname must come from a biological parent. Temporary
 names do not reserve first names, and renaming leaves past conversations as
 spoken. Changing a married agent's surname updates both spouses together,
 keeping the other spouse's first and middle names. A taken first name leaves
-both names unchanged. An unfinished rename stays in the open editor through
+both names unchanged. A successful rename gives each person whose name changed
+a private, permanent memory such as "I was renamed on day 22 to Mira Hale".
+Their model receives it in later decisions, and Memories marks it **Permanent**.
+Earlier rename memories keep their original date and name through save/load;
+other agents are not told. Retrying an unchanged name adds no memory.
+An unfinished rename stays in the open editor through
 world refreshes, even when the name field loses focus. Closing the editor or
 choosing another agent or world discards it.
 
@@ -225,7 +230,9 @@ around other people where possible; if it stays blocked, the Event Log records
 that the trip ended without reaching its start.
 
 **Memories** shows what the agent remembers, believes and has mapped as cards,
-newest first, with a tab for each kind. A belief shows how sure they are and
+newest first, with a tab for each kind. Permanent rename memories stay in the
+bounded list even when later ordinary experiences would fill it.
+A belief shows how sure they are and
 whether they saw it or heard it from someone; a map record shows each place
 with a picture of its ground. **Family** opens their family tree beside the
 Profile, with a portrait for each person and a heart between partners. Click

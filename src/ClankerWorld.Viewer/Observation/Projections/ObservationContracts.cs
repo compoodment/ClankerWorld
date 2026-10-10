@@ -129,7 +129,7 @@ public sealed record ViewerInhabitantRelationship(
     string? Direction = null);
 
 public sealed record ViewerPrivateThought(long WorldTick, string Text);
-public sealed record ViewerAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility);
+public sealed record ViewerAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility, bool Permanent = false);
 public sealed record ViewerAgentBelief(
     long WorldTick,
     string Statement,
