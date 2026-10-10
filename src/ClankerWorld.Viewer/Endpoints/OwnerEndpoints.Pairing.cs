@@ -163,6 +163,28 @@ internal static partial class OwnerEndpoints
             return Results.Ok(result.Value);
         });
 
+        // The game that started a companion host stops it here when the player
+        // quits. Keep it alive and paused if its last committed tick cannot be saved.
+        app.MapPost("/api/v1/local/shutdown", (
+            HttpContext context,
+            OwnerPairingHostOptions options,
+            IHostApplicationLifetime lifetime) =>
+        {
+            if (!options.IsCompanionShutdownRequest(context)) return Results.NotFound();
+            var recovery = context.RequestServices.GetService<PrivateWorldStartupRecovery>();
+            if (recovery is null) return Results.NotFound();
+            if (recovery.Pending) return Results.Conflict(new { message = "Choose world recovery before saving." });
+            var advancing = context.RequestServices.GetRequiredService<PrivateWorldRuntimeService>();
+            var outcome = advancing.SaveBeforeShutdown(pauseWorld: true);
+            if (outcome == ShutdownSaveOutcome.WriteFailed)
+                return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable,
+                    title: "The world could not be saved",
+                    detail: "The host is still running and the world is paused. Try again.");
+            CompanionHostTelemetry.ShutdownRequested(app.Logger);
+            lifetime.StopApplication();
+            return Results.Accepted();
+        });
+
         app.MapPost("/api/v1/owner/challenges", (
             IssueOwnerChallengeHttpRequest request,
             OwnerAuthorityStore authority,
