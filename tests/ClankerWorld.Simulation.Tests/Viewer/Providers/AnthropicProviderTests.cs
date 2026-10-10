@@ -215,6 +215,51 @@ public sealed class AnthropicProviderTests
         finally { directory.Delete(recursive: true); }
     }
 
+    [Theory]
+    [InlineData("end_turn", Answer, true)]
+    [InlineData("refusal", Answer, true)]
+    [InlineData("max_tokens", Answer, true)]
+    [InlineData("end_turn", "not-json", true)]
+    [InlineData("end_turn", "{}", true)]
+    [InlineData("end_turn", "[]", true)]
+    [InlineData("end_turn", "not-json", false)]
+    public async Task DecisionsAndSetupKeepReportedUsageForUnusableReplies(string stopReason, string answer, bool reportsUsage)
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-anthropic-failed-usage-");
+        try
+        {
+            var store = Store(directory);
+            _ = store.Configure(new OwnerProviderConfigurationAction("personal", "anthropic", null,
+                "sk-ant-test-key", false, "inhabitant-test", Guid.NewGuid().ToString("N"), "Test key"));
+            var usagePath = Path.Combine(directory.FullName, "usage.json");
+            var usage = new ProviderUsageStore(usagePath);
+            var body = System.Text.Json.Nodes.JsonNode.Parse(MessageReply(answer, stopReason: stopReason))!.AsObject();
+            if (!reportsUsage) body.Remove("usage");
+            var handler = new AnthropicHandler(body.ToJsonString());
+            var factory = new FixedHttpClientFactory(handler);
+            var router = new ConfigurableDecisionProvider(store, factory, usageStore: usage);
+            var request = new CognitionDecisionRequest("request-failed-usage", router.ProviderEpoch, Observation(strategic: true));
+            var succeeds = reportsUsage && stopReason == "end_turn" && answer == Answer;
+            if (succeeds)
+                Assert.Equal("safe_idle", (await router.DecideAsync(request)).SelectedCandidateId);
+            else
+                Assert.NotNull(await Record.ExceptionAsync(() => router.DecideAsync(request).AsTask()));
+            Assert.Single(handler.Requests);
+            var check = await new ProviderSetupCheckService(store, usage, factory).CheckAsync(
+                new OwnerProviderSetupCheckAction("anthropic", "claude-haiku-5-5", ApiKey: "sk-ant-test-key"), CancellationToken.None);
+            Assert.Equal(succeeds, check.IsReady);
+            Assert.Equal(2, handler.Requests.Count);
+            var savedRows = new ProviderUsageStore(usagePath).Capture().Rows;
+            Assert.Equal(usage.Capture().Rows, savedRows);
+            Assert.Collection(savedRows.OrderBy(row => row.Role, StringComparer.Ordinal),
+                row => Assert.Equal("planning", row.Role), row => Assert.Equal("setup", row.Role));
+            Assert.All(savedRows, row => Assert.Equal(
+                (1L, succeeds ? 1L : 0L, succeeds ? 0L : 1L, 0L, reportsUsage ? 1_007L : 0L, reportsUsage ? 42L : 0L),
+                (row.Attempts, row.Completed, row.Failed, row.Abandoned, row.InputTokens, row.OutputTokens)));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [Fact]
     public async Task OpenAiAndOllamaAgentsSendReasoningEffortOnlyWhenTheyHaveAThinkingLevel()
     {

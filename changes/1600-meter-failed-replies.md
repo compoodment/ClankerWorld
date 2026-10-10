@@ -1,0 +1,1 @@
+- Claude token totals now include provider-reported usage for refused, cut-off and malformed model replies, including Test model checks. Failed calls still count as one attempt.
