@@ -1,0 +1,1 @@
+- New World previews keep generating and packing the same maps while the current world keeps ticking. Concurrent previews remain bounded, and creating or selecting a world still requires a confirmed pause and its normal save/provider transaction. [#1388](https://github.com/compoodment/ClankerWorld/issues/1388)

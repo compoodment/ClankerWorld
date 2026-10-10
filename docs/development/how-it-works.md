@@ -3756,6 +3756,14 @@ owner action to finish. Menu visibility, observation generation and preview
 revision still fence the waiting work, so only the current options are
 requested and closing or switching screens discards the old refresh.
 
+The host serializes read-only preview generation and terrain packing on a
+separate coordinator gate. A running configured world can keep ticking and
+saving while a preview computes; preview requests never hold its provider/world
+mutation gate. Concurrent previews on that coordinator still run one at a time.
+The same bounded candidate selection and complete terrain/layer packing are
+used. Create and Select retain the world-mutation gate, confirmed pause,
+preview identity checks and durable provider/save transactions.
+
 Continue also belongs to the current Main Menu navigation. Opening Settings,
 New World or Load World, returning to Main Menu, or starting another Continue
 expires the earlier entry attempt. Its late refresh can update observations,
