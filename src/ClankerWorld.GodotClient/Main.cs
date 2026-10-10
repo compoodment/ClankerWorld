@@ -25,9 +25,8 @@ public partial class Main : Control
     private readonly System.Net.Http.HttpClient httpClient = new();
     private readonly OwnerWorldApi ownerApi;
     private readonly OwnerWorldObservationSession observationSession = new();
-    private readonly OwnerDeviceRegistrationStore registrationStore = new();
-    private readonly OwnerPendingSubmissionStore pendingSubmissionStore = new(
-        ProjectSettings.GlobalizePath("user://owner-pending-submission.json"));
+    private readonly OwnerDeviceRegistrationStore registrationStore;
+    private readonly OwnerPendingSubmissionStore pendingSubmissionStore;
     private readonly GameDisplayPreferencesStore displayPreferencesStore = new(
         ProjectSettings.GlobalizePath("user://game-display-preferences.json"));
     private readonly Dictionary<long, OwnerWorldEvent> knownEvents = [];
@@ -248,6 +247,14 @@ public partial class Main : Control
     public Main()
     {
         ownerApi = new OwnerWorldApi(httpClient);
+        localHost = FindBundledLocalHost();
+        // A game with its own host keeps that pairing apart from any server
+        // pairing an older client saved in the same user folder.
+        var prefix = localHost is null ? string.Empty : "local-";
+        registrationStore = new OwnerDeviceRegistrationStore(
+            ProjectSettings.GlobalizePath($"user://{prefix}owner-device-registration.json"));
+        pendingSubmissionStore = new OwnerPendingSubmissionStore(
+            ProjectSettings.GlobalizePath($"user://{prefix}owner-pending-submission.json"));
     }
 
     public override void _Ready()
@@ -287,8 +294,8 @@ public partial class Main : Control
             return;
         }
         _ = TryGetCommandLineWorldUrl(out var commandLineUrl);
-        worldUrlInput.Text = commandLineUrl ?? ConfiguredWorldUrl();
-        _ = InitializeAsync();
+        worldUrlInput.Text = localHost?.Origin.AbsoluteUri ?? commandLineUrl ?? ConfiguredWorldUrl();
+        _ = localHost is null ? InitializeAsync() : StartLocalHostAsync();
 
         var timer = new Godot.Timer
         {

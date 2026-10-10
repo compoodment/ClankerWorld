@@ -281,6 +281,17 @@ time. Without it the routes return 404, exactly as on the forwarded listener.
 The game uses it to approve its own pending pairing with the comparison code,
 so the player sees no code to copy.
 
+The game does this itself when its folder has `host/ClankerWorld.Viewer.exe`
+and no `--world-url` argument (`LocalHostCompanion`). It uses the fixed origin
+`http://127.0.0.1:5188/`, because a paired origin is pinned, and the approval
+port 5189. It stores this pairing in `user://local-owner-device-registration.json`,
+apart from a server pairing. Before starting the host it checks the port: a
+running host of the exact same version and source revision, started by an
+earlier launch, is reused with the secret already in its file. Anything else on
+the port is refused with a message and never stopped. The host's output goes to
+`logs/host.log` in the player's data folder; saves, the owner authority and the
+provider files sit in separate folders there, never in the game folder.
+
 `POST /api/v1/local/shutdown` exists only on a companion host. It returns 202
 and stops the host. Whenever a private-world host stops, from this request,
 Ctrl+C or a service stop, it waits for the tick loop to finish, cancels hosted

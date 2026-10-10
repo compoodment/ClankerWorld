@@ -25,7 +25,7 @@ public sealed class OwnerDeviceRegistrationStore
     {
     }
 
-    internal OwnerDeviceRegistrationStore(string path)
+    public OwnerDeviceRegistrationStore(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         this.path = path;
