@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net;
 using System.Collections.ObjectModel;
 using System.Net.Http.Headers;
@@ -177,10 +178,12 @@ public sealed record CognitionWillChoice(
         if (value is null) return null;
         var builder = new StringBuilder(Math.Min(value.Length, 512));
         var pendingSpace = false;
-        foreach (var character in value)
+        for (var offset = 0; offset < value.Length;)
         {
-            if (char.IsWhiteSpace(character) || char.IsControl(character) ||
-                char.GetUnicodeCategory(character) is System.Globalization.UnicodeCategory.Format or
+            var status = Rune.DecodeFromUtf16(value.AsSpan(offset), out var character, out var consumed);
+            offset += consumed;
+            if (status != OperationStatus.Done || Rune.IsWhiteSpace(character) || Rune.IsControl(character) ||
+                Rune.GetUnicodeCategory(character) is System.Globalization.UnicodeCategory.Format or
                     System.Globalization.UnicodeCategory.LineSeparator or System.Globalization.UnicodeCategory.ParagraphSeparator or
                     System.Globalization.UnicodeCategory.Surrogate or System.Globalization.UnicodeCategory.PrivateUse or
                     System.Globalization.UnicodeCategory.OtherNotAssigned)
@@ -188,10 +191,10 @@ public sealed record CognitionWillChoice(
                 pendingSpace = builder.Length > 0;
                 continue;
             }
-            if (character is '<' or '>' or '[' or ']' or '{' or '}' or '`') return null;
+            if (character.Value is '<' or '>' or '[' or ']' or '{' or '}' or '`') return null;
             if (pendingSpace) builder.Append(' ');
             pendingSpace = false;
-            builder.Append(character);
+            builder.Append(value.AsSpan(offset - consumed, consumed));
             if (builder.Length > MaximumFinalWordsLength) return null;
         }
         return builder.Length == 0 ? null : builder.ToString();
