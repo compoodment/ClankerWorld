@@ -175,6 +175,10 @@ public partial class Main
         entityLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapStage.AddChild(entityLayer);
 
+        smokeLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        smokeLayer.Follow(terrainLayer, weatherLayer);
+        mapStage.AddChild(smokeLayer);
+
         // Weather falls over buildings and agents alike.
         weatherLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         weatherLayer.CloudsEnabled = displayPreferences.CloudHaze;
