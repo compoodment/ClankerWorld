@@ -240,11 +240,12 @@ public sealed class TownReleasedMaterialRecoveryTests
         var blockers = state.Inhabitants.Where(person => person.InhabitantId != actor).ToArray();
         var origin = state.Map.Tiles.Select(tile => tile.Position).First(point =>
         {
-            var exits = state.Map.FootNeighbors(point).ToArray();
+            var exits = SwimmingRules.Neighbors(state.Map, point).ToArray();
             return state.Map.IsReachableOnFoot(point, warehouse.Position) && point != warehouse.Position &&
-                exits.Length > 0 && exits.Length <= blockers.Length && !exits.Contains(warehouse.Position);
+                exits.Length > 0 && exits.Length <= blockers.Length && exits.All(state.Map.IsPassable) &&
+                !exits.Contains(warehouse.Position);
         });
-        var positions = state.Map.FootNeighbors(origin).Select((point, index) => (blockers[index].InhabitantId, point))
+        var positions = SwimmingRules.Neighbors(state.Map, origin).Select((point, index) => (blockers[index].InhabitantId, point))
             .ToDictionary(item => item.InhabitantId, item => item.point);
         state = FoodCapacityTestFixture.WithInventory(state, InventoryFixture.Relocate(state.Society.Society.Inventory,
             "recovery:barrier-load", lot.Id, lot.OwnerId, lot.Quantity, carrierId: actor)) with

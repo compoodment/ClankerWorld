@@ -13,7 +13,9 @@ public sealed record CognitionLandHearingChoice(
     IReadOnlyList<string>? EvidenceIds = null,
     IReadOnlyList<string>? LawIds = null,
     string? Grounds = null,
-    string? RequestedOutcome = null)
+    string? RequestedOutcome = null,
+    string? PaymentItemKind = null,
+    int? PaymentQuantity = null)
 {
     public const int MaximumReferences = 16;
 
@@ -23,7 +25,9 @@ public sealed record CognitionLandHearingChoice(
             Grounds is not null && CognitionDecisionResponse.NormalizeIdentityText(Grounds) != Grounds ||
             HouseholdId is not null && !ValidReference(HouseholdId) || AgreedEndTick is < 0 ||
             RequestedOutcome is not null and not ("confirm" or "renew" or "amend" or "end" or "reject" or "reclaim" or "grant") ||
-            !ValidReferences(EvidenceIds) || !ValidReferences(LawIds))
+            !ValidReferences(EvidenceIds) || !ValidReferences(LawIds) ||
+            (PaymentItemKind is null) != (PaymentQuantity is null) ||
+            PaymentItemKind is not null && !ValidReference(PaymentItemKind) || PaymentQuantity is <= 0)
             throw new ArgumentOutOfRangeException(nameof(CognitionLandHearingChoice), "The hearing submission is malformed or too large.");
     }
 
@@ -48,10 +52,18 @@ public sealed record CognitionLandHearingChoice(
                 throw new InvalidDataException("The provider returned an invalid permission end date.");
             endTick = value;
         }
+        int? paymentQuantity = null;
+        if (payload.TryGetProperty("payment_quantity", out var quantity) && quantity.ValueKind != JsonValueKind.Null)
+        {
+            if (quantity.ValueKind != JsonValueKind.Number || !quantity.TryGetInt32(out var value))
+                throw new InvalidDataException("The provider returned an invalid goods price quantity.");
+            paymentQuantity = value;
+        }
         var choice = new CognitionLandHearingChoice(
             Text(payload, "statement"), Reference(payload, "household_id"), endTick,
             References(payload, "evidence_ids"), References(payload, "law_ids"),
-            Text(payload, "grounds"), Reference(payload, "requested_outcome"));
+            Text(payload, "grounds"), Reference(payload, "requested_outcome"),
+            Reference(payload, "payment_item_kind"), paymentQuantity);
         try { choice.Validate(); }
         catch (ArgumentException error)
         { throw new InvalidDataException("The provider returned a malformed hearing submission.", error); }

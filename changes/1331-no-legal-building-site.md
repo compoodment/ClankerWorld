@@ -1,0 +1,1 @@
+- Agents with materials but no legal building site are pointed to available household land requests and Council land claims; the House waiting message explains these routes and the need for approval.

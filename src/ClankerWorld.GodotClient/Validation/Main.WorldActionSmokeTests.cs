@@ -171,6 +171,10 @@ public partial class Main
         public int DeleteCount => Volatile.Read(ref deleteCount);
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
         public ManualWorldSave[]? ManualSaves { get; set; }
+        public RecoveryCleanupPreview? RecoveryPreview { get; set; }
+        public System.Collections.Concurrent.ConcurrentQueue<OwnerRecoveryCleanupAction> RecoveryCleanupRequests { get; } = new();
+        public SaveDiskSpaceStatus DiskSpace { get; set; } = new("ok", 4L * 1024 * 1024 * 1024, 1024L * 1024 * 1024, DateTimeOffset.UtcNow);
+        public bool FailDiskSpace { get; set; }
         public StartupRecoveryStatus StartupRecovery { get; set; } = new(false, null, null);
         public TaskCompletionSource RecoveryReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource? ReleaseRecovery { get; set; }
@@ -331,10 +335,29 @@ public partial class Main
                 case OwnerPairingEndpoints.OwnerSaveTimeline when ManualSaves is not null:
                     response = new SaveTimelinePosition(null, null, false);
                     break;
+                case "/api/v1/owner/saves/recovery-cleanup" when RecoveryPreview is { } recoveryPreview:
+                    var cleanup = envelope.GetProperty("action").Deserialize<OwnerRecoveryCleanupAction>(JsonOptions)!;
+                    RecoveryCleanupRequests.Enqueue(cleanup);
+                    if (cleanup.Operation == "preview") response = recoveryPreview;
+                    else
+                    {
+                        var removed = recoveryPreview.Remove.Select(save => save.Id).ToArray();
+                        ManualSaves = ManualSaves?.Where(save => !removed.Contains(save.Id, StringComparer.Ordinal)).ToArray();
+                        response = new OwnerRecoveryCleanupReceipt(removed, true);
+                    }
+                    break;
                 case OwnerPairingEndpoints.OwnerSaveCreate:
                     Interlocked.Increment(ref saveCreateCount);
                     response = new ManualWorldSave("new-save", envelope.GetProperty("action").GetProperty("value").GetString()!,
                         DateTimeOffset.UnixEpoch, 0);
+                    break;
+                case "/api/v1/owner/saves/disk-status":
+                    if (FailDiskSpace)
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled disk advisory failure." };
+                    }
+                    else response = DiskSpace;
                     break;
                 case OwnerPairingEndpoints.OwnerSaveLoad when LoadReceipt is { } loadReceipt:
                     LoadReceived.TrySetResult(envelope.GetProperty("action").GetProperty("value").GetString()!);

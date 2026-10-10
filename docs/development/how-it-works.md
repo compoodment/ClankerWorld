@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # How the game works
@@ -115,6 +115,20 @@ assignments, extend these guards and document its boundary here. Run the
 against the exact base and include the result in the PR. Later steps extend
 the writer ratchet to the state they move.
 
+## Client roster presentation
+
+The Godot client compares the sorted, non-draft Agents list presentation on
+each accepted observation: IDs, names, living/deceased state, readable activity,
+fullness label, Cold/Ill tags and portrait life stage. Unchanged presentation
+retains both the selection text list and native cards and portrait textures,
+including while the panel is hidden. Selection changes update the existing
+rows separately, preserving browsing position unless another agent is selected.
+
+Actual presentation changes refresh immediately, so opening a hidden list shows
+the latest accepted information. World identity, a theme change or resetting the
+displayed world invalidates reuse. This cache belongs only to client presentation;
+it changes no observation cadence, simulation state, saved data or history.
+
 ## Finding goods
 
 `Kernel/InventoryIndex.cs` caches derived inventory facts by checkpoint identity
@@ -133,7 +147,7 @@ Physical movement may preserve damaged or spoiled property. Consumption still
 requires usable inputs. `InventoryFixture` remains the authority for an actual
 reservation, transfer, container operation or consumption.
 
-`Playtest/Goods/` currently supplies two query uses. `Holdings` excludes unusable
+`Playtest/Goods/` currently supplies four query uses. `Holdings` excludes unusable
 lots or parent vessels, reserved quantities, delivery promises and goods held
 for sale at a borrowed Market stall. `ConsumeAt` matches the inventory
 reservation boundary, including usable contained ingredients and partially
@@ -141,13 +155,41 @@ unreserved quantities; reusable vessels themselves are not consumable inputs.
 Requests name exact owners and item kinds, and can restrict a building. The
 answer's `Total` and `First` read the same stable matches. It includes each lot's
 root vessel, physical place, available quantity and whole-vessel movement size.
-Travel, destination capacity and other uses belong to the later steps of
+Destination capacity and remaining uses belong to the later steps of
 [#1366](https://github.com/compoodment/ClankerWorld/issues/1366); unsupported
-travel/destination fields are refused rather than silently ignored.
+origin/destination fields and extra-unit requests are refused rather than silently ignored.
+
+Actor-bound `Collect` extends Holdings with native custody/place permission,
+free vessel families, actual carrying room and an unoccupied native travel route.
+Whole-vessel matches include all contents in their movement size, even when
+matching a contained kind. Already-carried supplies need no additional carry
+room. The route runs last and is reused for lots at the same position and
+interaction range within one answer; native route rules still account for
+occupants, shared destinations and an attached cart.
+
+`ReachableHoldings` adds the same native travel route to Holdings without requiring
+empty carrying space. Preparation uses it to find usable supplies before
+putting aside spare cargo; actual pickup still uses Collect. This keeps a full
+load from hiding shared repair inputs, gathering tools or medical supplies
+from preparation and demand checks. Planting keeps its current free-cargo
+guard before selecting seeds.
+
+`SharedItem` uses Collect for household equipment, repair inputs and planting
+seeds, with the existing Warehouse fallback rechecked through the same use.
+`CollectEquipment` rechecks the selected lot immediately before its transfer.
+Animal-supply sources use Collect and recheck before pickup; care permission,
+feed reserves, product capacity, destination room and workstation surplus
+remain feature-specific filters. These are the first household pickup callers
+of [#1370](https://github.com/compoodment/ClankerWorld/issues/1370). Personal
+recovery, birth food, material counts and the remaining Warehouse/Town paths
+still use their existing helpers.
 
 With `Explain`, exclusions retain their first failure in this fixed order:
 owner, kind, building, damage, spoilage, vessel, empty stock, reservation,
-delivery and Market sale promise. Diagnostics are derived, never saved or
+delivery and Market sale promise. Collect then checks custody/place, family
+reservations, equipped or hitched goods, carry room and finally reach.
+ReachableHoldings checks reach after the Holdings rules.
+Diagnostics are derived, never saved or
 logged every tick. Normal queries use the owner/building index; explanations
 scan all lots so they can also explain an owner or place mismatch.
 
@@ -167,6 +209,12 @@ Restoring an existing world, including an isolated proposed tick, starts with
 its saved world systems. It does not generate a disposable initial ecology,
 chunk set or weather state. New worlds still generate those systems normally;
 ordinary loads still validate saved data and check deterministic map identity.
+
+New worlds start with no currency definitions, accounts or transfers. The
+legacy faction-law list is empty too: genesis creates no `camp-no-theft` rule
+or money fine. Physical goods, ownership/access checks and actual Town laws
+use their existing systems. The generic currency and faction contracts remain
+available to the kernel, but native world creation supplies no money or fines.
 
 The current host aims for one tick per real second. New worlds save 360 ticks
 per day and a 40-day year with four ten-day seasons; lifecycle thresholds are
@@ -617,6 +665,22 @@ conversation finish before sending its own invitation. Urgent survival remains a
 closed history from being pruned before completion is credited. The owner
 projection reports the actual phase and saved outcome to the card.
 
+`propose_marriage` recognizes "Propose marriage" and "Propose marriage to my
+partner" for adults. It reuses the conversation-order path, binds the current
+accepted partnership's other person, and checks `AgentMarriageRules.CanPropose`
+without changing eligibility. An initially missing partner leaves the order
+blocked; once selected, the target never changes to another partner. Only the
+addressed person's ordinary conversation request receives the bounded
+`RequestedActivity=propose_marriage` context. The invitation, marriage wrap-up
+and surname choices remain personal-model decisions. Speech changes no world
+state. Refusal is an honest completed attempt; an ordinary close without a
+marriage proposal records `not_proposed`. Accepted mutual marriage consent
+holds the task until the linked native surname session completes, then records
+`married` and one deterministic `marriage-order:` receipt. Active links retain
+the original consent conversation until credit. The owner projection follows
+surname status while consent is accepted but incomplete. Cancellation removes
+the task without undoing consent, renaming anyone or forcing resumption.
+
 Recognized MustDo instructions complete only when their requested legal action
 actually progresses. Default gathering counts one harvest; explicit quantities
 count goods acquired or food consumed. Food-source travel finishes on arrival within
@@ -719,6 +783,27 @@ category/type/tick fields, not raw exceptions or file paths. Do not restart a
 held process before preserving its unsaved state. Filesystem fault injection
 does not establish arbitrary mid-tick rollback or crash durability.
 
+The Godot map keeps unsaved local motion per agent, animal, boat or
+handcart marker. Each short reported move retargets a one-second linear glide
+from its current drawing; it never predicts a future tile. A separate local
+quarter-second phase selects the approved walk frames and one-pixel bob for
+agents/animals. The same `WalkingMotion` code feeds the implemented reference
+animation. Pausing freezes elapsed glide and pose time; a paused authoring
+relocation, a move longer than three tiles, a new world or a checkpoint rewind
+snaps and clears the phase. Wrapped targets use the nearest world copy and
+camera/zoom changes retain intermediate tile coordinates. Pointer targets,
+names, conversation badges and the selected agent card follow the drawn
+control. Despawn removes the local entry. The host's positions, routes,
+observations, clock and save schema are unchanged.
+
+The Godot World Info page refreshes its date, season, camera-local weather,
+soil moisture and calendar separately from its eight count tiles. Advancing
+clocks and changing local conditions keep unchanged count nodes in place,
+even with the panel closed or its Towns page selected. Current observations
+still refresh both sections, so opening World shows the latest data at once.
+Changed counts, map dimensions or theme rebuild the count grid and its F1 hint;
+this cache is display-only and does not change observation cadence or saves.
+
 ### Time of day and night
 
 Time of day is worked out from the elapsed tick and the world's saved calendar
@@ -784,8 +869,20 @@ and below map labels, agent markers, weather and panels. It eases between the
 once-a-tick readings, shows a newly opened world's darkness at once, and looks
 the same in both themes. The World Map panel is not darkened.
 
+`GoldenHourLayer` draws one click-through multiply immediately above that
+wash and below night lights, map labels, moving figures and weather. It uses
+the approved rose E9A3A0 at dawn and gold F2B160 at dusk, up to 22%. Strength
+is `4 × darkness × (1 − darkness)`, so the host's existing seasonal twilight
+determines its timing, with zero effect at full day or night. Morning versus
+evening comes from the accepted world tick, ticks per day and saved calendar
+offset; the client never computes another night-length rule. The local
+strength eases between reports in up to half a second. Pause freezes it;
+world changes, rewind, clock-half changes and gaps over a game hour settle
+directly to the current reading. It is unsaved display state and adds no
+host fields, events, game effects or new night tint.
+
 Night lights ([#890](https://github.com/compoodment/ClankerWorld/issues/890))
-are drawn by `NightLightsLayer`, just above the wash and under labels and
+are drawn by `NightLightsLayer`, above the night and golden-hour washes and under labels and
 agents. It takes each placed building's family, footprint, door side and the
 roof, yard and door spots from `BuildingSprites.Plan`, and decides from the
 snapshot whether it is occupied (a living agent stands within its footprint)
@@ -802,6 +899,54 @@ its texture. At overview zoom a lit building is a warm speck. The same shapes
 draw the art preview's night proposal (`tools/ArtPreview/Proposed/NightLights.md`),
 including designs not in the game yet and the street lanterns of
 [#892](https://github.com/compoodment/ClankerWorld/issues/892).
+
+`SmokeLayer` uses the same living, non-draft occupancy and running-job facts,
+restricted to occupied Houses and working Blacksmith forges. `SmokeArt` anchors
+the approved B column to the building atlas’s actual flue or ember pixels at
+16 and 32 px. It groups translucent pixels into horizontal rows, draws only
+camera-visible sources (including wrapped copies), and steps the existing
+weather clock at 12 frames per second. Pausing freezes that clock. Smoke adds
+no host fields, fuel use, heating rules or saved state.
+
+`StoredStockLayer` draws approved stock A below the night wash and below map
+labels, agents and weather. `StoredStockPiles` reads accepted per-building
+`StoredItems`, `StoredQuantity` and `StorageCapacity`; it never infers stored
+contents from household totals or ground stock. Wood uses logs, listed bulk
+food/crop/seed/fiber/herb kinds use sacks, and other kinds use crates. Positive
+contents use the some drawing, or the full drawing at 80% of a known capacity.
+Unknown capacity stays at some. These are visual fullness bands, not physical
+container counts or new capacity rules.
+
+Each group takes a distinct known Town tile within two cardinal steps of the
+recorded entrance, on the front or nearest side wall. Roads, every building's
+entrance and footprint, bridges, resources, fields, ground stock and construction
+sites are excluded, along with water, mountains and unknown ground. No suitable
+tile means no pile for that group. Native world-pixel primitives preserve the
+approved casts, colours and paint order at both atlas sizes. Drawing is bounded
+to visible tiles and wrapped copies; unchanged piles reuse their commands.
+No host fields, inventory transitions, saved state or collision rules change.
+
+### Building completion moments
+
+`BuildingCompletionLayer` follows accepted owner snapshots and the actual map
+camera. A new placed building must replace a previously observed construction
+site with the same definition and footprint, with its placement tick between
+the last and current observations. Only a visible close/mid-zoom completion
+starts the local three-second effect. Cancelled sites, existing buildings,
+paused authoring insertions and off-screen completions never queue a moment.
+The first observation is a quiet baseline. World, map or observer timeline
+changes, rewind and gaps over a game hour clear display history; removal
+clears that building's active effect.
+
+The layer draws above roofs and night lights, below objects, figures and
+weather. `BuildingCompletionArt` shares the approved C pixel spans with the
+art reference: fourteen C9AC7C dust puffs spread and settle over 1.4 seconds,
+and five FFF6D8 twinkles stop after 2.4 seconds. It uses native horizontal
+spans without particle nodes or textures generated per frame. Active moments
+are bounded to 128; the oldest leaves if a larger visible batch completes.
+The local clock freezes while paused, resumes from the held frame, follows
+zoom and wrapped copies, and hides at overview. No state, event, protocol,
+construction or replay rule changes.
 
 ## Model inputs, usage and memories
 
@@ -983,6 +1128,18 @@ it a chosen name and reserves its first token. No name check rewrites saved
 dialogue or identity references, and player choices still supersede late model
 naming replies.
 
+A changed player rename and its permanent memory publish in the same Society
+operation. `RenameFromPlayer` records the accepted normalized name and current
+world day as a private self-subject experience. A stable, bounded ID combines
+the saved world-event ordinal and an actor hash, distinguishing several renames at
+one tick and preserving their order across reload. Married surname changes
+record a memory only for each actually changed spouse, inside the existing
+all-or-nothing operation. Long descendant IDs keep their full saved ownership
+while the model excerpt uses the existing bounded subject alias. Automatic naming and marriage surname choices do not
+create player-rename memories. A refused or unchanged-name request creates no
+memory. Deceased rename history remains inspectable. Undoing a founder before
+the world starts removes that person and their setup history.
+
 Native births omit a chosen name and retain a placeholder with `NeedsName`.
 Infants remain excluded from personal-model dispatch. Once ordinary eligibility
 allows a naming request, bounded `self.allowed_child_surnames` lists only the
@@ -1076,7 +1233,13 @@ Each agent retains up to eight private thoughts and exposes up to sixteen recent
 non-forgotten social memories to owner inspection, including deceased profiles.
 A separate belief record retains firsthand/hearsay/inference evidence and
 superseded corrections. Inspection never broadcasts these records or turns
-them into public events.
+them into public events. Validation indexes the complete belief history by ID,
+owner and source turn, resolving correction roots once. Source-turn checks
+use those indexes instead of rescanning every belief for every heard turn.
+Known-owner, reporter, subject and bidirectional correction checks still run;
+unrelated duplicate turns and dangling or cyclic correction chains are
+rejected. The indexes are rebuilt for each validation, are never saved and
+discard no beliefs or provenance.
 
 Ordinary conversation is a host-controlled activity, not free-form world
 commands. The normal provider router requires an explicit personal planning
@@ -1101,9 +1264,10 @@ validating each indexed source against that owner's existing records.
 Helper score replies retain these owner IDs too; admission requires the exact
 requesting agent and one of its offered source records.
 Private thoughts, provider payloads
-and unaccepted replies never enter that history. Prose has no world effect; the
-only ordinary-dialogue effect is mutual trust, offered during wrap-up and
-applied only after both participants accept the same proposal.
+and unaccepted replies never enter that history. Prose has no world effect.
+Ordinary dialogue can propose mutual trust or, for eligible partners, marriage
+during wrap-up. Either structured effect requires both participants to accept
+the same proposal.
 
 The saved revision, status and next-speaker fields are the conversation cursor.
 The checkpoint keeps the complete admitted history (up to six public turns and
@@ -1142,9 +1306,15 @@ the same public wrap-up and proposed effect before accepting. Lessons wait while
 either participant is talking. Conversation logs record only purpose, bounded
 turn count, latency and usage totals, including reported usage for rejected speech.
 
-Personal requests retrieve at most four relevant own-memory/belief excerpts and
-sixteen recent own-map facts. An existing Jev routine call may score up to twelve
-previously unassessed records; only linked salience/confidence values are saved.
+Personal requests retrieve at most four own-memory/belief excerpts and sixteen
+recent own-map facts. Permanent rename experiences take precedence, newest first,
+including before the 256-source scan limit; ordinary sources retain their
+relevance and salience ranking. The owner's bounded 16-entry Memories projection
+also keeps permanent entries first and marks them Permanent. All rename source
+records remain saved; bounded lists do not archive or delete them.
+An existing Jev routine call may score up to twelve previously unassessed
+ordinary records; permanent entries are excluded from scoring and cannot fade
+through a low assessment. Only linked salience/confidence values are saved.
 It adds no separate paid request or generated prose. Local retrieval works with
 Jev off. On an unpaused world-day boundary, `SocietyMemoryArchiveRules` moves
 ordinary experiences and beliefs at least three world days old and below 2,500
@@ -1152,7 +1322,7 @@ importance basis points out of the active ledger into required owner-private
 archive lists. Unscored records count as zero. These constants are provisional.
 Archive entries retain the complete original record and archive tick; ordinary
 recall and memory-scoring candidates read only the active ledger. Typed life,
-relationship, skill and commitment records, durable cooperation/final-word
+relationship, skill and commitment records, records marked `Permanent`, durable cooperation/final-word
 receipts and world-event-backed beliefs stay active. Active orders, projects,
 lessons (including their teachers), requested or preparing parenthood plans,
 relationship proposals, barter,
@@ -1204,6 +1374,9 @@ as the agent's current map knowledge.
 Households make paper at an authorized House from physically delivered fiber
 and fresh water in a reusable jug. The provisional batch uses two fiber and
 one water to make two paper in sixteen work ticks, leaving the jug intact.
+The writing reserve counts healthy household sheets and sheets collected or
+reserved by eligible writers. Paper on an actively borrowed household Market
+stall stays on sale and does not prevent making replacement paper.
 
 An adult can write a field record, draw a map or bind a book from
 contents they have actually learned. A record holds at most one site and one
@@ -1288,8 +1461,11 @@ current search.
 An order search hands back only when its normal task candidate is usable,
 including actual observation or personal knowledge, source availability,
 tools, carrying room and an open route. An ordinary resource purpose likewise
-uses current observation or owned knowledge and the normal source checks; a
-terrain purpose finishes only on an actually reached matching tile. A full
+uses current observation or owned knowledge and the normal source checks.
+Project-material searches also require the harvested load to return to
+household storage or the actual worksite, so an unusable source across water
+does not suppress or finish the search. A terrain purpose finishes only on an
+actually reached matching tile. A full
 personal fact ledger does not block either observation or invent a saved fact. Finishing clears the
 outing path and purpose, retaining discoveries and recording
 `exploration_goal_found`; it awards no harvest progress. Return, blocked-return
@@ -1404,6 +1580,29 @@ writes do not increment the in-memory total or dispatch a model call. This does
 not promise directory-fsync power-loss durability or provider-invoice parity.
 
 ## Maps, movement and terrain
+
+The client's `WorldTerrainLayer` keeps unsaved regional ground-snow cover
+from accepted owner observations. Only regions seen snowing get an entry;
+the interval until the next observation uses that last reported weather.
+One game hour of snowfall fills the cover and two hours without snow melt it.
+Calendar pace converts ticks to hours; local frame time never ages it. A new
+view begins empty, including when a checkpoint is loaded. World, map and
+timeline changes and tick rewinds clear the history. It adds no host fields,
+saved state, events or movement effects.
+
+Short observed outdoor agent and animal moves leave pressed footprints on
+that cover, using the shortest east-west path on wrapped maps. Spawns, moves
+over three tiles, repeated observations and paused authoring moves make no
+trail. Prints fade in one game hour; at most 4,096 are held, and small overview
+zooms keep their positions without drawing tiny marks. The visible ground
+pass draws the approved snow colours after Roads and before bridges,
+buildings, trees and moving markers. It skips water, permanent snow and
+building/construction tiles. Up to 256 generated snow-overlay textures are
+cached, independent of map area; overview uses up to 256 small 32-tile chunk
+textures instead of a draw command per snowy tile. Changes to buildings,
+construction, bridges and Roads invalidate that overview cache. Cover itself
+is indexed by weather region.
+
 Small and Medium generated maps are connected to the normal world path. The
 older tiny map remains a compatibility fixture/world; generation is no longer
 merely a separate primitive. Large/Huge/Mega generator outputs do not imply
@@ -1441,17 +1640,43 @@ the water. A river tile costs what its narrowest crossing costs: 200, half
 dry-ground speed, where one tile of water separates dry banks, and
 `SeededMap.TwoTileWadingFootCost` (300, a third of dry-ground speed) where it
 takes two. The two-tile speed is provisional. A third water tile in the line,
-or any lake or ocean tile, means there is no crossing there: wider rivers,
-lakes and the sea need boats. A two-tile line through a tile that also lies on
+or any lake or ocean tile, prevents wading. A two-tile line through a tile that also lies on
 a two-tile line across the other axis does not count either: that tile is a
 corner of a river one tile thick that runs diagonally, and wading it would turn
 inside the water and walk along the channel. Where a one-tile spur or a river's
 head meets a two-tile line, an agent can still turn once inside the water; no
-route crosses more than two water tiles, and such a turn records no bridge
+wading route crosses more than two water tiles, and such a turn records no bridge
 evidence. A built bridge makes its river tiles walkable at
 dry-ground speed, end to end along the bridge only (see
 [Roads and bridges](#roads-and-bridges)). Mountains are slower to cross and
 cannot be built on; peaks are impassable.
+
+Agent routing also allows cardinal swimming steps through wider rivers and
+lakes. `SwimmingRules` keeps those steps separate from ordinary foot movement,
+so carts, animals, Roads and building placement retain their terrain rules.
+Provisional swimming cost is 800 per step, with at least 75 warmth lost on each
+committed tick while swimming, including waiting between steps. Boat passengers
+receive ordinary weather exposure instead. A swimmer seeking shelter or heat
+must reach dry ground before that destination counts as arrived. Starting
+requires at least 6,000 warmth, illness below 2,500 and no more than four
+physically carried units, including vessel contents. Equipped clothing and
+carry aids follow the usual cargo exemptions. Pickups and whole harvests with
+a known delivery destination check the load after collection against the
+return route. A foot or cart return keeps its usual capacity; a freshwater-only
+return limits loose pickups to the remaining swimming capacity and keeps an
+oversized vessel family intact. Water collection also keeps room to return
+with the jug and its contents. A rider, an animal
+leader or a cart puller cannot start swimming, and moving dependants must also
+meet the starting conditions. Infants and adults carrying guardian-placement
+dependants cannot start. A swimmer whose condition changes can still leave
+the water. Occupancy, bridge entrances and ordinary wading restrictions remain
+authoritative; the sea cannot be swum. Task selection uses weakly cached
+freshwater connectivity keyed by immutable map identity, checking the agent's
+current swimming eligibility separately. Actual weighted route searches cache
+swimming eligibility alongside terrain, Roads and occupancy. Swimming is
+projected from the actual water position, and the map alternates existing approved poses and displays
+**Swimming** beside the agent. No sprite atlas or saved movement-mode field
+changes.
 
 Checkpoint map acceptance keeps a weak, derived camp-reachability cache for
 each map's current starting point. Before reuse it compares actual terrain,
@@ -1481,6 +1706,24 @@ helping another agent's project and Blacksmith ore use the actor's current
 reachable area (see [Material gathering](#material-gathering)). Boat transport uses physical Town assets and typed Council permission, as
 described in [Ports and communal boats](#ports-and-communal-boats). Trees and planting are described in
 [Trees and planting](#trees-and-planting).
+
+The client camera uses the approved B cubic ease-out for Find/selection jumps
+(0.7 seconds) and zoom steps (0.35 seconds). `CameraEasing` is shared with the
+completed camera review. Main advances only local camera state on process
+frames, keeps zoom anchored to the cursor and uses the shortest wrapped travel.
+New requests start at the shown position/scale; drag and keyboard input cancel
+motion and apply immediately. Quick cards hold their screen position through
+travel. Zoom refreshes map sprites only when integer tile size changes; opening
+another world discards old motion. No observation, host request or save is added.
+
+Autumn ground leaves use the shared `AutumnLeaves` drawing promoted from the
+approved October 9 art review. The observed season enables the leaf pass,
+using authoring data first and the world summary when it is absent, as the
+landscape colors do. No clock, saved cover or resource is added. At sprite zoom it visits
+only visible trees and one neighboring tile, draws at most fourteen sparse
+leaves per eligible tree, and rejects Roads, Market plazas, bridges, building
+footprints and water. The pass runs beneath buildings and nature sprites.
+Overview zoom skips the leaf commands. Wrapped copies use the same map seeds.
 
 Godot draws camera-visible tiles from a compact terrain index and samples it
 for the overview. It does not create a Control per tile. Generated terrain uses
@@ -1525,6 +1768,21 @@ the older three-day daily-weather estimate in this first experiment; it is not
 a saved moisture grid or an episode-integrated rainfall model. Existing saves
 keep their active weather when loaded; the first resumed tick imports it into
 an episode. See [save handling](saves-and-replay.md#regional-weather-episodes).
+
+The client renders the approved pixel-streak overlay through `WeatherStreaks`:
+straight rain and three-pixel landing bursts, two-down-one-across storm streaks
+in eastward gusts, and wind-blown snowflake crosses. The review tool uses the
+same geometry, timing and ink. `WeatherLayer` caches seven tiny nearest-filtered
+textures and submits one command per particle, bounded by the camera. Its
+precipitation timing and particle count describe synchronous command creation;
+they exclude later layout, drawing and GPU work. Each weather kind keeps a
+soft spatial mask, while a local 1.2-second smooth transition changes its
+opacity. Outgoing precipitation survives until its fade finishes; retargeting
+starts from the last displayed amount. The linear masks retain full coverage
+at regional junctions without changing an unchanged neighbour when a fade ends.
+Pausing holds both clocks, and a new world shows its recorded weather at once.
+Cloud haze, storm flashes and their settings remain available. Nothing new is
+saved or sent by the host.
 
 The generator vendors [FastNoiseLite](../../src/ClankerWorld.Simulation/ThirdParty/FastNoiseLite/README.md).
 Its drainage approach draws on [Red Blob's noise guide](https://www.redblobgames.com/maps/terrain-from-noise/),
@@ -2242,6 +2500,11 @@ Household planning computes each prospective building's identity once per design
 before checking placed buildings for it. Each later query reads current reservations
 again. See [household plan query measurements](household-plan-query-measurements.md)
 for native candidate/state equivalence, repeated timings and allocation results.
+Layout and shared route searches reuse the step legality just established by
+`FootNeighbors` when computing Road costs. Public step costs and movement still
+validate the complete step; terrain, Road discounts, occupied corners and queue
+order retain their existing rules. See [route step cost measurements](route-step-cost-measurements.md)
+for matched native captures and timing limits.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
@@ -2373,6 +2636,14 @@ storage need or when there is no resident place, but added places use only the
 completed footprint. Unfinished expansion does not reserve room for another
 resident.
 
+The birth food gate and contribution selector exclude household food on an
+actively borrowed Market stall through the same boundary as ordinary goods
+pickup. Their queries capture both the society checkpoint and Town state;
+owner cards and private continuity guidance use that same captured state.
+Ending borrowing makes the stock eligible again. The reserve remains two
+ready-to-eat portions per active household member plus four, and the transaction
+still spends four actual portions. No collection or trade is performed by birth.
+
 **Overcrowding relocation** (`HouseRelocationRules`, `SettlementRelocation`).
 Selection uses the completed House footprint and active permanent residents.
 Volunteers come first, then existing notices and the latest eligible arrivals,
@@ -2443,23 +2714,27 @@ travel through existing observation notes. `guardian_placement_pending`,
 placement lifecycle separately from `guardian_assigned` and `guardian_needed`.
 
 **Continuity rule** (`SettlementContinuity`). The owner's answer on
-[#654](https://github.com/compoodment/ClankerWorld/issues/654) sets provisional
-numbers: the rule is on while fewer than eight active agents are not
-elders, and a couple may say "not yet" for two world days
+[#1266](https://github.com/compoodment/ClankerWorld/issues/1266) replaces the
+original headcount trigger with eligible couples. The provisional threshold
+is four couples, retaining the original scale of eight adult partners for
+playtesting. A couple may still say "not yet" for two world days
 (`2 × TicksPerDay`). The checkpoint saves whether the rule was on at the last
 check and, per eligible couple, the tick at which their "not yet" ends. A new
 world appends `continuity_rule_on` when it is created; each tick
-`MaintainContinuity`, after `MaintainParenthood`, compares the live count with
-the saved flag and appends `continuity_rule_on` or `continuity_rule_off`
-(detail `non_elders:{count}`) only when it changes, so reloading never repeats
-one.
+`MaintainContinuity`, after `MaintainParenthood`, counts distinct accepted
+partnerships whose living, physically present adult partners each have a
+household and are not close relatives. It compares whether that count is
+below four with the saved flag and appends `continuity_rule_on` or
+`continuity_rule_off` (detail `eligible_couples|{count}|threshold|4`) only when
+it changes. Having an infant does not remove a couple from this risk count.
+The Event Log displays the count and reason; historical `non_elders:{count}`
+events retain their original headcount explanation.
 
-While the rule is on, an eligible couple is an accepted partnership that
-also passes the ordinary parenthood checks (both adults, since elders cannot
-have children; both with a household; not close kin) where neither partner is
-a parent or caregiver of a living infant. A couple first gets a deadline when
-it becomes eligible, and loses it when it stops being eligible or the rule
-turns off. Until the
+While the rule is on, the two-day procedure holds only eligible couples where
+neither partner is a parent or caregiver of a living infant. This infant check
+is separate from the risk count. A couple first gets a deadline when the
+procedure holds it, and loses that deadline when it stops meeting these checks
+or the rule turns off. Until the
 deadline, `parent_postpone:{owner}` replaces both `parent_decline` and
 `parent_cancel`, and moves the plan to the inactive `postponed` stage; refusal
 candidates are neither offered nor applied. A couple held by the rule may
@@ -2854,6 +3129,8 @@ and stores two named servings, leaving water jugs intact. A runnable named meal
 has priority over input replenishment, so one shared jug cannot shuttle between
 House and Restaurant indefinitely before anyone cooks. The trial cooked-food
 reserve is two servings per living household resident across prepared kinds.
+Only loose meals and contents in usable vessels count toward that target;
+finished meals trapped in a broken pot do not suppress replacement cooking.
 A recipe that improves already prepared food, such as Restaurant meals from
 bread, checks its own finished dish so an existing bread reserve cannot hide
 that choice. Meals give 40% fullness, stew and fruit/berry porridge 50%, and
@@ -2873,12 +3150,16 @@ offers the frozen lots as `item:1`… keys (at most 24, in lot-ID order) and up 
 sixteen living people as `will:heir:{id}` keys, family and household first, plus
 `will:town:{id}` for the archived Town when it has a Warehouse of its own. The
 candidates are `will:household` and, when anyone may inherit, `will:heirs`.
+The stable `will:household` key chooses default inheritance. Its description
+includes any supported Town share effective at death; candidate descriptions
+are bound into the request digest. The historical profile labels this outcome
+as default inheritance, since a Town law can change the household's share.
 The model's reply (`CognitionWillChoice`) is untrusted: the response must match
 the request, epochs and digest; the runtime maps only offered keys back to
 heirs and lots; and `SocietyFixture.ResolveWill` checks that every heir is a
 living person other than the deceased or an offered Town, that there are one
 to three distinct heirs, and that every listed lot is still frozen in this
-estate. Anything else resolves to the household default.
+estate. Anything else resolves to default inheritance.
 
 `ResolveWill` stores the exact division as `WillBequests` (lot, heir,
 quantity). "items" gives each listed lot whole to its heir. Every other lot,
@@ -2900,20 +3181,37 @@ room and stores that kind; the runtime passes each Town's Warehouse, free room
 and refused kinds (food, and handcarts, which stay on the ground) as
 `SocietyTownStore`. Food refusal and Warehouse validation use the inventory's
 food classifier, including eggs, milk, cooked eggs, milk porridge and rich
-meals. The refusal set is built from actual stock only when a Town bequest is
-due. Whatever the will cannot deliver (a share for an heir who
+meals. The refusal set is built from actual stock only when an estate is due.
+Whatever the will cannot deliver (a share for an heir who
 has since died, food, a handcart or goods beyond the room) follows the
 household default: an equal split between the living household
-beneficiaries, with the first in ID order taking leftovers, or communal stock
-when none remain. A vessel and its contents move as one family and keep their
+beneficiaries, with the first in ID order taking leftovers, or the deceased
+resident's recorded Town when none remain. In a default estate, that Town's
+Warehouse receives eligible goods while space remains. Undeliverable shares
+from an accepted will and overflow keep their original location and Town
+ownership, with separate lot IDs for Warehouse and ground portions.
+A vessel and its contents move as one family and keep their
 lot IDs: the Town takes a family only when the Warehouse accepts every kind in
 it and has room for all of it, otherwise the family follows the household
 default, where vessels rotate between the living beneficiaries. A quantity-one
-map or field record keeps its lot ID.
+map, field record or book keeps its lot ID.
+
+`TownEstateDefaultRule` is a typed Resident-duty law proposed and amended by
+the ordinary Council process, with 0%, 25%, 50%, 75% and 100% choices offered
+to personal models. Free-form law text cannot create or amend that effect.
+When settlement is due, `DefaultEstateDivisionsForDueEstates` derives the rule
+from the deceased resident's saved Town and the version in force at death,
+strictly after that version's adoption. Later amendment or repeal cannot
+retarget the estate. Accepted wills always retain priority. Without one, the
+Town share is rounded down per lot and bounded by eligible Warehouse capacity;
+the remainder follows the household path. A whole vessel family is eligible
+for the law's Town share only at 100%, with room for all its contents.
+No living person's ownership changes when the law passes.
 
 Final words are optional with either outcome. `CognitionWillChoice.NormalizeFinalWords`
-turns control and invisible formatting characters into spaces, collapses
-spaces, and refuses text over 80 characters or containing markup characters
+preserves complete printable Unicode characters, turns control, invisible
+formatting, private-use and malformed UTF-16 characters into spaces, collapses
+spaces, and refuses text over 80 UTF-16 units or containing markup characters
 (`< > [ ] { }` and backticks). The HTTP provider parser drops unusable words
 before admission; a directly supplied typed reply with invalid words is refused.
 An admitted reply keeps its words even when its division falls back. At settlement
@@ -3011,8 +3309,19 @@ The orchard planting choice requires carrying room to collect a shared seed.
 An already carried planting seed remains usable at full capacity. Ordinary
 wood-tree seeds remain distinct.
 
-Urgent food recovery first sets down ordinary spare cargo. If that cannot free
-enough carrying room, it may also select the actor's own orchard propagation
+Food-room recovery is admitted and revalidated for children as well as adults
+and elders; the final child gate permits that existing self-feeding action.
+It frees only the missing physical room and preserves selected equipment,
+artifacts, work reservations and delivery loads. Infants remain excluded.
+Children use only ordinary unreserved cargo; the planting-reservation exception
+below remains an adult action.
+
+Food recovery first sets down ordinary spare cargo. A quantity claim on a loose
+stack protects its held units while unrelated unreserved units remain available;
+the original claimed source and offer stay intact. Whole vessels with any held
+family member remain protected, along with retained repair inputs, worn
+equipment, knowledge goods and delivery loads. If that cannot free enough room,
+urgent adult food recovery may also select the actor's own orchard propagation
 seeds. Their selected planting reservations are released in the same inventory
 transition that stores the seeds with the household, after reaching the House
 or camp pile. Walking, an unavailable destination or a refused transfer does
@@ -3241,7 +3550,9 @@ read back by the simulation, so they cannot change a tick, a save or replay.
   checkpoint, switching worlds or restarting the host clears them until the
   next tick.
 - **`LastTickMilliseconds`** on the snapshot is the wall-clock time to prepare
-  and advance the latest committed tick, rounded to 0.1 ms. It leaves out
+  and advance the latest committed tick, including synchronous reply admission,
+  listener belief extraction, child-model selection preparation and world commit,
+  rounded to 0.1 ms. The timer pauses for runtime-gate reacquisition. It leaves out
   waiting for the runtime gate, hosted model calls between ticks and the
   checkpoint save. It is null until the first tick after start, load or a
   world switch, and the legacy fixture host never reports it.
@@ -3395,8 +3706,8 @@ archive-write ordering and recovery checks.
 ## Physical handcarts
 
 Orders accept `Attach/Pull [my] cart/handcart` and `Park/Unhitch [my]
-cart/handcart`, optionally prefixed with `Please`. A complete exact cart lot
-ID binds immediately. `at (x, y)` uses the existing strict coordinate parser
+cart/handcart`, plus `Repair [my] cart/handcart`, optionally prefixed with
+`Please`. A complete exact cart lot ID binds immediately. `at (x, y)` uses the existing strict coordinate parser
 and binds only one owned cart at that tile; ambiguous targets are not guessed.
 An unspecified attach task selects an accessible, usable owned cart when it
 starts; unspecified parking selects the actor's actual attached cart. The first
@@ -3404,13 +3715,27 @@ executed step persists `TargetCartLotId`, so later ownership or route changes
 block that cart rather than redirecting the order.
 
 The common order lifecycle handles queue, replacement, cancellation and urgent
-survival interruptions. Cart steps call `ApplyHandcartCandidate` and earn one
+survival interruptions. Attach and park steps call `ApplyHandcartCandidate`
+and earn one
 `cart_tasks` unit only when the selected native hitch changes as requested.
 A deterministic per-instruction receipt binds the actor, action and cart.
 Strict validation checks the target's identity and cart kind, task shape and
 receipt; owner and Godot projections retain the optional target. Neither a
 pre-existing attachment nor an unrelated parking effect completes an order.
-Loading, unloading and repair orders remain separate work.
+Repair selects an accessible owned worn or broken cart when no target is named,
+then binds it before the first collection or movement step. It collects missing
+wood, iron fittings and rope through the existing permitted stock action,
+requiring space for the whole remaining set and a clear route to the cart.
+It calls the native repair action only with actual carried inputs. Completion
+requires the selected cart's condition to improve and records a bounded receipt
+tying the instruction, actor, cart and native repair tick together. Strict load
+validation also requires the three exact completed material reservations for
+that actor and tick. Existing `TargetCartLotId` and `LastEffectId` fields carry
+this evidence; no new save field or schema version is added. A healthy cart
+cannot count as a repair, and foreign or reserved carts remain blocked.
+Collected supplies stay physically carried when a task is cancelled or replaced;
+repair reserves and consumes all three inputs atomically, with no unfinished
+cart-repair reservation to release. Cargo and hitches retain their normal state.
 
 
 `InventoryContainerRules.Handcart` is a single ground-position inventory lot.
@@ -3450,6 +3775,19 @@ A death, break or ownership change removes the attachment without dropping or
 teleporting the goods. Owner observation derives cart inspection from those
 same saved inventory lots, rather than maintaining a second cargo ledger.
 
+Owner load/unload orders reuse the attach/park cart binding and the native
+inventory actions. They require a specific supported loose good and quantity;
+unload defaults to personal carrying space and can explicitly use the cart's
+ground tile. Orders retain the selected cart and current source lot, walk to
+that cart through legal movement, and limit each transfer to the remaining
+requested quantity. Progress comes from the actual change in that cart's
+physical cargo quantity, with a receipt bound to instruction, actor, cart,
+good, action and cumulative progress. A fully moved source can release its lot
+binding for another eligible stack of the same good; partial or blocked sources
+stay bound. Urgent needs can interrupt, and cancellation/replacement leave
+inventory and reservations untouched. Broken-cart and damaged-cargo unloading
+uses the same native recovery operation.
+
 Generic attach, load, pull, park, unload and give controls remain available to
 models, but rank below safe idle for the built-in chooser. They do not yet bind
 an autonomous delivery task, so selecting them eagerly would repeatedly undo
@@ -3476,7 +3814,10 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   refusal returns a `TreePlantingRefusal` and a one-line reason and changes
   nothing. Success consumes exactly one seed and adds a `planted-tree-{x}-{y}`
   map resource with a sapling growth record, in the same tick.
-- **Agents** are offered `plant_tree` while they hold a tree seed. The built-in
+- **Agents** are offered `plant_tree` while they hold a tree seed, or can collect
+  one from accessible household stock with free carrying space. A carried seed
+  remains usable with full cargo; the same collection guard covers `replant_tree`.
+  The built-in
   site is the nearest reachable open tile outside every Town border, so trees
   do not block building sites. The species follows the nearest wood tree.
   `replant_tree` also uses a tree seed.
@@ -3633,6 +3974,14 @@ owner action to finish. Menu visibility, observation generation and preview
 revision still fence the waiting work, so only the current options are
 requested and closing or switching screens discards the old refresh.
 
+The host serializes read-only preview generation and terrain packing on a
+separate coordinator gate. A running configured world can keep ticking and
+saving while a preview computes; preview requests never hold its provider/world
+mutation gate. Concurrent previews on that coordinator still run one at a time.
+The same bounded candidate selection and complete terrain/layer packing are
+used. Create and Select retain the world-mutation gate, confirmed pause,
+preview identity checks and durable provider/save transactions.
+
 Continue also belongs to the current Main Menu navigation. Opening Settings,
 New World or Load World, returning to Main Menu, or starting another Continue
 expires the earlier entry attempt. Its late refresh can update observations,
@@ -3691,6 +4040,13 @@ to the patch's interaction area, using the same live people and animal blockers
 as movement. A crowded nearer patch does not hide another reachable patch within
 the existing search radius.
 
+Wild drinking selection likewise checks the complete unoccupied route to a
+fresh-water shore before choosing it. Shores retain their distance, row and
+column order and twelve-tile search radius. A crowded approach to an empty
+shore does not hide an alternate reachable shore. Selection and movement share
+the same live people and animal blockers and route search; drinking and care
+durations remain unchanged.
+
 Forage checks that radius before looking up stock through the current ecology
 state's ID index. Feed consumption replaces the ecology state, so the next
 animal sees the remaining quantity. Distance and ordinal-ID ordering stay the
@@ -3701,7 +4057,12 @@ ordinary revalidated choices. Native orders bind an exact animal name or ID.
 Order progress follows the completed animal action, including when fetching a
 supply at the animal completes that action in the same tick.
 Care spends actual unreserved grain/greens and jug water at the animal or yard;
-food, planting and workstation reserves stay protected. For care away from the
+food, planting and workstation reserves stay protected. Its ready-to-eat reserve
+counts only usable vessels or loose food, excludes household stock on actively
+borrowed Market stalls, and still subtracts freshness, condition and reservations.
+Ending stall borrowing makes that stock eligible again. The existing two portions
+per active household member and four extra for active parenthood are unchanged;
+non-edible grain does not spend the food reserve. For care away from the
 actor's tile, input selection accepts only physically carried supplies. This
 keeps the existing supply path collecting feed and enough usable jug water before
 approaching the animal, including after a partial pickup. Water may be split
@@ -3725,6 +4086,10 @@ milk enters a reusable household jug. Jug pickup and collection require cargo
 space for the jug's existing contents and the pending milk batch; an unsuitable
 first jug does not hide a fitting alternative. Products then use ordinary stock hauling,
 recipes and trade.
+`drink_milk` uses the same carried-milk selector for its offered choice and
+execution. It excludes milk or a jug assigned to a building delivery, keeping
+the promised contents available for their destination. Unassigned carried
+milk remains drinkable and leaves its reusable jug intact.
 
 When care is due, its native order candidate requires complete safe inputs, a current care
 supply trip or an obtainable supply. Missing inputs use the existing blocked
@@ -3733,7 +4098,10 @@ change no state, and the existing order schedule resumes the task when its
 physical supply path becomes available.
 
 Cared adult pairs breed automatically when their yard has a place and delivered
-supplies cover existing animals and the offspring. Pregnancy reserves one place;
+supplies cover existing animals and the offspring. Feed and water inside a
+broken vessel do not satisfy that prerequisite; healthy loose feed and usable
+alternative vessels still count, under the existing quantity and reservation
+rules. Pregnancy reserves one place;
 young animals and reservations count toward eight per household or wild herd.
 Missed care pauses progress. Only old age kills animals; an owned sheep, cow or
 horse leaves one household hide at its actual death position. Untamed animals
@@ -3756,7 +4124,9 @@ A cared adult horse has one real reserved saddle and one adult rider. Movement
 uses the normal legal route and occupancy rules, halves walking cost and admits
 at most two legal steps per tick. A mount adds eight cargo units. Care or
 permission loss ends riding; dismount puts unreserved excess cargo at the actual
-position without changing its owner. Cart attachments and boat travel exclude
+position without changing its owner. A partially held loose stack can shed
+only its unreserved units, preserving the original claimed source; a held
+vessel or its contents protect the whole vessel family. Cart attachments and boat travel exclude
 ridden or led animals. Godot projects and draws the authoritative animal state
 with young/adult headings, mounted horses, yard art, inspection and event text.
 
@@ -3771,8 +4141,18 @@ order credit. The following native action rechecks permissions and foot
 capacity; existing product and fitted-saddle reservations remain held during
 preparation, and existing dismount rules preserve excess cargo.
 
+Carried milk drinking is offered with ordinary survival choices, including
+for children, and passes the final child age gate. The existing selector still
+checks ownership, physical custody, jug condition, freshness and reservations;
+drinking consumes one portion and preserves the jug. Infant self-feeding and
+adult-only animal work remain age restricted.
+
 Milk stock travels as an actual household jug to a held Store or borrowed Market
-stall, with a stock receipt at a stall. Fresh seller and buyer personal choices
+stall, with a stock receipt at a stall. Restocking leaves household jugs on
+actively borrowed Market stalls in place; after the seller leaves, the same
+jug and milk can be collected for a normal Store delivery. Offers and execution
+recheck current borrowing, including during an already accepted restocking walk.
+Fresh seller and buyer personal choices
 exchange one held portion into the buyer's real carried jug for the named
 personal payment. Each pending offer has a distinct milk source lot, even
 when the lot contains several available portions. Candidate generation and

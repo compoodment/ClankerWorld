@@ -2,7 +2,7 @@
 title: Pixel-art style guide
 type: development-reference
 status: active
-updated: 2026-10-01
+updated: 2026-10-09
 ---
 
 # Pixel-art style guide
@@ -107,6 +107,33 @@ its own ramp for mottling, and at most two colours from another ramp for
 motifs (pebbles, tufts). Rule P2: a sprite uses at most five steps of its
 main ramp plus accents. Rule P3: shades are a step of the ramp, never a
 black overlay; the ramps already shift hue toward blue in the shade.
+
+## Interface text and status
+
+Light and Dark both use at least **4.5:1** contrast for text against the
+surface behind it. Ordinary ink on parchment retains **7:1**. The minimum
+also applies to hover, pressed, focused, disabled, read-only, placeholder
+and selected text, wooden-bar captions, dialog titles, tags and count badges.
+Faint ink remains available for decorative lines and icons; use readable
+muted ink for secondary text.
+
+Keep the existing palette, fonts and generated frames. When a colored
+button or badge needs stronger text, use an existing dark ink or cream from
+that palette. A status label may use ordinary ink when its colored ink
+would fall below the minimum on a selected card.
+
+The Godot UI smoke check builds both themes and checks their registered
+text colors against their generated style surfaces, including transparent
+parents and blended selection highlights. Every newly registered text
+color needs a corresponding surface/state assertion. It also checks custom
+count/branch badge ink and historical-list text. Deceased family buttons
+retain full text opacity and say **died**.
+
+Status must have a word, number, shape or tooltip as well as color. For
+example, branches have numbers, hunger is named in the Agents tooltip,
+condition bars have captions and amounts, and deceased profiles have text
+labels. Light and Dark share this baseline; separate high-contrast and
+color-blind modes are outside it.
 
 ## 3. Light, shadow and outline
 
@@ -259,6 +286,13 @@ black overlay; the ramps already shift hue toward blue in the shade.
   hammer sign (Workshop), vent cap (Silo).
 - B7 At 16 px the material pattern drops to two tones and the feature stays
   only if it is at least two pixels.
+- B8 A building in use (lit by the night-lights rule, or a working forge)
+  sends up a column of soft grey smoke from its chimney that leans with the
+  wind and fades as it rises. Empty buildings have none.
+- B9 Stock shows as log, crate and sack piles on the ground beside the
+  door, growing with what the building stores; an empty store shows none.
+- B10 A building that is finished gets a ring of settling dust and a few
+  twinkles, once.
 
 ## 10. Agents
 
@@ -284,6 +318,13 @@ black overlay; the ramps already shift hue toward blue in the shade.
 - A8 Animals, handcarts and boats face the same eight directions as agents,
   drawn as real pixel art for each diagonal rather than a blurred rotation.
 - A7 At 16 px an adult keeps a 7 px head, 10 × 6 shoulders and the outline.
+- A9 Agents and animals glide to the tile each update reports instead of
+  jumping, changing walk frames every quarter second, with a one-pixel bob
+  on each step. A jump of more than three tiles, such as after a reload,
+  still snaps.
+- A10 A grave is a 32 × 32 sprite on a fresh earth mound: a wooden cross in
+  the Timber ramp, or a rounded headstone in the Rock ramp with a carved
+  cross. It fades out after a year of game time.
 
 ## 11. Items
 
@@ -322,10 +363,22 @@ black overlay; the ramps already shift hue toward blue in the shade.
 - E2 Night is one multiply tint, 3C4C6E at 45%, with no visibility change.
 - E3 Weather stays an animated, sparse overlay; no opaque shapes. It uses
   look B from the October 8 weather review
-  ([Weather](../../tools/ArtPreview/Proposed/Weather.md)): one-pixel rain
+  ([Weather](../../tools/ArtPreview/WeatherReview.md)): one-pixel rain
   streaks lighter at the top, landing as a three-pixel burst; storm streaks
   stepping two pixels down for every one across, in gusts sweeping east; and
   small snowflake crosses blown sideways. No cloud shadows.
+- E4 Golden hour: around the night tint, dawn adds a rose multiply E9A3A0
+  and dusk a gold one F2B160, each up to 22%.
+- E5 Weather leaves marks that follow the world's record for each region
+  and fade after it passes: after snowfall open ground is covered, with
+  grass tips and trodden Roads showing, and anyone crossing it leaves
+  footprints that fade within about a game hour; in autumn a few leaves lie
+  under broadleaf and orchard trees. Roof snow follows each roof's own
+  slopes: shaded faces (north and east) stay covered, and sunny faces
+  (south and west) keep snow near the ridge with a thin dusting below, so
+  no face is bare; building shadows stay clear. Puddles after rain are
+  postponed ([Visual polish](../../tools/ArtPreview/Proposed/Polish.md)).
+- E6 Weather fades in and out over about a second instead of switching.
 
 ## 15. Critic's checklist
 

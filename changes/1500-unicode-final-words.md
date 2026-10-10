@@ -1,0 +1,1 @@
+- Final words preserve valid Unicode letters and emoji in the saved will and the heirs' private memories.

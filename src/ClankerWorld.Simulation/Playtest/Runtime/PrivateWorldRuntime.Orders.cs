@@ -28,7 +28,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
         if (order.Action == "read_knowledge") return KnowledgeReadOrderCandidate(instruction);
-        if (order.Action == "talk_to") return TalkOrderCandidateFor(instruction, person);
+        if (IsConversationOrder(order.Action)) return TalkOrderCandidateFor(instruction, person);
         if (IsCartOrder(order.Action)) return CartOrderCandidateFor(instruction, person);
         if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
         if (order.Action == "travel_by_boat") return BoatOrderCandidate(instruction);
@@ -73,7 +73,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.Action == "move_to" && order.TargetPosition is { } destination)
             return !MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination) &&
                 (person.Position == destination ||
-                 map.IsPassable(destination) && map.IsReachableOnFoot(person.Position, destination) &&
+                 (map.IsPassable(destination) || CanSwim(instruction.TargetInhabitantId) && SwimmingRules.IsSwimmingWater(map, destination)) &&
                  FindUnoccupiedRoute(instruction.TargetInhabitantId, person.Position, destination, 0).Count > 0)
                     ? new CognitionCandidate("move_to", $"Travel to tile ({destination.X}, {destination.Y}).", 0)
                     : null;
@@ -132,7 +132,7 @@ public sealed partial class PrivateWorldRuntime
                  knowledge.Facts.Any(fact => fact.OwnerId == instruction.TargetInhabitantId &&
                     fact.Position == resource.Position &&
                     fact.ResourceKinds.Contains(FoodKnowledgeKind(resource), StringComparer.Ordinal))) &&
-                map.IsReachableOnFoot(person.Position, resource.Position))
+                CanReachByFootOrSwimming(instruction.TargetInhabitantId, person.Position, resource.Position))
             .OrderBy(resource => map.FootDistance(person.Position, resource.Position))
             .ThenBy(resource => resource.Id, StringComparer.Ordinal)
             .FirstOrDefault(resource => IsWithinInteractionRange(person.Position, resource.Position, ResourceInteractionRange) ||
@@ -255,6 +255,7 @@ public sealed partial class PrivateWorldRuntime
                 ExecuteKnowledgeReadOrder(instruction);
                 return;
             case "talk_to":
+            case "propose_marriage":
                 ExecuteTalkOrderStep(instruction, person);
                 return;
             case "write_knowledge":
@@ -449,7 +450,7 @@ public sealed partial class PrivateWorldRuntime
         if (instruction.Order?.Action == "travel_by_boat") return BoatOrderBlockedReason(instruction);
         if (instruction.Order?.Action == "read_knowledge")
             return KnowledgeReadOrderBlocker(instruction) ?? "Waiting to read the written item.";
-        if (instruction.Order?.Action == "talk_to") return TalkOrderBlocker(instruction, person) ?? "Waiting for the conversation outcome.";
+        if (instruction.Order is { } conversationOrder && IsConversationOrder(conversationOrder.Action)) return TalkOrderBlocker(instruction, person) ?? "Waiting for the conversation outcome.";
         if (instruction.Order is { } treeOrder && IsTreePlantingOrder(treeOrder.Action))
             return TreePlantingOrderBlockedReason(instruction, person);
         if (instruction.Order is { } knowledgeOrder && IsKnowledgeOrder(knowledgeOrder.Action)) return KnowledgeOrderBlockedReason(instruction);
@@ -487,7 +488,7 @@ public sealed partial class PrivateWorldRuntime
                 ? "The requested tile is outside this world."
                 : MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination)
                     ? "Waiting for an invitation to enter another household's House."
-                : "No open walking route reaches the requested tile right now.";
+                : "No open walking or safe swimming route reaches the requested tile right now.";
         if (instruction.Order is { Action: "accept_guardianship", TargetAgentId: { } child })
             return GuardianOrderBlockedReason(instruction.TargetInhabitantId, child);
         if (instruction.Order?.Action == "consume_food")

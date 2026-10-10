@@ -1,0 +1,1 @@
+- On the paired world: keep a cared adult cow pair in a Yard with space and enough delivered offspring grain/water. With the only feed pot or water jug broken, no new pregnancy begins. Replace it with a usable vessel and the normal breeding prerequisite works; the check itself does not consume the supplies. ([#1391](https://github.com/compoodment/ClankerWorld/issues/1391))

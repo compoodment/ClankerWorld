@@ -165,14 +165,15 @@ public partial class Main
         nightLayer.Settle();
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         var layers = mapStage.GetChildren();
-        if (layers.IndexOf(nightLightsLayer) != layers.IndexOf(nightLayer) + 1 ||
+        if (layers.IndexOf(goldenHourLayer) != layers.IndexOf(nightLayer) + 1 ||
+            layers.IndexOf(nightLightsLayer) != layers.IndexOf(goldenHourLayer) + 1 ||
             layers.IndexOf(objectLayer) < layers.IndexOf(nightLightsLayer) ||
             layers.IndexOf(entityLayer) < layers.IndexOf(nightLightsLayer) ||
             nightLightsLayer.MouseFilter != Control.MouseFilterEnum.Ignore ||
             nightLightsLayer.Buildings.Count != 5 ||
             nightLightsLayer.Lanterns.Count != 4 || terrainLayer.BuildingSpriteCount != 5 ||
             !nightLightsLayer.DrawnCells.Any(cell => cell.Kind == LightCellKind.Light))
-            throw new InvalidOperationException("Night lights must draw just over the night wash, under labels and agents, and let clicks through.");
+            throw new InvalidOperationException("Night lights must draw over the night and golden-hour washes, under labels and agents, and let clicks through.");
 
         // A lit neighbour must not warm an empty House's roof.
         var roofUnit = terrainLayer.Stride / 32f;
@@ -392,7 +393,7 @@ public partial class Main
         if (BuildingAt(street, new(12, 9), mapStage.Position + zoomedPoint)?.InstanceId != "night-stone-north")
             throw new InvalidOperationException("Visible fitting hit targets must follow the map's current zoom and camera position.");
         var visibleBefore = terrainLayer.VisibleTiles;
-        CenterCameraAt(new Vector2(180, 64));
+        SetCameraAtImmediately(new Vector2(180, 64));
         for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         if (terrainLayer.VisibleTiles == visibleBefore || nightLightsLayer.DrawnCells.Count != 0)
             throw new InvalidOperationException("Daytime street fittings must leave the drawing when a lantern-only map pans away.");

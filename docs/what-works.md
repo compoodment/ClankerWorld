@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # What works today
@@ -41,7 +41,8 @@ test alone does not make it available in the game.
 | Approved art for playable content | Available in the game | Clinics and Restaurants have their approved exteriors. Medicinal herb patches and picked or depleted natural sites use their matching drawings on the map and tile cards. Potatoes, cultivated green seeds, medicinal herbs, diamond ornaments and simple meals use their approved item icons. Refined gold, gold ore, plain gold ornaments, iron fittings, saddles, cooked eggs, milk, berry and fruit porridge, rich meals and leather sacks have their own icons from the October 7 art review; crude wooden axes and pickaxes use the wooden tool icons. [Windows visual checks](../playtest/792-approved-playable-art.md) are still wanted. |
 | Pause, inspect agents, view family trees and read events | Available in the game | The Agents list keeps its browsing position through information refreshes; selecting another agent still brings that card into view. Deceased profiles retain recorded thoughts and memories, and show any final will and final words; old deaths without an archive cannot be reconstructed. |
 | Developer tools | Available in the game | **F12** opens them in a world without pausing it: the tile's coordinates and facts, frame time, how long the server takes per step of world time, the agent count, jumping to an agent and drawing their planned path, plus the aging override, lost-reply recovery, paused world editing and paired-device management. While paused, **Edit selected agent** sets fullness, warmth, illness or nutrition, gives/removes carried goods, adds/removes skills, and starts/ends partnerships; each accepted change is saved and marked **Developer edit** in the Event Log. There are no time tools such as stepping one tick. The Windows playtest is pending. |
-| Display and interface settings | Available in the game | Themes, window size, weather switches, a 24-hour or 12-hour clock, and dates by season (the default, such as Autumn 2, Year 1) or as DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD. A server too old to report season lengths shows numeric dates. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
+| Display and interface settings | Available in the game | Light and Dark text contrast is checked at 4.5:1 or better, including button states, fields, menus and badges. Themes, window size, weather switches, a 24-hour or 12-hour clock, and dates by season (the default, such as Autumn 2, Year 1) or as DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD. A server too old to report season lengths shows numeric dates. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
+| Keyboard controls | Available in the game | Tab/Shift+Tab traverse the open menu or panel, Enter uses a control, and arrows browse lists. K focuses world tiles for arrow movement and Enter selection or placement; World Map arrows move the camera. Numeric editors and scrollable readers have visible focus. Key remapping is outside the baseline. [Windows keyboard acceptance](../playtest/1324-keyboard-access.md) is pending. |
 
 Building Details shows up to ten recent recorded storage changes, newest first,
 with the exact additions or removals and when they happened. Moving a filled
@@ -109,6 +110,24 @@ between. Dusk and dawn each fade over an hour (15 seconds at that pace). A new w
 daylight. Loading an existing world keeps its saved clock. At night the map darkens with a
 gentle blue wash at every zoom, under map names, agents and weather, and it is
 colder outdoors (see [Life, work and society](#life-work-and-society)).
+
+Dawn adds a soft rose glow and dusk a gold one, following seasonal twilight.
+Both fade away in full day and night. Names, moving figures,
+night lights and weather stay above the glow, and pause holds its transition.
+The [Windows glow check](../playtest/1465-rose-dawn-gold-dusk.md) is pending.
+
+At close and mid zoom, an occupied House or working Blacksmith forge emits
+a soft grey column of smoke that rises, leans east and fades. Empty Houses
+and idle forges emit none; pausing freezes the smoke. The appearance still
+needs a Windows hands-on check.
+
+Stores show approved log, crate and sack piles on clear Town ground beside
+their doors at close and mid zoom. Their empty, some and full drawings follow
+recorded contents and capacity; the full drawing starts at 80% of a known
+limit. Unknown limits use the some drawing. Piles never replace recorded goods
+or block movement, and stay hidden where safe beside-door space is unavailable.
+The appearance still needs a Windows hands-on check.
+
 Buildings in use glow: light falls on the ground from the windows on a
 building's front and sides and from its open door, never from its roof. A House
 is lit only while someone is inside; a Farmhouse, Store, Tailor Shop, Workshop
@@ -158,7 +177,14 @@ Player renames follow the same rule. An agent may keep their own first name
 while changing the rest of their name. The Profile explains that the name is taken and
 keeps the name field open with your attempt in it until you change it, close
 it or choose another agent. This makes no model request. Renaming keeps the
-same person and leaves past spoken lines as they were.
+same person and leaves past spoken lines as they were. Each actual player rename
+adds a private, permanent memory with the world day and accepted name. A
+married surname change records it for both spouses whose names change; other
+agents are not told. Memories marks it Permanent. The model and Memories list
+keep the latest permanent records as ordinary experiences accumulate, and earlier
+rename history remains saved. Refusal and an unchanged-name retry add nothing.
+This has automated runtime, signed HTTP, save/replay and native UI checks;
+three [Windows checks](../playtest/1330-permanent-rename-memory.md) remain pending.
 
 A newborn starts with a temporary name. A chosen child's name must use one
 biological parent's surname and an unused first name. The player can name the
@@ -306,8 +332,7 @@ acceptance, suspension and the actual outcome. Finishing means the talk
 attempt ended, including refusal; it does not mean an agreement was applied.
 Queued work waits for that outcome. An accepted unfinished conversation loads
 stopped and needs both people's fresh resume choices. Unavailable people,
-models, allowances and routes leave useful blockers. Marriage proposals are
-outside this talk adapter. [The Windows check](../playtest/1222-talk-order.md)
+models, allowances and routes leave useful blockers. Marriage uses a separate proposal order. [The Windows check](../playtest/1222-talk-order.md)
 is written, but has not been run.
 
 Reading orders cover personally owned, carried field records, maps and books.
@@ -321,6 +346,19 @@ another person's reading teaches them separately. Queueing, cancellation,
 replacement, urgent survival and saving preserve the task and its actual
 progress. [The Windows reading-order check](../playtest/1223-reading-orders.md)
 is pending.
+
+"Propose marriage" and "Propose marriage to my partner" attempt the existing
+marriage conversation with the adult's eligible current partner. The order
+keeps the selected partner, normal travel and invitation rules, and each
+participant's own model choices. Only the addressed speaker receives the
+requested activity in their conversation context. Refusal and a conversation
+without a proposal finish an attempt with their actual outcome. Accepted
+marriage waits for the separate shared-surname conversation to finish. Pauses,
+failed calls and reload leave it unfinished, with two fresh resume choices
+required. Cancellation removes the task while preserving consent and surname
+progress; it never changes household admission. Missing or changed eligibility
+blocks rather than selecting another person. [The Windows checks](../playtest/1230-marriage-order.md)
+are pending.
 
 Orders currently cover eating carried food, collecting accessible household
 food to eat, going to a known food source or discovering one through ordinary
@@ -721,6 +759,8 @@ include young animals and reserved births. Yards hold sixteen supply units.
 
 Untamed animals feed from reachable wild greens. If people or other animals
 block a patch's approach, they can use another reachable patch nearby.
+They also drink from reachable fresh water and can use another shore when
+people or animals block the preferred shore's approach.
 
 Taming uses two feed and one jug water. Daily care uses one feed/water for a
 chicken and two each for sheep, cows and horses. Feed is grain or greens. Adults
@@ -730,7 +770,10 @@ grain keeps its owner and location. Water jugs travel with their contents.
 Yard stock is picked up before approaching an animal on another
 tile; care at the stock tile can use it directly. Care uses grain before
 ready-to-eat greens when available, and may combine grain with spare greens
-across lots. An incomplete safe feed or water load spends nothing. Care orders
+across lots. An incomplete safe feed or water load spends nothing. Care can
+protect usable family meals: broken-pot contents and food on an actively borrowed
+Market stall do not count toward the reserve. Released stall stock can count
+again; grain remains usable feed without spending ready-to-eat meals. Care orders
 explain missing safe feed and jug water, while valid supply fetching stays
 active. They resume when physical supplies become available. Building Details lists animals standing within its footprint,
 with their names, care, ready products and permissions; animals on open ground
@@ -743,6 +786,10 @@ pours one portion into the buyer's jug and takes the named personal payment;
 both vessels retain their owners. Only one pending sale may use each milk lot;
 closing the offer frees any remaining usable milk for another sale. Spoiled
 milk can be poured away for jug reuse.
+
+Hungry children and adults can drink fresh, unreserved milk from a usable
+carried jug they or their household own. Each drink spends one portion and
+keeps the jug intact. Animal care, collection and trade remain adult actions.
 
 Replacing or cancelling an animal task releases its unfinished supply trip.
 The adult keeps already collected goods under their existing ownership and
@@ -784,15 +831,15 @@ neglect deaths, horse-drawn carts and animal boat transport remain excluded.
 | Food, warmth, illness, clothing and shelter | Available in the game | Basic diet/recovery. Agents treat 40% fullness and 60% warmth as comfortable, and survival becomes urgent below 20% fullness, or below 35% warmth while exposure continues. These are provisional values ([#140](https://github.com/compoodment/ClankerWorld/issues/140)). Nights are colder outdoors by a provisional amount; clothing, shelter and a lit fire help at night as they do by day ([#673](https://github.com/compoodment/ClankerWorld/issues/673)). No energy meter or sleep. Medicine supports gradual illness recovery, described below. |
 | Gathering and carrying | Basic version | Agents gather named berries, wild greens and orchard fruit, keep a hearth burning, and collect shared tools. Field harvests remain on their tiles until carried. Agents carry raw crops and seeds to private Farmhouse/Silo storage, trying another permitted farm store when the preferred one cannot fit the load or be reached. Filled pots and their contents stay together unless the existing grain or flour withdrawal rules allow a partial load. They carry ready-to-eat greens and fruit to the House, flour back to the House, and wood and iron ore into the Blacksmith. An adult with a building or crafting project completes a valid household delivery before gathering more project materials. If the destination has no room for the load, the project shows the storage blocker and keeps its cargo and plan; it can resume when room is available. A well-fed child can gather nearby wild food or fallen wood and carry loose household food or wood home. These helping tasks allow at most four carried units in total and eight steps per trip leg, staying within eight tiles of their House. They use unreserved supplies and require room at home, including space promised to other deliveries. Children can still give one spare food serving to the household store. If the House fills before arrival, they keep their cargo. Infants do no helping work. |
 | Farming and crafting | Basic version | Adults from a household holding a Farmhouse use wooden or iron hoes to prepare fertile land, carry grain seed, potatoes or cultivated-green seed, tend the crop and harvest it. Illness slows field work and tool wear. Planting supplies stay held until the work finishes or is interrupted. A farmer with a usable wooden or iron hoe keeps the chosen crop when someone briefly occupies the field. Wooden and iron sickles make harvesting faster. Fields show each stage on the map and overview; inspection names the soil's fertility and the household. A field nobody works for a full season goes back to grass, keeping its fertility. Harvests stay on the field, with planting stock reserved for another crop, until physically carried into finite private farm storage. Orchard seeds grow saplings that mature and fruit in autumn. A household makes crude wooden axes and pickaxes at its own House from on-site wood, including fallen wood gathered by hand. They unlock tree felling and stone without a Town or Blacksmith, gather less and wear out sooner than smith-made wooden tools, and keep distinct inventory and Event Log names, shown with the wooden axe and pickaxe icons. The household holding a Blacksmith makes and repairs better tools from real materials: axes fell trees, pickaxes unlock finite stone, iron and rare deposits, and hammers speed building work. Iron knives speed food preparation and suitable crafting. Tools wear during successful work; loose fallen wood can be gathered by hand if an axe breaks. Adults carry needed grain back from their Silo to the Farmhouse, where it mills into flour. Houses cook potatoes or greens into simple meals, grain into porridge, flour into bread, and potatoes with cultivated greens into stew. Porridge, bread and stew need carried fresh water and wood. Berries or fruit improve porridge; Restaurants also turn bread and greens into better meals. Cooking uses private on-site ingredients and stores its output in that House or Restaurant. A Tailor Shop makes cloth and clothing. Ordinary workshop suppliers skip destinations they cannot currently reach. If a household workshop recipe cannot get its ingredients, it pauses so an adult can choose another task; its saved plan can resume when supplies return to the building. Rates remain provisional. |
-| Handcarts | Basic version | Adults in the Blacksmith household can craft a personal cart from carried wood, iron fittings and rope. Its ground output does not hold a Blacksmith storage space while work is running or paused. The visible cart carries up to 32 loose goods separately from the agent's load. Its owner reaches and attaches it, loads physically nearby authorized goods, pulls legal cardinal routes, parks, unloads, repairs or gives the cart and its cargo to a nearby adult. Loading shared food follows the existing food reserve, including the permitted quantity; personal food and non-food cargo remain loadable. Orders to attach/pull or park use these same physical actions and keep the chosen cart across saves, queue controls and urgent interruptions. Other cart controls are available to personal models; built-in choices leave them alone without a delivery task. Loading, unloading and cart repair orders remain unfinished. An attached cart follows ordinary movement. Roads reduce movement waits and wear; broken carts keep their cargo. Map, tile and agent inspection show ownership, position, load and condition. |
+| Handcarts | Basic version | Adults in the Blacksmith household can craft a personal cart from carried wood, iron fittings and rope. Its ground output does not hold a Blacksmith storage space while work is running or paused. The visible cart carries up to 32 loose goods separately from the agent's load. Its owner reaches and attaches it, loads physically nearby authorized goods, pulls legal cardinal routes, parks, unloads, repairs or gives the cart and its cargo to a nearby adult. Loading shared food follows the existing food reserve, including the permitted quantity; personal food and non-food cargo remain loadable. Orders to attach/pull, park or repair use these same physical actions and keep the chosen cart across saves, queue controls and urgent interruptions. Other cart controls are available to personal models; built-in choices leave them alone without a delivery task. Load/unload orders accept a specific loose good and quantity, keep their selected cart and current cargo stack, and count only real transfers through native access, reservation and capacity rules. Unloading can use personal carrying space or owned ground, including broken carts and damaged cargo. Repair orders collect real permitted supplies, spend one carried wood, iron fitting and rope, and preserve the cart's cargo. An attached cart follows ordinary movement. Roads reduce movement waits and wear; broken carts keep their cargo. Map, tile and agent inspection show ownership, position, load and condition. |
 | Clay, pottery and water | Basic version | A household can dig finite clay and make storage pots and water jugs at its House. A pot holds up to 8 food and slows spoilage; hungry household children, adolescents and adults, and caregivers feeding an infant, take ready-to-eat servings from it. A jug holds up to 4 fresh water, which an adult can collect from a reachable riverbank or lakeshore and return to the House. Collecting a jug requires carrying room for the jug, its contents and some water. The Clinic uses delivered fresh water to make medicine, leaving the jug reusable. The related [empty-vessel return fix](https://github.com/compoodment/ClankerWorld/issues/749) carries empty household pots and jugs from workstations back to the House; automated checks cover its return and reuse. Porridge, bread and stew also consume fresh water while leaving the jug reusable. Empty jugs at Houses or Restaurants can be collected and refilled. Animal care also spends actual feed and jug water; see [Animals](#animals). |
 | Building new buildings | Basic version | A household plans a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic, Restaurant or optional Store it does not hold yet, one of each, once it has the materials in hand. It gathers missing materials first. Only a household holding a Farmhouse builds a Silo, within two tiles of it; farm stock reaches either building in carried loads. Adult residents can supply and build a Town Hall, Market, street lantern, Port or communal boat after the Council approves its exact site and budget, as described below. |
 | House resident places, expansion and guests | Basic version | A House gives three resident places per tile, or four when one recorded domestic family unit is at least two people and a strict majority. Travelers and infants count; dead people and invited storm guests do not. A full House can be expanded for more places when the work completes. Add Agent and unanimous household admission check the House's room before adding someone to a household that holds one. Birth still completes into the primary caregiver's current household and can make it overcrowded; the building card and agent context show the count and limit. Existing overcrowding gives eligible adults one unpaused world day to move, with volunteers first and sole caregivers protected; notices, requests and expansion progress appear in agent inspection. Adult household members may also expand a nearly full House for storage; adult Town residents may expand a nearly full Warehouse from 2×2 to 2×3. Expansion keeps identity, stock and cooking jobs, reserves materials and cancels safely if space or permission changes. Any adult household member may invite or revoke a named storm guest. Guests cannot use House stock or cooking. Storage limits, costs and work time are trial values. |
-| Exploration and physical knowledge goods | Basic version | Agents can continue scouting beyond eight steps and choose to return to the trip's starting point. Outings record personal knowledge through real movement. Scouting with an attached cart respects its movement limits. Actual revisits refresh changed terrain and resources, and planting teaches the planter; distant agents keep their own accounts. Existing written items and unfinished writing retain their original contents. A House makes paper from real fiber and jug-carried water; adults use paper to write field records and maps, or paper and cloth to bind books. Completed production teaches its worker a personal recipe account, which field records and books can carry alongside sites. Reading, sharing and trading teach only their actual contents to the recipient, without granting a skill. Adults can exchange records, maps or books of the same kind when both contain discoveries the recipient has not learned. Copies cost fresh materials. Food needs, unpaid project inputs and untargeted gathering orders can give an outing a saved resource purpose; material needs may also offer forest or mountain terrain. Matching discoveries must be usable before an order resumes, and scouting earns no harvest credit. Seeking other Towns remains unfinished. |
+| Exploration and physical knowledge goods | Basic version | Agents can continue scouting beyond eight steps and choose to return to the trip's starting point. Outings record personal knowledge through real movement. The Event Log reports when an agent sets out, turns back, comes home or ends a trip early. Scouting with an attached cart respects its movement limits. Actual revisits refresh changed terrain and resources, and planting teaches the planter; distant agents keep their own accounts. Existing written items and unfinished writing retain their original contents. A House makes paper from real fiber and jug-carried water; adults use paper to write field records and maps, or paper and cloth to bind books. Completed production teaches its worker a personal recipe account, which field records and books can carry alongside sites. Reading, sharing and trading teach only their actual contents to the recipient, without granting a skill. Adults can exchange records, maps or books of the same kind when both contain discoveries the recipient has not learned. Copies cost fresh materials. Food needs, unpaid project inputs and untargeted gathering orders can give an outing a saved resource purpose; material needs may also offer forest or mountain terrain. Matching discoveries must be usable before an order resumes, and scouting earns no harvest credit. Seeking other Towns remains unfinished. |
 | Trade, relationships, conversations and teaching | Basic version | One-for-one barter, where both people must meet and have room for what they receive. Spare carried goods can come from separate stacks while keeping one usable unit of the same kind; individual artifacts and unworn ornaments keep their existing exception. Positive trust, accepted/refused partnerships, and bounded public conversations with mutual consent for a structured trust effect. Close biological relatives cannot become partners or plan a child together: parents and children, grandparents and grandchildren, full or half siblings, and aunts or uncles with their nieces or nephews. First cousins can; shared households and caregiving do not count as kinship. Each agent has at most two conversation starts or acceptances per world day; this and the six-turn limit are provisional. Adults can ask a free, healthy agent with a saved skill for a practical lesson when both can reach its teaching site. An adult carrying out an active Must Do task is unavailable as a teacher until it finishes or is cancelled; ordinary suggestive guidance still permits teaching. An isolated teacher does not hide another available teacher. The learner keeps the skill, teacher and time, and the agent card shows them. Matching skills shorten work by a provisional 20%, rounded to whole ticks or progress units. They grant no recipe or tool access, and the agent's model sees only that agent's learned skills. Pricing, currency, conflict and broader group dialogue remain unfinished. |
 | Household shops | Basic version | Adults can offer exact goods for goods kept at a nearby Farmhouse, Blacksmith, Tailor Shop, Clinic, Restaurant or Store. Both traders meet there before anything changes hands. The buyer carries the purchase; payment goes into household stock at that shop. Buyers can seek better tool tiers, clothing that protects them better in the current weather or medicine for an observed illness. Store goods must be carried in first. The building card shows the terms and progress; cancelled offers release both lots. Buying grants no access to private stock, cooking, treatment or household membership. A customer may ask a Blacksmith household for a tool before it is stocked. The household may accept or refuse; accepted work uses its own real materials, and a finished tool is purchased through the usual physical barter. No payment, price promise or future ownership is created by the request. Request status and any missing-input or storage blocker appear on the Blacksmith and relevant agent cards; [its Windows checklist](../playtest/564-tool-making.md) is pending. Market stall trading is described below. Restaurant adults buy missing ingredients and customers buy meals after walking to shops in any Town. Its [Windows checklist](../playtest/561-concrete-meals.md) is pending. Barter rates and shelf sizes are provisional. |
 | Clinic supplies and illness care | Basic version | Reachable renewable herb patches supply a household-held 1×1 or 1×2 Clinic. It makes medicine from herbs, wood and water in a reusable jug; a House or Tailor Shop cuts cloth into bandages. One real medicine dose reduces illness gradually. Adults choose up to 16 named caregivers through a fresh accepted personal-model decision and may revoke permission. The last free permission still offers nearby alternatives. Self-care and a dependent's accepted caregiver use their existing authority. Jev, failed replies, repeated intentions and owner orders cannot grant adult permission. Interrupted treatment stops without refunding the spent dose. A caregiver who starts fetching medicine remembers the patient and where they last saw them, brings back one dose and treats only a consenting patient they can find nearby. Saving during either leg keeps the trip; withdrawal of permission stops it. Saving keeps permission and progress; pausing stops recovery time. Injury causes and bandage treatment remain deferred. Automated checks cover this path; [the Windows playtest](../playtest/565-clinic-care.md) remains pending. |
-| Parenthood, guardians, life stages and death | Basic version | Ordinary consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed, is full, or has lost its House; a missing home is recorded as a housing need, and the other parent stays put. If the current primary caregiver dies or ends care, living relatives, household adults and then Town residents are asked in order, and each wider group keeps the earlier ones. A willing adult must accept; until then the child's card and Event Log say “Needs a guardian,” nearby adults may still feed them, and the player can suggest an adult who is being asked in a message. An adult can also be ordered to accept a named child through the same active search; Queue, Cancel task and normal eligibility checks still apply. A completed House with room in the same known Town permits household placement at acceptance. Otherwise care stays accepted while a pending move waits for a suitable home: the guardian collects the child and accompanies them to their House, including in another Town. Household and Town membership change together on arrival, after care authority and room are checked again; birth records stay unchanged. The agent card shows waiting, travel and blockers, and pending moves survive save/load. Infant care, child talk/play/help and age restrictions are enforced. Children can choose another reachable person when nearer contacts are on cooldown for all their social actions; up to three available contacts are offered. Children can recall newly recorded talk, play and learning experiences after save/load, including those with generated identities. Only adults can have children; elders cannot, and a plan ends if either partner becomes an elder before the birth. While fewer than eight non-elders live, the continuity rule lets a partnered couple with no infant put off a child for up to two days but not refuse. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
+| Parenthood, guardians, life stages and death | Basic version | Ordinary consent/preparation binds an explicit primary caregiver and intended home; the accepting parent chooses a named caregiver-and-home option. Birth joins the caregiver's current household even if it has changed, is full, or has lost its House; a missing home is recorded as a housing need, and the other parent stays put. If the current primary caregiver dies or ends care, living relatives, household adults and then Town residents are asked in order, and each wider group keeps the earlier ones. A willing adult must accept; until then the child's card and Event Log say “Needs a guardian,” nearby adults may still feed them, and the player can suggest an adult who is being asked in a message. An adult can also be ordered to accept a named child through the same active search; Queue, Cancel task and normal eligibility checks still apply. A completed House with room in the same known Town permits household placement at acceptance. Otherwise care stays accepted while a pending move waits for a suitable home: the guardian collects the child and accompanies them to their House, including in another Town. Household and Town membership change together on arrival, after care authority and room are checked again; birth records stay unchanged. The agent card shows waiting, travel and blockers, and pending moves survive save/load. Infant care, child talk/play/help and age restrictions are enforced. Children can choose another reachable person when nearer contacts are on cooldown for all their social actions; up to three available contacts are offered. Children can recall newly recorded talk, play and learning experiences after save/load, including those with generated identities. Only adults can have children; elders cannot, and a plan ends if either partner becomes an elder before the birth. While fewer than four eligible adult couples are available, the continuity rule lets a partnered couple with no infant put off a child for up to two days but not refuse. Parents' selected child model is recorded at birth; children without an explicit model use safe local choices. The owner can later choose another model or leave the child unconfigured; world defaults are not inherited. |
 | Towns and household property | Basic version | First-Town membership/borders, building ownership, household stores, household food steward, and an adult with no household asking to join a household that holds a House, with every adult member's agreement. The accepted first-Town layout records Town title over its connected land and starter household use rights on owned building footprints; later border growth alone does not add title. Councils can approve explicit claims to adjoining unclaimed land. Add Agent uses recorded rights; one pending request does not assign a household, and conflicting claims make placement ambiguous. Owners can reassign or remove buildings when stored goods, deliveries and active work allow; Town borders and title stay unchanged, while a household building takes its existing footprint use right to the new household. Empty Towns appear as abandoned and keep their identity, property, borders and laws. Agents may salvage real unreserved communal stock on the ground or at the Warehouse; one adult physically in the Town may deliberately resettle it with their Town care group. Revival restores ordinary communal access and admission. Adults may leave without a vote, retrieve their personal goods and form a household alone after seeking an accepting existing home. An adult with no Town can join one through its council (below). Recorded multiple Towns can be saved and validated. Existing use permissions can transfer with every current adult's acceptance in all giving and receiving households; public land hearings decide disputes and expiry with sourced rulings and grounded rehearings. Non-land hearings record sourced civil findings and voluntary remedies; adults can deliberately found another Town on unclaimed land with their Town care group, without receiving free property; currencies remain unfinished. Nonconflicting household land grants require Council approval and every current adult household member's explicit acceptance. House expansion needs recorded use rights on its extra tiles. |
 
 Farms plan for their Town's living residents. They subtract the Town residents'
@@ -802,6 +849,11 @@ fields from expected yield. One farm can therefore plan for several households;
 enough Town food stops new tilling and autonomous planting. Fields, planting
 supplies and harvests still belong to their existing households. This adds no
 delivery or sharing of the harvest.
+
+Preparing births protect household food on an actively borrowed Market stall.
+The food gate, parents' cards, caregiver guidance and four-portion payment all
+exclude that sale stock. Once borrowing ends, it can count and pay normally.
+Usable household food elsewhere can fund the birth while the stall stays stocked.
 
 Restaurant trading uses the normal private-world path; its
 [Windows playtest checklist](../playtest/561-concrete-meals.md) is pending.
@@ -841,10 +893,13 @@ shows the age, such as **Adult · 19 days**. These are playtest values, not
 settled population balance.
 
 A world cannot die out only because every couple keeps declining children.
-While fewer than eight agents who are not elders are alive (infants, children
-and adults all count), the **continuity rule** is on. A new world starts with
-it on, and the Event Log says when it turns on or off. Once eight non-elders
-are alive it turns off and ordinary refusal returns.
+While fewer than four eligible adult couples are available, the **continuity
+rule** is on. Each couple must be an accepted partnership of living adults
+who are not close relatives and each have a household. Children, elders and
+unpartnered adults do not count. A couple caring for an infant still counts
+toward this threshold. A new world starts with the rule on, and the Event Log
+explains each transition with the eligible-couple count. At four eligible
+couples it turns off and ordinary refusal returns.
 
 While the rule is on in a started world, the Event Log keeps a warning that
 the world is at risk and offers **Add a newcomer**. This opens the usual
@@ -861,8 +916,7 @@ birth. Such a couple may also plan another child once their
 youngest has left infancy, without waiting for that child to grow up. Each
 partner's own model request explains the rule and how long is left. The rule
 never creates a partnership, and choosing a partner stays voluntary. The
-threshold and two days are provisional; a check based on the number of eligible
-couples comes later, under the agreed
+four-couple threshold and two days remain provisional for playtesting, under the agreed
 [continuity rule](game-design/agents-and-families.md#starting-agents-families-and-life-stages). This has automated checks but no Windows playtest
 yet.
 
@@ -875,8 +929,17 @@ A parent in another household gets the resource blocker in their model
 guidance without the caregiver household's private quantities. Ordinary food
 acquisition and cooking priorities still apply.
 
+The map marks a recorded death with a wooden cross or rounded headstone on a
+fresh earth mound at close and mid zoom. It stays for the world's calendar year,
+then fades over the next calendar day; pausing holds that game time. The same
+person keeps the same marker after loading. Water, Roads, building footprints,
+construction and other occupied ground move it to the nearest clear tile.
+Building over a marker relocates it. Graves do not block movement or change
+moods, memories or estate handling. The [Windows grave checks](../playtest/1476-grave-markers.md)
+remain pending.
+
 When an agent with a personal model dies owning something, their model is
-asked once for a final will. It can leave everything to the household or name
+asked once for a final will. It can choose the default inheritance rules or name
 up to three heirs: living people of any age, including children, or the Town
 the agent lived in when that Town has a Warehouse. The will either shares every
 item equally or gives each item to one heir, and anything it leaves out is
@@ -890,12 +953,30 @@ holds. A Town keeps its share in its Warehouse while there is room. All food,
 including eggs, milk and their meals, follows the household path. So do
 handcarts, goods that do not fit, and shares for heirs who have died since, plus
 interrupted, unknown or invalid choices, so no goods are created or lost.
+The offered default choice describes the supported Town law effective at death,
+when there is one, rather than promising that the household receives everything.
+
+Through ordinary Council proposals and votes, residents can set a supported
+default estate law giving the Town 0%, 25%, 50%, 75% or 100% of each eligible
+lot when there is no valid will. Only deaths after adoption use that law;
+later changes or repeal do not change an estate already created. A valid will
+always wins. The Town share rounds down to whole units, and living household
+heirs share the rest, including anything its Warehouse cannot accept. A vessel
+and its contents go to the Town only with a 100% rule and room for the whole
+family; otherwise they stay together on the household path.
+
+When no household heir survives, the deceased resident's recorded Town owns
+the remaining goods. In a default estate, eligible non-food goods enter its
+Warehouse while there is room. Undeliverable shares from an accepted will and
+other goods keep their physical location. Goods owned by an abandoned
+Town can use its ordinary public salvage flow. Books, maps and field records
+keep their identity and recorded knowledge through inheritance.
 
 The will may also leave short final words. When the estate is divided, each
 person who inherits keeps them as a private memory, such as "Rowan Hale's final
 words were: 'Keep the orchard going.'" Nobody else learns them. The dead
 agent's profile shows the will, what it leaves each heir and the final words.
-Debts, conflicts with Town law and other guardianship cases remain unfinished.
+Debts, contested estates in hearings and other guardianship cases remain unfinished.
 Memories do not automatically pass to children.
 
 A Town becomes abandoned only when no recorded living residents remain. Children,
@@ -956,11 +1037,23 @@ learn the published terms and personally accept. A proposal, a read or silence
 supplies no consent, and a new adult joining before completion must accept too.
 This ordinary route needs no mayor or Council approval and preserves the original
 grant date and any agreed end date. It changes no Town title, household membership,
-building, crop, goods or private-building access. A decline or the proposer's
+building, crop, other goods or private-building access. An agreed goods price
+moves only through actual payment. A decline or the proposer's
 withdrawal closes it without moving permission. Expiry, disputed claims, an open
 hearing or changed source permission stop it. Town, plot and property details
 show exact terms, named adults and acceptance counts; Towns retains all pending
 transfers and eight recent closed ones, with full history in the save.
+
+Households can sell existing use permission for an exact goods quantity through
+that same adult consent process. Acceptance alone leaves a sale pending. A buyer
+collects permitted household stock within their carrying space, or uses their own
+carried goods, and physically meets a seller adult at the notice place. Usable,
+unreserved loose goods become seller household stock there in the same accepted
+step that transfers permission. Borrowed tools, delivery promises, containers,
+reserved goods and needed food cannot be spent. The saved receipt binds payment
+to the exact accepted price; reload retains unpaid consent and completed sales.
+Town and plot details show the goods price and distinguish awaiting acceptance
+from awaiting payment. Money prices remain future work.
 
 A House that needs more room can request the exact extra tiles for an expansion.
 Construction waits for recorded permission, and rechecks it before completion.
@@ -1273,7 +1366,11 @@ beside a House grants nothing, and a pending request grants no access to the
 household's food, stock or shelter. Once every adult agrees, the newcomer is a
 member of that household. The agent's profile and its own model request say
 the real blocker: no household, a House still to plan, missing materials, no
-legal site or an overcrowded House. Adults may leave without a vote and keep personal ownership of goods stored
+legal site or an overcrowded House. When a material-ready household building
+has no legal site, available household land requests and Council land claims
+explain that building need. The House blocker also points to those routes;
+no eligible plot still means waiting, and filing grants no land or household
+acceptance. Adults may leave without a vote and keep personal ownership of goods stored
 at the old House. Collection and returning borrowed work tools require travel
 and carrying space. A departure allocates up to two available, unreserved
 ready-to-eat portions once; collection and reload do not repeat that allowance.
@@ -1365,6 +1462,12 @@ walk it back to camp and set down the same goods for the household. This
 frees carrying space and clears the old delivery promise. Other stock, work
 or deliveries can still prevent removing or reassigning its destination.
 
+Hungry children can free carrying room for household food by putting aside only
+spare unreserved supplies, using the same physical House or camp storage as
+adults. Worn equipment, maps, work reservations and delivery loads stay protected.
+The adult emergency exception for reserved orchard seeds does not apply to
+children. Infants do not perform this recovery action.
+
 Spoiled food cannot be eaten. Households do not yet clear spoiled food from
 pots automatically, and there is no discard control. Raw grain, potatoes and
 flour keep their freshness and need separate cooking work before they become
@@ -1393,6 +1496,12 @@ zoomed out; their fittings stay unlit until construction finishes.
 The [Windows checklist](../playtest/1090-construction-sites.md) is
 pending.
 
+A building finishing on screen at close or mid zoom gets the approved ring
+of settling dust and roof twinkles once. Pause holds the frame; reopening a
+world or panning to an earlier off-screen completion stays quiet. It changes
+no building work or saved state. The [Windows checklist](../playtest/1468-building-completion-moment.md)
+is pending.
+
 ### Household building sizes
 
 Households can choose these additional sizes when planning a building they do
@@ -1419,13 +1528,37 @@ covers the new sizes and their ordinary work.
 
 ## Maps, weather and appearance
 
+Find, agent selections and building jumps ease the camera to their destination
+in about 0.7 seconds. Zoom steps ease over about a third of a second and keep
+the pointed-at tile under the cursor. A new request starts from the shown view;
+wrapped travel takes the short route. Open quick cards stay still during the
+glide. Middle dragging, keyboard panning and the World Map remain immediate.
+
+Agents and animals glide between the host's reported tiles, with walking
+frames every quarter second and a one-pixel bob. Boats and handcarts glide
+without a bob. Pause freezes local motion; resume continues it. Long jumps,
+world switches and checkpoint rewinds snap. Hit targets, names and the
+selected agent's quick card follow the drawing, while the host still decides
+actual travel and position. [Windows movement checks](../playtest/1461-gliding-map-markers.md)
+remain pending.
+
+In autumn, a few fallen leaves lie beneath mature broadleaf and fruiting or
+picked orchard trees at close and mid zoom. Their warm colours follow the
+approved leaf drawing. Conifers, saplings, Roads and water have none; leaves
+stay beneath trees and other sprites and disappear outside autumn. They are
+a visual detail, with no harvest or effect on work.
+
 Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
 diagonal steps and slower mountain travel. Agents wade straight across rivers
 one or two tiles wide, from bank to bank: a one-tile river at half walking
-speed, and a two-tile river at a provisional third of walking speed. Wider
-rivers, lakes and the sea cannot be crossed on foot. Communal boats travel
-between completed Ports over connected water. Wading two-tile rivers has not been checked in hands-on Windows play.
+speed, and a two-tile river at a provisional third of walking speed. Eligible
+agents can swim wider rivers and lakes much more slowly, losing warmth and
+carrying at most four units. Cold, ill or heavily loaded agents do not start
+swimming. Carts and animals stay on their existing land routes; the sea still
+requires a boat. Swimming has its own motion and label on the map. Communal boats
+travel between completed Ports over connected water. Swimming and two-tile
+wading still need hands-on Windows playtesting.
 Peaks are impassable; mountains and peaks cannot hold construction. Town
 streets take diagonals where the land allows.
 
@@ -1489,13 +1622,28 @@ region keeps its weather for a spell of a quarter of a day to a full day. A
 storm lasts at most three-quarters of a day, and that region then gets at least
 half a day without another. Rain nearby makes rain a little more likely. These
 values are a prototype for playtesting ([#204](https://github.com/compoodment/ClankerWorld/issues/204)).
-Recent rain gives a modest soil-moisture estimate. The map shows rain, snow, storms and optional
-haze/flashes, and darkens gently at night. Drifting visual edges do not mean weather fronts actually move
-between regions yet.
+Recent rain gives a modest soil-moisture estimate. The map draws the approved
+pixel-streak weather: straight rain with small landing bursts, stepped storm
+streaks in eastward gusts, and snowflake crosses blown sideways. Cooler tints
+keep the map visible; cloud haze and soft flashes remain optional, and the map
+darkens gently at night. Drifting visual edges do not mean weather fronts
+actually move between regions yet.
 
 Grass and tree canopies use the approved seasonal colours: brighter in spring,
 base colours in summer, warmer in autumn and desaturated in winter. Existing
 snow follows the world state; changing season adds no snow by itself.
+
+Observed snowfall now leaves white cover on open ground in that region,
+keeping grass tips and trodden Roads visible. Cover builds over a game hour
+and melts over two hours after snow stops. Walking agents and animals leave
+footprints that fade within an hour. Pause freezes both; reload, rewind and
+world changes clear this local display history. Water, buildings, trees and
+permanent snow retain their own artwork. Close/mid zoom and snowy walking
+still need [the Windows check](../playtest/1463-ground-snow-footprints.md).
+
+Rain, storms and snow fade in or out over 1.2 seconds when regional weather
+changes; pause freezes the transition. Loading a world shows its current
+weather immediately.
 
 The map uses the pixel art approved in the October 1 art review: every ground
 type, with mountains, peaks and hills drawn from the world's elevation as one
@@ -1524,6 +1672,12 @@ that follows the Light or Dark theme. Mineral/clay sites exist; some
 materials still lack a complete production chain.
 
 ## Saves, keys and inventions
+
+The game warns when free space on the server's save volumes is below a
+provisional 1 GiB. The notice stays visible while autosaves run, appears in
+Save World before saving or overwriting, and clears when space recovers.
+Unknown space is shown separately. These checks never prevent a save or delay
+an emergency checkpoint; an actual disk-full write can still fail.
 
 A written [private-server deployment checklist](development/private-server-deployment.md)
 is available for manual server updates. It covers staging a build, preserving
@@ -1565,12 +1719,18 @@ the running world continues with **You are here**, and keep the save list,
 grouped by branch, behind a **Timeline / List** switch
 ([#680](https://github.com/compoodment/ClankerWorld/issues/680)). A host from
 before the timeline can't say where the world continues, so the marker is left
-out. Neither has been checked by hand in the Windows game yet. Unusable list
+out. Branch rows and list tags use the recorded source save's name, such as
+**From Before the flood**, and keep it if the source save is renamed or
+replaced. Long labels fit within the controls and show their full text on
+hover. Numbered labels remain when the source name is missing. These screens
+have automated native checks but have not been checked by hand in the Windows
+game yet. Unusable list
 metadata is isolated so sound saves remain reachable. During the alpha, a save
 from an older build may stop loading after an update; the game refuses it with a
 reason and keeps the file. The agreed [mod compatibility](game-design/inventions-and-mods.md#inventions-mods-and-technology)
-and [recovery-history cleanup](game-design/saves.md#explicit-deletion) rules
-await implementation; their copy counts and disk-space thresholds stay provisional. Technical rules
+rules await implementation. Recovery-history cleanup previews older verified
+copies and requires explicit confirmation; its copy count and the available
+disk-space warning's threshold stay provisional. Technical rules
 are in [saves and replay](development/saves-and-replay.md).
 
 The Mod Library lists the current world's recorded packages read-only, one card each with
@@ -1605,3 +1765,11 @@ separate deletion of an inactive world and all its saves. Other worlds, provider
 credentials and pairing remain unchanged. Interrupted deletion stays hidden
 from loading and is retried on host startup. Native Windows interaction still
 needs playtesting. See [save controls](playing.md#save-and-return).
+
+Save World also offers **Preview cleanup** for recovery history. It starts with
+a provisional three verified copies per save (adjustable from one to ten), keeps
+the latest verified copy and any recovery currently continued from, and names
+every proposed removal before confirmation. Manual saves, migration originals,
+unclassified older copies and unverifiable checkpoints are protected. Canceling
+does nothing; a changed preview is refused. Nothing runs automatically or deletes
+by age. The [Windows playtest](../playtest/1322-recovery-cleanup.md) is pending.

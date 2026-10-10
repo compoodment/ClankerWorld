@@ -125,6 +125,11 @@ builder.Services.AddSingleton<PrivateWorldStateFile>(services => new PrivateWorl
 builder.Services.AddSingleton(services => new ManualWorldSaveStore(privateRuntimeStatePath,
     services.GetRequiredService<ILogger<ManualWorldSaveStore>>(),
     services.GetRequiredService<ProviderConfigurationStore>().WorldMutationGate));
+builder.Services.AddSingleton<ISaveDiskSpaceProbe, SaveDiskSpaceProbe>();
+builder.Services.AddSingleton(services => new SaveDiskSpaceMonitor(privateRuntimeStatePath,
+    services.GetRequiredService<ISaveDiskSpaceProbe>(), services.GetRequiredService<ILogger<SaveDiskSpaceMonitor>>()));
+if (isPrivateWorld)
+    builder.Services.AddHostedService(services => services.GetRequiredService<SaveDiskSpaceMonitor>());
 if (isPrivateWorld)
     builder.Services.AddSingleton(services => new PrivateWorldStartupRecovery(
         services.GetRequiredService<PrivateWorldStateFile>(), services.GetRequiredService<ManualWorldSaveStore>(),
@@ -266,6 +271,7 @@ if (isPrivateWorld)
         // service may initialize while the refused checkpoint is still active.
         if (recovery.Pending && context.Request.Path.StartsWithSegments("/api/v1/owner") &&
             context.Request.Path != "/api/v1/owner/challenges" &&
+            context.Request.Path != "/api/v1/owner/saves/disk-status" &&
             context.Request.Path != "/api/v1/owner/recovery/status" &&
             context.Request.Path != "/api/v1/owner/recovery/restore")
         {

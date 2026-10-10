@@ -1105,16 +1105,18 @@ public sealed partial class ConfigurableDecisionProvider(
 
         var purposeWire = PurposeWireValue(request.Purpose);
 
-        const string instructions = "Speak as one agent in a bounded shared conversation. Use only your own identity plus the public history included below. Never claim the other person agreed. Do not invent events, private thoughts, promises, ownership, resources or world changes. Return JSON only with utterance (one line, at most 500 characters), disposition (continue or withdraw), and effect (one of allowed_effects). Mutual trust and marriage are proposals only: both people must separately accept the same wrap-up. For surname_choice, marriage consent already exists: include surname_choice, exactly one of allowed_surnames, and effect none. Each partner has at most two alternating valid turns; continued disagreement after four turns uses a disclosed seeded draw. A withdrawal suspends that surname session without counting a turn. Do not include reasoning.";
+        const string instructions = "Speak as one agent in a bounded shared conversation. Use only your own identity plus the public history included below. An observer_requested_activity is what the outside observer asked this speaker to attempt, not public speech or evidence of anyone's agreement; personal consent and allowed effects remain your own choices. Never claim the other person agreed. Do not invent events, private thoughts, promises, ownership, resources or world changes. Return JSON only with utterance (one line, at most 500 characters), disposition (continue or withdraw), and effect (one of allowed_effects). Mutual trust and marriage are proposals only: both people must separately accept the same wrap-up. For surname_choice, marriage consent already exists: include surname_choice, exactly one of allowed_surnames, and effect none. Each partner has at most two alternating valid turns; continued disagreement after four turns uses a disclosed seeded draw. A withdrawal suspends that surname session without counting a turn. Do not include reasoning.";
         var input = JsonSerializer.Serialize(new
         {
             purpose = purposeWire,
+            observer_requested_activity = request.RequestedActivity,
             speaker = new
             {
                 id = request.SpeakerId,
                 name = request.SpeakerName,
                 personality = request.SpeakerPersonality,
                 aspiration = request.SpeakerAspiration,
+
             },
             other_participant = new { id = request.OtherParticipantId, name = request.OtherParticipantName },
             public_history = request.PublicHistory.Select(turn => new

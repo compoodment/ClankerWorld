@@ -1,0 +1,1 @@
+- Snowfall covers open ground with grass tips and trodden Roads showing, then melts; walking agents and animals leave footprints that fade within a game hour.

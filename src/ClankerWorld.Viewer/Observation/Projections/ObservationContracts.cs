@@ -129,7 +129,7 @@ public sealed record ViewerInhabitantRelationship(
     string? Direction = null);
 
 public sealed record ViewerPrivateThought(long WorldTick, string Text);
-public sealed record ViewerAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility);
+public sealed record ViewerAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility, bool Permanent = false);
 public sealed record ViewerAgentBelief(
     long WorldTick,
     string Statement,
@@ -455,7 +455,14 @@ public sealed record ViewerLandTransfer(string Id, string FilerId, string FilerN
     string TargetHouseholdName, IReadOnlyList<ViewerPosition> Tiles, IReadOnlyList<ViewerLandHearingRightVersion> RightVersions,
     IReadOnlyList<ViewerLandTransferParty> Parties, string NoticeId, long ProposedTick,
     IReadOnlyList<ViewerLandTransferResponse> Responses, string Status, long? SettledTick, string? Reason,
-    string? ReceiptAdjustmentId);
+    string? ReceiptAdjustmentId)
+{
+    public ViewerLandSalePrice? Price { get; init; }
+    public ViewerLandSalePayment? Payment { get; init; }
+}
+public sealed record ViewerLandSalePrice(string SellerHouseholdId, string SellerHouseholdName, string ItemKind, int Quantity);
+public sealed record ViewerLandSalePayment(string BuyerAgentId, string BuyerName, string SellerAgentId, string SellerName,
+    ViewerPosition Position, long Tick);
 
 public sealed record ViewerLandHearingOutcome(string Kind, string? HouseholdId, string? HouseholdName, long? AgreedEndTick);
 public sealed record ViewerLandHearingProposal(IReadOnlyList<ViewerPosition> Tiles,
@@ -568,6 +575,7 @@ public sealed record ViewerTownProject(string Id, string ProposalId, string Name
 {
     public IReadOnlyList<string> Tags { get; init; } = [];
     public string? CompletedBoatId { get; init; }
+    public long? RemovedTick { get; init; }
 }
 public sealed record ViewerCivicCandidate(string Id, string Name, int Votes);
 public sealed record ViewerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,

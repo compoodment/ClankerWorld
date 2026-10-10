@@ -1,0 +1,3 @@
+- Play a world for a few days and read the Event Log. Lines should name who was involved and read as plain sentences, with no legal or code terms. Meals, forage trips, cart loading and Town project work shifts should no longer fill it.
+- Send an agent scouting and check that the log shows them setting out, heading back and returning, or the trip ending early if their way home is blocked.
+- When a partnership, marriage, birth, animal birth or skill lesson happens, check that it appears in the log with the right names.

@@ -1,0 +1,1 @@
+- Hungry children with full loads can set aside spare unreserved supplies before collecting household food. Equipment, maps, reservations and delivery loads remain protected, and infants still rely on caregivers.

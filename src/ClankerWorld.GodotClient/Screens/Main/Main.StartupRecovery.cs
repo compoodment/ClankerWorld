@@ -17,6 +17,7 @@ public partial class Main
         CustomMinimumSize = new Vector2(400, 0),
     };
     private readonly Button startupRecoveryButton = new() { Text = "Recover autosave" };
+    private readonly Label startupRecoveryDiskWarning = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
     private readonly Button startupRecoveryRetry = new() { Text = "Check again" };
     private StartupRecoveryStatus? startupRecovery;
     private int startupRecoveryReadRevision;
@@ -34,6 +35,8 @@ public partial class Main
         body.AddChild(heading);
         body.AddChild(startupRecoveryExplanation);
         body.AddChild(startupRecoverySave);
+        startupRecoveryDiskWarning.Hide();
+        body.AddChild(startupRecoveryDiskWarning);
         StyleMenuChoice(startupRecoveryButton, primary: true);
         startupRecoveryButton.Pressed += () => _ = RecoverStartupAutosaveAsync();
         body.AddChild(startupRecoveryButton);
@@ -68,6 +71,7 @@ public partial class Main
         startupRecoveryButton.Disabled = startupRecoveryBusy || status.Autosave is null;
         startupRecoveryRetry.Disabled = startupRecoveryBusy;
         startupRecoveryCard.Show();
+        _ = RefreshSaveDiskSpaceAsync(force: true);
         (status.Autosave is null ? startupRecoveryRetry : startupRecoveryButton).GrabFocus();
     }
 
@@ -127,6 +131,10 @@ public partial class Main
             startupRecoveryRetry.Disabled = true;
             try
             {
+                await RefreshSaveDiskSpaceAsync(force: true);
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (!ReferenceEquals(owner, registration) || registeredEndpointInvalid)
+                    throw new ObsoleteWorldRequestException();
                 observationSession.ResetAfterLoad();
                 await ownerApi.RecoverAutosaveAsync(server, owner.Authority, owner.DeviceId, save.Id,
                     signer, CancellationToken.None);
