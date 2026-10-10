@@ -120,8 +120,16 @@ public sealed partial class PrivateWorldConversationTests
         Assert.Contains(snapshot.Inhabitants.Single(item => item.Id == InitiatorId).SocialNotes,
             note => note.Contains("Married to Rowan Ash", StringComparison.Ordinal));
         Assert.Contains(snapshot.Conversations, item => item.Kind == "marriage_surname" && item.ChosenSurname == "Ash");
+        var listenerMemories = world.Society.Memories.Where(item => item.OwnerId == ListenerId).ToArray();
         Assert.True(world.RenameAgent(InitiatorId, "Aster Vale"));
         Assert.Equal("Rowan Vale", world.Society.GetInhabitant(InviteeId).Name);
+        foreach (var (id, name) in new[] { (InitiatorId, "Aster Vale"), (InviteeId, "Rowan Vale") })
+        {
+            var memory = Assert.Single(world.Society.Memories, item => item.OwnerId == id && item.Summary.EndsWith("to " + name + ".", StringComparison.Ordinal));
+            Assert.True(memory.Permanent);
+            Assert.Equal(id, memory.SubjectId);
+        }
+        Assert.Equal(listenerMemories, world.Society.Memories.Where(item => item.OwnerId == ListenerId).ToArray());
         Assert.Equal("Vale", Assert.Single(world.Marriages).CurrentSurname);
         Assert.Equal("Ash", Assert.Single(world.Marriages).ChosenSurname);
         Assert.Equal(receipt, Assert.Single(world.Marriages).SurnameReceipt);
@@ -291,6 +299,8 @@ public sealed partial class PrivateWorldConversationTests
         public bool DisagreeOnSurname { get; init; }
         public bool UseAllowedSurnameOptions { get; init; }
         public int SurnameFailuresRemaining { get; set; }
+        public string TalkTargetId { get; init; } = InviteeId;
+        public bool EndPartnership { get; set; }
         public bool CanSpeakAs(string agentId) => agentId == ownerId;
 
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
@@ -298,11 +308,13 @@ public sealed partial class PrivateWorldConversationTests
             request.Validate();
             Assert.Equal(ownerId, request.Observation.InhabitantId);
             var observation = request.Observation;
-            var selected = observation.Candidates.FirstOrDefault(candidate =>
+            var selected = observation.Candidates.FirstOrDefault(candidate => EndPartnership &&
+                candidate.Id.StartsWith("partner_leave:", StringComparison.Ordinal)) ??
+                observation.Candidates.FirstOrDefault(candidate =>
                 candidate.Id.StartsWith("conversation_wrapup_accept:", StringComparison.Ordinal) ||
                 candidate.Id.StartsWith("conversation_resume:", StringComparison.Ordinal) ||
                 candidate.Id.StartsWith("conversation_accept:", StringComparison.Ordinal)) ??
-                observation.Candidates.FirstOrDefault(candidate => ownerId == InitiatorId && candidate.Id == $"talk:{InviteeId}") ??
+                observation.Candidates.FirstOrDefault(candidate => ownerId == InitiatorId && candidate.Id == $"talk:{TalkTargetId}") ??
                 observation.Candidates.First(candidate => candidate.Id == "safe_idle");
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, ownerId, Kind, ProviderEpoch,
                 observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest, selected.Id, 1d,

@@ -1,0 +1,1 @@
+- If the latest saved state cannot open after a restart, a recovery screen offers the last usable autosave from that world's history. Recovery keeps the refused file and other saves, explains the missing later progress, and opens the recovered world paused.

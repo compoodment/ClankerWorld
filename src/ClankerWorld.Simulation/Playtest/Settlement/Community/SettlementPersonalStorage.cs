@@ -13,13 +13,13 @@ public sealed partial class PrivateWorldRuntime
             // Keep worn equipment and tools under repair with their wearer.
             !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id) &&
             !IsEdibleFood(lot.ItemKind) && PhysicalUnreservedQuantity(lot) > 0 &&
-            VesselFits(lot, StorageRoom(houseId))).OrderBy(lot => lot.Id, StringComparer.Ordinal);
+            VesselFits(lot, StorageRoomAfterInboundDeliveries(houseId))).OrderBy(lot => lot.Id, StringComparer.Ordinal);
 
     private PersonalStorageEffect? StorePersonalGoods(string actor, string lotId, int maximumQuantity = int.MaxValue,
         string? requiredHouseId = null, string? requiredHouseholdId = null, GridPoint? requiredPosition = null)
     {
         if (!AdultResident(actor) || !ReadyForBriefInteraction(actor) || maximumQuantity <= 0 ||
-            HouseForHousehold(HouseholdFor(actor)) is not { } house || StorageRoom(house.InstanceId) <= 0)
+            HouseForHousehold(HouseholdFor(actor)) is not { } house || StorageRoomAfterInboundDeliveries(house.InstanceId) <= 0)
             return null;
         if (requiredHouseId is not null && (house.InstanceId != requiredHouseId ||
             house.HouseholdId != requiredHouseholdId || house.Position != requiredPosition)) return null;
@@ -32,7 +32,7 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, person, house.Position, "personal_goods", 1);
             return null;
         }
-        var room = StorageRoom(house.InstanceId);
+        var room = StorageRoomAfterInboundDeliveries(house.InstanceId);
         var quantity = InventoryContainerRules.IsContainer(lot.ItemKind)
             ? VesselFits(lot, room) ? 1 : 0
             : Math.Min(PhysicalUnreservedQuantity(lot), room);

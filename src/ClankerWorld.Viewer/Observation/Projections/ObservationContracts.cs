@@ -129,7 +129,7 @@ public sealed record ViewerInhabitantRelationship(
     string? Direction = null);
 
 public sealed record ViewerPrivateThought(long WorldTick, string Text);
-public sealed record ViewerAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility);
+public sealed record ViewerAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility, bool Permanent = false);
 public sealed record ViewerAgentBelief(
     long WorldTick,
     string Statement,
@@ -150,6 +150,7 @@ public sealed record ViewerAgentKnowledgeFact(
     string DiscovererName,
     string Acquisition,
     string? SourceAgentName);
+public sealed record ViewerAgentRecipe(long WorldTick, string Name, string Acquisition, string? SourceAgentName);
 public sealed record ViewerKnowledgeSite(int X, int Y, string Terrain, IReadOnlyList<string> ResourceKinds, string DiscovererName);
 public sealed record ViewerAgentKnowledgeArtifact(
     string Id,
@@ -157,7 +158,10 @@ public sealed record ViewerAgentKnowledgeArtifact(
     string Title,
     long CreatedTick,
     string CreatorName,
-    IReadOnlyList<ViewerKnowledgeSite> Sites);
+    IReadOnlyList<ViewerKnowledgeSite> Sites)
+{
+    public IReadOnlyList<string> RecipeNames { get; init; } = [];
+}
 /// <summary>
 /// The world's saved calendar, including its season lengths and clock offset,
 /// so the game names the season and day of any tick the same way the world does.
@@ -213,6 +217,7 @@ public sealed record ViewerInhabitant(
     public IReadOnlyList<ViewerAgentBelief> RecentBeliefs { get; init; } = [];
 
     public IReadOnlyList<ViewerAgentKnowledgeFact> RecentKnowledgeFacts { get; init; } = [];
+    public IReadOnlyList<ViewerAgentRecipe> KnownRecipes { get; init; } = [];
 
     public IReadOnlyList<ViewerAgentKnowledgeArtifact> KnowledgeArtifacts { get; init; } = [];
 
@@ -499,6 +504,7 @@ public sealed record ViewerTownLandHearing(string Id, string Kind, string Status
     ViewerLandHearingElection? JudgeElection, ViewerLandHearingElection? LatestJudgeElection,
     IReadOnlyList<ViewerLandHearingReopenRequest> ReopenRequests)
 {
+    public IReadOnlyList<string> PropertyDetails { get; init; } = [];
     public IReadOnlyList<ViewerLandHearingRead> Reads { get; init; } = [];
     public IReadOnlyList<ViewerLandHearingParty> CurrentParties { get; init; } = [];
 }

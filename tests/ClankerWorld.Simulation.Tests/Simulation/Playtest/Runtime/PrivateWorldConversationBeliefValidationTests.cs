@@ -92,6 +92,39 @@ public sealed partial class PrivateWorldConversationTests
         Assert.Throws<InvalidDataException>(() => SocietyCheckpointCodec.Encode(cyclic));
     }
 
+    [Fact]
+    public async Task ArchivedConversationBeliefsKeepTheirCorrectionLineageAndRejectDuplicateTurns()
+    {
+        var state = await ConversationBeliefStateAsync();
+        var checkpoint = state.Society.Society;
+        var original = checkpoint.Beliefs![0];
+        checkpoint = SocietyFixture.AdvanceTo(checkpoint, checkpoint.WorldTick +
+            (long)SocietyMemoryArchiveRules.MinimumAgeDays * checkpoint.Config.TicksPerWorldDay).Checkpoint;
+        checkpoint = SocietyMemoryArchiveRules.Archive(checkpoint,
+            new HashSet<string>(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal));
+        Assert.Empty(checkpoint.Beliefs!);
+        Assert.Equal(state.Society.Society.Beliefs!.Count, checkpoint.ArchivedBeliefs.Count);
+        Assert.Contains(checkpoint.ArchivedBeliefs, item => item.Belief == original);
+
+        checkpoint = SocietyFixture.CorrectAgentBelief(checkpoint, original.OwnerId, original.Id,
+            original with { Id = "belief:archived-first-correction", Statement = "The archived claim needed a correction." });
+        var first = Assert.Single(checkpoint.Beliefs!);
+        checkpoint = SocietyFixture.CorrectAgentBelief(checkpoint, original.OwnerId, first.Id,
+            original with { Id = "belief:archived-second-correction", Statement = "A further correction keeps the original source." });
+        checkpoint = SocietyFixture.RecordAgentMemoryCompaction(checkpoint, original.OwnerId,
+            [new(original.Id, SocietyMemorySourceKind.Belief, original.FormedTick, 8_000, 8_500, checkpoint.WorldTick)]);
+        var archived = Assert.Single(checkpoint.ArchivedBeliefs, item => item.Belief.Id == original.Id);
+        Assert.Equal((original.Statement, original.SourceAgentId, original.SourceTurnId, first.Id),
+            (archived.Belief.Statement, archived.Belief.SourceAgentId, archived.Belief.SourceTurnId, archived.Belief.SupersededByBeliefId));
+        Assert.Equal(original.SourceTurnId, checkpoint.Beliefs!.Single(item => item.SupersedesBeliefId == first.Id).SourceTurnId);
+        Assert.Equal(state.Society.Society.Beliefs!.Count + 2, checkpoint.AllBeliefs().Count());
+        var bytes = SocietyCheckpointCodec.Encode(checkpoint);
+        Assert.Throws<InvalidDataException>(() => SocietyFixture.RecordAgentBelief(checkpoint,
+            original with { Id = "belief:archived-unrelated-duplicate" }));
+        Assert.Equal(bytes, SocietyCheckpointCodec.Encode(checkpoint));
+        Assert.Equal(bytes, SocietyCheckpointCodec.Encode(SocietyCheckpointCodec.Decode(bytes)));
+    }
+
     private static async Task<PrivateWorldRuntimeState> ConversationBeliefStateAsync()
     {
         var provider = new ConversationProvider(new HashSet<string>(StringComparer.Ordinal)

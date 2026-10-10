@@ -280,6 +280,14 @@ public sealed class PrivateWorldDeferredCognitionTests
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         await Task.WhenAll(firstProvider.FirstReturned.Task, secondProvider.FirstReturned.Task)
             .WaitAsync(TimeSpan.FromSeconds(3));
+        // Each provider signals just before the runtime's call task finishes,
+        // so wait for both calls to finish before the tick that admits them together.
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+        while (!world.HostedDecisionsFinished(NameTargetId, NameOwnerId))
+        {
+            Assert.True(DateTime.UtcNow < deadline, "Both model calls should finish.");
+            await Task.Delay(1);
+        }
         var simultaneous = await world.AdvanceOneTickNonBlockingAsync();
         Assert.True(simultaneous.Advanced);
         Assert.Contains(simultaneous.Decisions, item => item.InhabitantId == NameTargetId && item.Admission.Accepted);
