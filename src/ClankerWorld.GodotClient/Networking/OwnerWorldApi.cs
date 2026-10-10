@@ -106,6 +106,20 @@ public sealed class OwnerWorldApi
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Deletion(action),
             action, deviceKey, cancellationToken);
 
+    public Task<RecoveryCleanupPreview> PreviewRecoveryCleanupAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId, OwnerRecoveryCleanupAction action,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerRecoveryCleanupAction, RecoveryCleanupPreview>(
+            serverUri, authority, deviceId, "/api/v1/owner/saves/recovery-cleanup",
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.RecoveryCleanup(action), action, deviceKey, cancellationToken);
+
+    public Task<OwnerRecoveryCleanupReceipt> CleanRecoveryHistoryAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId, OwnerRecoveryCleanupAction action,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerRecoveryCleanupAction, OwnerRecoveryCleanupReceipt>(
+            serverUri, authority, deviceId, "/api/v1/owner/saves/recovery-cleanup",
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.RecoveryCleanup(action), action, deviceKey, cancellationToken);
+
     public Task<ManualWorldSave[]> ListManualSavesAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
         IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
@@ -114,6 +128,25 @@ public sealed class OwnerWorldApi
         return pairing.SendSignedActionAsync<OwnerControlAction, ManualWorldSave[]>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerSaveList,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("list-saves"),
+            action, deviceKey, cancellationToken);
+    }
+
+    public Task<StartupRecoveryStatus> GetStartupRecoveryAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerControlAction, StartupRecoveryStatus>(
+            serverUri, authority, deviceId, "/api/v1/owner/recovery/status",
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("recovery-status"),
+            new("recovery-status"), deviceKey, cancellationToken);
+
+    public Task<StartupRecoveryReceipt> RecoverAutosaveAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId, string id,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerManualSaveAction("recover", id);
+        return pairing.SendSignedActionAsync<OwnerManualSaveAction, StartupRecoveryReceipt>(
+            serverUri, authority, deviceId, "/api/v1/owner/recovery/restore",
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.ManualSave(action),
             action, deviceKey, cancellationToken);
     }
 
@@ -138,6 +171,14 @@ public sealed class OwnerWorldApi
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("autosave-status"),
             action, deviceKey, cancellationToken);
     }
+
+    public Task<SaveDiskSpaceStatus> GetSaveDiskSpaceAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerControlAction, SaveDiskSpaceStatus>(
+            serverUri, authority, deviceId, "/api/v1/owner/saves/disk-status",
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("save-disk-status"),
+            new OwnerControlAction("save-disk-status"), deviceKey, cancellationToken);
 
     public Task<WorldAutosaveSettings> ConfigureAutosaveAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
@@ -283,21 +324,29 @@ public sealed class OwnerWorldApi
             action, signer, cancellationToken);
 
     public Task<OwnerControlReceipt> SetLifePaceAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
-        int rate, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+        int rate, string worldId, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
     {
-        var action = new OwnerLifePaceAction(rate);
+        var action = new OwnerLifePaceAction(rate, worldId);
         return pairing.SendSignedActionAsync<OwnerLifePaceAction, OwnerControlReceipt>(serverUri, authority, deviceId,
             OwnerPairingEndpoints.OwnerLifePace, OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.LifePace(action),
-            action, deviceKey, cancellationToken);
+            action, deviceKey, cancellationToken, requiredPayloadDomain: OwnerWorldActionPayload.LifePacePayloadDomain);
     }
 
+    public Task<OwnerControlReceipt> SetRoutineHelperAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerRoutineHelperAction action, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerRoutineHelperAction, OwnerControlReceipt>(serverUri, authority, deviceId,
+            OwnerPairingEndpoints.OwnerRoutineHelper, OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.RoutineHelper(action), action, deviceKey, cancellationToken,
+            requiredPayloadDomain: "clankerworld.owner-routine-helper.v1");
+
     public Task<OwnerControlReceipt> SetJevAssistanceAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
-        bool enabled, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+        bool enabled, string worldId, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
     {
-        var action = new OwnerJevAssistanceAction(enabled);
+        var action = new OwnerJevAssistanceAction(enabled, worldId);
         return pairing.SendSignedActionAsync<OwnerJevAssistanceAction, OwnerControlReceipt>(serverUri, authority, deviceId,
             OwnerPairingEndpoints.OwnerJevAssistance, OwnerPairingProtocol.CreateRequestId(),
-            OwnerWorldActionPayload.JevAssistance(action), action, deviceKey, cancellationToken);
+            OwnerWorldActionPayload.JevAssistance(action), action, deviceKey, cancellationToken,
+            requiredPayloadDomain: OwnerWorldActionPayload.JevAssistancePayloadDomain);
     }
 
     public Task<OwnerInstructionReceipt> SubmitInstructionAsync(

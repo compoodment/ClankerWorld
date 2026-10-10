@@ -11,6 +11,20 @@ internal static partial class OwnerEndpoints
 {
     private static void MapSaves(WebApplication app, bool isPrivateWorld)
     {
+        app.MapPost("/api/v1/owner/saves/disk-status", (
+            OwnerSignedHttpRequest<OwnerControlAction> request,
+            OwnerRequestAuthorizer authorizer,
+            SaveDiskSpaceMonitor disk) =>
+        {
+            if (!IsControl(request, "save-disk-status"))
+                return Results.BadRequest(new { error = "A save-space status action is required." });
+            var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/disk-status",
+                OwnerHttpBinding.EmptyPayload("save-disk-status"));
+            if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+            if (!isPrivateWorld) return Results.Conflict(new { error = "Save-space status requires a private world." });
+            return Results.Ok(disk.Capture());
+        });
+
         app.MapPost("/api/v1/owner/saves/list", (
             OwnerSignedHttpRequest<OwnerControlAction> request,
             OwnerRequestAuthorizer authorizer,
@@ -223,18 +237,20 @@ internal static partial class OwnerEndpoints
                     stateFile.VerifyRequiredHistory(checkpoint);
                     var assignments = committed.Assignments;
                     var autosaveSettings = committed.AutosaveSettings;
-                    if (!string.Equals(checkpoint.WorldSeed, runtime.ExportState().WorldSeed, StringComparison.Ordinal))
+                    var current = runtime.ExportState();
+                    if (!string.Equals(checkpoint.WorldSeed, current.WorldSeed, StringComparison.Ordinal) ||
+                        !string.Equals(checkpoint.Society.Society.WorldId, current.Society.Society.WorldId, StringComparison.Ordinal))
                     {
                         ManualWorldSaveTelemetry.Rejected(logger, "load", "different_world");
                         return Results.Conflict(new { error = "This save belongs to a different world." });
                     }
                     // Loading must never lose the world being left. Its unsaved progress
-                    // becomes a normal save on its own branch, unless the world is
+                    // becomes a recovery copy on its own branch, unless the world is
                     // still exactly the save it continues from.
                     var currentAssignments = providers.CaptureRuntimeConfiguration().Assignments ?? [];
                     var currentAutosave = autosave.Capture();
                     var backup = saves.FindUnchangedSave(runtime, currentAssignments, currentAutosave)
-                        ?? saves.Create("Before loading", runtime, currentAssignments, currentAutosave);
+                        ?? saves.CreateLoadRecovery(runtime, currentAssignments, currentAutosave);
                     var timelineRestore = saves.ContinueFrom(action.Value);
                     try
                     {
@@ -242,7 +258,7 @@ internal static partial class OwnerEndpoints
                         stateFile.Save(runtime);
                         providers.RestoreWorldAssignments(assignments);
                         if (autosaveSettings is not null) autosave.RestoreFromCheckpoint(autosaveSettings);
-                        jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+                        jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision, runtime.RoutineHelper);
                         saves.RecordLoadedState(runtime);
                     }
                     catch
@@ -252,7 +268,7 @@ internal static partial class OwnerEndpoints
                         providers.RestoreWorldAssignments(saves.ReadAssignments(backup.Id));
                         if (saves.ReadAutosaveSettings(backup.Id) is { } previousAutosave)
                             autosave.RestoreFromCheckpoint(previousAutosave);
-                        jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+                        jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision, runtime.RoutineHelper);
                         saves.RestoreTimeline(timelineRestore);
                         throw;
                     }

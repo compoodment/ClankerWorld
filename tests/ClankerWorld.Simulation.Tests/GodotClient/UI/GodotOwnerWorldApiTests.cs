@@ -170,8 +170,8 @@ public sealed class GodotOwnerWorldApiTests
     [InlineData(1_460)]
     public void LifePacePayloadMatchesTheHostExactly(int rate)
     {
-        Assert.Equal(OwnerHttpBinding.LifePacePayload(new ClankerWorld.Viewer.Control.OwnerLifePaceAction(rate)),
-            OwnerWorldActionPayload.LifePace(new OwnerLifePaceAction(rate)));
+        Assert.Equal(OwnerHttpBinding.LifePacePayload(new ClankerWorld.Viewer.Control.OwnerLifePaceAction(rate, "world-é")),
+            OwnerWorldActionPayload.LifePace(new OwnerLifePaceAction(rate, "world-é")));
     }
 
     [Theory]
@@ -179,8 +179,8 @@ public sealed class GodotOwnerWorldApiTests
     [InlineData(false)]
     public void JevAssistancePayloadMatchesTheHostExactly(bool enabled)
     {
-        Assert.Equal(OwnerHttpBinding.JevAssistancePayload(new ClankerWorld.Viewer.Control.OwnerJevAssistanceAction(enabled)),
-            OwnerWorldActionPayload.JevAssistance(new OwnerJevAssistanceAction(enabled)));
+        Assert.Equal(OwnerHttpBinding.JevAssistancePayload(new ClankerWorld.Viewer.Control.OwnerJevAssistanceAction(enabled, "world-é")),
+            OwnerWorldActionPayload.JevAssistance(new OwnerJevAssistanceAction(enabled, "world-é")));
     }
 
     [Fact]

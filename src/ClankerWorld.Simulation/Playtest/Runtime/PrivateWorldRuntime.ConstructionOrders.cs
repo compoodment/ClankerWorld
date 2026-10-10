@@ -59,12 +59,14 @@ public sealed partial class PrivateWorldRuntime
         if (order.ConstructionOwnerId is { } owner && owner != household) return false;
         failure = "Another project is already in progress; finish or stop it before starting this construction.";
         if (person.Project is { Stage: not ("completed" or "cancelled") } project &&
-            !IsConstructionOrderProject(instruction, project)) return false;
+            !IsConstructionOrderProject(instruction, project) && !OrdinaryProjectCanYieldToOrder(project)) return false;
         var kind = HouseholdBuildingKind(definition);
         failure = "This household already holds the requested building.";
         if (HouseholdBuildingWithTag(household, kind!) is not null) return false;
         failure = "Only a household holding a Farmhouse can build a Silo.";
         if (kind == "silo" && FarmhouseForHousehold(household) is null) return false;
+        failure = "The household needs a completed House before it can build an animal yard.";
+        if (kind == AnimalContent.YardTag && HouseForHousehold(household) is null) return false;
         failure = "Another household member is already planning this building.";
         var householdId = household;
         if (inhabitants.Values.Any(other => other.InhabitantId != actor &&

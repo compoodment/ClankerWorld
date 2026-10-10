@@ -333,9 +333,9 @@ public sealed class BlacksmithContentTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task BlacksmithRepairsOneBrokenUnitUsingTheOwnersCarriedMaterialAndRoundTripsIt(bool borrowed)
+    public async Task BlacksmithRepairsOneWornUnitUsingTheOwnersCarriedMaterialAndRoundTripsIt(bool borrowed)
     {
-        using var seed = new PrivateWorldRuntime("repair-broken-tool", _ => new CandidateProvider("safe_idle"),
+        using var seed = new PrivateWorldRuntime("repair-worn-tool", _ => new CandidateProvider("safe_idle"),
             startPace: WorldStartPace.FounderSetup);
         var founders = new[] { new GridPoint(0, 0), new GridPoint(1, 2), new GridPoint(2, 2), new GridPoint(3, 2) };
         for (var index = 0; index < founders.Length; index++)
@@ -373,10 +373,10 @@ public sealed class BlacksmithContentTests
         inventory = state.Society.Society.Inventory;
         // A borrowed household axe is repaired for the household with the member's own wood.
         var toolOwner = borrowed ? householdId : actor;
-        inventory = InventoryFixture.AddLot(inventory, "broken-axes", "wooden_axe", toolOwner, 2,
-            conditionBasisPoints: 0);
+        inventory = InventoryFixture.AddLot(inventory, "worn-axes", "wooden_axe", toolOwner, 2,
+            conditionBasisPoints: 3_000);
         if (borrowed)
-            inventory = InventoryFixture.Relocate(inventory, "borrow-axes", "broken-axes", householdId, 2, actor);
+            inventory = InventoryFixture.Relocate(inventory, "borrow-axes", "worn-axes", householdId, 2, actor);
         inventory = InventoryFixture.AddLot(inventory, "repair-wood", "wood", actor, 1);
         state = state with
         {
@@ -392,15 +392,15 @@ public sealed class BlacksmithContentTests
         };
 
         using var repairing = PrivateWorldRuntime.Restore(state,
-            _ => new CandidateProvider("repair_tool:broken-axes"));
+            _ => new CandidateProvider("repair_tool:worn-axes"));
         for (var tick = 0; tick < 10 && !repairing.ExportState().Events.Any(item => item.Kind == "tool_repaired"); tick++)
             Assert.True((await repairing.AdvanceOneTickAsync()).Advanced);
-        var repaired = repairing.Society.Inventory.Lots.Single(lot => lot.Id.StartsWith("broken-axes:repair:",
+        var repaired = repairing.Society.Inventory.Lots.Single(lot => lot.Id.StartsWith("worn-axes:repair:",
             StringComparison.Ordinal) && lot.OwnerId == toolOwner);
         Assert.True(PersonalEquipmentRules.IsCarried(repaired, actor));
         Assert.Equal((1, 10_000), (repaired.Quantity, repaired.ConditionBasisPoints));
-        Assert.Contains(repairing.Society.Inventory.Lots, lot => lot.Id == "broken-axes" &&
-            lot.Quantity == 1 && lot.ConditionBasisPoints == 0);
+        Assert.Contains(repairing.Society.Inventory.Lots, lot => lot.Id == "worn-axes" &&
+            lot.Quantity == 1 && lot.ConditionBasisPoints == 3_000);
         Assert.DoesNotContain(repairing.Society.Inventory.Lots, lot => lot.Id.StartsWith("repair-wood", StringComparison.Ordinal));
         Assert.Contains(repairing.ExportState().Events, item => item.Kind == "tool_repaired" &&
             item.Detail == $"{actor}:{repaired.Id}:{placed.InstanceId}");

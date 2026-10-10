@@ -2,7 +2,7 @@
 title: Planned game content
 type: game-design-content
 status: active
-updated: 2026-10-04
+updated: 2026-10-08
 ---
 
 # Planned game content
@@ -100,7 +100,7 @@ are provisional. Farm planning responds to population, yield and stored reserves
 | 3.6 | Agreed | Seeds | Distinct wood-tree, orchard, universal-grain and cultivated-green seeds; potatoes are their own planting stock. Harvest replacement seeds and reserve enough to replant before selling surplus. |
 | 3.7 | Agreed | Rope | House-crafted from fiber; baskets, sacks, carts, boats and later construction. Trial recipe in the [approved pipelines](towns.md#item-and-resource-pipelines). |
 | 3.8 | Agreed | Clay / pottery | Clay bank → House-made reusable storage pot or water jug, with distinct item icons. Pots slow food spoilage within limited capacity; jugs hold fresh water. |
-| 3.9 | Agreed | Hide / leather / wool | **Late-development** animal products: naturally deceased livestock provide hides, Tailor Shop processes leather; sheep are sheared for wool. No starting livestock is implied. |
+| 3.9 | Agreed | Hide / leather / wool | Naturally deceased livestock provide hides; the Tailor Shop processes leather and sheep are sheared for wool under the [approved animal pipeline](towns.md#animal-pipeline). No starting livestock is supplied. |
 | 3.10 | Agreed | Fresh water | Collect from rivers/lakes into a reusable jug, carry to cooking, medicine-making or animal care. No remote water supply. |
 | 3.11 | Agreed | Paper | Fiber and water → paper for physical maps, records and books containing actually learned knowledge. |
 
@@ -133,6 +133,10 @@ last axe is lost. Without a Blacksmith, a household can make
 [crude wooden tools](towns.md#tools-clothing-and-transport) at its House. The
 Workshop is not required at start.
 
+Leather sacks (32 carried cargo units) and horse saddles are also agreed by the
+[October 6 animal pipeline](towns.md#animal-pipeline); their recipes and animal
+permissions are recorded there.
+
 ## 5. Food, cooking, and care
 
 | # | Status | Carryable item / visual | Source and role |
@@ -143,7 +147,7 @@ Workshop is not required at start.
 | 5.4 | Agreed | Simple cooked meal | House-cooked potatoes, wild greens or cultivated greens with wood fuel; one specific meal item with a generic icon. |
 | 5.5 | Agreed | Porridge; bread; vegetable stew | Grain/water/fuel porridge; flour/water/fuel bread; potato/cultivated-greens/water/fuel stew. House or Restaurant; quantities and nutrition are provisional in the [approved pipelines](towns.md#item-and-resource-pipelines). |
 | 5.6 | Agreed | Restaurant meal | Bread, cultivated greens and wood fuel at the Restaurant give better nourishment and variety; sold from actual on-site stock. |
-| 5.7 | Agreed | Milk; eggs | Products of accepted cows/chickens, **late-development** with livestock. No meat or hunting loop is assumed. |
+| 5.7 | Agreed | Milk; eggs | Physical cow/chicken products under the [approved animal pipeline](towns.md#animal-pipeline): milk in reusable jugs, cooked egg portions, milk porridge and rich Restaurant meals. No meat or hunting. |
 | 5.8 | Agreed | Bandage; medicine | Cut cloth into bandages at a House/Tailor Shop; Clinic turns medicinal herbs, water and fuel into medicine. **October 2 staging:** make, store and trade bandages now; injury causes and bandage treatment wait for the injury stage. Medicine supports gradual illness recovery with physically present supplies, without instant full-health restoration. |
 | 5.9 | Agreed | Medicinal herbs | Gather from a wild herb patch, carry to a Clinic and make medicine. |
 
@@ -169,14 +173,15 @@ and an inspection-panel identity/icon. There are **no room-interior assets**.
 | 6.7 | Agreed | Blacksmith: 1×2 or 2×2 | Guaranteed first-Town building, held by a household. Household-held, **not communal**: any adult resident of the holding household may use it. Refines ore and makes tools; sells tools and accepts tool-making requests **at the Blacksmith** with on-site stock—no separate Store needed. It may also sell spare refined iron. |
 | 6.8 | Agreed | Tailor Shop: 1×1 or 2×2 | Household-held clothing business. It turns plant fiber into cloth and cloth into clothing; cloth is a real tradable item (see 3.5). A Tailor Shop household may build an optional Store. It replaces the Weaving frame and its "Woven clothing" outright, with no legacy transition. Recipe numbers, costs and work time are **Leaning toward**: provisional, tuned in playtests. The holding household sells clothing directly from the building and does not need a Store. Any tool recipes remain open. |
 | 6.9 | Agreed | Workshop: 2×2 | Inventions/mods and work access for outsiders; communal, held by the Town. **Late-development mechanics/code**, after the base simulation and assets are fuller. Not guaranteed at the start. The one shared building a household may plan; the Town holds it once built. |
-| 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. The Market building is a hall without stalls; stalls stand on an open plaza of packed earth around it, and the market need not be as large as the earlier approximately 10×12 plot (October 1 art review). Sellers may use any empty stall until they leave, without Town assignment (see [physical trade rules](towns.md#physical-trade-and-production-safeguards)). The Town owns the stalls: a new Market comes with a starter set, and the Town builds more on the plaza when sellers need them, using Town materials (see [Towns](towns.md#agreed-content-and-building-sizes)). Plot reservation and how the plaza grows remain open. Trading admits any Town's agents. |
+| 6.10 | Agreed | Market: 2×2; stalls: 1×1 | Main building plus separate stall assets. The Market building is a hall without stalls; stalls stand on an open plaza of packed earth around it, and the market need not be as large as the earlier approximately 10×12 plot (October 1 art review). Sellers may use any empty stall until they leave, without Town assignment (see [physical trade rules](towns.md#physical-trade-and-production-safeguards)). The Town owns the stalls: a new Market comes with a starter set, and the Town builds more on the plaza when sellers need them, using Town materials (see [Towns](towns.md#agreed-content-and-building-sizes)). **Agreed on October 8 ([#1274](https://github.com/compoodment/ClankerWorld/issues/1274)):** the plaza does not grow beyond 7×4 and eight stalls; a Town that needs more builds a second Market. Plot reservation remains open. Trading admits any Town's agents. |
 | 6.11 | Agreed | Town Hall: 3×4 | Civic governance, laws and elections. |
 | 6.12 | Agreed | Port: 2×4, four rotations | One tile of its four-tile length on land, three over water; **six adjacent water docking tiles**, one per water row on each long side, stay clear of construction. Up to **six boats** moor there, three per side. A legal land approach is required; see the [October 4 docking and queue decision](world.md#first-boat-and-port-travel). |
 | 6.13 | Agreed | Restaurant: 1×2 or 2×2 | Optional agent-founded food business with on-site ingredients and meals; no required starter Restaurant. |
 | 6.14 | Agreed | Clinic / healer's shop: 1×1 or 1×2 | Household-held care stock; the first Clinic is 1×2. Patients buy supplies or accepted caregivers deliver them; medicine consumes a real dose and supports gradual illness recovery. Bandage treatment is deferred. Quantities and recovery rates are provisional; see [Clinic supplies and illness care](towns.md#clinic-supplies-and-illness-care) and [current availability](../what-works.md#life-work-and-society). |
 | 6.15 | Agreed | Road | **One** road type; straight, corner, junction, end, diagonal and connection pieces as needed for readable automatic routes. Packed dirt with worn, feathered edges and pebbles; rounded bends; a doorstep path to each building's entrance, which may face any side ([road review](towns.md#how-roads-and-bridges-appear)). Roads remain after their building or Town disappears. Roads cost no materials. |
 | 6.16 | Agreed | Bridge | Narrow river crossing sprite(s) for a river up to **two tiles wide**; wider water is not bridged. Generated from traffic **or immediately as part of a generated Road** crossing a bridgeable river, never hand-painted by player. Costs no materials. Whether a bridge is redundant compares the actual connected banks, with no fixed radius; separate nearby streams may each need a bridge. |
-| 6.17 | Agreed | Street lantern | Built by agents beside Roads; **no fuel**, lit from dusk to dawn. Two designs: a round stone lamp with an open flame and a hanging lantern on a roadside post with an arm over the Road. Built as a Council-approved shared Town project; trial costs stone for the lamp, wood and a little refined iron for the hanging lantern ([Towns](towns.md#shared-town-projects)). |
+| 6.18 | Agreed | Animal yard: 2×2, 2×4 | Household outdoor yard for four/eight animals; sixteen cargo units of delivered supplies. Ordinary permitted land and physical care; [October 6 animal decision](towns.md#animal-pipeline). |
+| 6.17 | Agreed | Street lantern | Built by agents beside Roads; **no fuel**, lit from dusk to dawn. In an abandoned Town it stays dark until the Town is resettled (owner, October 7). Two designs: a round stone lamp with an open flame and a hanging lantern on a roadside post with an arm over the Road. Built as a Council-approved shared Town project; trial costs stone for the lamp, wood and a little refined iron for the hanging lantern ([Towns](towns.md#shared-town-projects)). |
 
 Port footprint interpretation, shown in one of its four orientations (`P` is
 part of the 2×4 Port, `·` is clear docking water beside it):
@@ -205,9 +210,9 @@ alternatives are not fixed by this roster.
 | 7.1 | Agreed | Agent sprites | **Straight top-down**, showing the tops of heads/bodies/objects; infant, child, adult and elder silhouettes and a few appearance variants per stage without genders. Directional walking, working, carrying, talking, eating/cooking and hurt states as needed. Worn clothing does not alter the sprite; worn-armor display is open. No sleep cycle. Exact frames open. |
 | 7.2 | Agreed | Social indicators | Chat bubble, selected/hover state, household/Town affiliation and conversation popup. Family lines, partnerships and deceased profiles belong in the family-tree UI, not automatically on the ground sprite. |
 | 7.3 | Agreed | Boat | Wood, rope and iron fittings, crafted at a Port; one agent and their carried cargo. Communal Town property; journeys need two completed Ports and follow the [agreed queue, reservation and blocked-destination recovery rules](world.md#first-boat-and-port-travel). Visitors may use a boat when the Town Council votes to allow it or a standing Town law grants it. Quantities and speed are provisional. |
-| 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry art/mechanics are **late-development**. No hostile predators. Animals face eight directions like agents. |
-| 7.5 | Agreed | Mount | **Horse** with rider/cargo states; riding and care mechanics are **late-development**. Horses face eight directions like agents. |
-| 7.6 | Agreed | Weapon | Axe also works as a tool; wood-and-iron **spear and simple sword** are Blacksmith-made equipment with wear, repair and replacement. Detailed combat and lethality remain open. |
+| 7.4 | Agreed | Livestock | **Chicken (eggs), sheep (wool), cow (milk)**; husbandry follows the [October 6 approved pipeline](towns.md#animal-pipeline). No hostile predators. Animals face eight directions like agents. |
+| 7.5 | Agreed | Mount | **Horse** with rider/cargo states; a cared-for saddled adult horse carries one adult rider at twice walking speed and eight extra cargo units under the [approved pipeline](towns.md#animal-pipeline). Horses face eight directions like agents. |
+| 7.6 | Agreed | Weapon | Axe also works as a tool; wood-and-iron **spear and simple sword** are Blacksmith-made equipment with wear, repair and replacement. How fights, injuries and death work was agreed on October 8 in [Combat](agents-and-families.md#combat) ([#1267](https://github.com/compoodment/ClankerWorld/issues/1267)); detailed combat and lethality balance remain open. |
 | 7.7 | Agreed | Protection | **Shield and basic armor**, made at the Blacksmith from wood, cloth and iron, equip for protection and need repair/replacement. Item art and effects are accepted; worn-map appearance and later armor-art generation remain open. |
 | 7.8 | Agreed | Injury and recovery | Hurt/treated indicators; cloth bandages and herb/water/fuel medicine. **October 2 staging:** injury causes and bandage treatment are deferred; medicine supports existing illness. No hostile predators. Recovery rates remain to be tuned. |
 
@@ -221,9 +226,9 @@ and war; it is not a reason to add hostile wildlife by default.
 | --- | --- | --- | --- |
 | 8.1 | Agreed | Map; written record; book | Carryable/readable knowledge goods to record discoveries and trade knowledge. Three icons; contents and who actually knows them are data, not art. |
 | 8.2 | Agreed | Law and property record | **Mostly data/gameplay**: inspectable Town law, claim, ownership, agreement and inheritance/will screens. Reuse document UI where useful; separate physical item art is not required for each. |
-| 8.3 | Agreed | Currency design | A coin/token/note visual family for **agent-created currencies**. No universal starting money or preselected gold standard. |
-| 8.4 | Agreed | Agent invention/mod package | **Late-development** mechanics/art: icon/thumbnail, author, validation/failed/active state, dependency/rights info; world and personal-library views. Exact package/art workflow is deferred until the base simulation and asset set are fuller. |
-| 8.5 | Still to decide | Generic invention-art fallback | Whether/how a mechanically valid invention receives a placeholder silhouette when final art is unavailable is **deferred to late invention development**; no particular fallback sprite is approved yet. |
+| 8.3 | Agreed | Currency design | A coin/token/note visual family for **agent-created currencies**. No universal starting money or preselected gold standard. **Agreed on October 8 ([#1256](https://github.com/compoodment/ClankerWorld/issues/1256)):** a Town currency is minted from real metal once its Council approves it, and its coins are physical goods ([Towns](towns.md#physical-trade-and-production-safeguards)). |
+| 8.4 | Agreed | Agent invention/mod package | **Late-development** mechanics/art: icon/thumbnail, author, validation/failed/active state, dependency/rights info; world and personal-library views. The package format and invention pictures were agreed on October 8 in [Inventions and mods](inventions-and-mods.md#inventions-mods-and-technology); building them waits until the base simulation and asset set are fuller. |
+| 8.5 | Agreed | Generic invention-art fallback | **Agreed on October 8 ([#1270](https://github.com/compoodment/ClankerWorld/issues/1270)):** when an invention's picture can't be built from approved code-drawn parts, it shows a **plain code-drawn placeholder**, so a working invention is never blocked by its art. Late-development work. |
 
 The base roster is finite; **agent inventions are intentionally not enumerable**.
 They may add buildings, tools, crops, machines, art, laws, currencies and more,
@@ -241,7 +246,7 @@ list as a cap on invention, or fabricate every possible invented sprite now.
 | 9.5 | Agreed | Economy/work | Item icons used consistently in inventories, stock panels, farm/work progress, Store/Market/Restaurant trade, and offers. Actual physical location and ownership must be visible. |
 | 9.6 | Agreed | Events and conversation | Event Log location markers, chat bubble, conversation summary/full view, decisions, law/election and invention notices inside their relevant panels. No optional out-of-view pop-up notice system. |
 | 9.7 | Agreed | Pause, settings, save, mods | Compact Pause Menu: Save World, Settings, Mod Library, **Quit to Menu last**; no Quit Game there. Game/World Settings, confirmation dialogs, save compatibility, AI-usage meter/limit and mod states. |
-| 9.8 | Agreed | Typography and common UI kit | One readable pixel-compatible font system, panel frames, 9-slice pieces, buttons, focus/disabled/error states, tooltips, scrollbars and icon legend. The Timber & Parchment look with Light and Dark themes, and its pixel fonts (Fusion Pixel 12px for text, Timber for headings), are agreed in [Interface and art](interface-and-art.md); the exact icon set and remaining accessibility treatment are open. |
+| 9.8 | Agreed | Typography and common UI kit | One readable pixel-compatible font system, panel frames, 9-slice pieces, buttons, focus/disabled/error states, tooltips, scrollbars and icon legend. The Timber & Parchment look with Light and Dark themes, and its pixel fonts (Fusion Pixel 12px for text, Timber for headings), are agreed in [Interface and art](interface-and-art.md), as is the October 8 accessibility baseline ([#1253](https://github.com/compoodment/ClankerWorld/issues/1253)); the rest of the icon set is chosen in the ordinary art reviews. |
 
 All important information remains readable in **text**. Generated voice,
 music, ambient sound and sound effects are **outside the first complete game's
@@ -261,9 +266,11 @@ scope**; this roster therefore has no audio production list.
 - **Scale/style:** 32×32 logical ground tiles, art drawn in code and a **straight
   top-down** view are the decided direction (see the
   [pixel-art style guide](../development/art-style.md)); trees and multi-tile buildings can
-  span anchored transparent images. Palette, character sprite size, animation
-  count and a reference scene remain open. Isometric is only a possible future
-  visual experiment, not the production target.
+  span anchored transparent images. The October 1 art review settled the
+  palette, character sprite size and animation frames, and the style guide and
+  its art reviews serve as the reference instead of a separate reference scene.
+  Isometric is only a possible future visual experiment, not the production
+  target.
 - **UI/icon parity:** an asset's name, icon and inspectable facts should refer
   to the same actual item or object. Pixel art does not make a fixture-only
   capability playable.
@@ -276,10 +283,16 @@ Food, crops, pottery, water, rope, tools, carry aids and care supplies no longer
 wait on a first recipe proposal. Medicinal herbs, paper, hides and ornaments
 are also agreed additions.
 
-Still open: Market plot reservation
-and how the plaza grows; currency and
-governance rules; detailed animal breeding/mortality, injury and combat rules;
-and late-development invention/mod art generation and fallback. Recipe
+Still open: Market plot reservation; the rest of the governance rules; and
+detailed combat, including the exact injury states. Agreed on October 8:
+[taxes](towns.md#town-law-scope-and-changes)
+([#1255](https://github.com/compoodment/ClankerWorld/issues/1255)),
+[currency](towns.md#physical-trade-and-production-safeguards)
+([#1256](https://github.com/compoodment/ClankerWorld/issues/1256)), how
+[fights and injuries](agents-and-families.md#combat) work
+([#1267](https://github.com/compoodment/ClankerWorld/issues/1267)) and
+[invention pictures and their placeholder](inventions-and-mods.md#inventions-mods-and-technology)
+([#1270](https://github.com/compoodment/ClankerWorld/issues/1270)). Recipe
 quantities, yields, work times, storage capacities, spoilage, wear and recovery
 effects are provisional playtest balance.
 

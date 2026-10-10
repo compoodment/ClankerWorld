@@ -123,10 +123,12 @@ public sealed partial class PrivateWorldConversationTests
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)),
             id => id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
         world.Resume();
+        using var resumeDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        // Await both fresh resume decisions before spending lesson ticks. The
+        // other participant may keep teaching while a hosted reply is pending.
         for (var tick = 0; tick < 30 && world.Conversations.Single().Status != AgentConversationStatus.AwaitingSpeaker; tick++)
         {
-            _ = await world.AdvanceOneTickNonBlockingAsync();
-            await Task.Delay(2);
+            Assert.True((await world.AdvanceOneTickAsync(resumeDeadline.Token)).Advanced);
         }
         Assert.Equal(AgentConversationStatus.AwaitingSpeaker, world.Conversations.Single().Status);
         var progress = world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Progress;

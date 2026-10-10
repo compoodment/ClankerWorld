@@ -436,6 +436,12 @@ public sealed partial class PrivateWorldRuntimeTests
             var scout = state.Inhabitants.Single(person => person.InhabitantId == "founder-scout");
             var path = scout.Exploration!.OutingPath;
             Assert.All(path.Zip(path.Skip(1)), edge => Assert.True(state.Map.CanFootStep(edge.First, edge.Second)));
+            if (!scout.Exploration.Returning && path.Count > 8 && !provider.ReturnRequested)
+            {
+                provider.ReturnRequested = true;
+                world.SubmitInstruction(new OwnerInstructionRequest("return-after-interruption", "owner:test",
+                    "founder-scout", OwnerInstructionKind.Suggestive, "Please return after your scouting trip."));
+            }
         }
         Assert.Contains(world.ExportState().Events, item => item.Kind == "exploration_aborted" &&
             item.Detail == "founder-scout:interrupted_movement");
@@ -444,6 +450,7 @@ public sealed partial class PrivateWorldRuntimeTests
 
     private sealed class ExplorationSelectingProvider(string targetId) : IDecisionProvider
     {
+        public bool ReturnRequested { get; set; }
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public int CallCount { get; private set; }
@@ -456,7 +463,7 @@ public sealed partial class PrivateWorldRuntimeTests
             CallCount++;
             var options = request.Observation.Candidates;
             var selected = request.Observation.InhabitantId == targetId
-                ? options.FirstOrDefault(option => option.Id == "explore")
+                ? options.FirstOrDefault(option => option.Id == (ReturnRequested ? "explore_return" : "explore"))
                 : null;
             selected ??= options.FirstOrDefault(option => option.Id == "safe_idle") ?? options[0];
             return ValueTask.FromResult(new CognitionDecisionResponse(

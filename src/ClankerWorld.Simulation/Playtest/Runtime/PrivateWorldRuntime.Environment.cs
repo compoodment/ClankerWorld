@@ -62,12 +62,9 @@ public sealed partial class PrivateWorldRuntime
                 new FactionStanding("founder-rowan", "camp-alpha", 0),
                 new FactionStanding("founder-ilya", "camp-alpha", 0),
             ],
-            [new LawRule("camp-no-theft", "camp-alpha", LawActionKind.Theft, LawSeverity.Major, 500, 25)],
+            [],
             []);
-        var currency = new CurrencyState(
-            [new CurrencyDefinition("copper", "Copper", "cp")],
-            [new CurrencyAccount("camp-wallet", HouseholdId, "copper", 100)],
-            []);
+        var currency = new CurrencyState([], [], []);
         var chunkSize = map.Width > ChunkRules.DefaultChunkSize || map.Height > ChunkRules.DefaultChunkSize
             ? GeographyGenerator.ChunkSize : ChunkRules.DefaultChunkSize;
         var chunks = new List<ChunkManifest>();
@@ -127,6 +124,7 @@ public sealed partial class PrivateWorldRuntime
 
     private static SocietyWorldRuntime CreateSociety(
         string worldSeed,
+        string worldId,
         Func<string, IDecisionProvider>? providerFactory,
         int maxCognitionQueueLength,
         int maxCognitionDispatchPerCycle,
@@ -143,7 +141,7 @@ public sealed partial class PrivateWorldRuntime
         };
         var initialFounders = startPace == WorldStartPace.FounderSetup ? [] : founders;
         var checkpoint = SocietyFixture.CreateGenesis(
-            worldSeed,
+            worldId,
             initialFounders,
             [
                 new InventoryLot(FoodLotId, "food", HouseholdId, 32, 10_000, 10_000, 0),
@@ -283,6 +281,7 @@ public sealed partial class PrivateWorldRuntime
                 inhabitants[id] with
                 {
                     MedicalTreatment = null,
+                    MedicalSupplyTrip = null,
                     GuardianPlacement = null,
                     Equipment = inhabitants[id].Equipment is { } equipment
                         ? equipment with { OrnamentLotId = null } : null,

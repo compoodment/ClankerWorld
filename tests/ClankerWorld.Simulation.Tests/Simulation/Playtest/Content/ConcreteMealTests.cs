@@ -9,7 +9,7 @@ using System.Collections.Concurrent;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class ConcreteMealTests
+public sealed partial class ConcreteMealTests
 {
     [Theory]
     [InlineData("house-meal", "simple_meal", false)]
@@ -511,7 +511,7 @@ public sealed class ConcreteMealTests
     }
 
     private static (PrivateWorldRuntimeState State, string Actor, string Household, PlacedBuilding Site,
-        RecipeDefinition Recipe) Prepared(string localId, bool restaurant)
+        RecipeDefinition Recipe) Prepared(string localId, bool restaurant, string restaurantLocalId = "restaurant-1x2")
     {
         using var setup = NormalPathWorld.CreateGenerated("concrete-meal-" + localId, _ => new Chooser());
         var state = setup.ExportState();
@@ -520,10 +520,11 @@ public sealed class ConcreteMealTests
         var site = setup.WorldSimulation.Buildings.Single(building => building.InstanceId == "first-town-house-a");
         if (restaurant)
         {
-            var definition = setup.WorldContent.Buildings.Single(building => building.LocalId == "restaurant-1x2");
-            var buildingStock = InventoryFixture.AddLot(state.Society.Society.Inventory,
-                "restaurant-build-wood", "wood", household, 8);
-            buildingStock = InventoryFixture.AddLot(buildingStock, "restaurant-build-stone", "stone", household, 2);
+            var definition = setup.WorldContent.Buildings.Single(building => building.LocalId == restaurantLocalId);
+            var buildingStock = state.Society.Society.Inventory;
+            foreach (var cost in definition.BuildCosts)
+                buildingStock = InventoryFixture.AddLot(buildingStock, "restaurant-build-" + cost.ResourceId,
+                    cost.ResourceId, household, cost.Amount);
             using var placementWorld = Restore(FarmFieldTests.WithInventory(state, buildingStock));
             var housePosition = site.Position;
             var placed = state.Map.Tiles.Select(tile => tile.Position)

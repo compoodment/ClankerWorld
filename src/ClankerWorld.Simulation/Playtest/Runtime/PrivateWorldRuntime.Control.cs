@@ -126,6 +126,9 @@ public sealed partial class PrivateWorldRuntime
                 CancelProductionForOrder(instruction);
                 CancelConstructionForOrder(instruction);
                 CancelExpansionForOrder(instruction);
+                CancelAnimalSupplyForOrder(instruction);
+                CancelBoatTravelForOrder(instruction);
+                CancelKnowledgeWritingForOrder(instruction);
                 status = "cancelled";
                 AppendEvent("instruction_order_cancelled", $"{instruction.TargetInhabitantId}:{instruction.InstructionId}:owner");
             }
@@ -161,26 +164,32 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    public bool SetJevEnabled(bool enabled)
+    public bool SetJevEnabled(bool enabled) => SetRoutineHelper(enabled ? RoutineHelperSettings.Jev : RoutineHelperSettings.Off);
+
+    public bool SetRoutineHelper(RoutineHelperSettings settings, string? expectedWorldId = null)
     {
+        ArgumentNullException.ThrowIfNull(settings);
+        settings.Validate();
         gate.Wait();
         try
         {
+            if (expectedWorldId is not null && expectedWorldId != society.Checkpoint.WorldId)
+                throw new InvalidOperationException("The active world changed. Open World Settings again.");
             if (!society.Checkpoint.IsPaused)
-                throw new InvalidOperationException("Pause the world before changing Jev assistance.");
-            if (jevEnabled == enabled) return false;
+                throw new InvalidOperationException("Pause the world before changing the routine helper.");
+            // The first explicit selection activates helper routing even when
+            // its values match the untouched installation-compatible defaults.
+            if (routineHelper == settings && jevPolicyRevision > 0) return false;
             foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
             foreach (var id in pendingWills.Keys.ToArray()) CancelPendingWill(id);
-            jevEnabled = enabled;
+            routineHelper = settings;
+            jevEnabled = settings.Provider != "off";
             jevPolicyRevision = checked(jevPolicyRevision + 1);
             checkpointSchemaVersion = StateSchemaVersion;
-            AppendEvent("jev_assistance_changed", enabled ? "enabled" : "disabled");
+            AppendEvent("routine_helper_changed", $"{settings.Provider}:{settings.Model}");
             return true;
         }
-        finally
-        {
-            gate.Release();
-        }
+        finally { gate.Release(); }
     }
 
     // Provider startup and synchronous cancellation completions can reserve or
@@ -225,12 +234,15 @@ public sealed partial class PrivateWorldRuntime
     /// Pauses like <see cref="Pause"/>, but returns false without pausing if
     /// the runtime stays busy for <paramref name="wait"/> or this thread is
     /// invoking a provider or its cancellation callbacks under the runtime gate.
+    /// An optional condition is checked after acquiring the runtime gate. A
+    /// condition that no longer applies completes successfully without pausing.
     /// </summary>
-    public bool TryPause(TimeSpan wait)
+    public bool TryPause(TimeSpan wait, Func<bool>? shouldPause = null)
     {
         if (IsInvokingProviderUnderGateOnThisThread || !gate.Wait(wait)) return false;
         try
         {
+            if (shouldPause is not null && !shouldPause()) return true;
             PauseCore();
             return true;
         }
@@ -332,6 +344,9 @@ public sealed partial class PrivateWorldRuntime
             CancelProductionForOrder(instruction);
             CancelConstructionForOrder(instruction);
             CancelExpansionForOrder(instruction);
+            CancelAnimalSupplyForOrder(instruction);
+            CancelBoatTravelForOrder(instruction);
+            CancelKnowledgeWritingForOrder(instruction);
             AppendEvent("instruction_order_cancelled", $"{inhabitantId}:{instruction.InstructionId}:replaced");
         }
         checkpointSchemaVersion = StateSchemaVersion;
@@ -383,15 +398,32 @@ public sealed partial class PrivateWorldRuntime
 
     private static string? UnderstoodTaskFor(string? candidate) => candidate switch
     {
+        "load_handcart" => "load the requested loose goods into the selected owned handcart",
+        "unload_handcart" or "unload_handcart_ground" => "unload the requested cargo from the selected owned handcart",
+        "talk_to" => TalkOrderTask,
+        "propose_marriage" => MarriageOrderTask,
+        "attach_handcart" => "reach and attach the selected owned handcart",
+        "park_handcart" => "park the selected attached handcart here with its cargo intact",
+        "repair_handcart" => "repair the selected owned handcart with real carried supplies",
+        "animal_care" => "care for the named animal with real feed and jug water",
+        "animal_collect" => "collect the named animal's ready products locally",
+        "animal_tame" => "tame the named wild animal for your household",
+        "animal_lead_home" => "lead the named animal to its household yard",
+        "animal_saddle" => "fit a real household saddle on the named horse",
+        "animal_mount" => "mount the named cared-for horse with permission",
+        "animal_dismount" => "dismount the named horse and leave excess cargo here",
         "seek_shelter" => "reach the requested permitted shelter",
         "tend_fire" => "light one permitted hearth using your own wood",
+        "read_knowledge" => KnowledgeReadOrderTask,
         "consume_food" => "eat one carried food item",
         "move_to" => "travel to the exact tile named in this order",
+        "travel_by_boat" => "travel by communal boat to the exact Port named in this order",
         "seek_food" => "travel within gathering range of an available food source",
         "harvest_food" => "gather several food servings from a nearby food source",
         "gather_material" => "gather the requested material from a natural source",
         "till_field" => "till a field for your household",
         "plant_field" => "plant the requested crop in your household field",
+        "plant_tree" or "plant_broadleaf" or "plant_conifer" or "plant_orchard" => "plant the requested tree using a real seed outside Town borders",
         "tend_field" => "tend your household crop",
         "harvest_field" => "harvest your household crop",
         "repair_tool" => "repair your own worn tool",
@@ -407,6 +439,8 @@ public sealed partial class PrivateWorldRuntime
         "return_borrowed" => "return borrowed goods to their owning household's House",
         "deliver_stock" => "deliver the requested goods to a permitted building",
         "produce_item" => "make the requested goods at a permitted workstation",
+        "write_knowledge" => "write the requested record, map or book from your learned sites using real materials",
+        "copy_knowledge" => "copy the requested held record, map or book using real materials and sites you know",
         "construct_building" => "construct the requested household building at a permitted site",
         "expand_building" => "complete the requested building's next permitted expansion",
         _ => null,
@@ -414,9 +448,10 @@ public sealed partial class PrivateWorldRuntime
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
-        return ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
+        return ParseMarriageOrder(text, actor) ?? ParseKnowledgeReadOrder(text) ?? ParseTalkOrder(text, actor) ?? ParseCartCargoOrder(text, actor) ?? ParseCartOrder(text, actor) ?? ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
             PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent),
-            PrivateWorldBuildingOrderCatalog.Available(worldContent));
+            PrivateWorldBuildingOrderCatalog.Available(worldContent),
+            worldSimulation.Buildings.Where(port => Port(port.InstanceId) is not null).ToArray());
     }
 
     // A direct order that names no action the game can carry out is closed
@@ -462,9 +497,11 @@ public sealed partial class PrivateWorldRuntime
         ArgumentException.ThrowIfNullOrWhiteSpace(request.TargetInhabitantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OrderId);
         foreach (var value in new[] { request.IdempotencyKey, request.IssuerId, request.WorldId,
-                     request.TargetInhabitantId, request.OrderId })
+                     request.OrderId })
             if (value.Trim().Length > 128 || value.Any(char.IsControl))
                 throw new ArgumentOutOfRangeException(nameof(request), "Order cancellation identities must be bounded and contain no control characters.");
+        if (request.TargetInhabitantId.Any(char.IsControl))
+            throw new ArgumentOutOfRangeException(nameof(request), "Order cancellation target must contain no control characters.");
     }
 
     // Refuse everything a save would refuse before the request touches live

@@ -1,0 +1,77 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text.Json;
+using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Playtest;
+
+var results = new List<object>();
+foreach (var name in new[] { "4-96", "16-96", "16-384" })
+foreach (var personal in new[] { false, true })
+{
+    var bytes = File.ReadAllBytes(Path.Combine(args[0], "start-" + name + ".json"));
+    var state = PrivateWorldRuntimeCodec.Decode(bytes);
+    using (var warm = PrivateWorldRuntime.Restore(state, _ => new Recorder(personal)))
+    {
+        warm.Resume();
+        for (var i = 0; i < 4; i++) await warm.AdvanceOneTickAsync();
+    }
+    var recorder = new Recorder(personal);
+    using var world = PrivateWorldRuntime.Restore(state, _ => recorder);
+    world.Validate();
+    world.Resume();
+    var tickTimes = new List<double>();
+    var wallTimes = new List<double>();
+    var admissions = new List<object>();
+    var fallbacks = 0;
+    for (var i = 0; i < 64; i++)
+    {
+        var timer = Stopwatch.StartNew();
+        var step = await world.AdvanceOneTickAsync();
+        timer.Stop();
+        if (!step.Advanced) throw new InvalidOperationException(step.Outcome.ToString());
+        wallTimes.Add(timer.Elapsed.TotalMilliseconds);
+        tickTimes.Add(world.ExportStateWithDiagnostics().Diagnostics.LastTickMilliseconds!.Value);
+        foreach (var decision in step.Decisions)
+        {
+            if (decision.Admission.FellBack) fallbacks++;
+            admissions.Add(new { Tick = world.WorldTick, decision.Admission });
+        }
+    }
+    world.Validate();
+    var final = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+    using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(final), _ => new Recorder(personal));
+    restored.Validate();
+    if (!final.AsSpan().SequenceEqual(PrivateWorldRuntimeCodec.Encode(restored.ExportState())))
+        throw new InvalidOperationException("Codec round trip differs.");
+    var prefix = args[1] + "-" + name + (personal ? "-personal" : "-builtin");
+    File.WriteAllBytes(prefix + "-final.json", final);
+    File.WriteAllText(prefix + "-requests.json", JsonSerializer.Serialize(recorder.Requests));
+    File.WriteAllText(prefix + "-admissions.json", JsonSerializer.Serialize(admissions));
+    var sorted = tickTimes.Order().ToArray();
+    var result = new {
+        Fixture = name, Personal = personal, StartTick = world.WorldTick - 64, EndTick = world.WorldTick,
+        Samples = 64, Requests = recorder.Requests.Count, Admissions = admissions.Count, Fallbacks = fallbacks,
+        MedianTickMs = sorted[31], P95TickMs = sorted[60], MaxTickMs = sorted[^1],
+        MedianWallMs = wallTimes.Order().ElementAt(31), TickMilliseconds = tickTimes, WallMilliseconds = wallTimes,
+        StartDigest = Convert.ToHexStringLower(SHA256.HashData(bytes)),
+        CandidateDigest = Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(recorder.Requests))),
+        FinalDigest = Convert.ToHexStringLower(SHA256.HashData(final)),
+    };
+    results.Add(result);
+    File.WriteAllText(args[1] + "-results.json", JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true }));
+    Console.WriteLine(JsonSerializer.Serialize(new { result.Fixture, result.Personal, result.Requests, result.Admissions, result.Fallbacks, result.MedianTickMs, result.P95TickMs, result.CandidateDigest, result.FinalDigest }));
+}
+
+sealed class Recorder(bool personal) : IDecisionProvider
+{
+    public DecisionProviderKind Kind => personal ? DecisionProviderKind.LargeLanguageModel : DecisionProviderKind.Deterministic;
+    public long ProviderEpoch => 0;
+    public List<object> Requests { get; } = [];
+    private readonly DeterministicDecisionProvider builtin = new();
+    public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+    {
+        Requests.Add(new { request.Observation.WorldTick, request.Observation.InhabitantId, request.Observation.Candidates });
+        var response = await builtin.DecideAsync(request, cancellationToken);
+        return response with { Provider = Kind };
+    }
+}

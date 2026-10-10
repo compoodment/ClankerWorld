@@ -30,6 +30,8 @@ public sealed record AgentKnowledgeWritingProject(
     IReadOnlyList<AgentKnowledgeFact> Facts, long StartedTick, long LastWorkedTick, int WorkDone,
     IReadOnlyList<AgentKnowledgeMaterial> Materials)
 {
+    [JsonRequired] public IReadOnlyList<AgentRecipeKnowledge> Recipes { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? OrderInstructionId { get; init; }
     [JsonIgnore] public IReadOnlyList<string> MaterialReservationIds => Materials.Select(item => item.ReservationId).ToArray();
     [JsonIgnore] public int WorkRequired => AgentKnowledgeRules.WritingWork(Kind);
 }
@@ -47,6 +49,8 @@ public sealed record AgentKnowledgeArtifact(
     public string? WritingProjectId { get; init; }
     public IReadOnlyList<AgentKnowledgeMaterial> Materials { get; init; } = [];
     public string? SourceArtifactId { get; init; }
+    [JsonRequired] public IReadOnlyList<AgentRecipeKnowledge> Recipes { get; init; } = [];
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? OrderInstructionId { get; init; }
     [JsonIgnore] public IReadOnlyList<string> MaterialReservationIds => Materials.Select(item => item.ReservationId).ToArray();
 }
 
@@ -56,16 +60,19 @@ public sealed record PrivateWorldKnowledgeState(
     IReadOnlyList<AgentKnowledgeArtifact> Artifacts)
 {
     [JsonRequired] public IReadOnlyList<AgentKnowledgeWritingProject> WritingProjects { get; init; } = [];
+    [JsonRequired] public IReadOnlyList<AgentKnowledgeFact> EarlierFacts { get; init; } = [];
+    [JsonRequired] public IReadOnlyList<AgentRecipeKnowledge> Recipes { get; init; } = [];
     public static PrivateWorldKnowledgeState Empty { get; } = new([], []);
 }
 
-internal static class AgentKnowledgeRules
+internal static partial class AgentKnowledgeRules
 {
     public const int MaximumFactsPerAgent = 128;
     public const int MaximumArtifactsPerCreator = 8;
     public const int MaximumArtifactsInWorld = 512;
     public const int MaximumFactsPerArtifact = 9;
     public const int MaximumResourceKindsPerFact = 4;
+    public const int MaximumEarlierFactsPerAgent = MaximumFactsPerArtifact * (MaximumArtifactsPerCreator + 1);
 
     public static bool IsArtifactKind(string kind) => kind is "field_record" or "field_map" or "book";
     public static int WritingWork(string kind) => kind switch { "field_record" => 4, "field_map" => 6, "book" => 12, _ => 0 };
@@ -76,10 +83,11 @@ internal static class AgentKnowledgeRules
     public static void Validate(PrivateWorldKnowledgeState knowledge, SeededMap map,
         SocietyCheckpoint society, long worldTick)
     {
-        if (knowledge.Facts is null || knowledge.Artifacts is null || knowledge.WritingProjects is null ||
+        if (knowledge.Facts is null || knowledge.Artifacts is null || knowledge.WritingProjects is null || knowledge.EarlierFacts is null || knowledge.Recipes is null ||
             knowledge.Facts.Any(item => item is null) || knowledge.Artifacts.Any(item => item is null) ||
-            knowledge.WritingProjects.Any(item => item is null) ||
-            knowledge.Artifacts.Any(item => !ValidText(item.Id, 128) || item.Facts is null || item.Facts.Any(fact => fact is null)))
+            knowledge.EarlierFacts.Any(item => item is null) ||
+            knowledge.WritingProjects.Any(item => item is null || item.Recipes is null || item.Recipes.Any(recipe => recipe is null)) ||
+            knowledge.Artifacts.Any(item => !ValidText(item.Id, 128) || item.Facts is null || item.Facts.Any(fact => fact is null) || item.Recipes is null || item.Recipes.Any(recipe => recipe is null)))
             throw new InvalidDataException("The agent knowledge collections are missing or contain null records.");
         var agents = society.Inhabitants.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
         if (knowledge.Facts.Count > checked(agents.Count * MaximumFactsPerAgent) ||
@@ -97,6 +105,22 @@ internal static class AgentKnowledgeRules
         foreach (var fact in knowledge.Facts)
             if (!ValidFact(fact, worldTick))
                 throw new InvalidDataException("The agent map-knowledge ledger contains an invalid fact or provenance.");
+        if (knowledge.EarlierFacts.Count > 0)
+        {
+            var earlierKeys = knowledge.EarlierFacts.Select(FactVersionKey).ToHashSet();
+            var liveKeys = knowledge.Facts.Select(FactVersionKey).ToHashSet();
+            var references = FactReferencesFor(knowledge);
+            var currentSites = knowledge.Facts.ToDictionary(fact => (fact.OwnerId, fact.Position));
+            if (knowledge.EarlierFacts.Count > checked(agents.Count * MaximumEarlierFactsPerAgent) ||
+                knowledge.EarlierFacts.GroupBy(fact => fact.OwnerId).Any(group => group.Count() > MaximumEarlierFactsPerAgent) ||
+                earlierKeys.Count != knowledge.EarlierFacts.Count || knowledge.EarlierFacts.Any(fact =>
+                    !ValidFact(fact, worldTick) || !currentSites.TryGetValue((fact.OwnerId, fact.Position), out var current) ||
+                    current.Id != fact.Id || current.LearnedTick < fact.LearnedTick ||
+                    liveKeys.Contains(FactVersionKey(fact)) || !references.Contains(fact)))
+                throw new InvalidDataException("Earlier knowledge must be bounded, distinct and retained only for an existing written snapshot.");
+        }
+        var recordedFacts = knowledge.EarlierFacts.Count == 0 ? knowledge.Facts
+            : knowledge.Facts.Concat(knowledge.EarlierFacts).ToArray();
         var usedReservations = new HashSet<string>(StringComparer.Ordinal);
         var usedProjects = new HashSet<string>(StringComparer.Ordinal);
         foreach (var artifact in knowledge.Artifacts)
@@ -107,7 +131,8 @@ internal static class AgentKnowledgeRules
                 artifact.CreatedTick < 0 || artifact.CreatedTick > worldTick ||
                 lot is null || lot.ItemKind != artifact.Kind || lot.Quantity != 1 ||
                 !ValidFacts(artifact.Facts, artifact.CreatorId, artifact.CreatedTick, artifact.SourceArtifactId) ||
-                artifact.Kind == "field_record" && artifact.Facts.Count != 1 ||
+                artifact.Facts.Count + artifact.Recipes.Count == 0 ||
+                artifact.Kind == "field_record" && artifact.Facts.Count > 1 ||
                 !ValidSource(artifact.SourceArtifactId, artifact.Kind, artifact.Facts, artifact.CreatedTick) ||
                 !ValidateMaterials(artifact.WritingProjectId, artifact.CreatorId, artifact.Kind, artifact.Materials, completed: true))
                 throw new InvalidDataException("An agent knowledge artifact has invalid facts, inputs or physical identity.");
@@ -120,7 +145,8 @@ internal static class AgentKnowledgeRules
                 project.WorkDone < 0 || project.WorkDone >= WritingWork(project.Kind) ||
                 project.CandidateId != (project.SourceArtifactId is null ? "knowledge_write:" + project.Kind : "knowledge_copy:" + project.SourceArtifactId) ||
                 !ValidFacts(project.Facts, project.ActorId, project.StartedTick, project.SourceArtifactId) ||
-                project.Kind == "field_record" && project.Facts.Count != 1 ||
+                project.Facts.Count + project.Recipes.Count == 0 ||
+                project.Kind == "field_record" && project.Facts.Count > 1 ||
                 !ValidSource(project.SourceArtifactId, project.Kind, project.Facts, project.StartedTick) ||
                 !ValidateMaterials(project.Id, project.ActorId, project.Kind, project.Materials, completed: false))
                 throw new InvalidDataException("An agent knowledge-writing project has invalid work, facts or reserved inputs.");
@@ -143,16 +169,16 @@ internal static class AgentKnowledgeRules
              original.CreatedTick <= fact.LearnedTick && original.Facts is not null && original.Facts.Any(other => SameDiscovery(fact, other)));
 
         bool ValidFacts(IReadOnlyList<AgentKnowledgeFact>? facts, string actor, long tick, string? sourceArtifactId) =>
-            facts is { Count: >= 1 and <= MaximumFactsPerArtifact } &&
+            facts is { Count: >= 0 and <= MaximumFactsPerArtifact } &&
             facts.Select(item => item?.Position).Distinct().Count() == facts.Count &&
             facts.All(fact => fact is not null && fact.OwnerId == actor && ValidFact(fact, tick) &&
                 (sourceArtifactId is null
-                    ? knowledge.Facts.Any(learned => SameLearnedFact(learned, fact))
+                    ? recordedFacts.Any(learned => SameLearnedFact(learned, fact))
                     : artifacts.TryGetValue(sourceArtifactId, out var source) &&
                       fact.Acquisition == "read" && fact.SourceArtifactId == sourceArtifactId &&
                       fact.SourceAgentId == source.CreatorId &&
-                      knowledge.Facts.Any(learned => learned.OwnerId == actor && learned.Id == fact.Id &&
-                          learned.LearnedTick <= fact.LearnedTick && SameSiteKnowledge(learned, fact))));
+                      recordedFacts.Any(learned => learned.OwnerId == actor && learned.Id == fact.Id &&
+                          learned.LearnedTick <= fact.LearnedTick && learned.Position == fact.Position)));
 
         bool ValidSource(string? source, string kind, IReadOnlyList<AgentKnowledgeFact> facts, long tick) => source is null ||
             artifacts.TryGetValue(source, out var original) && original.Kind == kind && original.CreatedTick <= tick &&
@@ -185,11 +211,63 @@ internal static class AgentKnowledgeRules
         {
             if (validatedAncestry.Contains(artifact.Id)) return;
             if (!path.Add(artifact.Id)) throw new InvalidDataException("Knowledge artifacts contain cyclic provenance.");
-            foreach (var source in artifact.Facts.Select(fact => fact.SourceArtifactId).Append(artifact.SourceArtifactId)
+            foreach (var source in artifact.Facts.Select(fact => fact.SourceArtifactId)
+                         .Concat(artifact.Recipes.Select(recipe => recipe.SourceArtifactId)).Append(artifact.SourceArtifactId)
                          .Where(id => id is not null).Distinct(StringComparer.Ordinal))
-                CheckAncestry(artifacts[source!], path);
+            {
+                if (!artifacts.TryGetValue(source!, out var original))
+                    throw new InvalidDataException("Knowledge artifacts refer to a missing written source.");
+                CheckAncestry(original, path);
+            }
             path.Remove(artifact.Id);
             validatedAncestry.Add(artifact.Id);
+        }
+    }
+
+    internal static bool ReferencesFact(PrivateWorldKnowledgeState knowledge, AgentKnowledgeFact fact) =>
+        FactReferencesFor(knowledge).Contains(fact);
+
+    internal static PrivateWorldKnowledgeState PruneEarlierFacts(PrivateWorldKnowledgeState knowledge)
+    {
+        var references = FactReferencesFor(knowledge);
+        return knowledge with { EarlierFacts = knowledge.EarlierFacts.Where(references.Contains).ToArray() };
+    }
+
+    private sealed record FactVersion(string Id, string Owner, string Discoverer, GridPoint Position, string Terrain,
+        long Learned, string Acquisition, string? Agent, string? Artifact, string Resources);
+
+    private static FactVersion FactVersionKey(AgentKnowledgeFact fact) =>
+        new(fact.Id, fact.OwnerId, fact.DiscovererId, fact.Position, fact.Terrain, fact.LearnedTick, fact.Acquisition,
+            fact.SourceAgentId, fact.SourceArtifactId, string.Join('\0', fact.ResourceKinds ?? []));
+
+    private static (string Id, string Owner, GridPoint Position) CopySiteKey(AgentKnowledgeFact fact) =>
+        (fact.Id, fact.OwnerId, fact.Position);
+
+    private sealed record FactReferences(HashSet<FactVersion> Exact,
+        Dictionary<(string Id, string Owner, GridPoint Position), long> Copies)
+    {
+        public bool Contains(AgentKnowledgeFact fact) => Exact.Contains(FactVersionKey(fact)) ||
+            Copies.TryGetValue(CopySiteKey(fact), out var copiedTick) && fact.LearnedTick <= copiedTick;
+    }
+
+    private static FactReferences FactReferencesFor(PrivateWorldKnowledgeState knowledge)
+    {
+        var references = new FactReferences([], []);
+        foreach (var artifact in knowledge.Artifacts) Add(artifact.Facts ?? [], artifact.SourceArtifactId);
+        foreach (var project in knowledge.WritingProjects) Add(project.Facts ?? [], project.SourceArtifactId);
+        return references;
+
+        void Add(IReadOnlyList<AgentKnowledgeFact> facts, string? source)
+        {
+            foreach (var fact in facts.Where(fact => fact is not null))
+            {
+                if (source is null) references.Exact.Add(FactVersionKey(fact));
+                else
+                {
+                    var key = CopySiteKey(fact);
+                    references.Copies[key] = Math.Max(references.Copies.GetValueOrDefault(key), fact.LearnedTick);
+                }
+            }
         }
     }
 

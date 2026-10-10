@@ -344,8 +344,10 @@ public sealed partial class PrivateWorldConversationTests
             item.SourceTurnId == thirdTurn.Id && !thirdTurn.ListenerIds.Contains(item.OwnerId));
     }
 
-    [Fact]
-    public async Task TrimmingOldConversationKeepsCorrectedPrivateHearsayAndCompactionAcrossAnotherHeardTurn()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TrimmingOldConversationKeepsCorrectedPrivateHearsayAndCompactionAcrossAnotherHeardTurn(bool archiveSource)
     {
         const string seed = "conversation-history-trimming";
         const string oldConversationId = "conversation:000-old-heard-claim";
@@ -386,6 +388,18 @@ public sealed partial class PrivateWorldConversationTests
                 old.Turn.WorldTick),
         ]);
 
+        if (archiveSource)
+        {
+            var archiveTick = (long)SocietyMemoryArchiveRules.MinimumAgeDays * society.Config.TicksPerWorldDay;
+            society = SocietyFixture.AdvanceTo(society, archiveTick).Checkpoint;
+            society = SocietyMemoryArchiveRules.Archive(society,
+                new HashSet<string>(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal));
+            Assert.Equal(oldBeliefId, Assert.Single(society.ArchivedBeliefs).Belief.Id);
+            var systems = initial.WorldSystems!;
+            while (systems.WorldTick < archiveTick) systems = WorldSystemsRules.AdvanceOneTick(systems);
+            initial = initial with { WorldSystems = systems };
+        }
+
         using var world = PrivateWorldRuntime.Restore(initial with
         {
             Society = initial.Society with { Society = society },
@@ -403,9 +417,10 @@ public sealed partial class PrivateWorldConversationTests
         Assert.Equal(AgentConversationRules.MaximumSavedConversations, world.Conversations.Count);
         Assert.DoesNotContain(world.Conversations, item => item.Id == oldConversationId);
         var afterTrim = world.ExportState().Society.Society;
-        var retainedOldClaim = Assert.Single(afterTrim.Beliefs!, item => item.Id == oldBeliefId);
+        var retainedOldClaim = Assert.Single(afterTrim.AllBeliefs(), item => item.Id == oldBeliefId);
         var retainedCorrection = Assert.Single(afterTrim.Beliefs!, item => item.Id == correctionId);
         Assert.Null(retainedOldClaim.SourceTurnId);
+        Assert.Equal(archiveSource, afterTrim.ArchivedBeliefs.Any(item => item.Belief.Id == oldBeliefId));
         Assert.Null(retainedCorrection.SourceTurnId);
         Assert.Equal(old.Turn.SpeakerId, retainedCorrection.SourceAgentId);
         Assert.Equal("I later learned the speaker had been mistaken about the trail.", retainedCorrection.Statement);
@@ -567,7 +582,7 @@ public sealed partial class PrivateWorldConversationTests
             var stateFile = new PrivateWorldStateFile(statePath, id =>
                 id is InitiatorId or InviteeId ? provider : new DeterministicDecisionProvider());
             var log = new RecordingLogger<PrivateWorldConversationTests>();
-            var effects = new ProviderUsageWorldEffects(world, stateFile, new object(), log);
+            var effects = new ProviderUsageWorldEffects(world, stateFile, usage, new object(), log);
             usage.LimitReached += effects.PauseAtLimit;
             world.StartWorld();
 

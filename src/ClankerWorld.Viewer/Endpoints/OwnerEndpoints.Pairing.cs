@@ -187,6 +187,9 @@ internal static partial class OwnerEndpoints
                     OwnerHttpBinding.WorldCreationPayloadDomain,
                     OwnerHttpBinding.AgentPlacementPayloadDomain,
                     OwnerHttpBinding.AutosaveConfigurationPayloadDomain,
+                    OwnerHttpBinding.LifePacePayloadDomain,
+                    OwnerHttpBinding.JevAssistancePayloadDomain,
+                    "clankerworld.owner-routine-helper.v1",
                 ],
             });
         });

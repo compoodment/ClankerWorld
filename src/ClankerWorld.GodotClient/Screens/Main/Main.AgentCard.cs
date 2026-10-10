@@ -147,11 +147,15 @@ public partial class Main
         var nameRow = new HBoxContainer();
         nameRow.AddThemeConstantOverride("separation", 2);
         selectedActorNameLabel.ThemeTypeVariation = "HeadingLabel";
+        selectedActorNameLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        selectedActorNameLabel.MaxLinesVisible = 2;
+        selectedActorNameLabel.TextOverrunBehavior = TextServer.OverrunBehavior.TrimChar;
+        selectedActorNameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         nameRow.AddChild(selectedActorNameLabel);
         // A small pencil beside the name renames; it opens a field only when wanted.
         StyleIconButton(renameToggleButton, PixelGlyph.Pencil);
         renameToggleButton.Flat = true;
-        foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "disabled", "focus" })
+        foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "disabled" })
             renameToggleButton.AddThemeStyleboxOverride(state, new StyleBoxEmpty { ContentMarginLeft = 3, ContentMarginRight = 3, ContentMarginTop = 3, ContentMarginBottom = 3 });
         renameToggleButton.TooltipText = "Rename";
         renameToggleButton.Pressed += ToggleRenameRow;
@@ -171,6 +175,8 @@ public partial class Main
         profileCloseButton.Pressed += AgentProfileBack;
         tools.AddChild(profileCloseButton);
         header.AddChild(tools);
+        // A wrapped name changes the header height after its width is laid out.
+        header.MinimumSizeChanged += QueueAgentProfileFit;
         body.AddChild(header);
         // Full width under the portrait, so what they are doing rarely wraps.
         profileActivityLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -356,7 +362,7 @@ public partial class Main
         agentProfilePanel.Hide();
     }
 
-    /// <summary>Whether a decision came from an agent's own model rather than Jev or the built-in rules.</summary>
+    /// <summary>Whether a decision came from an agent's own model rather than a routine helper or the built-in rules.</summary>
     private static bool IsModelProvider(string provider) => provider is "openai" or "ollama-cloud";
 
     /// <summary>A flat, short tab-style button that sits beside a section heading.</summary>
@@ -469,9 +475,14 @@ public partial class Main
             : new Vector2(Math.Max(14, (UiSize.X - size.X) / 2), Math.Max(HudTop, (UiSize.Y - size.Y) / 2));
     }
 
+    private Theme? renderedAgentCardTheme;
+
     /// <summary>Profile, Speak and card buttons carry pixel icons in the current theme.</summary>
     private void RefreshAgentCardIcons()
     {
+        // Camera and observation refreshes keep the same theme. The compact
+        // styles use logical margins and inherit the interface's scaling.
+        if (ReferenceEquals(renderedAgentCardTheme, UiTheme.Theme)) return;
         var palette = UiTheme.Current;
         var dark = palette.Name == "dark";
         var wood = dark ? new Color("C99A62") : new Color("9C6C42");
@@ -499,6 +510,7 @@ public partial class Main
             ContentMarginRight = 2,
             ContentMarginBottom = 2,
         });
+        renderedAgentCardTheme = UiTheme.Theme;
     }
 
     private void CenterOnSelectedAgent()
@@ -517,6 +529,8 @@ public partial class Main
             instructionText.CallDeferred(Control.MethodName.GrabFocus);
             QueueAgentProfileFit();
         }
+        else if (keyboardNavigation)
+            Callable.From(() => FocusKeyboardPanel(agentProfilePanel)).CallDeferred();
     }
 
     /// <summary>
@@ -621,17 +635,18 @@ public partial class Main
         // Name, age and one plain sentence for what they are doing, shared by both cards.
         quickCardNameLabel.Text = inhabitant.DisplayName;
         selectedActorNameLabel.Text = inhabitant.DisplayName;
-        // A refused name stays in the open field for the player to change,
+        // Draft and refused names stay in the open field for the player to change,
         // while the labels above keep showing the name the host holds.
         if (!renameRow.Visible || renamingAgentId != inhabitant.Id) refusedAgentRename.Forget();
         if (!refusedAgentRename.Keeps(snapshot.WorldId, inhabitant.Id, renameAgentInput.Text) &&
-            (renamingAgentId != inhabitant.Id || !renameAgentInput.HasFocus()))
+            (renamingAgentId != inhabitant.Id || !renameRow.Visible))
         {
             renameAgentInput.Text = inhabitant.DisplayName;
             renamingAgentId = inhabitant.Id;
         }
         agentPortraitTexture.Atlas = AgentSprites.Atlas(32);
         agentPortraitTexture.Region = AgentSprites.Region(AgentSprites.VariantFor(inhabitant.Id), AgentSprites.StageIndex(ageBand), 32);
+        selectedActorNameLabel.TooltipText = inhabitant.DisplayName;
         selectedActorSummaryLabel.Text = string.Join(" · ", new[]
         {
             isDeceased ? "Dead" : null,
@@ -702,6 +717,8 @@ public partial class Main
         }
         foreach (var cart in snapshot.Handcarts.Where(cart => cart.OwnerId == inhabitant.Id || cart.PullerId == inhabitant.Id))
             details.Add(GameUiText.HandcartDescription(cart));
+        foreach (var animal in snapshot.Animals.Where(animal => animal.RiderId == inhabitant.Id || animal.LeaderId == inhabitant.Id))
+            details.Add(GameUiText.AnimalDescription(animal));
         if (!isDeceased && Factor("last-model-choice") is { } lastModelChoice)
             details.Add("Last model choice: " + Sentence(GameUiText.ActivityPhrase(lastModelChoice, null)));
         if (!isDeceased && Factor("model-setup-blocker") == "unsupported_request")
@@ -817,6 +834,8 @@ public partial class Main
         var task = order.Action switch
         {
             "consume_food" => "Eating food",
+            "read_knowledge" => "Reading " + (order.TargetItemKind is { } writtenKind
+                ? GameUiText.ItemName(writtenKind).ToLowerInvariant() : "a written item"),
             "harvest_food" => "Gathering food",
             "gather_material" => "Gathering " + (order.TargetMaterialKind?.Replace('_', ' ') ?? "materials"),
             "till_field" => "Tilling household fields",
@@ -839,9 +858,26 @@ public partial class Main
             "tend_fire" => order.TargetBuildingKind == "house" ? "Lighting a fire in their House" : "Lighting a fire",
             "produce_item" => "Making " + (order.TargetOutputKind is { } output
                 ? GameUiText.ItemName(output).ToLowerInvariant() : "goods"),
+            "write_knowledge" => "Writing " + OrderItemName(order.TargetKnowledgeKind),
+            "copy_knowledge" => "Copying " + OrderItemName(order.TargetKnowledgeKind),
             "seek_food" => "Going to a food site",
             "move_to" => "Going to a tile",
+            "travel_by_boat" => "Traveling to a Port by boat",
             "accept_guardianship" => "Becoming a guardian",
+            "load_handcart" => "Loading " + OrderItemName(order.TargetItemKind),
+            "unload_handcart" or "unload_handcart_ground" => "Unloading " + OrderItemName(order.TargetItemKind),
+            "talk_to" => "Talking with the named person",
+            "propose_marriage" => "Proposing marriage to their partner",
+            "attach_handcart" => "Attaching a handcart",
+            "park_handcart" => "Parking a handcart",
+            "repair_handcart" => "Repairing a handcart",
+            "animal_care" => "Caring for an animal",
+            "animal_collect" => "Collecting animal products",
+            "animal_tame" => "Taming an animal",
+            "animal_lead_home" => "Leading an animal home",
+            "animal_saddle" => "Fitting a horse's saddle",
+            "animal_mount" => "Mounting a horse",
+            "animal_dismount" => "Dismounting a horse",
             _ => "Order",
         };
         var units = order.RepeatUntilCancelled
@@ -853,6 +889,30 @@ public partial class Main
         var reason = order.Status is "blocked" or "interrupted" or "cancelled" && !string.IsNullOrWhiteSpace(order.BlockedReason)
             ? $" · {order.BlockedReason}"
             : string.Empty;
+        var conversation = order.Action is not ("talk_to" or "propose_marriage") ? string.Empty : " · " + (order.TalkOutcome switch
+        {
+            "married" => "Marriage and surname completed",
+            "proposal_declined" => "Marriage proposal declined",
+            "not_proposed" => "Marriage not proposed",
+            "agreed" => "Conversation completed",
+            "refused" => "Invitation refused",
+            "deadline" => "Invitation expired",
+            "daily_limit" => "Conversation allowance reached",
+            "disagreed" => "Conversation ended without agreement",
+            "withdrawn" => "Conversation ended",
+            "participant_unavailable" => "Person unavailable",
+            _ => order.TalkStatus switch
+            {
+                "surname_ready" or "surname_awaiting_speaker" => "Marriage agreed; choosing a shared surname",
+                "surname_suspended" => "Marriage agreed; surname conversation stopped",
+                "surname_closed" or "surname_pending" => "Marriage agreed; surname remains unfinished",
+                "proposed" => "Invitation awaiting their choice",
+                "ready" or "awaiting_speaker" => "Invitation accepted; talking",
+                "wrap_up" => "Waiting for both people's wrap-up choices",
+                "suspended" => "Stopped; both people must choose to resume",
+                _ => "Attempting an invitation",
+            },
+        });
         var heard = !includeHeard || instruction.ObservedTick is null ? string.Empty : " · Heard by their personal model";
         var state = order.Status switch
         {
@@ -869,7 +929,7 @@ public partial class Main
         // The game understood no task in an order it could not act on, so there is none to name.
         return order.Status == "not_understood" && order.Action == "unknown"
             ? $"{state}{heard}"
-            : $"{state} · {task}{units}{reason}{heard}";
+            : $"{state} · {task}{units}{conversation}{reason}{heard}";
     }
 
     private static string OrderItemName(string? kind) => kind switch
@@ -883,11 +943,16 @@ public partial class Main
     private static string ProgressUnitLabel(string unit) => unit switch
     {
         "food_items" => "food items",
+        "knowledge_reads" => "items read",
+        "conversations" => "talk attempts completed",
+        "marriage_attempts" => "marriage attempts completed",
         "material_items" => "items",
         "equipment_items" => "equipment items",
         "goods_items" => "items",
         "output_items" => "items made",
         "production_batches" => "batches completed",
+        "artifacts" => "items written",
+        "copies" => "copies made",
         "repairs" => "items repaired",
         "fields" => "fields completed",
         "collection_loads" => "loads collected",
@@ -901,6 +966,8 @@ public partial class Main
         "arrivals" => "sites reached",
         "harvests" => "harvest batches",
         "guardianships" => "care assignments",
+        "cart_tasks" => "cart tasks completed",
+        "animal_tasks" => "animal tasks completed",
         _ => unit,
     };
 

@@ -166,7 +166,15 @@ public sealed class HouseRelocationRuntimeTests
             Assert.False(PersonalEquipmentRules.IsCarried(lot, actor));
         });
         choices.Wanted[actor] = "household_collect:relocation-personal-coat";
-        using var replay = Restore(world.ExportState(), choices);
+        // Changing the stub's choice does not invalidate a cached idle decision.
+        // Request a fresh decision after reload without changing custody or rights.
+        var collecting = world.ExportState();
+        collecting = collecting with
+        {
+            Inhabitants = collecting.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with { LastDecisionContext = null } : person).ToArray(),
+        };
+        using var replay = Restore(collecting, choices);
         Assert.False(replay.DisplaceAdult(actor));
         for (var tick = 0; tick < 120 && !PersonalEquipmentRules.IsCarried(replay.Society.Inventory.GetLot("relocation-personal-coat"), actor); tick++)
             await replay.AdvanceOneTickAsync();

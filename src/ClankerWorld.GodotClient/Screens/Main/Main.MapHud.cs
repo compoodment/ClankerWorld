@@ -95,19 +95,27 @@ public partial class Main
         var building = snapshot.PlacedBuildings.FirstOrDefault(item =>
             tile.X >= item.Position.X && tile.X < item.Position.X + item.Width &&
             tile.Y >= item.Position.Y && tile.Y < item.Position.Y + item.Height);
+        var site = building is null ? ConstructionSiteAt(snapshot, tile) : null;
         if (building is not null) parts.Add(building.DisplayName ?? Pretty(building.DefinitionId));
+        else if (site is not null) parts.Add($"{site.DisplayName} · {GameUiText.ConstructionDescription(site)}");
         else if (snapshot.Resources.FirstOrDefault(item => item.Position.X == tile.X && item.Position.Y == tile.Y) is { } resource)
             parts.Add(resource.TreeKind is { } tree ? $"{Pretty(tree)} tree"
                 : WorldTerrainMap.NaturalObjectName(resource.NaturalObjectKind) ?? $"{Pretty(resource.Kind)} site");
         if (snapshot.RoadTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) parts.Add("Road");
         if (BridgeAt(snapshot, tile) is not null) parts.Add("Bridge");
         if (snapshot.Towns.FirstOrDefault(town => town.BorderTiles.Any(point => point.X == tile.X && point.Y == tile.Y)) is { } owner)
-            parts.Add(owner.Name);
+            parts.Add(owner.IsAbandoned ? owner.Name + " (abandoned)" : owner.Name);
         var summary = string.Join(" · ", parts);
         return siteAdvice is { } advice
             ? $"{summary}\nTown-site advice: {TownSiteFactorSummary(advice)}"
             : summary;
     }
+
+    /// <summary>The building under construction covering a tile, if any.</summary>
+    private static OwnerWorldConstructionSite? ConstructionSiteAt(OwnerWorldSnapshot snapshot, Vector2I tile) =>
+        snapshot.ConstructionSites.FirstOrDefault(item =>
+            tile.X >= item.Site.X && tile.X < item.Site.X + item.Width &&
+            tile.Y >= item.Site.Y && tile.Y < item.Site.Y + item.Height);
 
     private static string TownSiteFactorSummary(TownSiteAssessment advice)
     {

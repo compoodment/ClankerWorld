@@ -249,8 +249,8 @@ public sealed class TownBridgeRuntimeTests
     [Fact]
     public async Task RealWadesBuildATrafficBridgeWithoutAnyRoadAndWaitingDoesNotCount()
     {
-        const string crossingId = "bridge-92-1-ns-1";
-        var start = new GridPoint(92, 0);
+        const string crossingId = "bridge-102-19-ns-1";
+        var start = new GridPoint(102, 18);
         using var control = await TrafficWorldAsync(seedEvidence: false);
         var roads = control.RoadTiles;
 
@@ -259,7 +259,7 @@ public sealed class TownBridgeRuntimeTests
         {
             Assert.True((await control.AdvanceOneTickAsync()).Advanced);
             var position = control.Inhabitants.Single(item => item.InhabitantId == TrafficAgentId).Position;
-            if (position == new GridPoint(92, 1))
+            if (position == new GridPoint(102, 19))
             {
                 wadingSeen = true;
                 Assert.Equal(new BridgeTrafficWade(TrafficAgentId, crossingId, start), Assert.Single(control.BridgeTraffic.InProgress));
@@ -421,7 +421,7 @@ public sealed class TownBridgeRuntimeTests
     }
 
     private static async Task<PrivateWorldRuntime> TrafficWorldAsync(bool seedEvidence,
-        string crossingId = "bridge-92-1-ns-1", GridPoint? start = null)
+        string crossingId = "bridge-102-19-ns-1", GridPoint? start = null)
     {
         var geography = new GeographyOptions("traffic-bridge-0", WorldSizePreset.Small);
         using var setup = new PrivateWorldRuntime(geography.Seed, startPace: WorldStartPace.FounderSetup,
@@ -447,7 +447,7 @@ public sealed class TownBridgeRuntimeTests
         setup.StartWorld();
         Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
         var map = setup.ExportState().Map;
-        start ??= new GridPoint(92, 0);
+        start ??= new GridPoint(102, 18);
         Assert.True(RiverBridgeRules.TryResolve(map, crossingId, out var crossing));
         Assert.Contains(start.Value, crossing!.Entrances);
         setup.AddAgent(TrafficAgentId, start.Value);

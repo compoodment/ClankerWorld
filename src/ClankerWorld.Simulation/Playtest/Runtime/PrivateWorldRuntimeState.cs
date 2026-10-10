@@ -39,7 +39,8 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementGuardianSearch? GuardianSearch = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalConsentState? MedicalConsent = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalTreatmentState? MedicalTreatment = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementGuardianPlacement? GuardianPlacement = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementGuardianPlacement? GuardianPlacement = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] MedicalSupplyTrip? MedicalSupplyTrip = null);
 
 /// <summary>A saved, ordered request for an adult to accept primary care of a dependent.</summary>
 public sealed record SettlementGuardianSearch(
@@ -133,6 +134,11 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<ToolMakingRequestState>? ToolMakingRequests = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<HandcartHitch>? HandcartHitches = null)
 {
+    [JsonRequired]
+    public AnimalWorldState AnimalWorld { get; init; } = AnimalWorldState.Empty;
+    [JsonRequired]
+    public RoutineHelperSettings RoutineHelper { get; init; } = RoutineHelperSettings.Jev;
+
     [JsonRequired]
     public BoatTransportState BoatTransport { get; init; } = BoatTransportState.Empty();
 

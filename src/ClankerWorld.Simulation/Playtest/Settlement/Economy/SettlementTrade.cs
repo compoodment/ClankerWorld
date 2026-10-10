@@ -27,7 +27,7 @@ public sealed partial class PrivateWorldRuntime
             inhabitants.TryGetValue(party.Actor, out var person) &&
             (long)PersonalEquipmentRules.CarriedQuantity(inventory, party.Actor, person.Equipment) - party.Give +
                 party.Take + ReservedBusinessCarrySpace(party.Actor) <=
-                PersonalEquipmentRules.Capacity(inventory, party.Actor, person.Equipment));
+                PersonalEquipmentRules.Capacity(inventory, party.Actor, person.Equipment) + HorseCargoCapacity(party.Actor));
     }
 
     private bool WantsTradeItem(string actor, InventoryLot item)
@@ -52,11 +52,10 @@ public sealed partial class PrivateWorldRuntime
         {
             // An agent can offer a record they physically hold; a prospective
             // recipient wants it only if it contains a fact they have not learned.
-            if (item.OwnerId == actor ||
-                knowledge.Facts.Count(fact => fact.OwnerId == actor) >= AgentKnowledgeRules.MaximumFactsPerAgent)
+            if (item.OwnerId == actor)
                 return false;
             var artifact = knowledge.Artifacts.FirstOrDefault(candidate => candidate.LotId == item.Id);
-            return artifact?.Facts.Any(fact => !KnowsMapFact(actor, fact.Position)) == true;
+            return artifact is not null && HasUnknownArtifactContents(actor, artifact);
         }
 
         if (IsEdibleFood(kind))
@@ -106,7 +105,10 @@ public sealed partial class PrivateWorldRuntime
                      !WantsTradeItem(actor, lot) && WantsTradeItem(other, lot) &&
                      (!IsEdibleFood(lot.ItemKind) || inhabitants[actor].HungerBasisPoints >= 6_500)))
         {
-            var take = lots.FirstOrDefault(lot => lot.OwnerId == other && lot.ItemKind != give.ItemKind &&
+            // Records of the same kind can contain different discoveries. The
+            // reciprocal demand checks still require contents each recipient lacks.
+            var take = lots.FirstOrDefault(lot => lot.OwnerId == other &&
+                (lot.ItemKind != give.ItemKind || AgentKnowledgeRules.IsArtifactKind(lot.ItemKind)) &&
                 TradeQuantityAvailable(lot) && !WantsTradeItem(other, lot) && WantsTradeItem(actor, lot) &&
                 (!IsEdibleFood(lot.ItemKind) || inhabitants[other].HungerBasisPoints >= 6_500));
             if (take is not null)
@@ -222,20 +224,26 @@ public sealed partial class PrivateWorldRuntime
                 if (!society.Checkpoint.Memories.Any(memory => memory.Id == memoryId))
                 {
                     society.Apply(checkpoint => SocietyFixture.RecordSocialMemory(checkpoint, new(memoryId, owner, subject,
-                        $"Completed a mutually accepted exchange with {checkpoint.GetInhabitant(subject).Name}.", "public", WorldTick)));
+                        $"Completed a mutually accepted exchange with {checkpoint.GetInhabitant(subject).Name}.", "public", WorldTick)
+                    { Kind = SocietyMemoryKind.Relationship }));
                 }
             }
             AppendEvent("settlement_trade_completed", actor);
         }
     }
 
-    private bool TradeQuantityAvailable(InventoryLot lot) =>
+    private bool TradeQuantityAvailable(InventoryLot lot) => UsablePersonalTradeLot(lot) &&
+        (AvailableLotQuantity(lot) >= 2 || AgentKnowledgeRules.IsArtifactKind(lot.ItemKind) ||
+         OrnamentContent.IsOrnament(lot.ItemKind) || society.Checkpoint.Inventory.Lots.Any(other =>
+             other.Id != lot.Id && other.OwnerId == lot.OwnerId && other.ItemKind == lot.ItemKind &&
+             UsablePersonalTradeLot(other)));
+
+    private bool UsablePersonalTradeLot(InventoryLot lot) =>
         PersonalEquipmentRules.IsCarried(lot, lot.OwnerId) && lot.ContainerLotId is null &&
         !InventoryContainerRules.IsContainer(lot.ItemKind) && lot.DeliveryBuildingId is null &&
         (!inhabitants.TryGetValue(lot.OwnerId, out var carrier) ||
          !PersonalEquipmentRules.IsSelected(carrier.Equipment, lot.Id)) &&
-        AvailableLotQuantity(lot) >= (AgentKnowledgeRules.IsArtifactKind(lot.ItemKind) ||
-            OrnamentContent.IsOrnament(lot.ItemKind) ? 1 : 2);
+        AvailableLotQuantity(lot) > 0;
 
     private void MaintainSettlementTrades()
     {

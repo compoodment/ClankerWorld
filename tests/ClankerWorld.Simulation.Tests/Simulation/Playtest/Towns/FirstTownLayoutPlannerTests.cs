@@ -76,8 +76,9 @@ public sealed class FirstTownLayoutPlannerTests
             PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()))) : null;
         var target = restored ?? world;
         Assert.True(new OwnerWorldObservationStore(target).GetSnapshot().FounderSetup?.CanChooseTownSite);
+        // A neighbouring site whose plan really differs, so the redo is visible.
         var newSite = map.FootNeighbors(initialSite).First(point => point != initialSite &&
-            FirstTownLayoutPlanner.Plan(map, point) is not null);
+            FirstTownLayoutPlanner.Plan(map, point) is { } plan && !plan.RoadTiles.SequenceEqual(first.RoadTiles));
 
         var second = target.AcceptFirstTownLayout(newSite);
 
@@ -281,7 +282,7 @@ public sealed class FirstTownLayoutPlannerTests
         var pending = new Queue<GridPoint>(reachable);
         while (pending.TryDequeue(out var current))
         {
-            foreach (var next in TownStreets.Linked(roads, current))
+            foreach (var next in TownStreets.Linked(map, roads, current))
             {
                 if (next.X != current.X && next.Y != current.Y)
                 {
@@ -314,22 +315,22 @@ public sealed class FirstTownLayoutPlannerTests
 
         // Every dead end runs on at most a few tiles past the nearest door.
         var entrances = plan.Buildings.Select(building => building.Entrance).ToHashSet();
-        Assert.All(roads.Where(road => TownStreets.Linked(roads, road).Count() == 1 && !entrances.Contains(road)),
-            end => Assert.InRange(StepsToDoor(roads, entrances, end), 1, TownStreets.RunOnTiles));
+        Assert.All(roads.Where(road => TownStreets.Linked(map, roads, road).Count() == 1 && !entrances.Contains(road)),
+            end => Assert.InRange(StepsToDoor(map, roads, entrances, end), 1, TownStreets.RunOnTiles));
     }
 
     private static IEnumerable<GridPoint> Footprint(FirstTownLayoutBuilding building) =>
         Enumerable.Range(0, building.Height).SelectMany(dy => Enumerable.Range(0, building.Width)
             .Select(dx => new GridPoint(building.Position.X + dx, building.Position.Y + dy)));
 
-    private static int StepsToDoor(HashSet<GridPoint> roads, HashSet<GridPoint> entrances, GridPoint start)
+    private static int StepsToDoor(SeededMap map, HashSet<GridPoint> roads, HashSet<GridPoint> entrances, GridPoint start)
     {
         var steps = new Dictionary<GridPoint, int> { [start] = 0 };
         var pending = new Queue<GridPoint>([start]);
         while (pending.TryDequeue(out var current))
         {
             if (entrances.Contains(current)) return steps[current];
-            foreach (var next in TownStreets.Linked(roads, current))
+            foreach (var next in TownStreets.Linked(map, roads, current))
                 if (steps.TryAdd(next, steps[current] + 1)) pending.Enqueue(next);
         }
         return int.MaxValue;

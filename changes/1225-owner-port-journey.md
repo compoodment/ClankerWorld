@@ -1,0 +1,1 @@
+- Adults can follow **Travel by boat to Port at (x, y)** orders using actual communal boats and the normal permission and queue rules. Only the named destination completes the order; cancelling aboard preserves safe travel and recovery. Older alpha saves are refused and preserved after the checkpoint format changes.

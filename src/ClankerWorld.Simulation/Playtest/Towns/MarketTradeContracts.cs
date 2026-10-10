@@ -17,6 +17,12 @@ public sealed record TownMarketState(string Id, string ProjectId, string HallBui
     [JsonRequired]
     public IReadOnlyList<MarketTradeState> Trades { get; init; } = [];
 
+    [JsonRequired]
+    public long NextStockReceiptSequence { get; init; }
+
+    [JsonRequired]
+    public long RetiredStockReceiptThrough { get; init; } = -1;
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? RemovedTick { get; init; }
 }
@@ -54,6 +60,8 @@ public static class MarketTradeValidation
                     market.StockReceipts is null || market.Trades is null ||
                     market.Stalls.Any(item => item is null) || market.Occupancies.Any(item => item is null) ||
                     market.StockReceipts.Any(item => item is null) || market.Trades.Any(item => item is null) ||
+                    market.NextStockReceiptSequence < 0 || market.RetiredStockReceiptThrough < -1 ||
+                    market.RetiredStockReceiptThrough >= market.NextStockReceiptSequence ||
                     market.Stalls.Count is < 2 or > MarketContent.MaximumStalls ||
                     !MarketContent.SiteTiles(market.Site).All(tile => tile.X >= 0 && tile.X < map.Width && tile.Y >= 0 && tile.Y < map.Height) ||
                     market.RemovedTick is { } removedAt && (removedAt < 0 || removedAt > worldTick))
@@ -110,13 +118,20 @@ public static class MarketTradeValidation
                 }
                 if (market.Trades.Select(trade => trade.OfferId).Distinct(StringComparer.Ordinal).Count() != market.Trades.Count)
                     throw Invalid("A Market cannot record the same exchange twice.");
+                if (!market.StockReceipts.Select(receipt => receipt.Sequence).SequenceEqual(
+                        market.StockReceipts.Select(receipt => receipt.Sequence).Distinct().Order()))
+                    throw Invalid("Market stock receipt sequences must be unique and increasing.");
+                if (market.StockReceipts.Count(receipt => receipt.Sequence > market.RetiredStockReceiptThrough) !=
+                    market.NextStockReceiptSequence - (market.RetiredStockReceiptThrough + 1))
+                    throw Invalid("Unretired Market stock receipt sequences cannot be missing.");
                 for (var ordinal = 0; ordinal < market.StockReceipts.Count; ordinal++)
                 {
                     var receipt = market.StockReceipts[ordinal];
                     var occupancy = receipt is null ? null : market.Occupancies.SingleOrDefault(item => item.Id == receipt.OccupancyId);
                     if (receipt is null || occupancy is null || !receipts.Add(receipt.Id) ||
+                        receipt.Sequence < 0 || receipt.Sequence >= market.NextStockReceiptSequence ||
                         receipt.Id != MarketTradeRules.ReceiptId(receipt.OccupancyId, receipt.SourceLotId, receipt.OwnerId,
-                            receipt.Quantity, receipt.DepositedTick, ordinal, receipt.TradeOfferId) ||
+                            receipt.Quantity, receipt.DepositedTick, receipt.Sequence, receipt.TradeOfferId) ||
                         receipt.SellerAgentId != occupancy.SellerAgentId ||
                         receipt.OwnerId != occupancy.SellerAgentId && receipt.OwnerId != occupancy.SellerHouseholdId ||
                         !Bounded(receipt.SourceLotId, 2048) || !Bounded(receipt.LotId, 2048) || !Bounded(receipt.ItemKind, 128) ||
@@ -153,6 +168,8 @@ public static class MarketTradeValidation
                     var occupancy = trade is null ? null : market.Occupancies.SingleOrDefault(item => item.Id == trade.OccupancyId);
                     var stall = trade is null ? null : market.Stalls.SingleOrDefault(item => item.BuildingId == trade.StallBuildingId);
                     var offer = trade is null ? null : inventory.Offers.FirstOrDefault(item => item.Id == trade.OfferId);
+                    var sourceReceipt = trade is null ? null : market.StockReceipts.FirstOrDefault(item =>
+                        item.Sequence == trade.StockReceiptSequence);
                     if (trade is null || trade.OfferId is null || !trades.Add(trade.OfferId) || occupancy is null || stall is null || offer is null ||
                         !trade.OfferId.StartsWith(MarketTradeRules.OfferPrefix, StringComparison.Ordinal) ||
                         occupancy.StallBuildingId != stall.BuildingId || occupancy.SellerAgentId != trade.SellerAgentId ||
@@ -163,13 +180,17 @@ public static class MarketTradeValidation
                         trade.ProposedTick < occupancy.StartedTick || trade.ProposedTick > worldTick ||
                         occupancy.EndedTick is { } end && trade.ProposedTick > end ||
                         !Bounded(trade.GoodsKind, 128) || !Bounded(trade.PaymentKind, 128) || trade.GoodsKind == trade.PaymentKind ||
+                        trade.StockReceiptSequence < 0 || trade.StockReceiptSequence >= market.NextStockReceiptSequence ||
                         offer.Revision != 1 || offer.FirstPartyId != trade.GoodsOwnerId || offer.SecondPartyId != trade.BuyerId ||
                         offer.FirstQuantity != 1 || offer.SecondQuantity != 1 ||
                         trade.ProposedTick > long.MaxValue - MarketTradeRules.OfferLifetimeTicks ||
                         offer.ExpiryTick != trade.ProposedTick + MarketTradeRules.OfferLifetimeTicks ||
-                        !market.StockReceipts.Any(receipt => receipt.OccupancyId == occupancy.Id &&
-                            receipt.OwnerId == trade.GoodsOwnerId && receipt.ItemKind == trade.GoodsKind &&
-                            (offer.FirstLotId == receipt.LotId || offer.FirstLotId.StartsWith(receipt.LotId + "#", StringComparison.Ordinal))))
+                        (sourceReceipt is null
+                            ? offer.State == DirectBarterState.Open || trade.StockReceiptSequence > market.RetiredStockReceiptThrough
+                            : sourceReceipt.OccupancyId != occupancy.Id || sourceReceipt.OwnerId != trade.GoodsOwnerId ||
+                              sourceReceipt.ItemKind != trade.GoodsKind || sourceReceipt.DepositedTick > trade.ProposedTick ||
+                              offer.FirstLotId != sourceReceipt.LotId &&
+                              !offer.FirstLotId.StartsWith(sourceReceipt.LotId + "#", StringComparison.Ordinal)))
                         throw Invalid("A Market exchange disagrees with its named seller, deposited stock or exact offer.");
                     if (offer.State == DirectBarterState.Open)
                     {
@@ -236,12 +257,20 @@ public sealed record MarketStallOccupancy(string Id, string StallBuildingId, str
 /// <summary>OwnerId records the deposit; the live lot remains authoritative after inheritance or collection.</summary>
 public sealed record MarketStockReceipt(string Id, string OccupancyId, string SellerAgentId, string OwnerId,
     string SourceLotId, string LotId, string ItemKind, int Quantity, long DepositedTick,
-    long InventoryEventId, string? TradeOfferId = null);
+    long InventoryEventId, string? TradeOfferId = null)
+{
+    [JsonRequired]
+    public long Sequence { get; init; }
+}
 
 public sealed record MarketTradeState(string OfferId, string OccupancyId, string StallBuildingId,
     string SellerAgentId, string GoodsOwnerId, string PaymentOwnerId, string BuyerId, GridPoint Position,
     long ProposedTick, string GoodsKind, string PaymentKind, long? SettledTick = null,
-    string? CancellationReason = null);
+    string? CancellationReason = null)
+{
+    [JsonRequired]
+    public long StockReceiptSequence { get; init; }
+}
 
 /// <summary>Trial quantities are provisional. Goods use physical ground custody, not private building access.</summary>
 public static class MarketTradeRules
@@ -255,16 +284,14 @@ public static class MarketTradeRules
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(parts))));
 
     public static string ReceiptId(string occupancyId, string sourceLotId, string ownerId,
-        int quantity, long depositedTick, int ordinal, string? tradeOfferId = null) => Identity("market-stock:",
+        int quantity, long depositedTick, long ordinal, string? tradeOfferId = null) => Identity("market-stock:",
         occupancyId, sourceLotId, ownerId, quantity.ToString(System.Globalization.CultureInfo.InvariantCulture),
         depositedTick.ToString(System.Globalization.CultureInfo.InvariantCulture),
         ordinal.ToString(System.Globalization.CultureInfo.InvariantCulture), tradeOfferId ?? "");
 
     public static int AvailableQuantity(InventoryCheckpoint inventory, InventoryLot lot) =>
-        lot.ConditionBasisPoints <= 0 || lot.FreshnessBasisPoints <= 0 ? 0 : Math.Max(0, lot.Quantity -
-            inventory.Reservations.Where(claim => claim.LotId == lot.Id && claim.State is
-                InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
-                InventoryReservationState.Committed).Sum(claim => claim.Quantity));
+        lot.ConditionBasisPoints <= 0 || lot.FreshnessBasisPoints <= 0 ? 0 :
+            InventoryRules.UsableQuantity(InventoryIndex.For(inventory), lot);
 
     public static bool IsAt(InventoryLot lot, GridPoint position) => lot.ContainerLotId is null &&
         lot.CarrierId is null && lot.StorageBuildingId is null && lot.DeliveryBuildingId is null &&

@@ -11,10 +11,11 @@ public sealed partial class PrivateWorldRuntime
     private sealed record StoreStockLoad(PlacedBuilding Store, InventoryLot Goods, int Quantity);
 
     private StoreStockLoad? NextStoreLoad(string actor, string? itemKind = null, string? buildingId = null,
-        string? sourceLotId = null)
+        string? sourceLotId = null, bool allowOrdinaryProject = false)
     {
         if (!AdultResident(actor) || CarriedHouseDelivery(actor) is not null ||
-            inhabitants[actor].Project is { Stage: not ("completed" or "cancelled") } ||
+            inhabitants[actor].Project is { Stage: not ("completed" or "cancelled") } project &&
+                (!allowOrdinaryProject || !OrdinaryProjectCanYieldToOrder(project)) ||
             society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             HouseholdBuildingWithTag(householdId, "store") is not { } store ||
             buildingId is not null && store.InstanceId != buildingId)
@@ -23,36 +24,59 @@ public sealed partial class PrivateWorldRuntime
         var room = RemainingDeliveryRoom(inventory, store.InstanceId);
         if (room == 0) return null;
         var protectedToolIds = BestUsableToolIds(inventory, actor);
-        foreach (var lot in inventory.Lots.Where(lot => IsLooseBusinessLot(lot) && !OnBorrowedMarketStall(lot) &&
+        var sources = inventory.Lots.Where(lot => IsLooseBusinessLot(lot) && !OnBorrowedMarketStall(lot) &&
                      (itemKind is null || lot.ItemKind == itemKind) &&
-                     (sourceLotId is null || lot.Id == sourceLotId) &&
                      BusinessRules.MaySell("store", lot.ItemKind) && lot.StorageBuildingId != store.InstanceId &&
                      // Own carried goods, or household stock nobody is carrying.
                      (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) ||
                       lot.OwnerId == householdId && lot.CarrierId is null &&
                          (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                              building.InstanceId == lot.StorageBuildingId && building.HouseholdId == householdId))) &&
-                     !protectedToolIds.Contains(lot.Id) &&
                      !PersonalEquipmentRules.IsSelected(inhabitants[actor].Equipment, lot.Id))
-                     .OrderBy(lot => lot.OwnerId == actor ? 0 : 1).ThenBy(lot => lot.Id, StringComparer.Ordinal))
+                     .OrderBy(lot => lot.OwnerId == actor ? 0 : 1).ThenBy(lot => lot.Id, StringComparer.Ordinal).ToArray();
+        var foodSurpluses = new Dictionary<(string OwnerId, string ItemKind), int>();
+        foreach (var lot in sources)
         {
-            var reserve = IsEdibleFood(lot.ItemKind) ? lot.OwnerId == actor ? 2 :
-                2 * society.Checkpoint.GetHousehold(householdId).MemberIds.Count(id => inhabitants.ContainsKey(id)) : 0;
-            var surplus = Math.Max(0, (lot.OwnerId == actor ? SpareCarriedQuantity(actor, lot) : AvailableLotQuantity(lot)) - reserve);
+            if (sourceLotId is not null && lot.Id != sourceLotId) continue;
+            var surplus = StockQuantity(lot);
+            if (IsEdibleFood(lot.ItemKind))
+            {
+                var key = (lot.OwnerId, lot.ItemKind);
+                if (!foodSurpluses.TryGetValue(key, out var foodSurplus))
+                {
+                    var reserve = lot.OwnerId == actor ? 2 : 2 * society.Checkpoint.GetHousehold(householdId)
+                        .MemberIds.Count(id => inhabitants.ContainsKey(id));
+                    // A bound lot limits this load, not the stock that keeps the owner's reserve.
+                    foodSurplus = Math.Max(0, sources.Where(source => source.OwnerId == lot.OwnerId &&
+                        source.ItemKind == lot.ItemKind && CanStockFrom(source)).Sum(StockQuantity) - reserve);
+                    foodSurpluses.Add(key, foodSurplus);
+                }
+                surplus = Math.Min(surplus, foodSurplus);
+            }
             var shelf = inventory.Lots.Where(stock => stock.StorageBuildingId == store.InstanceId &&
-                stock.ItemKind == lot.ItemKind).Sum(stock => stock.Quantity);
+                stock.ItemKind == lot.ItemKind && stock.FreshnessBasisPoints > 0 &&
+                stock.ConditionBasisPoints > 0).Sum(stock => stock.Quantity);
             var quantity = Math.Min(Math.Min(surplus, StoreShelfTarget - shelf), Math.Min(HouseHaulLoadQuantity, room));
-            if (lot.OwnerId != actor) quantity = Math.Min(quantity, FreeCarryCapacity(actor));
+            if (lot.OwnerId != actor) quantity = Math.Min(quantity, PickupCarryCapacity(actor, lot, store.Position));
             if (quantity <= 0) continue;
-            var source = lot.OwnerId == actor ? inhabitants[actor].Position : HouseholdStockPosition(lot);
-            var range = lot.OwnerId == actor ? 0 : HouseholdStockInteractionRange(lot);
-            if (!IsWithinInteractionRange(inhabitants[actor].Position, source, range) &&
-                FindUnoccupiedRoute(actor, inhabitants[actor].Position, source, range).Count == 0 ||
-                FindUnoccupiedRoute(actor, source, store.Position, 0).Count == 0 && source != store.Position)
-                continue;
+            if (!CanStockFrom(lot)) continue;
             return new(store, lot, quantity);
         }
         return null;
+
+        // Keep one best usable tool in each family, even when counted collection
+        // leaves several identical tools in the selected lot.
+        int StockQuantity(InventoryLot lot) => Math.Max(0,
+            (lot.OwnerId == actor ? SpareCarriedQuantity(actor, lot) : AvailableLotQuantity(lot)) -
+            (protectedToolIds.Contains(lot.Id) ? 1 : 0));
+        bool CanStockFrom(InventoryLot lot)
+        {
+            var source = lot.OwnerId == actor ? inhabitants[actor].Position : HouseholdStockPosition(lot);
+            var range = lot.OwnerId == actor ? 0 : HouseholdStockInteractionRange(lot);
+            return (IsWithinInteractionRange(inhabitants[actor].Position, source, range) ||
+                FindUnoccupiedRoute(actor, inhabitants[actor].Position, source, range).Count > 0) &&
+                (source == store.Position || FindUnoccupiedRoute(actor, source, store.Position, 0).Count > 0);
+        }
     }
 
     private void AddStoreStockCandidate(List<CognitionCandidate> candidates, string actor)
@@ -96,7 +120,8 @@ public sealed partial class PrivateWorldRuntime
     private DeliveryOrderPlan? GetStoreOrderPlan(string actor, PlaytestInhabitantState person,
         OwnerInstructionOrder order, int maximumQuantity)
     {
-        if (NextStoreLoad(actor, order.TargetItemKind, order.TargetStorageBuildingId, order.DeliveryLotId) is not { } load ||
+        if (NextStoreLoad(actor, order.TargetItemKind, order.TargetStorageBuildingId, order.DeliveryLotId,
+                allowOrdinaryProject: true) is not { } load ||
             !DeliveryDestinationMatches(order, load.Store)) return null;
         var quantity = Math.Min(maximumQuantity, load.Quantity);
         return quantity <= 0 ? null : new DeliveryOrderPlan("store_stock", load.Store, load.Store.HouseholdId!,
