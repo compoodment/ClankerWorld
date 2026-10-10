@@ -18,6 +18,7 @@ public partial class Main
     private readonly OptionButton founderProviderChoice = new();
     private readonly OptionButton founderCredentialChoice = new();
     private readonly ModelPicker founderModelPicker = new();
+    private readonly OptionButton founderThinkingChoice = new();
     private readonly LineEdit founderKeyLabelInput = new();
     private readonly LineEdit founderApiKeyInput = new();
     private bool placingAddedAgent;
@@ -164,6 +165,8 @@ public partial class Main
         founderProviderChoice.SetItemMetadata(0, "openai");
         founderProviderChoice.AddItem("Ollama Cloud");
         founderProviderChoice.SetItemMetadata(1, "ollama-cloud");
+        founderProviderChoice.AddItem("Anthropic");
+        founderProviderChoice.SetItemMetadata(2, "anthropic");
         founderProviderChoice.ItemSelected += _ =>
         {
             founderModelPicker.SetModel(DefaultProviderModel(SelectedFounderProvider()), isNewAgent: true);
@@ -194,6 +197,10 @@ public partial class Main
         founderModelPicker.ModelChanged += ClearFounderModelSetupCheck;
         body.AddChild(FieldCaption("Model", founderModelPicker));
         body.AddChild(founderModelPicker);
+        PopulateThinkingChoices(founderThinkingChoice);
+        founderThinkingChoice.ItemSelected += _ => ClearFounderModelSetupCheck();
+        body.AddChild(FieldCaption("Thinking", founderThinkingChoice));
+        body.AddChild(founderThinkingChoice);
         founderModelSetupCheckButton.Text = "Test model · 1 paid call";
         founderModelSetupCheckButton.TooltipText = "Sends one request with this model and key. It counts toward your paid-call limit.";
         StyleButton(founderModelSetupCheckButton);
@@ -363,7 +370,8 @@ public partial class Main
             "personal", provider, model, newKey ? founderApiKeyInput.Text : null,
             ForgetCredential: false, InhabitantId: agentId,
             CredentialSlotId: newKey ? Guid.NewGuid().ToString("N") : choice == "default" ? null : choice,
-            NewCredentialLabel: newKey ? founderKeyLabelInput.Text.Trim() : null);
+            NewCredentialLabel: newKey ? founderKeyLabelInput.Text.Trim() : null,
+            Thinking: SelectedThinking(founderThinkingChoice));
         try
         {
             await RunOwnerActionAsync(async () =>
@@ -441,7 +449,8 @@ public partial class Main
             "personal", provider, model, newKey ? founderApiKeyInput.Text : null,
             ForgetCredential: false, InhabitantId: founderId,
             CredentialSlotId: newKey ? Guid.NewGuid().ToString("N") : choice == "default" ? null : choice,
-            NewCredentialLabel: newKey ? founderKeyLabelInput.Text.Trim() : null);
+            NewCredentialLabel: newKey ? founderKeyLabelInput.Text.Trim() : null,
+            Thinking: SelectedThinking(founderThinkingChoice));
         try
         {
             await RunOwnerActionAsync(async () =>

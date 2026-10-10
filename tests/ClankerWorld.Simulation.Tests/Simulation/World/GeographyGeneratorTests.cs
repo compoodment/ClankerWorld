@@ -393,7 +393,15 @@ public sealed class GeographyGeneratorTests
                     !map.Resources.Any(resource => resource.Position == neighbor))
                 .Select(neighbor => (Cover: tile.Position, Open: neighbor)))
             .First();
-        var actor = initial.Inhabitants[0];
+        // A resident with a House now prefers its stronger cover. Add a real
+        // agent without a House to keep this check about the natural fallback.
+        const string actorId = "agent:00000000000000000000000000000042";
+        using (var adding = PrivateWorldRuntime.Restore(initial))
+        {
+            adding.AddAgent(actorId, pair.Open);
+            initial = adding.ExportState();
+        }
+        var actor = initial.Inhabitants.Single(person => person.InhabitantId == actorId);
         var systems = initial.WorldSystems!;
         var profiles = Enum.GetValues<SeasonKind>()
             .Select(season => new WeatherProfile(season, 0, 0, 0, 1, 0)).ToArray();
@@ -426,8 +434,7 @@ public sealed class GeographyGeneratorTests
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var sheltered = world.Inhabitants.Single(person => person.InhabitantId == actor.InhabitantId);
         Assert.Equal(moved.Position, sheltered.Position);
-        Assert.True(sheltered.Survival!.WarmthBasisPoints >= previousWarmth - 10,
-            "Natural cover should reduce storm exposure at the agent's actual tile.");
+        Assert.Equal(previousWarmth - 33, sheltered.Survival!.WarmthBasisPoints);
     }
 
 }

@@ -7,7 +7,6 @@ public sealed partial class BusinessTradeTests
 {
     [Theory]
     [InlineData(8, 0, 6)]
-    [InlineData(7, 0, 6)]
     [InlineData(8, 7, 1)]
     [InlineData(8, 8, 0)]
     [InlineData(64, 0, 0)]

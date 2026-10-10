@@ -159,7 +159,7 @@ public sealed partial class PrivateWorldRuntime
                          occupied.Contains(new GridPoint(current.X, next.Y))))
                         continue;
 
-                    var cost = checked(priority.Cost + RoadStepCost(current, next));
+                    var cost = checked(priority.Cost + LegalRoadStepCost(current, next));
                     var index = next.Y * map.Width + next.X;
                     if (best[index] >= 0 && best[index] <= cost)
                         continue;
@@ -573,7 +573,11 @@ public sealed partial class PrivateWorldRuntime
                     worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId)?.Position);
             else
                 AppendEvent(completed ? "recipe_completed" : "recipe_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
-            if (completed) CreditProductionOrderJob(job, recipe);
+            if (completed)
+            {
+                LearnProducedRecipe(job, recipe, targetTick);
+                CreditProductionOrderJob(job, recipe);
+            }
         }
     }
 

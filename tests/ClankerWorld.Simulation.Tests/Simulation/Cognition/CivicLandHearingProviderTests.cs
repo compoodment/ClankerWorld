@@ -39,7 +39,26 @@ public sealed class CivicLandHearingProviderTests
         Assert.Null(admission.CivicBallot);
     }
 
+    [Fact]
+    public async Task PersonalProviderReplyPreservesTheExactGoodsPriceThroughAdmission()
+    {
+        using var handler = new ReplyHandler("{\"household_id\":\"household:buyer\",\"payment_item_kind\":\"wood\",\"payment_quantity\":2}");
+        using var client = new HttpClient(handler);
+        var runtime = new CognitionRuntime("actor", Provider(client));
+        var admission = await runtime.RequestAndDecideAsync(Observation());
+        Assert.True(admission.Accepted);
+        Assert.False(admission.FellBack);
+        var price = Assert.IsType<CognitionLandHearingChoice>(admission.CivicLandHearing);
+        Assert.Equal("wood", price.PaymentItemKind);
+        Assert.Equal(2, price.PaymentQuantity);
+        Assert.Equal("household:buyer", price.HouseholdId);
+    }
+
     [Theory]
+    [InlineData("{\"payment_item_kind\":\"wood\"}")]
+    [InlineData("{\"payment_quantity\":2}")]
+    [InlineData("{\"payment_item_kind\":\"wood\",\"payment_quantity\":0}")]
+    [InlineData("{\"payment_item_kind\":\"wood\",\"payment_quantity\":1.5}")]
     [InlineData("[]")]
     [InlineData("{\"statement\":{}}")]
     [InlineData("{\"evidence_ids\":{}}")]

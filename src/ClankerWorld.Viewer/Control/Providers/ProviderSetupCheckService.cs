@@ -28,6 +28,7 @@ public sealed class ProviderSetupCheckService(
 
         var providerId = PlayerDecisionProviders.Normalize(action.Provider);
         var model = action.Model.Trim();
+        var thinking = ModelThinking.Normalize(action.Thinking);
         var runtime = configuration.CaptureRuntimeConfiguration();
         var apiKey = ResolveApiKey(runtime, action, providerId);
         if (apiKey is null)
@@ -52,16 +53,23 @@ public sealed class ProviderSetupCheckService(
         }
 
         var request = CreateRequest();
-        var endpoint = providerId == PlayerDecisionProviders.OpenAi
-            ? PlayerDecisionProviders.OpenAiEndpoint
-            : PlayerDecisionProviders.OllamaCloudEndpoint;
-        var provider = new OpenAiCompatibleDecisionProvider(
-            httpClientFactory.CreateClient("model"),
-            () => apiKey,
-            endpoint,
-            model,
-            requestTimeout: RequestTimeout,
-            providerEpoch: request.ProviderEpoch);
+        var provider = providerId == PlayerDecisionProviders.Anthropic
+            ? new OpenAiCompatibleDecisionProvider(
+                new AnthropicModelClient(httpClientFactory.CreateClient("model"), apiKey),
+                model,
+                thinking,
+                RequestTimeout,
+                request.ProviderEpoch)
+            : new OpenAiCompatibleDecisionProvider(
+                httpClientFactory.CreateClient("model"),
+                () => apiKey,
+                providerId == PlayerDecisionProviders.OpenAi
+                    ? PlayerDecisionProviders.OpenAiEndpoint
+                    : PlayerDecisionProviders.OllamaCloudEndpoint,
+                model,
+                requestTimeout: RequestTimeout,
+                providerEpoch: request.ProviderEpoch,
+                thinking: thinking);
 
         CognitionDecisionResponse response;
         try
@@ -80,6 +88,10 @@ public sealed class ProviderSetupCheckService(
             usage.Finish(ticket, "failed");
             return exception.StatusCode switch
             {
+                HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity when thinking is not null =>
+                    Result("unsupported_format", "The provider rejected this request. This paid check was counted; choose a supported model, or set Thinking to Model default."),
+                HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity when providerId == PlayerDecisionProviders.Anthropic =>
+                    Result("unsupported_format", "The provider rejected this request. This paid check was counted; choose a supported model."),
                 HttpStatusCode.BadRequest or HttpStatusCode.UnprocessableEntity =>
                     Result("unsupported_format", "The provider rejected the game's required JSON response format. This paid check was counted; choose a supported model."),
                 HttpStatusCode.RequestTimeout or HttpStatusCode.GatewayTimeout =>
@@ -128,7 +140,12 @@ public sealed class ProviderSetupCheckService(
             return string.IsNullOrWhiteSpace(slot?.ApiKey) ? null : slot.ApiKey.Trim();
         }
 
-        var credential = provider == PlayerDecisionProviders.OpenAi ? runtime.OpenAi : runtime.OllamaCloud;
+        var credential = provider switch
+        {
+            PlayerDecisionProviders.OpenAi => runtime.OpenAi,
+            PlayerDecisionProviders.OllamaCloud => runtime.OllamaCloud,
+            _ => ProviderConfigurationStore.AnthropicCredential(runtime.Anthropic),
+        };
         return string.IsNullOrWhiteSpace(credential.ApiKey) ? null : credential.ApiKey.Trim();
     }
 

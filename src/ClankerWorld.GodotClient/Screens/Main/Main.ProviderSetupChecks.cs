@@ -35,7 +35,7 @@ public partial class Main
         }
 
         var slotId = credentialChoice is "default" or "new" ? null : credentialChoice;
-        var action = new OwnerProviderSetupCheckAction(provider, model, slotId, apiKey);
+        var action = new OwnerProviderSetupCheckAction(provider, model, slotId, apiKey, SelectedThinking(founderThinkingChoice));
         await RunModelSetupCheckAsync(
             founderModelSetupCheckButton,
             founderModelSetupCheckStatus,
@@ -66,7 +66,7 @@ public partial class Main
         }
 
         var slotId = credentialChoice is "default" or "new" ? null : credentialChoice;
-        var action = new OwnerProviderSetupCheckAction(provider, model, slotId, apiKey);
+        var action = new OwnerProviderSetupCheckAction(provider, model, slotId, apiKey, SelectedThinking(cognitionThinkingChoice));
         await RunModelSetupCheckAsync(
             cognitionModelSetupCheckButton,
             cognitionModelSetupCheckStatus,
@@ -110,6 +110,13 @@ public partial class Main
                         resultLabel.Text = $"{ProviderDisplayName(provider)} / {model}: {result.Message}";
                     return $"{ProviderDisplayName(provider)} / {model}: {result.Message}";
                 }
+                catch (OwnerActionCompatibilityException exception)
+                {
+                    var message = $"{FriendlyFailure(exception)}. Nothing was sent.";
+                    if (currentRevision() == testedRevision)
+                        resultLabel.Text = $"{ProviderDisplayName(provider)} / {model}: {message}";
+                    return message;
+                }
                 catch (Exception exception) when (exception is not OutOfMemoryException &&
                     exception is not ObsoleteWorldRequestException)
                 {
@@ -128,7 +135,7 @@ public partial class Main
 
     private void ResetCognitionModelSetupCheckForCurrentChoice()
     {
-        var context = $"{SelectedCognitionTarget()}|{SelectedProviderId()}|{cognitionModelPicker.Model}|{SelectedCredentialChoice()}";
+        var context = $"{SelectedCognitionTarget()}|{SelectedProviderId()}|{cognitionModelPicker.Model}|{SelectedCredentialChoice()}|{SelectedThinking(cognitionThinkingChoice)}";
         if (context == cognitionModelSetupCheckContext)
             return;
         cognitionModelSetupCheckContext = context;

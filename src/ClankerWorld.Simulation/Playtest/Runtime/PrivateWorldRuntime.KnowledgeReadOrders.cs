@@ -8,7 +8,7 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private const string KnowledgeReadOrderTask = "read one personally held written record, map or book and learn only its written facts";
+    private const string KnowledgeReadOrderTask = "read one personally held written record, map or book and learn only its written contents";
 
     private OwnerInstructionOrder? ParseKnowledgeReadOrder(string text)
     {
@@ -48,7 +48,7 @@ public sealed partial class PrivateWorldRuntime
             ? knowledge.Artifacts.FirstOrDefault(item => item.Id == id)
             : HeldKnowledgeArtifacts(instruction.TargetInhabitantId).FirstOrDefault(item =>
                 (instruction.Order.TargetItemKind is null || item.Kind == instruction.Order.TargetItemKind) &&
-                item.Facts.Any(fact => !KnowsMapFact(instruction.TargetInhabitantId, fact.Position)));
+                HasUnknownArtifactContents(instruction.TargetInhabitantId, item));
 
     private string? KnowledgeReadOrderBlocker(OwnerQueuedInstruction instruction)
     {
@@ -61,16 +61,17 @@ public sealed partial class PrivateWorldRuntime
             : "The named written item is no longer available.";
         if (!HeldKnowledgeArtifacts(actor).Any(item => item.Id == artifact.Id))
             return "The named written item must be personally owned, carried and available to read.";
-        if (knowledge.Facts.Count(fact => fact.OwnerId == actor) >= AgentKnowledgeRules.MaximumFactsPerAgent)
-            return "The agent's map-knowledge ledger is full.";
-        if (!artifact.Facts.Any(fact => !KnowsMapFact(actor, fact.Position)))
-            return "The agent already knows every site written in this item.";
+        if (!HasUnknownArtifactContents(actor, artifact))
+            return artifact.Facts.Any(fact => !KnowsMapFact(actor, fact.Position)) ||
+                artifact.Recipes.Any(recipe => !KnowsRecipe(actor, recipe.RecipeId))
+                ? "The agent's knowledge ledger is full."
+                : "The agent already knows every site and recipe written in this item.";
         return null;
     }
 
     private CognitionCandidate? KnowledgeReadOrderCandidate(OwnerQueuedInstruction instruction) =>
         KnowledgeReadOrderBlocker(instruction) is null && KnowledgeReadOrderArtifact(instruction) is { } artifact
-            ? new("read_knowledge", $"Read {artifact.Title}; learn only its actual written sites.", 0, artifact.Id) : null;
+            ? new("read_knowledge", $"Read {artifact.Title}; learn only its actual written sites and recipes.", 0, artifact.Id) : null;
 
     private void ExecuteKnowledgeReadOrder(OwnerQueuedInstruction instruction)
     {
@@ -82,6 +83,7 @@ public sealed partial class PrivateWorldRuntime
         var artifact = KnowledgeReadOrderArtifact(instruction)!;
         var actor = instruction.TargetInhabitantId;
         var before = knowledge.Facts.Where(fact => fact.OwnerId == actor).Select(fact => fact.Position).ToHashSet();
+        var beforeRecipes = knowledge.Recipes.Where(recipe => recipe.OwnerId == actor).Select(recipe => recipe.RecipeId).ToHashSet(StringComparer.Ordinal);
         var learned = ReadIfKnowledgeArtifact(artifact.LotId, artifact.CreatorId, actor);
         if (learned <= 0)
         {
@@ -91,12 +93,15 @@ public sealed partial class PrivateWorldRuntime
         var sites = knowledge.Facts.Where(fact => fact.OwnerId == actor && !before.Contains(fact.Position) &&
                 fact.Acquisition == "read" && fact.SourceArtifactId == artifact.Id && fact.LearnedTick == WorldTick)
             .Select(fact => fact.Position).OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
-        if (sites.Length != learned) throw new InvalidDataException("The native read effect lost its learned sites.");
+        var recipes = knowledge.Recipes.Where(recipe => recipe.OwnerId == actor && !beforeRecipes.Contains(recipe.RecipeId) &&
+                recipe.Acquisition == "read" && recipe.SourceArtifactId == artifact.Id && recipe.LearnedTick == WorldTick)
+            .Select(recipe => recipe.RecipeId).Order(StringComparer.Ordinal).ToArray();
+        if (sites.Length + recipes.Length != learned) throw new InvalidDataException("The native read effect lost its learned contents.");
         var current = instructionsByIdempotency[instruction.IdempotencyKey];
         current = current with
         {
             Order = current.Order! with
-            { TargetKnowledgeArtifactId = artifact.Id, KnowledgeReadCompletion = new(WorldTick, sites) }
+            { TargetKnowledgeArtifactId = artifact.Id, KnowledgeReadCompletion = new(WorldTick, sites) { LearnedRecipes = recipes } }
         };
         instructionsByIdempotency[current.IdempotencyKey] = current;
         CreditOrderEffect(current, KnowledgeReadOrderEffectId(current), 1);
@@ -107,7 +112,8 @@ public sealed partial class PrivateWorldRuntime
         var completion = instruction.Order!.KnowledgeReadCompletion!;
         return "read-order:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
             $"{instruction.InstructionId}|{instruction.TargetInhabitantId}|{instruction.Order.TargetKnowledgeArtifactId}|{completion.WorldTick}|" +
-            string.Join(';', completion.LearnedSites.Select(point => $"{point.X},{point.Y}")))));
+            string.Join(';', completion.LearnedSites.Select(point => $"{point.X},{point.Y}")) + "|" +
+            string.Join(';', completion.LearnedRecipes))));
     }
 
     private static bool IsValidKnowledgeReadOrderShape(OwnerInstructionOrder order, OwnerQueuedInstruction instruction, long worldTick) =>
@@ -120,13 +126,23 @@ public sealed partial class PrivateWorldRuntime
         (order.CompletedUnits == 0 ? order.KnowledgeReadCompletion is null && order.LastEffectId is null :
             order.TargetKnowledgeArtifactId is not null && order.KnowledgeReadCompletion is { } completion &&
             completion.WorldTick >= instruction.SubmittedTick && completion.WorldTick <= worldTick &&
-            completion.LearnedSites is { Count: >= 1 and <= AgentKnowledgeRules.MaximumFactsPerArtifact } &&
+            completion.LearnedSites is { Count: >= 0 and <= AgentKnowledgeRules.MaximumFactsPerArtifact } &&
+            completion.LearnedRecipes is { Count: <= AgentKnowledgeRules.MaximumFactsPerArtifact } &&
+            completion.LearnedSites.Count + completion.LearnedRecipes.Count > 0 &&
+            completion.LearnedRecipes.All(IsKnowledgeRecipeOrderId) &&
+            completion.LearnedRecipes.Distinct(StringComparer.Ordinal).Count() == completion.LearnedRecipes.Count &&
+            completion.LearnedRecipes.SequenceEqual(completion.LearnedRecipes.Order(StringComparer.Ordinal)) &&
             completion.LearnedSites.All(point => point is { X: >= -10_000_000 and <= 10_000_000, Y: >= -10_000_000 and <= 10_000_000 }) &&
             completion.LearnedSites.Distinct().Count() == completion.LearnedSites.Count &&
             completion.LearnedSites.SequenceEqual(completion.LearnedSites.OrderBy(point => point.Y).ThenBy(point => point.X)) &&
             order.LastEffectId == KnowledgeReadOrderEffectId(instruction));
 
     private static bool IsKnowledgeArtifactOrderId(string id) => !string.IsNullOrWhiteSpace(id) && id.Length <= 128 &&
+        id == id.Trim() && !id.Any(char.IsControl);
+
+    // Canonical recipe IDs follow active content definitions, whose local names have no length cap.
+    // ValidateRecipes and the read bindings below check the full definition and native provenance.
+    private static bool IsKnowledgeRecipeOrderId(string id) => !string.IsNullOrWhiteSpace(id) &&
         id == id.Trim() && !id.Any(char.IsControl);
 
     private static void ValidateKnowledgeReadOrderBindings(IEnumerable<OwnerQueuedInstruction> instructions, PrivateWorldKnowledgeState knowledge)
@@ -136,6 +152,7 @@ public sealed partial class PrivateWorldRuntime
         if (readingOrders.Length == 0) return;
         var artifacts = knowledge.Artifacts.ToDictionary(item => item.Id, StringComparer.Ordinal);
         var facts = knowledge.Facts.ToDictionary(item => (item.OwnerId, item.Position));
+        var recipes = knowledge.Recipes.ToDictionary(item => (item.OwnerId, item.RecipeId));
         foreach (var instruction in readingOrders)
         {
             if (instruction.Order is not { Action: "read_knowledge", TargetKnowledgeArtifactId: { } id } order) continue;
@@ -152,6 +169,15 @@ public sealed partial class PrivateWorldRuntime
                      learned.Acquisition != "read" || learned.SourceArtifactId != id || learned.SourceAgentId != artifact!.CreatorId ||
                      !AgentKnowledgeRules.SameDiscovery(learned, written)))
                     throw new InvalidDataException("A reading order does not match its actual learned sites and provenance.");
+            }
+            foreach (var recipeId in completion.LearnedRecipes)
+            {
+                var written = artifact?.Recipes.FirstOrDefault(recipe => recipe.RecipeId == recipeId);
+                if (written is null || !recipes.TryGetValue((instruction.TargetInhabitantId, recipeId), out var learned) ||
+                    learned.LearnedTick != completion.WorldTick || learned.Id != RecipeKnowledgeId(instruction.TargetInhabitantId, recipeId) ||
+                    learned.Acquisition != "read" || learned.SourceArtifactId != id || learned.SourceAgentId != artifact!.CreatorId ||
+                    !AgentKnowledgeRules.SameRecipe(learned, written))
+                    throw new InvalidDataException("A reading order does not match its actual learned recipes and provenance.");
             }
         }
     }
