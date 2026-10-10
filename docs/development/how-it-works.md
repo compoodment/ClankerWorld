@@ -926,6 +926,28 @@ approved casts, colours and paint order at both atlas sizes. Drawing is bounded
 to visible tiles and wrapped copies; unchanged piles reuse their commands.
 No host fields, inventory transitions, saved state or collision rules change.
 
+### Building completion moments
+
+`BuildingCompletionLayer` follows accepted owner snapshots and the actual map
+camera. A new placed building must replace a previously observed construction
+site with the same definition and footprint, with its placement tick between
+the last and current observations. Only a visible close/mid-zoom completion
+starts the local three-second effect. Cancelled sites, existing buildings,
+paused authoring insertions and off-screen completions never queue a moment.
+The first observation is a quiet baseline. World, map or observer timeline
+changes, rewind and gaps over a game hour clear display history; removal
+clears that building's active effect.
+
+The layer draws above roofs and night lights, below objects, figures and
+weather. `BuildingCompletionArt` shares the approved C pixel spans with the
+art reference: fourteen C9AC7C dust puffs spread and settle over 1.4 seconds,
+and five FFF6D8 twinkles stop after 2.4 seconds. It uses native horizontal
+spans without particle nodes or textures generated per frame. Active moments
+are bounded to 128; the oldest leaves if a larger visible batch completes.
+The local clock freezes while paused, resumes from the held frame, follows
+zoom and wrapped copies, and hides at overview. No state, event, protocol,
+construction or replay rule changes.
+
 ## Model inputs, usage and memories
 
 The per-world routine helper is Off, Jev or OpenAI Decisions. Decisions uses

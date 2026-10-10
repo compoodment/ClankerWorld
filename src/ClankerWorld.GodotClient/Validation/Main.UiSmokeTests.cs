@@ -3393,6 +3393,7 @@ public partial class Main
             await VerifyGoldenHourAsync();
             await VerifySmokeAsync(largeMap);
             await VerifyStoredStockAsync(largeMap);
+            await VerifyBuildingCompletionAsync();
             var startedMap = largeMap with { FounderSetup = null };
             RenderWorldHud(startedMap);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

@@ -188,6 +188,10 @@ title, household use right, pending use request or dispute, the household that
 owns it, and anything on it, such as a tree, a field or goods left on the
 ground.
 
+When a building finishes on screen at close or mid zoom, a ring of dust
+settles around it and a few twinkles appear over the roof. The moment plays
+once, freezes while paused, and does not replay when you reopen the world.
+
 Snowfall gradually covers open ground in the regions you watch, with grass
 tips and greyer, trodden Roads still showing. Walking agents and animals leave
 prints that fade within a game hour. Cover melts after snow stops, and pausing

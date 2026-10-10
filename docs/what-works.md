@@ -1482,6 +1482,12 @@ zoomed out; their fittings stay unlit until construction finishes.
 The [Windows checklist](../playtest/1090-construction-sites.md) is
 pending.
 
+A building finishing on screen at close or mid zoom gets the approved ring
+of settling dust and roof twinkles once. Pause holds the frame; reopening a
+world or panning to an earlier off-screen completion stays quiet. It changes
+no building work or saved state. The [Windows checklist](../playtest/1468-building-completion-moment.md)
+is pending.
+
 ### Household building sizes
 
 Households can choose these additional sizes when planning a building they do
