@@ -9,6 +9,29 @@ public static class GameUiText
 {
     private const int MinutesPerDay = 1_440;
 
+    /// <summary>A continuing model problem produces one row until recovery; waits and cancellations stay out of the log.</summary>
+    public static IEnumerable<OwnerWorldEvent> PlayerEvents(IEnumerable<OwnerWorldEvent> events)
+    {
+        var failures = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var item in events.OrderBy(item => item.EventId))
+        {
+            if (item.Kind != "model_attempt_status")
+            {
+                if (IsPlayerFacingEvent(item.Kind)) yield return item;
+                continue;
+            }
+            var separator = item.Detail.LastIndexOf(':');
+            if (separator <= 0) continue;
+            var agentId = item.Detail[..separator];
+            var status = item.Detail[(separator + 1)..];
+            if (status == "ready") failures.Remove(agentId);
+            if (status is not ("missing_key" or "usage_limit" or "unusable_reply" or "timed_out" or "model_unavailable")) continue;
+            if (failures.TryGetValue(agentId, out var previous) && previous == status) continue;
+            failures[agentId] = status;
+            yield return item;
+        }
+    }
+
     public static string ModelStatus(string? status) => status switch
     {
         "waiting" => "Waiting for the model",
@@ -316,7 +339,7 @@ public static class GameUiText
             "expansion_order_paused" or "expansion_order_resumed" or
             "build_started" or "build_completed" or "recipe_started" or "recipe_completed" or "house_tool_made" or
             "field_work_started" or "field_prepared" or "field_planted" or "field_tended" or "field_harvested" or
-            "field_ready" or "field_work_interrupted" or "crop_weather_loss" or
+            "field_ready" or "field_work_interrupted" or "field_returned_to_grass" or "crop_weather_loss" or
             "crop_moisture_effect" or "food_harvested" or "food_consumed" or "tree_planted" or "tree_replanted" or "child_born" or
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
             "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
@@ -325,12 +348,13 @@ public static class GameUiText
             "continuity_rule_on" or "continuity_rule_off" or
             "medical_care_allowed" or "medical_care_revoked" or
             "medical_treatment_started" or "medical_treatment_completed" or "medical_treatment_interrupted" or
+            "child_collected_household" or "child_delivered_household" or
             "empty_vessel_picked_up" or
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or "household_delivery_recovered" or
             "owner_stock_picked_up" or "owner_stock_delivered" or
-            "agent_knowledge_artifact_created" or "agent_knowledge_artifact_read" or "agent_knowledge_shared" or
+            "agent_recipe_learned" or "agent_knowledge_artifact_created" or "agent_knowledge_artifact_read" or "agent_knowledge_shared" or
             "agent_knowledge_writing_started" or "agent_knowledge_writing_cancelled" or "agent_knowledge_material_collected" or
             "agent_knowledge_artifact_collected" or "agent_knowledge_artifact_stored" or
             "tool_request_placed" or "tool_request_accepted" or "tool_request_refused" or "tool_request_withdrawn" or
@@ -416,8 +440,14 @@ public static class GameUiText
     /// </summary>
     public static string ActivityPhrase(string? candidateId, string? summary)
     {
+        if (summary?.StartsWith("looking for ", StringComparison.Ordinal) == true && !summary.Contains(':', StringComparison.Ordinal))
+            return summary.Trim();
         if (candidateId is not null && KnowledgeActionPhrase(candidateId, inProgress: true) is { } knowledgeActivity)
             return knowledgeActivity;
+        if (candidateId?.StartsWith("explore_for:resource:", StringComparison.Ordinal) == true)
+            return "looking for " + candidateId["explore_for:resource:".Length..].Replace('_', ' ');
+        if (candidateId?.StartsWith("explore_for:terrain:", StringComparison.Ordinal) == true)
+            return "looking for " + candidateId["explore_for:terrain:".Length..].ToLowerInvariant() + " terrain";
         if (candidateId?.StartsWith("tool_request_", StringComparison.Ordinal) == true)
             return candidateId.Split(':', 2)[0] switch
             {
@@ -464,7 +494,7 @@ public static class GameUiText
 
     /// <summary>
     /// The historical profile's will lines: who the agent named and what each
-    /// was left, or that the household inherits, then any final words.
+    /// was left, or that default inheritance applies, then any final words.
     /// </summary>
     public static IReadOnlyList<string> FinalWillLines(string? status, OwnerWorldFinalWill? will)
     {
@@ -491,7 +521,7 @@ public static class GameUiText
                 }
                 break;
             case "default":
-                lines.Add("Personal estate follows household inheritance.");
+                lines.Add("Personal estate follows default inheritance rules.");
                 break;
             default:
                 lines.Add("No current thoughts or activity.");
@@ -609,11 +639,16 @@ public static class GameUiText
             return $"build {HumanizeIdentifier(localId)}";
         }
 
+        if (normalized.StartsWith("child_gather:food:", StringComparison.Ordinal)) return "gather nearby food for the household";
+        if (normalized.StartsWith("child_gather:wood:", StringComparison.Ordinal)) return "pick up nearby fallen wood for the household";
+        if (normalized.StartsWith("child_carry:", StringComparison.Ordinal)) return "carry a small household load home";
+
         var known = normalized switch
         {
             "safe_idle" => "take it easy",
             "seek_food" => "find food",
             "move_to" => "go to a tile",
+            "boat_order" => "travel to the requested Port by boat",
             "eat_food" => "eat",
             "consume_food" => "eat",
             "collect_shared_food" => "collect food from camp",

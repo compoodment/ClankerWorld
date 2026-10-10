@@ -47,15 +47,5 @@ public partial class FittedLabel : Label
 
     /// <summary>The longest start of <paramref name="text"/> that fits with "..." after it, or the whole text if it fits.</summary>
     public static string Shorten(string text, float width, Func<string, float> measure)
-    {
-        if (measure(text) <= width) return text;
-        int low = 0, high = text.Length;
-        while (low < high)
-        {
-            var middle = (low + high + 1) / 2;
-            if (measure(text[..middle].TrimEnd() + "...") <= width) low = middle;
-            else high = middle - 1;
-        }
-        return text[..low].TrimEnd() + "...";
-    }
+        => SaveTimelineLayout.Shorten(text, width, measure);
 }

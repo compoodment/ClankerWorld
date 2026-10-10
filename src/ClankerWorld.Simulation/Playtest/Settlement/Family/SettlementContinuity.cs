@@ -15,27 +15,25 @@ public sealed record SettlementContinuityCouple(string FirstPartnerId, string Se
 
 public sealed partial class PrivateWorldRuntime
 {
-    // Provisional numbers from the owner's answer on #654; a risk-based check comes later.
-    private const int ContinuityPopulationThreshold = 8;
+    // Provisional: four eligible couples retain the old eight-adult-partner threshold (#1266).
+    private const int ContinuityEligibleCoupleThreshold = 4;
     private const int ContinuityPostponeDays = 2;
 
     private SettlementContinuity continuity = new(false, []);
 
     private long ContinuityPostponeTicks => ContinuityPostponeDays * (long)worldSystems.Config.TicksPerDay;
 
-    private int NonElderCount() => society.Checkpoint.Inhabitants.Count(person =>
-        person.Status == SocietyInhabitantStatus.Active && person.AgeBand != SocietyAgeBand.Elder);
+    private static string ContinuityDetail(int eligibleCouples) =>
+        "eligible_couples|" + eligibleCouples.ToString(CultureInfo.InvariantCulture) +
+        "|threshold|" + ContinuityEligibleCoupleThreshold.ToString(CultureInfo.InvariantCulture);
 
-    private static string ContinuityDetail(int nonElders) =>
-        "non_elders:" + nonElders.ToString(CultureInfo.InvariantCulture);
-
-    /// <summary>A new world starts below the threshold, so the rule is on from creation.</summary>
+    /// <summary>Only accepted eligible partnerships count; unrelated single adults do not turn the rule off.</summary>
     private void StartContinuityRule()
     {
-        var nonElders = NonElderCount();
-        if (nonElders >= ContinuityPopulationThreshold) return;
+        var couples = EligibleContinuityCouples().Count();
+        if (couples >= ContinuityEligibleCoupleThreshold) return;
         continuity = new(true, []);
-        AppendEvent("continuity_rule_on", ContinuityDetail(nonElders));
+        AppendEvent("continuity_rule_on", ContinuityDetail(couples));
     }
 
     private bool HasInfant(string parent) => society.Checkpoint.Relationships.Any(item =>
@@ -45,15 +43,18 @@ public sealed partial class PrivateWorldRuntime
         society.Checkpoint.GetInhabitant(item.TargetId).AgeBand == SocietyAgeBand.Infant);
 
     /// <summary>
-    /// Couples who could plan a child and have no infant. The rule only reads accepted partnerships;
+    /// Living adult couples who could have children. Having an infant does not remove a partnership
+    /// from the risk count; the no-infant check applies separately to holding a child plan.
+    /// The rule only reads accepted partnerships;
     /// it never proposes or accepts one.
     /// </summary>
-    private IEnumerable<(string First, string Second)> ContinuityCouples() => society.Checkpoint.Relationships
+    private IEnumerable<(string First, string Second)> EligibleContinuityCouples() => society.Checkpoint.Relationships
         .Where(item => item.Type == SocietyRelationshipType.Partnership && item.State == SocietyRelationshipState.Accepted)
         .Select(item => string.CompareOrdinal(item.ProposerId, item.TargetId) < 0
             ? (First: item.ProposerId, Second: item.TargetId)
             : (First: item.TargetId, Second: item.ProposerId))
-        .Where(pair => Partners(pair.First, pair.Second) && !HasInfant(pair.First) && !HasInfant(pair.Second))
+        .Where(pair => society.Checkpoint.GetInhabitant(pair.First).Status == SocietyInhabitantStatus.Active &&
+            society.Checkpoint.GetInhabitant(pair.Second).Status == SocietyInhabitantStatus.Active && Partners(pair.First, pair.Second))
         .Distinct()
         .OrderBy(pair => pair.First, StringComparer.Ordinal)
         .ThenBy(pair => pair.Second, StringComparer.Ordinal);
@@ -74,17 +75,17 @@ public sealed partial class PrivateWorldRuntime
 
     private void MaintainContinuity()
     {
-        var nonElders = NonElderCount();
-        var active = nonElders < ContinuityPopulationThreshold;
+        var eligible = EligibleContinuityCouples().ToArray();
+        var active = eligible.Length < ContinuityEligibleCoupleThreshold;
         if (active != continuity.Active)
-            AppendEvent(active ? "continuity_rule_on" : "continuity_rule_off", ContinuityDetail(nonElders));
+            AppendEvent(active ? "continuity_rule_on" : "continuity_rule_off", ContinuityDetail(eligible.Length));
         if (!active)
         {
             continuity = new(false, []);
             return;
         }
         var couples = new List<SettlementContinuityCouple>();
-        foreach (var (first, second) in ContinuityCouples())
+        foreach (var (first, second) in eligible.Where(pair => !HasInfant(pair.First) && !HasInfant(pair.Second)))
         {
             var deadline = continuity.Couples.FirstOrDefault(item =>
                 item.FirstPartnerId == first && item.SecondPartnerId == second)?.DeadlineTick ?? WorldTick + ContinuityPostponeTicks;
@@ -140,8 +141,8 @@ public sealed partial class PrivateWorldRuntime
                 "Preparing for parenthood. " + ParenthoodFoodNote(society.Checkpoint, caregiver, towns,
                     society.Checkpoint.GetInhabitant(actor).HouseholdId == society.Checkpoint.GetInhabitant(caregiver).HouseholdId);
         }
-        const string rule = "Continuity rule: while fewer than eight non-elders are alive, you and your partner " +
-            "may put off having a child for up to two days but may not refuse.";
+        var rule = $"Continuity rule: fewer than {ContinuityEligibleCoupleThreshold} adult couples who are not close relatives can have children. " +
+            "You may put off having a child for up to two days but may not refuse.";
         if (!ContinuityAllowsPostponement(couple))
             return rule + " Your two days are up, so your child plan is going ahead; the birth still needs food.";
         var ticksPerDay = worldSystems.Config.TicksPerDay;

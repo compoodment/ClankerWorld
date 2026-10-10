@@ -49,7 +49,7 @@ public sealed partial class PrivateWorldRuntime
              IsWithinInteractionRange(caregiver.Position, person.Position, ResourceInteractionRange)));
 
     private bool FamilyResourcesReady(string actor) =>
-        FamilyFoodReady(actor) && AccessibleShelters(actor).Any();
+        FamilyFoodReady(actor) && AccessibleShelters(actor, includeStormRefuge: false).Any();
 
     private bool FamilyFoodReady(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
@@ -169,8 +169,8 @@ public sealed partial class PrivateWorldRuntime
                 if (rule is null)
                     candidates.Add(new("parent_decline:" + person.InhabitantId, "Decline the parenthood request.", 70));
                 else if (mayPostpone)
-                    candidates.Add(new("parent_postpone:" + person.InhabitantId, "Say not yet to having a child. While fewer than eight " +
-                        "non-elders are alive you may not refuse; the plan goes ahead when your two days are up.", 70));
+                    candidates.Add(new("parent_postpone:" + person.InhabitantId, $"Say not yet to having a child. While fewer than {ContinuityEligibleCoupleThreshold} eligible adult couples " +
+                        "who are not close relatives are available you may not refuse; the plan goes ahead when your two days are up.", 70));
             }
             else if (rule is null)
             {
@@ -178,8 +178,8 @@ public sealed partial class PrivateWorldRuntime
             }
             else if (mayPostpone)
             {
-                candidates.Add(new("parent_postpone:" + person.InhabitantId, "Put off the child plan for now. While fewer than eight " +
-                    "non-elders are alive you may not refuse; the plan goes ahead when your two days are up.", 110));
+                candidates.Add(new("parent_postpone:" + person.InhabitantId, $"Put off the child plan for now. While fewer than {ContinuityEligibleCoupleThreshold} eligible adult couples " +
+                    "who are not close relatives are available you may not refuse; the plan goes ahead when your two days are up.", 110));
             }
         }
         // A couple held by the continuity rule may start sooner even with an older child, as long as no infant.
@@ -202,7 +202,8 @@ public sealed partial class PrivateWorldRuntime
         {
             candidates.Add(new("parent_propose:" + partner, continuityCouple is null
                 ? "Ask your partner whether to raise a child together. If they agree, they may choose either parent as the primary caregiver and that parent's household as the intended home. Their independent consent is required."
-                : "Ask your partner to start raising a child together now. While fewer than eight non-elders are alive " +
+                : $"Ask your partner to start raising a child together now. While fewer than {ContinuityEligibleCoupleThreshold} eligible adult couples " +
+                    "who are not close relatives are available " +
                     "they may say not yet but not refuse; the plan goes ahead when your two days are up. " +
                     "They may choose either parent as the primary caregiver and that parent's household as the intended home.", 75));
         }
@@ -329,7 +330,7 @@ public sealed partial class PrivateWorldRuntime
             }
             // Losing shelter after agreement creates a housing need, not a
             // blocked birth. Keep the child near their caregiver in that case.
-            var birthPosition = AccessibleShelters(caregiverId).FirstOrDefault()?.Position ?? inhabitants[caregiverId].Position;
+            var birthPosition = AccessibleShelters(caregiverId, includeStormRefuge: false).FirstOrDefault()?.Position ?? inhabitants[caregiverId].Position;
             var site = map.Tiles.Where(tile => map.IsBuildable(tile.Position) &&
                 IsWithinInteractionRange(tile.Position, birthPosition, ResourceInteractionRange) &&
                 !inhabitants.Values.Any(resident => resident.Position == tile.Position)).Select(tile => (GridPoint?)tile.Position).FirstOrDefault();
@@ -351,8 +352,8 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
-            inhabitants.Add(birth.ChildId, new(birth.ChildId, site.Value, 8_000, 0, "curious", "grow with the household",
-                Survival: new SurvivalCondition()));
+            inhabitants.Add(birth.ChildId, new(birth.ChildId, site.Value, 8_000, 0, "undecided", "find a purpose",
+                Survival: new SurvivalCondition(), IdentityChoicePending: true));
             var housingBlocker = HousingBlocker(birth.ChildId);
             if (housingBlocker is not null)
             {

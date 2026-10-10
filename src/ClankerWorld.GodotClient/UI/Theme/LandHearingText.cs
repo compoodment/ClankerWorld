@@ -14,7 +14,7 @@ public static class LandHearingText
 
     public static string Summary(OwnerTownLandHearing hearing)
     {
-        var subject = hearing.Kind == "expiry" ? "permission expiry" : "disputed permission";
+        var subject = hearing.Kind switch { "expiry" => "permission expiry", "property" => "household property", _ => "disputed permission" };
         var status = hearing.SettledTick is null ? "awaiting a ruling" :
             hearing.ReopenRequests.Any(request => request.Status == "pending") ? "settled · rehearing awaiting assessment" : "settled";
         var parties = string.Join("; ", hearing.Parties.Select(party => party.Name));
@@ -35,6 +35,8 @@ public static class LandHearingText
             "amend" => "Change the use permission",
             "end" => "End the use permission",
             "reject" => "Reject the unsupported request; retain current rights",
+            "reclaim" => "Pass the agreed household property to the Town",
+            "grant" => "Grant the recovered property",
             _ => "Review the use permission",
         };
         return action + (outcome.HouseholdName is { } household ? " for " + household : "") +
@@ -51,6 +53,7 @@ public static class LandHearingText
             "Requested: " + Outcome(hearing.RequestedOutcome, clock),
             NoticeSummary(hearing, clock) + ". Publication does not mean the notice was read.",
         };
+        lines.AddRange(hearing.PropertyDetails);
         foreach (var filing in hearing.Filings)
             lines.Add((filing.AgentName is { } filer ? "Filed by " + filer : "Automatic expiry review") +
                 " · " + clock(filing.Tick) + ": " + filing.Text);
@@ -149,7 +152,8 @@ public static class LandHearingText
                 lines.Add("Assessed by " + Judge(assessor) + (request.AssessedTick is { } assessed ? " · " + clock(assessed) : "") +
                     (request.Assessment is { } assessment ? ": " + assessment : "."));
         }
-        lines.Add("Use permission changes leave Town title, household membership, private buildings, crops and goods with their owners.");
+        lines.Add(hearing.Kind == "property" ? "Property transfers require living owners' agreement and an independent ruling. Town title, membership, crops and personal goods stay unchanged." :
+            "Use permission changes leave Town title, household membership, private buildings, crops and goods with their owners.");
         return lines.Select(GameUiText.PlainEllipses).ToArray();
     }
 

@@ -168,6 +168,7 @@ public sealed partial class PrivateWorldRuntime
                         (item.ProposerId == other || item.TargetId == other));
                     if (partnership is null) throw new InvalidOperationException("These agents have no current partnership.");
                     society.Apply(checkpoint => SocietyFixture.RevokeRelationship(checkpoint, partnership.Id, actor));
+                    MaintainMarriages();
                 }
                 break;
             default:

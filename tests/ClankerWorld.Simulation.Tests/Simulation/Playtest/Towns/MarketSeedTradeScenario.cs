@@ -30,10 +30,10 @@ internal static class MarketSeedTradeScenario
         Assert.Equal("first-town-farmhouse", farmhouse.InstanceId);
         var stall = market.Stalls.OrderBy(item => item.SlotIndex).First();
 
-        // Controlled near-event arrangement. Actual household food is consumed as
+        // Controlled near-event arrangement. Actual Town food is consumed as
         // meals and existing spare seed is held by actual reservations. Nothing is
         // deleted, and no map, title, building, field or actor position is invented.
-        var initial = FarmFieldTests.FeedHouseholdFromAvailableStock(paidBoundary, alpha);
+        var initial = FarmFieldTests.FeedFarmTownFromAvailableStock(paidBoundary, alpha);
         var inventory = initial.Society.Society.Inventory;
         var holds = new List<string>();
         foreach (var lot in inventory.Lots.Where(lot => lot.ItemKind == FarmFieldRules.GrainSeed &&
