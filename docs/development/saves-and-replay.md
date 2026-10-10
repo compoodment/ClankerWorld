@@ -127,6 +127,10 @@ Field ownership, work inputs, growth times and replanting reservations are
 validated together with inventory and map geometry. Current-format roundtrips
 retain intermediate work, carried deliveries and planting reserves. Fertility
 is derived from the seed and immutable map layers rather than saved per tile.
+Generated maps use their saved candidate attempt to recover the same rainfall
+as generation. Correcting that calculation changes derived fertility and
+future crop yields for candidate attempts 1 and 2, including after reload;
+existing fields, checkpoint bytes and the schema are unchanged.
 Older alpha saves need not load; no field or orchard migration is provided.
 
 Town-wide farm planning derives its food shortage and each farm's field target
@@ -1506,6 +1510,10 @@ Named borrowing records bind actual living adults to a paid stall while they
 remain inside the hall-and-plaza area. Stock receipts keep the personal or
 household owner recorded at deposit, physical lot, quantity and occupancy
 identity; live inventory remains authoritative after inheritance or collection.
+Source and destination lot references retain the full native inventory identity
+without a narrower receipt length limit. Whole and partial deposits from long
+split/move histories remain valid; the receipt hash, owner, quantity, occupancy,
+derived destination and exact retained inventory event still have to agree.
 Another borrower gains no right to sell those goods. Barter records bind the
 exact inventory offer, named seller and buyer, lots, reservations and outcome.
 Completed or cancelled trades retain a recent history without requiring spent

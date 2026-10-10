@@ -134,7 +134,9 @@ public static class MarketTradeValidation
                             receipt.Quantity, receipt.DepositedTick, receipt.Sequence, receipt.TradeOfferId) ||
                         receipt.SellerAgentId != occupancy.SellerAgentId ||
                         receipt.OwnerId != occupancy.SellerAgentId && receipt.OwnerId != occupancy.SellerHouseholdId ||
-                        !Bounded(receipt.SourceLotId, 2048) || !Bounded(receipt.LotId, 2048) || !ResourceKind(receipt.ItemKind) ||
+                        // Native inventory splits and moves retain their full lot lineage.
+                        // Validate the complete references against the exact deposit below.
+                        !Bounded(receipt.SourceLotId, int.MaxValue) || !Bounded(receipt.LotId, int.MaxValue) || !ResourceKind(receipt.ItemKind) ||
                         receipt.Quantity is <= 0 or > MarketTradeRules.LoadQuantity ||
                         receipt.DepositedTick < occupancy.StartedTick || receipt.DepositedTick > worldTick ||
                         occupancy.EndedTick is { } endedAt && receipt.DepositedTick > endedAt ||

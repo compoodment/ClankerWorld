@@ -1207,6 +1207,7 @@ public partial class Main
             {
                 await VerifyFirstWorldListAsync();
                 await VerifyWorldActionSelectionAsync();
+                await VerifyRefusedPendingSubmissionsAsync();
                 await VerifyUsageSettingsRepliesAsync();
                 await VerifyPairingRecoveryMenuAsync();
                 await VerifyFreshHostEntryAsync();

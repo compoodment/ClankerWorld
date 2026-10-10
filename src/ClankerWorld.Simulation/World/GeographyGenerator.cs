@@ -192,9 +192,7 @@ public static class GeographyGenerator
         var water = new byte[length];
         var temperature = new byte[length];
         var climate = new byte[length];
-        var candidateSeed = options.CandidateAttempt == 0
-            ? options.Seed
-            : DeriveCandidateSeed(options.Seed, options.CandidateAttempt);
+        var candidateSeed = CandidateSeed(options.Seed, options.CandidateAttempt);
         var elevationNoise = NewNoise(NoiseSeed(candidateSeed, "elevation"), 0.012f);
         var rainNoise = NewNoise(NoiseSeed(candidateSeed, "rainfall"), 0.018f);
         var temperatureNoise = NewNoise(NoiseSeed(candidateSeed, "temperature"), 0.007f);
@@ -335,6 +333,12 @@ public static class GeographyGenerator
     {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(worldSeed + ":" + layer));
         return BinaryPrimitives.ReadInt32LittleEndian(digest);
+    }
+
+    internal static string CandidateSeed(string seed, int attempt)
+    {
+        if (attempt == 0) return seed;
+        return DeriveCandidateSeed(seed, attempt);
     }
 
     private static string DeriveCandidateSeed(string seed, int attempt)

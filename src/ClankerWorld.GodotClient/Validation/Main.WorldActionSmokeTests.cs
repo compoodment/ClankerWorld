@@ -207,6 +207,7 @@ public partial class Main
         // When set, the host holds its rename reply until the check releases it.
         public TaskCompletionSource? ReleaseRename { get; set; }
         public bool FailAgentPlacement { get; set; }
+        public HttpStatusCode SubmissionStatus { get; set; } = HttpStatusCode.BadRequest;
         public bool FailPlacementProviderStatus { get; set; }
         public System.Collections.Concurrent.ConcurrentQueue<OwnerAgentPlacementAction> AgentPlacements { get; } = new();
 
@@ -282,6 +283,19 @@ public partial class Main
             Requests.Enqueue(context.Request.Url!.AbsolutePath);
             switch (context.Request.Url!.AbsolutePath)
             {
+                case OwnerPairingEndpoints.OwnerInstructions:
+                case OwnerPairingEndpoints.OwnerOrderCancel:
+                case OwnerPairingEndpoints.OwnerAuthoring:
+                    context.Response.StatusCode = (int)SubmissionStatus;
+                    if (SubmissionStatus == HttpStatusCode.OK)
+                    {
+                        context.Response.ContentType = "application/json";
+                        await context.Response.OutputStream.WriteAsync("{"u8.ToArray()).ConfigureAwait(false);
+                        context.Response.Close();
+                        return;
+                    }
+                    response = new { error = "Controlled owner request refusal." };
+                    break;
                 case "/api/v1/owner/recovery/status":
                     response = StartupRecovery;
                     break;

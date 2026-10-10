@@ -2968,8 +2968,11 @@ for other buildings, Town project sites, expansions, fields, tree planting and
 household land requests. The provisional starter budget is 24 wood,
 8 stone and 4 fiber with 10 work units; another stall costs 4 wood and 2 fiber
 with 3 work units. General plaza growth has no implementation or agreed rule.
-Physical stock receipts retain the personal or household owner. One named
-active adult borrows a stall while they remain inside the hall-and-plaza area;
+Physical stock receipts retain the personal or household owner. Each receipt
+keeps complete native source and destination lot IDs, including long
+split/move histories and a partial deposit's derived destination. Its hashed
+identity and exact inventory event bind that history to the real deposit.
+A named active adult borrows a stall while they remain inside the hall-and-plaza area;
 leaving, household change, death or removal ends borrowing and releases
 unfinished offer claims without transferring leftovers.
 
@@ -3305,7 +3308,9 @@ pending-will restore behavior.
 ## Fertility and household fields
 
 `LandFertility` derives each land tile's fertility from the world seed,
-rainfall, climate, surface and nearby rivers or lakes. It is derived data,
+rainfall, climate, surface and nearby rivers or lakes. Generated maps reuse
+the selected candidate's rainfall seed, including its east/west wrapping.
+Legacy fixture maps keep their original world-seed rainfall. It is derived data,
 not a saved object or a resource lot. Grass and meadow commonly support
 farming; dry scrub is poor, and sand, rock, snow, mountains and water cannot
 be farmed. Inspection uses Poor, Fair, Good and Rich rather than a score.

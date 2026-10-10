@@ -78,7 +78,7 @@ public partial class Main
             completed = true;
             instructionText.Text = string.Empty;
             return InstructionSubmissionResultText(action.Kind, action.Queue);
-        });
+        }, retainedSubmission: pending);
         if (completed)
         {
             CompletePendingSubmission(pending);
@@ -114,7 +114,7 @@ public partial class Main
                 ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None));
             completed = true;
             return OrderCancellationResultText(receipt);
-        });
+        }, retainedSubmission: pending);
         if (completed)
             CompletePendingSubmission(pending);
     }
@@ -171,7 +171,7 @@ public partial class Main
             return receipt.Applied
                 ? $"applied {operation.Kind} at revision {receipt.Revision}"
                 : $"authoring rejected · {receipt.Failure ?? "unknown validation failure"}";
-        });
+        }, retainedSubmission: pending);
         if (completed)
         {
             CompletePendingSubmission(pending);

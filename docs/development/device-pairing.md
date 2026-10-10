@@ -210,6 +210,12 @@ or origin boundary, and it can be explicitly forgotten. The record never
 contains a private key, signature, challenge, comparison code, or bearer
 credential.
 
+A definitive HTTP client refusal clears that request's local retry record and
+restores the owner controls, while keeping the refusal visible. HTTP 408,
+server errors, lost responses and unreadable receipts keep the exact record
+because the host may have committed the request. A late refusal from a previous
+world context cannot clear a retained request in the current world.
+
 ## Current scope
 
 Every paired device has the sole `owner` scope: world observation,
