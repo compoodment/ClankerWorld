@@ -418,6 +418,34 @@ public sealed class HandcartRuntimeTests
         Assert.Equal(recoveredBytes, PrivateWorldRuntimeCodec.Encode(finalReload.ExportState()));
     }
 
+    [Theory]
+    [InlineData(80, true, 1, "Pulled by")]
+    [InlineData(80, false, 1, "Parked")]
+    [InlineData(100, true, 1, "Pulled by")]
+    [InlineData(199, false, 1, "Parked")]
+    [InlineData(0, false, 0, "Broken")]
+    public void OnlyACartAtZeroConditionIsShownAsBroken(int basisPoints, bool attached, int percent, string status)
+    {
+        using var setup = new PrivateWorldRuntime("cart-condition-audit");
+        var state = setup.ExportState();
+        var person = state.Inhabitants[0];
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "cart", "handcart", person.InhabitantId, 1,
+            groundPosition: new(person.Position.X, person.Position.Y), conditionBasisPoints: basisPoints);
+        state = state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            HandcartHitches = attached ? [new("cart", person.InhabitantId)] : [],
+        };
+        using var world = PrivateWorldRuntime.Restore(state);
+        var snapshot = new OwnerWorldObservationStore(world).GetSnapshot();
+        Assert.Equal(percent, Assert.Single(snapshot.Handcarts).ConditionPercent);
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var client = JsonSerializer.Deserialize<ClankerWorld.GodotClient.UI.OwnerWorldSnapshot>(JsonSerializer.Serialize(snapshot, options), options)!;
+        var text = GameUiText.HandcartDescription(Assert.Single(client.Handcarts));
+        Assert.StartsWith("Handcart · " + status, text, StringComparison.Ordinal);
+        Assert.Contains($"Condition: {percent}%", text, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void CartObservationShowsRealOwnershipPositionCargoAndExclusiveSaveAttachments()
     {
