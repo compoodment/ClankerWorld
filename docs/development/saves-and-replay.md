@@ -51,6 +51,12 @@ creating a backup or changing its timeline, runtime or settings.
 Installation state includes device authority, provider credentials and usage
 accounting. Saves store slot IDs and model choices, never API-key bytes.
 
+New-world genesis no longer seeds Copper, a 100-unit household wallet or the
+legacy `camp-no-theft` fine. Currency and faction-law collections start empty.
+This changes initial world state without adding checkpoint fields or changing
+the schema. Restore uses saved world systems through the existing path; no
+migration or extra compatibility logic is added.
+
 The October 1 terrain tuning changes deterministic generation for new worlds.
 Loading retains the saved map and current weather episode; it does not replace
 either with a freshly generated map or a new weather roll. Earlier alpha maps

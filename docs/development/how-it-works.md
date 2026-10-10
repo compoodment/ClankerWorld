@@ -168,6 +168,12 @@ its saved world systems. It does not generate a disposable initial ecology,
 chunk set or weather state. New worlds still generate those systems normally;
 ordinary loads still validate saved data and check deterministic map identity.
 
+New worlds start with no currency definitions, accounts or transfers. The
+legacy faction-law list is empty too: genesis creates no `camp-no-theft` rule
+or money fine. Physical goods, ownership/access checks and actual Town laws
+use their existing systems. The generic currency and faction contracts remain
+available to the kernel, but native world creation supplies no money or fines.
+
 The current host aims for one tick per real second. New worlds save 360 ticks
 per day and a 40-day year with four ten-day seasons; lifecycle thresholds are
 3/15/45/60 days. Newly created playable worlds start at 06:00 on Spring 1,
