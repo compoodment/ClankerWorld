@@ -96,15 +96,19 @@ public sealed class AnthropicProviderTests
         Assert.Single(handler.Requests);
     }
 
-    [Fact]
-    public async Task TheOwnersKeyIsTheOnlyCredentialEvenWhenTheHostHasItsOwnAnthropicLogin()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TheOwnersKeyIsTheOnlyCredentialEvenWhenTheHostHasItsOwnAnthropicLogin(bool hostToken)
     {
         var savedToken = Environment.GetEnvironmentVariable("ANTHROPIC_AUTH_TOKEN");
         var savedProfile = Environment.GetEnvironmentVariable("ANTHROPIC_PROFILE");
+        var savedApiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
         try
         {
-            Environment.SetEnvironmentVariable("ANTHROPIC_AUTH_TOKEN", "host-environment-token");
-            Environment.SetEnvironmentVariable("ANTHROPIC_PROFILE", "missing-host-profile");
+            Environment.SetEnvironmentVariable("ANTHROPIC_AUTH_TOKEN", hostToken ? "host-environment-token" : null);
+            Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", null);
+            Environment.SetEnvironmentVariable("ANTHROPIC_PROFILE", "missing-host-profile-" + Guid.NewGuid().ToString("N"));
             var handler = new AnthropicHandler(MessageReply(Answer));
             var client = new AnthropicModelClient(new HttpClient(handler), "sk-ant-owner-key");
 
@@ -118,7 +122,26 @@ public sealed class AnthropicProviderTests
         {
             Environment.SetEnvironmentVariable("ANTHROPIC_AUTH_TOKEN", savedToken);
             Environment.SetEnvironmentVariable("ANTHROPIC_PROFILE", savedProfile);
+            Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", savedApiKey);
         }
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.OK, false)]
+    [InlineData(HttpStatusCode.OK, true)]
+    [InlineData(HttpStatusCode.BadRequest, false)]
+    [InlineData(HttpStatusCode.BadRequest, true)]
+    public async Task OversizedSuccessAndErrorBodiesAreRejectedBeforeSdkParsing(HttpStatusCode status, bool unknownLength)
+    {
+        var json = status == HttpStatusCode.OK ? MessageReply(Answer)
+            : """{"type":"error","error":{"type":"invalid_request_error","message":"no"}}""";
+        var handler = new AnthropicHandler(json.PadRight(ProviderResponseBody.MaximumBytes + 1), status, unknownLength);
+        var client = new AnthropicModelClient(new HttpClient(handler), "sk-ant-test-key");
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => client.CompleteAsync(Call(null), CancellationToken.None));
+
+        Assert.Contains("byte limit", exception.Message, StringComparison.Ordinal);
+        Assert.Single(handler.Requests);
     }
 
     [Fact]
@@ -430,7 +453,7 @@ public sealed class AnthropicProviderTests
     private sealed record RecordedRequest(HttpMethod Method, Uri Uri, string? ApiKey, string? AnthropicVersion, string? Authorization, string Body);
 
     /// <summary>Answers every request with one recorded Anthropic reply and keeps what was sent.</summary>
-    private sealed class AnthropicHandler(string reply, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
+    private sealed class AnthropicHandler(string reply, HttpStatusCode status = HttpStatusCode.OK, bool unknownLength = false) : HttpMessageHandler
     {
         public List<RecordedRequest> Requests { get; } = [];
 
@@ -443,8 +466,16 @@ public sealed class AnthropicProviderTests
                 request.Headers.TryGetValues("anthropic-version", out var versions) ? versions.Single() : null,
                 request.Headers.Authorization?.ToString(),
                 request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken)));
-            return new HttpResponseMessage(status) { Content = new StringContent(reply, Encoding.UTF8, "application/json") };
+            HttpContent content = unknownLength
+                ? new StreamContent(new NonSeekableResponseStream(Encoding.UTF8.GetBytes(reply)))
+                : new StringContent(reply, Encoding.UTF8, "application/json");
+            return new HttpResponseMessage(status) { Content = content };
         }
+    }
+
+    private sealed class NonSeekableResponseStream(byte[] body) : MemoryStream(body)
+    {
+        public override bool CanSeek => false;
     }
 
     private sealed class ChatHandler : HttpMessageHandler

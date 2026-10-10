@@ -110,6 +110,13 @@ public partial class Main
                         resultLabel.Text = $"{ProviderDisplayName(provider)} / {model}: {result.Message}";
                     return $"{ProviderDisplayName(provider)} / {model}: {result.Message}";
                 }
+                catch (OwnerActionCompatibilityException exception)
+                {
+                    var message = $"{FriendlyFailure(exception)}. Nothing was sent.";
+                    if (currentRevision() == testedRevision)
+                        resultLabel.Text = $"{ProviderDisplayName(provider)} / {model}: {message}";
+                    return message;
+                }
                 catch (Exception exception) when (exception is not OutOfMemoryException &&
                     exception is not ObsoleteWorldRequestException)
                 {

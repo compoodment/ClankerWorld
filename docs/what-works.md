@@ -149,7 +149,7 @@ be shared or selected independently. An agent's Profile lets you change these
 choices and rename the person. For OpenAI, Ollama Cloud and Anthropic, the model
 is picked from the game's own short list, newest at the top, or typed by name.
 Anthropic offers Claude Opus 5.5, Claude Sonnet 5.5 and Claude Haiku 5.5, and a
-new agent starts on Claude Haiku 5.5. Each of these agents also has a
+new Anthropic agent starts on Claude Haiku 5.5. Each of these agents also has a
 **Thinking** setting, chosen with its model: **Model default**, **Low**,
 **Medium** or **High**. A model that refuses the setting fails its calls until
 it is set back to Model default. The host checks the chosen key with the

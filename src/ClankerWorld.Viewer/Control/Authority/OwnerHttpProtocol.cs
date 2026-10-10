@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
+using ClankerWorld.Simulation.Cognition;
 
 namespace ClankerWorld.Viewer.Control;
 
@@ -411,6 +412,7 @@ public static class OwnerHttpBinding
     public static string ProviderSetupCheckPayload(OwnerProviderSetupCheckAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
+        _ = ModelThinking.Normalize(action.Thinking);
         var provider = PlayerDecisionProviders.Normalize(action.Provider);
         if (!PlayerDecisionProviders.IsHosted(provider))
             throw new ArgumentException("Choose OpenAI, Ollama Cloud or Anthropic for a personal model check.", nameof(action));

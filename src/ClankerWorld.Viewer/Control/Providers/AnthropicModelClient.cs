@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Anthropic;
+using Anthropic.Core;
 using Anthropic.Exceptions;
 using Anthropic.Models.Messages;
 using ClankerWorld.Simulation.Cognition;
@@ -94,15 +95,43 @@ public sealed class AnthropicModelClient(HttpClient httpClient, string apiKey, U
     /// stops the client falling back to the host's environment token or login
     /// profile, so the owner's chosen key is the only credential sent.
     /// </summary>
-    internal static AnthropicClient Create(HttpClient httpClient, string apiKey, Uri baseUrl, TimeSpan timeout) => new()
+    internal static AnthropicClient Create(HttpClient httpClient, string apiKey, Uri baseUrl, TimeSpan timeout) => new(new ClientOptions
     {
         ApiKey = apiKey,
         AuthToken = null,
         HttpClient = httpClient,
+        Handlers = [new BoundedResponseHandler()],
         BaseUrl = baseUrl.AbsoluteUri.TrimEnd('/'),
         MaxRetries = 0,
         Timeout = timeout,
-    };
+    });
+
+    private sealed class BoundedResponseHandler : DelegatingHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                // Bound success and error bodies before the SDK buffers or parses either.
+                var original = response.Content;
+                var body = await ProviderResponseBody.ReadAsync(original, cancellationToken).ConfigureAwait(false);
+                var bounded = new StringContent(body, System.Text.Encoding.UTF8);
+                bounded.Headers.Clear();
+                foreach (var header in original.Headers)
+                    if (!string.Equals(header.Key, "Content-Length", StringComparison.OrdinalIgnoreCase))
+                        bounded.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                response.Content = bounded;
+                original.Dispose();
+                return response;
+            }
+            catch
+            {
+                response.Dispose();
+                throw;
+            }
+        }
+    }
 
     private static int Bounded(long tokens) => tokens is >= 0 and <= MaximumReportedTokens
         ? (int)tokens

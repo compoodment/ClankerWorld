@@ -45,6 +45,11 @@ public partial class Main
             if (checkKey) picker.ShowList(list.Models, list.DefaultModel, list.Error);
             else picker.ShowList(list.Models, list.DefaultModel, PasteKeyNote, canRetry: false);
         }
+        catch (ClankerWorld.GodotClient.Pairing.OwnerActionCompatibilityException exception)
+        {
+            if (IsCurrentWorldRequest(generation) && picker.IsLatest(lookup))
+                picker.ShowError(FriendlyFailure(exception), defaultModel, canRetry: false);
+        }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             if (IsCurrentWorldRequest(generation) && picker.IsLatest(lookup))

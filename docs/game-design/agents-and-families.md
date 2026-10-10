@@ -61,7 +61,7 @@ everything that is available in the current build. See [what works today](../wha
 - **Agreed on October 9 (the owner in chat):** Anthropic's Claude models are a
   hosted provider for agents' personal models, next to OpenAI and Ollama Cloud.
   Its short list is Claude Opus 5.5, Claude Sonnet 5.5 and Claude Haiku 5.5,
-  and a new agent starts on **Claude Haiku 5.5**. Claude is not a routine
+  and a new Anthropic agent starts on **Claude Haiku 5.5**. Claude is not a routine
   helper choice.
 - **Agreed on October 9 (the owner in chat):** every agent's hosted model has a
   **Thinking** setting, chosen with its model for every hosted provider:
