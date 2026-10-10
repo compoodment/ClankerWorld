@@ -106,8 +106,16 @@ public partial class Main
             map = map with { WorldTick = 116, ConstructionSites = [Site(255, 62)] }; Show();
             map = map with { WorldTick = 200, ConstructionSites = [], PlacedBuildings = [.. map.PlacedBuildings, Finished("gap", 255, 62, 200)] }; Show();
             Check(buildingCompletionLayer.ActiveCount == 0, "A long reconnect gap must not replay unobserved construction.");
-            ResetDisplayedWorldContext(); Show();
+            map = map with { WorldTick = 201, ConstructionSites = [Site(255, 60)], PlacedBuildings = [] }; Show();
+            map = map with { WorldTick = 202, ConstructionSites = [], PlacedBuildings = [Finished("reload-reset", 255, 60, 202)] }; Show();
+            Check(buildingCompletionLayer.ActiveCount == 1, "Reload reset must start with an actual active completion moment.");
+            ResetDisplayedWorldContext();
+            Check(buildingCompletionLayer.ActiveCount == 0, "Reload and timeline reset must immediately clear the active completion clock.");
+            Show();
             Check(buildingCompletionLayer.ActiveCount == 0, "Reload and timeline reset must establish a quiet baseline.");
+            map = map with { WorldTick = 203, ConstructionSites = [Site(255, 62)], PlacedBuildings = [] }; Show();
+            map = map with { WorldTick = 204, ConstructionSites = [], PlacedBuildings = [Finished("world-reset", 255, 62, 204)] }; Show();
+            Check(buildingCompletionLayer.ActiveCount == 1, "World switch must start with an actual active completion moment.");
             map = map with { WorldId = "completion-other-world" }; Show();
             Check(buildingCompletionLayer.ActiveCount == 0, "Switching worlds must establish a quiet baseline.");
         }

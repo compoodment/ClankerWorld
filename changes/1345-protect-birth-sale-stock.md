@@ -1,0 +1,1 @@
+- Preparing births leave household food on actively borrowed Market stalls untouched. The food gate and parent guidance exclude sale stock until borrowing ends; usable household food elsewhere can still pay for the birth.

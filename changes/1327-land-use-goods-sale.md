@@ -1,0 +1,1 @@
+- Households can sell existing land-use permission for an exact goods price. Every affected adult must accept, then a buyer brings real goods to meet a seller adult at the notice place. Payment and permission move together; Town title and private buildings stay with their holders. Details show pending payment and completed receipts, which survive saving and loading.

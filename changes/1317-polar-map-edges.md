@@ -1,0 +1,1 @@
+- Generated maps now always end in polar sea at the north and south edges, so agents never walk into an invisible wall there. Earlier worlds whose maps differ from regeneration no longer load; their saves are kept.

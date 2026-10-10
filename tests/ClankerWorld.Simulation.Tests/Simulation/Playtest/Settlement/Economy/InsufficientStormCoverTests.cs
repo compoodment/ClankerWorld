@@ -99,7 +99,7 @@ public sealed class InsufficientStormCoverTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task AnInvitedLitHouseDoesNotHideUsableHeatOrDisplaceCurrentCover(bool ownHouseLit)
+    public async Task AnInvitedLitHouseDoesNotHideUsableHeatOrBetterPermittedShelter(bool ownHouseLit)
     {
         var policy = new MarketRulesPolicy
         {
@@ -180,10 +180,11 @@ public sealed class InsufficientStormCoverTests
         }
         Assert.Contains(policy.Chosen, choice => choice.Actor == Actor && choice.Id == "seek_warmth");
         var person = world.Inhabitants.Single(person => person.InhabitantId == Actor);
-        Assert.True(person.Position == (ownHouseLit ? ownHouse.Position : cover),
+        Assert.True(person.Position == (ownHouseLit ? ownHouse.Position : guestHouse.Position),
             $"Own={ownHouse.Position}, guest={guestHouse.Position}, cover={cover}, actual={person.Position}, ownLit={ownHouseLit}, warmth={person.Survival!.WarmthBasisPoints}");
         if (ownHouseLit) Assert.True(person.Survival!.WarmthBasisPoints > 3_400);
-        else Assert.DoesNotContain(world.ExportState().Events.Skip(state.Events.Count), item =>
+        else Assert.True(person.Survival!.WarmthBasisPoints < 3_400);
+        Assert.Contains(world.ExportState().Events.Skip(state.Events.Count), item =>
             item.Kind == "inhabitant_moved" && item.Detail.StartsWith(Actor + ":", StringComparison.Ordinal));
         Assert.Contains(world.ExportState().Survival!.Fires, fire => fire.BuildingId == guestHouse.InstanceId && fire.FuelUntilTick > world.WorldTick);
         var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
