@@ -349,7 +349,21 @@ public partial class Main
         out string deviceId,
         out IOwnerDeviceSigner signer)
     {
-        if (!observationSession.AwaitingFreshBaseline && !registeredEndpointInvalid &&
+        if (!observationSession.AwaitingFreshBaseline)
+            return TryGetRegisteredOwner(out authority, out deviceId, out signer);
+
+        authority = null!;
+        deviceId = string.Empty;
+        signer = null!;
+        return false;
+    }
+
+    private bool TryGetRegisteredOwner(
+        out OwnerAuthorityIdentity authority,
+        out string deviceId,
+        out IOwnerDeviceSigner signer)
+    {
+        if (!registeredEndpointInvalid &&
             registration is not null && deviceKey is not null)
         {
             authority = registration.Authority;

@@ -265,7 +265,7 @@ public sealed class PostDeathWillTests
             "To First Town: nothing listed",
             "Final words: “Keep the orchard going.”",
         ], lines);
-        Assert.Equal(["Personal estate follows household inheritance.", "Final words: “Be kind.”"],
+        Assert.Equal(["Personal estate follows default inheritance rules.", "Final words: “Be kind.”"],
             GameUiText.FinalWillLines("default", new OwnerWorldFinalWill("default", null, [], "Be kind.")));
     }
 
