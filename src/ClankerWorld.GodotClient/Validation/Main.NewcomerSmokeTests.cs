@@ -58,7 +58,7 @@ public partial class Main
             if (NewcomerOfferButton() is null)
                 throw new InvalidOperationException("The Event Log rows must show the newcomer offer while the rule is on.");
             // The offer above a short history fits without a scrollbar.
-            knownEvents[900] = new OwnerWorldEvent(900, 1, "food_consumed", "founder-scout", null);
+            knownEvents[900] = new OwnerWorldEvent(900, 1, "tree_planted", "founder-scout:planted-tree-1-1:broadleaf", null);
             RenderEventLog();
             eventsPanel.Show();
             FitHudLists();

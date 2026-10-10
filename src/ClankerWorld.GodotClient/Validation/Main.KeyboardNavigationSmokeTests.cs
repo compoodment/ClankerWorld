@@ -231,13 +231,14 @@ public partial class Main
                         var expectedCamera = cameraCenterTiles;
                         CenterCameraAt(new(3.5f, 3.5f));
                         knownEvents.Clear();
-                        knownEvents[9001] = new OwnerWorldEvent(9001, 1, "food_consumed", people[0].Id, new(0, 0));
+                        // Find actions require visible events; routine meals are intentionally filtered out.
+                        knownEvents[9001] = new OwnerWorldEvent(9001, 1, "skill_learned", $"{people[0].Id}|building|work", new(0, 0));
                         RenderEventLog();
                         var find = KeyboardControls(eventRows).OfType<Button>().Single();
                         for (var step = 0; !find.HasFocus() && step <= KeyboardControls(panel).Length; step++)
                             await KeyboardKeyAsync(Key.Tab);
                         if (!find.HasFocus()) throw new InvalidOperationException("Tab must reach the event's Find action.");
-                        knownEvents[9002] = new OwnerWorldEvent(9002, 2, "food_consumed", people[1].Id, new(3, 3));
+                        knownEvents[9002] = new OwnerWorldEvent(9002, 2, "skill_learned", $"{people[1].Id}|building|work", new(3, 3));
                         RenderEventLog();
                         var restoredFind = GetViewport().GuiGetFocusOwner();
                         if (restoredFind is not Button || !restoredFind.HasMeta("keyboard_event_action") ||
