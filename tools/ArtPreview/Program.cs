@@ -43,6 +43,7 @@ static class Baseline
         var families = new List<(string Family, List<Entry> Entries, Color? Backdrop, int Columns)>();
 
         families.Add(("smoke", new SmokeClientPreview().Render().ToList(), null, 2));
+        families.Add(("stock", new StoredStockClientPreview().Render().ToList(), null, 3));
 
         // Ground tiles: both variants at 32 px and at the 16 px mid-zoom atlas.
         var terrain = new List<Entry>();

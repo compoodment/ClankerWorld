@@ -38,6 +38,9 @@ out.
 - `Approved/Smoke.cs`: the original smoke review drawings, retained independently
   for exact comparisons. Baseline smoke and the `smoke-client` animation use
   the live client generator; `check` compares all 36 frames at both zoom levels.
+- `Approved/StoredStock.cs`: independent original stock review drawings. Baseline
+  stock and the `stock-client` family use the live client painter; `check` compares
+  empty, some and full scenes at both atlas sizes.
 - `Scene.cs`: the hand-laid reference Town and the composer that draws it
   the way the map layer does.
 

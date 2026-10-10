@@ -16,6 +16,7 @@ internal static class ArtContractChecks
                     Equal(Proposed.WaitingMarker.WaitingMarkerProposal.Frame('c', size, frame, badge),
                         Proposed.WaitingMarker.WaitingMarkerProposal.Frame('c', size, frame, badge, clientArt: true),
                         $"Approved circling spark frame {frame}, badge {badge}, must match at {size} px.");
+        CheckApprovedStock();
         CheckApprovedBuildings(current);
         CheckApprovedNature(current);
         CheckApprovedItems();
@@ -71,6 +72,15 @@ internal static class ArtContractChecks
                     $"Approved smoke B must match at {size} px, frame {frame}.");
         }
         Console.WriteLine("Approved smoke: 72 exact RGBA frame comparisons and both atlas source checks.");
+    }
+
+    private static void CheckApprovedStock()
+    {
+        foreach (var size in new[] { 16, 32 })
+            foreach (var level in new[] { 0, 1, 2 })
+                Equal(Approved.StockProposal.Frame("a-at-door", level, size), StoredStockClientPreview.Frame(level, size),
+                    $"Stock A must match at {size} px, level {level}.");
+        Console.WriteLine("Approved stock: 6 exact RGBA scene comparisons, covering all pile families and levels at both atlases.");
     }
 
     private static void CheckApprovedBuildings(ArtSet current)
