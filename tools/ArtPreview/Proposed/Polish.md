@@ -64,6 +64,10 @@ the meadow, one tile per world update, as the host reports them.
 
 ## 3 · Chimney smoke (`smoke`)
 
+Approved B now draws in the client through `SmokeArt` and `SmokeLayer`. The
+original review drawings remain in `tools/ArtPreview/Approved/Smoke.cs`;
+`smoke-client` renders the live drawing and `check` compares all 72 frames.
+
 Smoke rises only from buildings in use: here two Houses with someone inside
 and the Blacksmith's forge. The empty Houses stay smokeless, following the
 night-lights rule for when a building is lit.

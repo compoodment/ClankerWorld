@@ -9,6 +9,7 @@ internal static class ArtContractChecks
     public static void Run()
     {
         var current = new ArtSet();
+        CheckApprovedSmoke();
         foreach (var size in new[] { 16, 32 })
             foreach (var badge in new[] { false, true })
                 for (var frame = 0; frame < 8; frame++)
@@ -55,6 +56,21 @@ internal static class ArtContractChecks
         if (SceneComposer.RoadLinksAt(crossing, 1, 2, true) != RoadLinks.None)
             throw new InvalidOperationException("A deck must not create a Road piece on an empty bank.");
         Console.WriteLine("Current-art contract checks passed.");
+    }
+
+    private static void CheckApprovedSmoke()
+    {
+        foreach (var size in new[] { 16, 32 })
+        {
+            var sources = SmokeClientPreview.Sources(size).ToArray();
+            if (!sources.SequenceEqual(Approved.SmokeProposal.Sources(size)))
+                throw new InvalidOperationException("Smoke must begin at the actual approved chimney and forge pixels.");
+            for (var frame = 0; frame < 36; frame++)
+                Equal(Approved.SmokeProposal.Frame("b-column", size, frame / 12.0),
+                    SmokeClientPreview.Frame(size, frame / 12.0),
+                    $"Approved smoke B must match at {size} px, frame {frame}.");
+        }
+        Console.WriteLine("Approved smoke: 72 exact RGBA frame comparisons and both atlas source checks.");
     }
 
     private static void CheckApprovedBuildings(ArtSet current)

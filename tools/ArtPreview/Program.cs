@@ -42,6 +42,8 @@ static class Baseline
         Directory.CreateDirectory(root);
         var families = new List<(string Family, List<Entry> Entries, Color? Backdrop, int Columns)>();
 
+        families.Add(("smoke", new SmokeClientPreview().Render().ToList(), null, 2));
+
         // Ground tiles: both variants at 32 px and at the 16 px mid-zoom atlas.
         var terrain = new List<Entry>();
         foreach (var style in Enum.GetValues<TerrainStyle>())
@@ -262,7 +264,7 @@ static class Baseline
     }
 }
 
-/// <summary>Proposed art: any class implementing <see cref="IArtProposal"/> under Proposed/ is rendered.</summary>
+/// <summary>Proposed art: any class implementing <see cref="IArtProposal"/> is rendered, including archived review drawings.</summary>
 public interface IArtProposal
 {
     string Family { get; }

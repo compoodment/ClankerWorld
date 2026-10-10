@@ -110,6 +110,11 @@ between. Dusk and dawn each fade over an hour (15 seconds at that pace). A new w
 daylight. Loading an existing world keeps its saved clock. At night the map darkens with a
 gentle blue wash at every zoom, under map names, agents and weather, and it is
 colder outdoors (see [Life, work and society](#life-work-and-society)).
+At close and mid zoom, an occupied House or working Blacksmith forge emits
+a soft grey column of smoke that rises, leans east and fades. Empty Houses
+and idle forges emit none; pausing freezes the smoke. The appearance still
+needs a Windows hands-on check.
+
 Buildings in use glow: light falls on the ground from the windows on a
 building's front and sides and from its open door, never from its roof. A House
 is lit only while someone is inside; a Farmhouse, Store, Tailor Shop, Workshop
