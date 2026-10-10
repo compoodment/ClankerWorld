@@ -20,6 +20,7 @@ public sealed partial class PrivateWorldRuntime
         // does not prompt the household to manufacture another batch.
         var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == KnowledgeContent.Paper &&
                 lot.ConditionBasisPoints > 0 && lot.FreshnessBasisPoints > 0 &&
+                !OnBorrowedMarketStall(lot) &&
                 (lot.OwnerId == householdId || writers.Contains(lot.OwnerId)))
             .Sum(lot => lot.Quantity);
         return available < writers.Count * 2;

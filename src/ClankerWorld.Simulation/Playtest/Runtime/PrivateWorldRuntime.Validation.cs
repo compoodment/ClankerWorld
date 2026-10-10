@@ -16,7 +16,9 @@ public sealed partial class PrivateWorldRuntime
     public void Validate()
     {
         SocietyFixture.Validate(society.Checkpoint);
-        ValidateBeliefEventSources(society.Checkpoint.Beliefs ?? [], events, eventHistoryFloor);
+        ValidateBeliefEventSources(society.Checkpoint.AllBeliefs(), events, eventHistoryFloor);
+        ValidateExplorationGoalBindings(inhabitants.Values.Concat(deceasedInhabitants.Values.Select(person => person.LastPhysical)),
+            instructionsByIdempotency.Values);
         society.Validate();
         ValidateBusinessTrades(BusinessTrades, society.Checkpoint, map, WorldTick);
         ValidateToolMakingRequests(ToolMakingRequests, worldSimulation, worldContent, society.Checkpoint, inhabitants.Values, BusinessTrades, WorldTick);
@@ -30,15 +32,15 @@ public sealed partial class PrivateWorldRuntime
         }
         assetReservations.Validate();
         ValidateAssetReservationsAgainstActivePackages();
-        WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
+        WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick, TownPropertyValidation.RecoveredBuildings(towns));
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidateBoatTransport(CaptureState());
         ValidateAnimalState(CaptureState());
-        ValidateTalkOrderBindings(instructionsByIdempotency.Values, conversations);
+        ValidateTalkOrderBindings(instructionsByIdempotency.Values, conversations, marriages);
         ValidateCartOrderBindings(society.Checkpoint.Inventory, instructionsByIdempotency.Values);
         ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
-            society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates);
+            society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates, TownPropertyValidation.RecoveredBuildings(towns));
         ValidateFarmFields(fields.ToArray(), map, worldSeed, society.Checkpoint, worldSimulation, worldContent, RoadAndBridgeTiles().ToArray());
         ValidateFieldOrderBindings(fields, instructionsByIdempotency.Values);
         ValidateProductionOrderBindings(worldSimulation, worldContent, inhabitants.Values, instructionsByIdempotency.Values);
@@ -109,6 +111,7 @@ public sealed partial class PrivateWorldRuntime
         }
         ValidateTownAdmissions(towns, society.Checkpoint, checkpointSchemaVersion);
         ValidateLandHearings(map, society.Checkpoint, towns, householdLandUseRights, householdLandUseRequests, townLandTitles, worldSystems.Config.TicksPerDay);
+        TownPropertyValidation.ValidateWorld(map, society.Checkpoint, towns, worldSimulation, worldContent);
         TownProjectValidation.Validate(towns, society.Checkpoint, map, worldSimulation, worldContent,
             townLandTitles, householdLandUseRights, householdLandUseRequests, fields, RoadTiles, Bridges);
         ValidatePaidMarkets(towns, society.Checkpoint, map, worldSimulation, worldContent,
@@ -125,6 +128,7 @@ public sealed partial class PrivateWorldRuntime
         ValidatePlantedTrees();
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, bridges, checkpointSchemaVersion, towns);
         AgentKnowledgeRules.Validate(knowledge, map, society.Checkpoint, WorldTick);
+        AgentKnowledgeRules.ValidateRecipes(knowledge, society.Checkpoint, worldContent, worldSimulation, WorldTick);
         ValidateKnowledgeReadOrderBindings(instructionsByIdempotency.Values, knowledge);
         ValidateKnowledgeOrderBindings(knowledge, instructionsByIdempotency.Values);
         ValidateHousing(inhabitants.Values, society.Checkpoint, checkpointSchemaVersion);
@@ -145,7 +149,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 ValidateProject(project, WorldTick);
             }
-            if (!map.IsPassable(inhabitant.Position) && !IsSavedBoatPassenger(boatTransport, inhabitant.InhabitantId, inhabitant.Position) ||
+            if (!map.IsPassable(inhabitant.Position) && !SwimmingRules.IsSwimmingWater(map, inhabitant.Position) && !IsSavedBoatPassenger(boatTransport, inhabitant.InhabitantId, inhabitant.Position) ||
                 inhabitant.HungerBasisPoints is < 0 or > 10_000 ||
                 inhabitant.MoveWaitTicks < 0 || inhabitant.TravelCooldownTicks < 0)
             {
@@ -279,7 +283,7 @@ public sealed partial class PrivateWorldRuntime
 
     private static void ValidatePhysicalInventoryLocations(InventoryCheckpoint inventory,
         WorldContentSimulationState simulation, DeclarativeWorldContentState content,
-        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map, IReadOnlyList<SocietyEstate> estates)
+        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map, IReadOnlyList<SocietyEstate> estates, HashSet<string> recoveredBuildings)
     {
         var buildings = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
@@ -310,10 +314,11 @@ public sealed partial class PrivateWorldRuntime
                 if (!buildings.TryGetValue(storageId, out var storage) ||
                     !definitions.TryGetValue(storage.DefinitionId, out var definition) ||
                     !(storage.HouseholdId == lot.OwnerId && definition.Tags.Any(IsHouseholdBuildingTag) ||
-                      (people.ContainsKey(lot.OwnerId) || HasEstateStorage(lot)) && storage.HouseholdId is not null &&
+                      (people.ContainsKey(lot.OwnerId) || HasEstateStorage(lot)) && (storage.HouseholdId is not null || recoveredBuildings.Contains(storageId)) &&
                       definition.Tags.Contains("house", StringComparer.Ordinal) ||
-                      storage.TownId == lot.OwnerId && storage.HouseholdId is null && !InventoryContainerRules.IsFood(lot.ItemKind) &&
-                      definition.Tags.Contains("warehouse", StringComparer.Ordinal)))
+                      storage.TownId == lot.OwnerId && storage.HouseholdId is null &&
+                      (recoveredBuildings.Contains(storageId) && definition.Tags.Any(IsHouseholdBuildingTag) ||
+                          !InventoryContainerRules.IsFood(lot.ItemKind) && definition.Tags.Contains("warehouse", StringComparer.Ordinal))))
                     throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid building storage location.");
             }
             if (lot.DeliveryBuildingId is { } deliveryId &&
@@ -420,7 +425,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateSavedInstructions(state.Instructions ?? [], state.CompletedInstructionIds ?? [], society.Checkpoint,
             state.Society.Society.WorldId, latestWorldEventId,
             state.OrderCancellations ?? [], state.WorldContent);
-        ValidateBeliefEventSources(state.Society.Society.Beliefs ?? [], state.Events, state.EventHistoryFloor);
+        ValidateBeliefEventSources(state.Society.Society.AllBeliefs(), state.Events, state.EventHistoryFloor);
         ValidateConversationState(state, society.Checkpoint);
         AgentMarriageValidation.Validate(state, society.Checkpoint);
         ValidateBusinessTrades(state.BusinessTrades, society.Checkpoint, state.Map, society.Checkpoint.WorldTick);
@@ -428,8 +433,11 @@ public sealed partial class PrivateWorldRuntime
         ValidateMedicalCare(state);
         AgentKnowledgeRules.Validate(state.Knowledge, travelMap, society.Checkpoint,
             society.Checkpoint.WorldTick);
+        AgentKnowledgeRules.ValidateRecipes(state.Knowledge, society.Checkpoint, state.WorldContent, state.WorldSimulation!, society.Checkpoint.WorldTick);
         ValidateKnowledgeReadOrderBindings(state.Instructions ?? [], state.Knowledge);
         ValidateKnowledgeOrderBindings(state.Knowledge, state.Instructions ?? []);
+        ValidateExplorationGoalBindings(state.Inhabitants.Concat((state.DeceasedInhabitants ?? []).Select(person => person.LastPhysical)),
+            state.Instructions ?? []);
         ValidateSurvival(state);
         ValidateCouncil(state);
         foreach (var town in state.Towns ?? [])
@@ -484,7 +492,7 @@ public sealed partial class PrivateWorldRuntime
         }
         state.WorldContent.Validate();
         WorldContentSimulationRules.Validate(state.WorldSimulation, state.WorldContent, state.Map,
-            state.Society.Society.WorldTick);
+            state.Society.Society.WorldTick, TownPropertyValidation.RecoveredBuildings(state.Towns));
         ValidateProductionOrderBindings(state.WorldSimulation, state.WorldContent, state.Inhabitants, state.Instructions ?? []);
         ValidateCustodyOrderBindings(society.Checkpoint, state.Instructions ?? []);
         ValidateDeliveryOrderBindings(state.WorldSimulation, society.Checkpoint, state.Towns, state.Instructions ?? []);
@@ -497,11 +505,11 @@ public sealed partial class PrivateWorldRuntime
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
         ValidateBoatTransport(state);
-        ValidateTalkOrderBindings(state.Instructions ?? [], state.Conversations ?? []);
+        ValidateTalkOrderBindings(state.Instructions ?? [], state.Conversations ?? [], state.Marriages ?? []);
         ValidateCartOrderBindings(state.Society.Society.Inventory, state.Instructions ?? []);
         ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
-            state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates);
+            state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates, TownPropertyValidation.RecoveredBuildings(state.Towns));
         ValidateFarmFields(state.Fields!.ToArray(), state.Map, state.WorldSeed, state.Society.Society,
             state.WorldSimulation, state.WorldContent, state.RoadTiles.Concat(
                 state.Bridges.SelectMany(bridge => bridge.Entrances)).ToArray());
@@ -516,6 +524,7 @@ public sealed partial class PrivateWorldRuntime
             state.Society.Society);
         ValidateLandHearings(state.Map, society.Checkpoint, state.Towns ?? [], state.HouseholdLandUseRights!,
             state.HouseholdLandUseRequests!, state.TownLandTitles!, state.WorldSystems!.Config.TicksPerDay);
+        TownPropertyValidation.ValidateWorld(state.Map, society.Checkpoint, state.Towns ?? [], state.WorldSimulation, state.WorldContent);
         foreach (var town in state.Towns ?? [])
             TownNonviolentValidation.Validate(state.Map, society.Checkpoint, town, state.TownLandTitles!, state.WorldSystems.Config.TicksPerDay);
         ValidateNonviolentPhysicalState(state.Map, society.Checkpoint, state.Towns ?? [], state.TownLandTitles!, state.HouseholdLandUseRights!);
@@ -635,7 +644,7 @@ public sealed partial class PrivateWorldRuntime
         var terminal = order.Status is "finished" or "cancelled" or "not_understood";
         var isCompleted = completedInstructionIds.Contains(instruction.InstructionId, StringComparer.Ordinal);
         if (order.Action != "read_knowledge" && (order.TargetKnowledgeArtifactId is not null || order.KnowledgeReadCompletion is not null)) return false;
-        if (order.Action != "talk_to" && (order.TalkConversationId is not null || order.TalkOutcome is not null)) return false;
+        if (!IsConversationOrder(order.Action) && (order.TalkConversationId is not null || order.TalkOutcome is not null)) return false;
         if (!IsCartOrder(order.Action) && order.TargetCartLotId is not null) return false;
         if ((order.TargetAnimalId is not null) != IsAnimalOrder(order.Action)) return false;
         if ((order.BoatTravel is not null) != (order.Action == "travel_by_boat")) return false;
@@ -648,7 +657,7 @@ public sealed partial class PrivateWorldRuntime
             order.TargetResourceId is { Length: > 128 } || order.TargetResourceId?.Any(char.IsControl) == true ||
             order.Action != "produce_item" && (order.TargetRecipeId is not null || order.TargetOutputKind is not null ||
                 order.ProductionBuildingId is not null || order.ProductionJobId is not null || order.ProductionProjectStartedTick is not null) ||
-            order.Action is not ("collect_goods" or "store_goods" or "return_borrowed" or "deliver_stock" or "read_knowledge") && order.TargetItemKind is not null ||
+            order.Action is not ("collect_goods" or "store_goods" or "return_borrowed" or "deliver_stock" or "read_knowledge" or "load_handcart" or "unload_handcart" or "unload_handcart_ground") && order.TargetItemKind is not null ||
             order.Action != "deliver_stock" && (order.DeliveryPurpose is not null ||
                 order.DeliveryRoute is not null || order.DeliveryLotId is not null || order.DeliveryQuantity is not null) ||
             order.Action is not ("deliver_stock" or "construct_building" or "expand_building" or "seek_shelter" or "tend_fire") && order.TargetBuildingKind is not null ||
@@ -670,6 +679,7 @@ public sealed partial class PrivateWorldRuntime
             return false;
 
         if (order.Action == "read_knowledge") return IsValidKnowledgeReadOrderShape(order, instruction, worldTick);
+        if (order.Action == "propose_marriage") return IsValidMarriageOrder(instruction, people);
         if (order.Action == "talk_to")
             return order.TargetAgentId is { } target && people.Contains(target) && target != instruction.TargetInhabitantId &&
                 order.RequestedUnits == 1 && order.CompletedUnits is >= 0 and <= 1 && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
@@ -695,12 +705,15 @@ public sealed partial class PrivateWorldRuntime
                     order.LastEffectId is { } receipt && receipt.StartsWith("writing:artifact:", StringComparison.Ordinal) &&
                     receipt.Length <= "writing:artifact:".Length + 128 && IsValidProductionBindingId(receipt["writing:artifact:".Length..]));
 
+        if (IsCartCargoOrder(order.Action)) return IsValidCartCargoOrder(instruction);
         if (IsCartOrder(order.Action))
             return (order.TargetCartLotId is null || IsValidInstructionIdentifier(order.TargetCartLotId) && order.TargetCartLotId == order.TargetCartLotId.Trim()) &&
                 order.RequestedUnits == 1 && order.CompletedUnits is >= 0 and <= 1 && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&
                 order.ProgressUnit == "cart_tasks" && order.TargetFoodKind is null && order.TargetAgentId is null && order.TargetResourceId is null && order.TargetPosition is null &&
                 order.Status != "not_understood" && (order.Status == "finished") == (order.CompletedUnits == 1) &&
-                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.TargetCartLotId is not null && order.LastEffectId == CartOrderEffectId(instruction));
+                (order.CompletedUnits == 0 ? order.LastEffectId is null : order.TargetCartLotId is not null &&
+                    (order.Action == "repair_handcart" ? CartRepairOrderReceiptTick(instruction, worldTick) is not null :
+                        order.LastEffectId == CartOrderEffectId(instruction)));
         if (IsAnimalOrder(order.Action))
             return !string.IsNullOrWhiteSpace(order.TargetAnimalId) && order.TargetAnimalId.Length <= 128 &&
                 !order.TargetAnimalId.Any(char.IsControl) && order.RequestedUnits == 1 && order.CompletedUnits >= 0 &&
@@ -964,6 +977,9 @@ public sealed partial class PrivateWorldRuntime
 
     private static bool IsValidCustodyBindingShape(OwnerInstructionOrder order)
     {
+        if (IsCartCargoOrder(order.Action))
+            return order.TargetStorageBuildingId is null && order.TargetStorageOwnerId is null && order.TargetStoragePosition is null &&
+                (order.TargetLotId is null || IsValidProductionBindingId(order.TargetLotId));
         var stores = order.Action is "store_material" or "store_equipment" or "store_goods" or "return_borrowed" or "deliver_stock";
         if (!stores && (order.TargetStorageBuildingId is not null || order.TargetStorageOwnerId is not null ||
             order.TargetStoragePosition is not null) || order.Action != "return_borrowed" && order.TargetLotId is not null)
@@ -1029,7 +1045,7 @@ public sealed partial class PrivateWorldRuntime
             throw new InvalidDataException("An agent cannot take part in overlapping conversations.");
 
         var turns = conversations.SelectMany(item => item.Turns).ToDictionary(item => item.Id, StringComparer.Ordinal);
-        foreach (var group in (checkpoint.Beliefs ?? []).Where(item => item.SourceTurnId is not null)
+        foreach (var group in checkpoint.AllBeliefs().Where(item => item.SourceTurnId is not null)
                      .GroupBy(item => (item.OwnerId, item.SourceTurnId)))
         {
             var sourceTurnId = group.Key.SourceTurnId!;
@@ -1097,7 +1113,7 @@ public sealed partial class PrivateWorldRuntime
             if (!deceasedById.TryGetValue(person.InhabitantId, out var deceased) ||
                 deceased.DeathTick != person.DeathTick || person.DeathTick < 0 || person.DeathTick > society.WorldTick ||
                 person.AgeAtDeath < 0 || person.LastPhysical.InhabitantId != person.InhabitantId ||
-                !deathMap.IsPassable(person.LastPhysical.Position) &&
+                !deathMap.IsPassable(person.LastPhysical.Position) && !SwimmingRules.IsSwimmingWater(deathMap, person.LastPhysical.Position) &&
                     !(person.BoatIdAtDeath is not null && PortNavigationRules.NavigableWater(deathMap, person.LastPhysical.Position)) ||
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000 ||
                 person.LastPhysical.Equipment?.OrnamentLotId is not null ||

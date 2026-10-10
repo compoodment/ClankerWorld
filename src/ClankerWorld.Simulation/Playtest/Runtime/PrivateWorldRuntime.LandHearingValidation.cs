@@ -39,6 +39,7 @@ public sealed partial class PrivateWorldRuntime
                 currentPartiesResolver: item => TownLandCasePartyRules.CurrentParties(town,
                     TownLandHearingRules.CurrentRevision(item).Tiles, rights, requests, checkpoint.Inhabitants,
                     checkpoint.WorldTick, item));
+            TownLandTransferValidation.ValidateSalePayments(map, town.LandHearings, checkpoint.Inventory);
             foreach (var proposal in town.Governance?.Proposals.Where(proposal => proposal.Kind == "land_hearing") ?? [])
                 TownLandGovernmentFilingRules.Validate(proposal, town, map, titles, knownHouseholds);
         }

@@ -11,7 +11,9 @@ namespace ClankerWorld.Simulation.Playtest;
 /// tiles a new street should meet rather than run beside, and a non-null
 /// <see cref="Border"/> keeps the street inside the Town border.
 /// <see cref="ReuseRoads"/> selects inter-Town routing: existing Road costs
-/// apply, with no local side-street spacing penalty.
+/// apply, with no local side-street spacing penalty. Optional <see cref="Occupied"/>
+/// distinguishes physical diagonal-corner obstructions from held land when
+/// following an existing Road; new Road edges still respect all blocked land.
 /// </summary>
 public sealed record RoadRouteRequest(
     SeededMap Map,
@@ -21,7 +23,8 @@ public sealed record RoadRouteRequest(
     IReadOnlyList<BridgeState> Bridges,
     IReadOnlySet<GridPoint>? Roads = null,
     IReadOnlySet<GridPoint>? Border = null,
-    bool ReuseRoads = false);
+    bool ReuseRoads = false,
+    IReadOnlySet<GridPoint>? Occupied = null);
 
 /// <summary>
 /// A complete, not yet committed street: every land tile it uses in order
@@ -292,7 +295,12 @@ public static class RoadRoutePlanner
         return (Math.Abs(to.X - from.X) == 1 || request.ReuseRoads && map.WrapsEastWest && Math.Abs(to.X - from.X) == map.Width - 1) &&
             IsClearCorner(new GridPoint(to.X, from.Y)) && IsClearCorner(new GridPoint(from.X, to.Y));
 
-        bool IsClearCorner(GridPoint tile) => map.IsBuildable(tile) && !request.Blocked.Contains(tile);
+        bool IsClearCorner(GridPoint tile)
+        {
+            var blocked = request.ReuseRoads && request.Roads?.Contains(from) == true && request.Roads.Contains(to)
+                ? request.Occupied ?? request.Blocked : request.Blocked;
+            return map.IsBuildable(tile) && !blocked.Contains(tile);
+        }
     }
 
     private static RoadRouteProposal Reconstruct(GridPoint end, Dictionary<GridPoint, Link> predecessor)

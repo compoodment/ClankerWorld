@@ -289,13 +289,15 @@ public sealed class QueuedCognitionContextTests
             var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
             restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),
                 id => id == farmer ? replacement : new QuietProvider());
+            Assert.Equal(field.Work.RemainingTicks, Assert.Single(restored.Fields).Work!.RemainingTicks);
             restored.Resume();
-            await AdvanceUntil(restored, () => replacement.Started.Task.IsCompleted);
+            Assert.True((await restored.AdvanceOneTickNonBlockingAsync()).Advanced);
+            await replacement.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
             var fresh = Assert.Single(replacement.Requests);
             Assert.NotEqual(oldEpoch, fresh.RunEpoch);
             Assert.Equal(restored.Society.RunEpoch, fresh.RunEpoch);
             Assert.Equal(message.InstructionId, Assert.Single(fresh.ObserverGuidance!).InstructionId);
-            Assert.Equal(field.Work.RemainingTicks, Assert.Single(restored.Fields).Work!.RemainingTicks);
+            Assert.Equal(field.Work.RemainingTicks - 1, Assert.Single(restored.Fields).Work!.RemainingTicks);
             provider.ReleaseSecond.TrySetResult(true);
             await provider.SecondReturned.Task.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));

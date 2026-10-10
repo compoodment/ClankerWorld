@@ -17,9 +17,16 @@ public sealed partial class PrivateWorldRuntime
         if (removed > 0) AppendEvent("saved_road_footprints_repaired", $"removed:{removed}");
     }
 
-    private int RoadStepCost(GridPoint from, GridPoint to)
+    private int RoadStepCost(GridPoint from, GridPoint to) =>
+        RoadAdjustedStepCost(from, to, map.FootStepCost(from, to));
+
+    // Route searches obtain legal edges from FootNeighbors immediately before
+    // costing them; movement and other callers keep the validating entry point.
+    private int LegalRoadStepCost(GridPoint from, GridPoint to) =>
+        RoadAdjustedStepCost(from, to, map.LegalFootStepCost(from, to));
+
+    private int RoadAdjustedStepCost(GridPoint from, GridPoint to, int cost)
     {
-        var cost = map.FootStepCost(from, to);
         // One ground tile per tick is already the movement floor. This
         // provisional factor removes diagonal wait ticks and biases routing
         // toward an existing Road without making illness delays disappear.
@@ -123,7 +130,7 @@ public sealed partial class PrivateWorldRuntime
         var townBorder = building.TownId is { } townId ? towns.Single(item => item.Id == townId).BorderTiles.ToHashSet() : null;
         var ordered = working.Where(point => townBorder is null || townBorder.Contains(point))
             .OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
-        var streets = new TownStreets(map, occupied, ordered);
+        var streets = new TownStreets(map, occupied, working);
         var random = Pcg32XshRrV1.Create(worldSeed, $"town-streets/{building.InstanceId}");
         foreach (var end in ordered)
         {

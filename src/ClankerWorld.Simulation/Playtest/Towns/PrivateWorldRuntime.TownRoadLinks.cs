@@ -26,13 +26,14 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(other => map.FootDistance(origin, other.OriginSite!.Value))
             .ThenBy(other => other.Id, StringComparer.Ordinal).FirstOrDefault();
         if (nearest is null) return;
-        var occupied = RoadBlockedTiles();
+        var physical = RoadOccupiedTiles();
+        var occupied = physical.Concat(HouseholdLandHeldByOthers(null)).ToHashSet();
         var nearestBorder = nearest.BorderTiles.ToHashSet();
         var network = roadTiles.Where(nearestBorder.Contains).ToHashSet();
         if (network.Count == 0)
         {
             network.UnionWith(worldSimulation.Buildings.Where(building => building.TownId == nearest.Id && nearestBorder.Contains(building.Position))
-                .SelectMany(building => BuildingRoadEntrances(building, occupied)));
+                .SelectMany(building => BuildingRoadEntrances(building, occupied)).Where(nearestBorder.Contains));
             if (network.Count == 0 && map.IsBuildable(nearest.OriginSite!.Value) && !occupied.Contains(nearest.OriginSite.Value))
                 network.Add(nearest.OriginSite.Value);
         }
@@ -40,7 +41,7 @@ public sealed partial class PrivateWorldRuntime
         var starts = localBuilding ? BuildingRoadEntrances(firstBuilding, occupied) :
             map.IsBuildable(origin) && (!occupied.Contains(origin) || roadTiles.Contains(origin)) ? new[] { origin } : [];
         var request = new RoadRouteRequest(map, starts, network,
-            occupied, Bridges, roadTiles, ReuseRoads: true);
+            occupied, Bridges, roadTiles, ReuseRoads: true, Occupied: physical);
         var result = RoadRoutePlanner.Plan(request);
         var failure = result.Proposal is { } proposal ? RoadRoutePlanner.Validate(request, proposal) : result.Outcome;
         if (failure is not null)

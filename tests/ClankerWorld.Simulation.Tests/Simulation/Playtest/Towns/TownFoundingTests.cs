@@ -139,6 +139,11 @@ public sealed partial class TownMembershipTests
         }
         var town = Assert.Single(world.Towns, item => item.Id != First);
         var joined = Assert.Single(world.WorldSimulation.Buildings, building => building.InstanceId == house.InstanceId);
+        Assert.Equal(town.FoundedTick, town.FirstBuildingCompletedTick);
+        var link = Assert.Single(world.ExportState().Events, item =>
+            item.Kind is "town_road_linked" or "town_road_link_unconnected" &&
+            item.Detail.StartsWith(town.Id + "|" + First + "|", StringComparison.Ordinal));
+        Assert.True(link.WorldTick >= town.FoundedTick);
         // The completed adopted House is the new Town's first building;
         // its Road may choose a door, without changing the building or owner.
         Assert.Equal(house with { TownId = town.Id, Entrance = joined.Entrance }, joined);

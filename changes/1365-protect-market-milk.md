@@ -1,0 +1,1 @@
+- Household milk restocking leaves a housemate's jug and milk at their actively borrowed Market stall. After the seller leaves, the same jug can be restocked normally.

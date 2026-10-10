@@ -55,13 +55,12 @@ public sealed partial class PrivateWorldRuntime
                     IsWithinInteractionRange(person.Position, item.Position, 1))
                  .OrderBy(item => item.InhabitantId, StringComparer.Ordinal))
             {
-                if (knowledge.Facts.Count(fact => fact.OwnerId == target.InhabitantId) >= AgentKnowledgeRules.MaximumFactsPerAgent ||
-                    !artifact.Facts.Any(fact => !KnowsMapFact(target.InhabitantId, fact.Position)))
+                if (!HasUnknownArtifactContents(target.InhabitantId, artifact))
                     continue;
                 var targetName = society.Checkpoint.GetInhabitant(target.InhabitantId).Name;
                 candidates.Add(new CognitionCandidate(
                     KnowledgeSharePrefix + artifact.Id + "|" + target.InhabitantId,
-                    $"Share {artifact.Title} with {targetName}; they can learn the written sites they do not already know, and you keep the physical artifact.",
+                    $"Share {artifact.Title} with {targetName}; they can learn the written sites and recipes they do not already know, and you keep the physical artifact.",
                     52));
             }
         }
@@ -81,7 +80,7 @@ public sealed partial class PrivateWorldRuntime
         var artifact = HeldKnowledgeArtifacts(actor).FirstOrDefault(item => item.Id == artifactId);
         if (artifact is null)
             return;
-        var learned = LearnArtifactFacts(recipientId, actor, artifact, "shared");
+        var learned = LearnArtifactFacts(recipientId, actor, artifact, "shared") + LearnArtifactRecipes(recipientId, actor, artifact, "shared");
         if (learned > 0)
         {
             checkpointSchemaVersion = StateSchemaVersion;
@@ -100,7 +99,7 @@ public sealed partial class PrivateWorldRuntime
         var artifact = knowledge.Artifacts.FirstOrDefault(item => item.LotId == lotId);
         if (artifact is null || !HeldKnowledgeArtifacts(recipientId).Any(item => item.Id == artifact.Id))
             return 0;
-        var learned = LearnArtifactFacts(recipientId, sourceAgentId, artifact, "read");
+        var learned = LearnArtifactFacts(recipientId, sourceAgentId, artifact, "read") + LearnArtifactRecipes(recipientId, sourceAgentId, artifact, "read");
         if (learned > 0)
         {
             checkpointSchemaVersion = StateSchemaVersion;

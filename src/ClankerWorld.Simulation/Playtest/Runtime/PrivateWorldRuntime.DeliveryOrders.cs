@@ -170,7 +170,7 @@ public sealed partial class PrivateWorldRuntime
             StorageRoomAfterInboundDeliveries(oreSmith.InstanceId) > 0 &&
             BlacksmithOreStocked(oreHousehold, oreSmith.InstanceId) < BlacksmithInputTarget(oreSmith.InstanceId, "iron_ore") &&
             PersonalSmithOre(actor) is null && !BlacksmithHasDeliverableInput(oreHousehold, oreSmith, actor, "iron_ore") &&
-            MaterialSource("iron_ore", actor) is { } oreSource &&
+            MaterialSource("iron_ore", actor, oreSmith.Position) is { } oreSource &&
             FreeCarryCapacity(actor) >= ProjectMaterialCarryUnits(actor, "iron_ore", oreSource) &&
             DeliveryCanReach(actor, person.Position, oreSource.Position, ResourceInteractionRange))
             return (oreSmith, "blacksmith_input", oreSource);
@@ -246,7 +246,7 @@ public sealed partial class PrivateWorldRuntime
             if (DeliveryGatherFor(instruction, person) is { } gather)
             {
                 instruction = BindDeliveryOrder(instruction, gather.Building, gather.Building.HouseholdId!, gather.Route);
-                GatherProjectMaterial(actor, person, instruction.Order!.TargetItemKind!, gather.Source);
+                GatherProjectMaterial(actor, person, instruction.Order!.TargetItemKind!, gather.Source, returnTo: gather.Building.Position);
                 return;
             }
             SetOrderStatus(instruction, "blocked", DeliveryOrderBlockedReason(instruction, person));

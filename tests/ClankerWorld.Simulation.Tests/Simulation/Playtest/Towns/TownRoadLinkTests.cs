@@ -28,6 +28,16 @@ public sealed partial class TownMembershipTests
             };
             var warehouse = Assert.Single(state.WorldSimulation!.Buildings, building =>
                 state.WorldContent!.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId).Tags.Contains("warehouse", StringComparer.Ordinal));
+            // Include the remote Warehouse footprint, but not its entrances,
+            // in the nearest Town's border. Public reassignment must not make
+            // an outside entrance an eligible inter-Town destination.
+            var warehouseDefinition = state.WorldContent!.Buildings.Single(item => item.CanonicalId == warehouse.DefinitionId);
+            second = second with
+            {
+                BorderTiles = second.BorderTiles.Concat(WorldContentSimulationRules.Footprint(warehouseDefinition, warehouse))
+                    .Distinct().OrderBy(point => point.Y).ThenBy(point => point.X).ToArray(),
+            };
+            state = state with { Towns = state.Towns!.Select(item => item.Id == second.Id ? second : item).ToArray() };
             // Reassignment requires an empty Warehouse. Prepare that stock
             // condition explicitly, then use the actual public transfer.
             var stored = state.Society.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == warehouse.InstanceId)
@@ -43,7 +53,7 @@ public sealed partial class TownMembershipTests
             Assert.True(reassigned.Applied, reassigned.Failure);
             Assert.DoesNotContain(transfer.RoadTiles, second.BorderTiles.Contains);
             Assert.Equal(Second, transfer.WorldSimulation.Buildings.Single(building => building.InstanceId == warehouse.InstanceId).TownId);
-            Assert.DoesNotContain(warehouse.Position, second.BorderTiles);
+            Assert.Contains(warehouse.Position, second.BorderTiles);
             state = transfer.ExportState();
         }
         var taken = Taken(state).Concat(state.Towns!.SelectMany(town => town.BorderTiles)).ToHashSet();
@@ -185,6 +195,31 @@ public sealed class InterTownRoadRouteTests
             Assert.DoesNotContain(shoulder, detour.RoadTiles);
             Assert.Null(RoadRoutePlanner.Validate(blocked, detour));
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExistingDiagonalRoadIgnoresNewLandClaimsButStillRefusesPhysicalCorners(bool wrapped)
+    {
+        var row = wrapped ? ".OO." : "..";
+        var map = RiverBridgeTests.Map(row, row) with { WrapsEastWest = wrapped };
+        var start = new GridPoint(0, 0);
+        var end = new GridPoint(wrapped ? 3 : 1, 1);
+        var shoulders = new HashSet<GridPoint> { new(end.X, start.Y), new(start.X, end.Y) };
+        var request = new RoadRouteRequest(map, [start], new HashSet<GridPoint> { end }, shoulders, [],
+            new HashSet<GridPoint> { start, end }, ReuseRoads: true, Occupied: new HashSet<GridPoint>());
+        var route = Assert.IsType<RoadRouteProposal>(RoadRoutePlanner.Plan(request).Proposal);
+        Assert.Equal(new[] { start, end }, route.RoadTiles);
+        Assert.Null(RoadRoutePlanner.Validate(request, route));
+        Assert.True(map.CanFootStep(start, end));
+        Assert.Equal(98, map.FootStepCost(start, end) * 70 / 100);
+        Assert.Null(RoadRoutePlanner.Plan(request with { Occupied = shoulders }).Proposal);
+        Assert.Null(RoadRoutePlanner.Plan(request with { Occupied = null }).Proposal);
+        Assert.Null(RoadRoutePlanner.Plan(request with { Roads = new HashSet<GridPoint>() }).Proposal);
+        Assert.NotNull(RoadRoutePlanner.Validate(request with { Occupied = shoulders }, route));
+        Assert.NotNull(RoadRoutePlanner.Validate(request with { Roads = new HashSet<GridPoint>() }, route));
+        Assert.NotNull(RoadRoutePlanner.Validate(request with { ReuseRoads = false }, route));
     }
 
     [Fact]

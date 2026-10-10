@@ -1,3 +1,4 @@
+using System.Globalization;
 using ClankerWorld.GodotClient.UI;
 using Godot;
 
@@ -171,13 +172,18 @@ public partial class Main
         if (heardTurns.Length == 0)
             return unreadCount > 0 ? "A conversation is waiting for a response." : "No public turns have been saved yet.";
         var latest = heardTurns[^1];
-        var said = GameUiText.PlainEllipses(latest.Text);
-        var preview = said.Length > ConversationPreviewCharacters
-            ? said[..ConversationPreviewCharacters].TrimEnd() + "..."
-            : said;
+        var preview = ConversationPreview(latest.Text, ConversationPreviewCharacters);
         var newTurns = unreadCount > 0 ? $"{unreadCount} new public turn{(unreadCount == 1 ? string.Empty : "s")}. " : string.Empty;
         var result = conversation.ChosenSurname is { } surname ? $"Chosen surname: {surname}. " : string.Empty;
         return $"{result}{newTurns}{latest.SpeakerName}: {preview}";
+    }
+
+    private static string ConversationPreview(string text, int maximumLength)
+    {
+        var said = GameUiText.PlainEllipses(text);
+        if (said.Length <= maximumLength) return said;
+        var end = StringInfo.ParseCombiningCharacters(said).Last(start => start <= maximumLength);
+        return said[..end].TrimEnd() + "...";
     }
 
     private static string ConversationStatusText(OwnerWorldConversation conversation) => conversation.Status switch
@@ -221,8 +227,7 @@ public partial class Main
         var turn = conversation.Turns.LastOrDefault(item => ConversationTurnWasHeardBy(item, agentId));
         var status = ConversationStatusText(conversation);
         if (turn is null) return $"{status} · click to see the conversation.";
-        var said = GameUiText.PlainEllipses(turn.Text);
-        var preview = said.Length > 80 ? said[..80].TrimEnd() + "..." : said;
+        var preview = ConversationPreview(turn.Text, 80);
         return $"{status} · {turn.SpeakerName}: {preview} · click to see the conversation.";
     }
 

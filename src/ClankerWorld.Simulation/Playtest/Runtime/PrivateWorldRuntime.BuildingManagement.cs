@@ -179,7 +179,7 @@ public sealed partial class PrivateWorldRuntime
         finally { gate.Release(); }
     }
 
-    private string? BuildingMutationBlocker(PlacedBuilding building)
+    private string? BuildingMutationBlocker(PlacedBuilding building, bool allowStoredGoods = false)
     {
         var id = building.InstanceId;
         if (animalWorld.MilkOffers.Any(offer => offer.BuildingId == id))
@@ -194,7 +194,7 @@ public sealed partial class PrivateWorldRuntime
         if (toolMakingRequests.Any(request => request.BuildingInstanceId == id && !ToolMakingRequestRules.IsTerminal(request.Status)))
             return "Finish, refuse or withdraw the active tool request before changing this Blacksmith's owner or removing it.";
         if (society.Checkpoint.Inventory.Lots.Any(lot =>
-                lot.StorageBuildingId == id || lot.DeliveryBuildingId == id))
+                !allowStoredGoods && lot.StorageBuildingId == id || lot.DeliveryBuildingId == id))
             return "Empty this building and wait for all deliveries before changing its owner or removing it.";
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         if (building.HouseholdId is { } householdId && definition.Tags.Contains("farmhouse", StringComparer.Ordinal) &&

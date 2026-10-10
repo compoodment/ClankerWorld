@@ -68,7 +68,7 @@ public partial class Main
         {
             UiTheme.Apply(GetTree().Root, palette);
             SetUiFactor(factor);
-            CenterCameraAt(center);
+            SetCameraAtImmediately(center);
         }
     }
 }
