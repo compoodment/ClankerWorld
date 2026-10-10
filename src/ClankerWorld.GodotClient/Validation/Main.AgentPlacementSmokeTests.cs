@@ -41,6 +41,7 @@ public partial class Main
                 {
                     PackedTerrain = new(3, 3, "terrain-kind-v1", Convert.ToBase64String(new byte[9])),
                     FounderSetup = new(4, 4, true),
+                    Towns = [new("keyboard-town", "Keyboard Town", "founded", 0, [], [], [new(0, 0)])],
                 };
                 var observation = new OwnerWorldReconnect(new OwnerWorldHandshake(new(1, 1),
                     ["owner-observation.read.v1", "inhabitant-inspection.read.v1", "spatial-knowledge.read.v1",
@@ -67,6 +68,26 @@ public partial class Main
                     GetViewport().GuiReleaseFocus();
                     await KeyboardKeyAsync(Key.K);
                     if (!mapCanvas.HasFocus()) throw new InvalidOperationException("Keyboard placement must enter the map.");
+                    keyboardMapTile = new Vector2I(1, 0);
+                    RefreshKeyboardMapSelection();
+                    var previousPanelPosition = founderSetupPanel.Position;
+                    try
+                    {
+                        var targetPoint = KeyboardMapCanvasPoint(new(0, 0));
+                        founderSetupPanel.GlobalPosition = mapCanvas.GetGlobalTransform() * targetPoint - new Vector2(20, 20);
+                        if (!founderSetupPanel.GetGlobalRect().HasPoint(mapCanvas.GetGlobalTransform() * targetPoint))
+                            throw new InvalidOperationException("The keyboard placement fixture must put its target under Add Agent.");
+                        UpdateHoverReadout(snapshot, new(1, 0));
+                        PreviewAddAgentPlacement(snapshot, new(1, 0));
+                        UpdateTileHover(targetPoint);
+                        if (hoverReadoutTile != new Vector2I(1, 0))
+                            throw new InvalidOperationException("Pointer hover behind Add Agent must preserve its previous preview.");
+                        await KeyboardKeyAsync(Key.Left);
+                        if (hoverReadoutTile != new Vector2I(0, 0) ||
+                            !founderSetupHint.Text.Contains("They would join Keyboard Town without a household.", StringComparison.Ordinal))
+                            throw new InvalidOperationException("Keyboard placement must preview the target's actual Town even behind Add Agent: " + founderSetupHint.Text);
+                    }
+                    finally { founderSetupPanel.Position = previousPanelPosition; }
                     for (var step = 0; step < 3; step++)
                     {
                         await KeyboardKeyAsync(Key.Left);

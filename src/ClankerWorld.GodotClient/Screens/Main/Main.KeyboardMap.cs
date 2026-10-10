@@ -50,10 +50,17 @@ public partial class Main
                 CenterCameraAt(new Vector2(tile.X + 0.5f, tile.Y + 0.5f));
                 point = KeyboardMapCanvasPoint(tile);
             }
-            UpdateTileHover(point);
+            UpdateTileHover(point, keyboard: true);
             terrainLayer.SetHoveredTile(tile);
         }
         finally { refreshingKeyboardMapSelection = false; }
+    }
+
+    private void CenterKeyboardCameraAt(Vector2 tileCenter)
+    {
+        if (mapCanvas.HasFocus() && renderedMapSnapshot is { } snapshot && terrainMap is not null)
+            keyboardMapTile = BoundKeyboardMapTile(snapshot, new Vector2I((int)tileCenter.X, (int)tileCenter.Y));
+        CenterCameraAt(tileCenter);
     }
 
     private bool HandleKeyboardMapInput(InputEvent input, OwnerWorldSnapshot snapshot)

@@ -383,7 +383,7 @@ public partial class Main
             Math.Max(14, UiSize.Y - Math.Max(selectedTilePanel.Size.Y,
                 selectedTilePanel.CustomMinimumSize.Y) - 14));
 
-    private void UpdateTileHover(Vector2 canvasPosition)
+    private void UpdateTileHover(Vector2 canvasPosition, bool keyboard = false)
     {
         if (renderedMapSnapshot is not { } snapshot || !HasMap(snapshot) ||
             gameMenuPanel.Visible ||
@@ -400,7 +400,7 @@ public partial class Main
         // open, or while the pointer is inside the scaled Add Agent panel.
         if (founderSetupPanel.IsVisibleInTree() &&
             (GetViewport().GetEmbeddedSubwindows().Any(window => window.Visible) ||
-             founderSetupPanel.GetGlobalRect().HasPoint(mapCanvas.GetGlobalTransform() * canvasPosition)))
+             (!keyboard && founderSetupPanel.GetGlobalRect().HasPoint(mapCanvas.GetGlobalTransform() * canvasPosition))))
             return;
 
         var stagePosition = canvasPosition - mapStage.Position;

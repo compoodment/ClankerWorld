@@ -86,6 +86,6 @@ public partial class Main
         if (renderedMapSnapshot?.Inhabitants.FirstOrDefault(person => person.Id == inhabitantId) is not { } person ||
             person.IsDraft || !IsLiving(person))
             return;
-        CenterCameraAt(new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f));
+        CenterKeyboardCameraAt(new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f));
     }
 }

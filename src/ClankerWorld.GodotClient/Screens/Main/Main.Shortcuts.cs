@@ -147,7 +147,7 @@ public partial class Main
     private void CenterOnHome()
     {
         if (renderedMapSnapshot is not { } snapshot || terrainMap is null || !HasMap(snapshot)) return;
-        CenterCameraAt(InitialCameraCenter(snapshot, terrainMap));
+        CenterKeyboardCameraAt(InitialCameraCenter(snapshot, terrainMap));
     }
 
     /// <summary>Zooms one step while keeping the world point under <paramref name="canvasPoint"/> fixed.</summary>

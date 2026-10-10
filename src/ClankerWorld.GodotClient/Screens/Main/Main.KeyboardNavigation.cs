@@ -27,6 +27,9 @@ public partial class Main
             panel.VisibilityChanged += () =>
             {
                 var old = keyboardPanels.FindLast(item => item.Panel == panel);
+                var oldIndex = keyboardPanels.FindLastIndex(item => item.Panel == panel);
+                var nextPanel = oldIndex < 0 ? null : keyboardPanels.Skip(oldIndex + 1)
+                    .LastOrDefault(item => item.Panel.IsVisibleInTree()).Panel;
                 keyboardPanels.RemoveAll(item => item.Panel == panel);
                 if (panel.IsVisibleInTree())
                 {
@@ -38,7 +41,9 @@ public partial class Main
                 {
                     Callable.From(() =>
                     {
-                        if (old.Opener is { } opener && IsKeyboardFocusable(opener)) opener.GrabFocus();
+                        if (nextPanel is not null && IsInstanceValid(nextPanel) && nextPanel.IsVisibleInTree())
+                            FocusKeyboardPanel(nextPanel);
+                        else if (old.Opener is { } opener && IsKeyboardFocusable(opener)) opener.GrabFocus();
                         else FocusKeyboardPanel(CurrentKeyboardPanel());
                     }).CallDeferred();
                 }

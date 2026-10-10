@@ -126,6 +126,7 @@ public partial class Main
         var previousCursor = keyboardMapTile;
         var previousKeyboard = keyboardNavigation;
         var previousInWorld = isInWorld;
+        var previousZoom = cameraZoom;
         var people = new[]
         {
             PanelSmokeAgent("keyboard-first", "First", new(1, 1)),
@@ -221,6 +222,36 @@ public partial class Main
                 }
                 if (key == Key.E)
                 {
+                    var previousEvents = knownEvents.ToArray();
+                    var eventZoom = cameraZoom;
+                    try
+                    {
+                        cameraZoom = 4;
+                        CenterCameraAt(new(0.5f, 0.5f));
+                        var expectedCamera = cameraCenterTiles;
+                        CenterCameraAt(new(3.5f, 3.5f));
+                        knownEvents.Clear();
+                        knownEvents[9001] = new OwnerWorldEvent(9001, 1, "food_consumed", people[0].Id, new(0, 0));
+                        RenderEventLog();
+                        var find = KeyboardControls(eventRows).OfType<Button>().Single();
+                        for (var step = 0; !find.HasFocus() && step <= KeyboardControls(panel).Length; step++)
+                            await KeyboardKeyAsync(Key.Tab);
+                        if (!find.HasFocus()) throw new InvalidOperationException("Tab must reach the event's Find action.");
+                        knownEvents[9002] = new OwnerWorldEvent(9002, 2, "food_consumed", people[1].Id, new(3, 3));
+                        RenderEventLog();
+                        await KeyboardKeyAsync(Key.Enter);
+                        if (eventsPanel.Visible || cameraCenterTiles != expectedCamera)
+                            throw new InvalidOperationException("An arriving event must preserve the focused Find action and its destination.");
+                    }
+                    finally
+                    {
+                        knownEvents.Clear();
+                        foreach (var pair in previousEvents) knownEvents[pair.Key] = pair.Value;
+                        cameraZoom = eventZoom;
+                        UpdateMapGeometry(snapshot);
+                        eventsPanel.Show();
+                        RenderEventLog();
+                    }
                     var longHistory = new Label { Text = string.Join('\n', Enumerable.Range(0, 120).Select(index => $"Recorded event {index}")) };
                     eventRows.AddChild(longHistory);
                     try { await VerifyKeyboardScrollAsync(eventScroll, eventsPanel); }
@@ -257,6 +288,25 @@ public partial class Main
             await KeyboardKeyAsync(direction);
             if (keyboardMapTile == before || !mapCanvas.HasFocus())
                 throw new InvalidOperationException("Arrows must move the focused tile without leaving the map.");
+            // A zoomed map puts the old cursor outside both shortcut destinations.
+            cameraZoom = 4;
+            keyboardMapTile = new Vector2I(terrainMap.Width - 1, terrainMap.Height - 1);
+            UpdateMapGeometry(snapshot);
+            selectedInhabitantId = people[0].Id;
+            await KeyboardKeyAsync(Key.C);
+            if (keyboardMapTile != new Vector2I(people[0].Position.X, people[0].Position.Y))
+                throw new InvalidOperationException("C must move the focused cursor to the selected agent instead of undoing the camera jump.");
+            keyboardMapTile = new Vector2I(terrainMap.Width - 1, terrainMap.Height - 1);
+            RefreshKeyboardMapSelection();
+            var home = InitialCameraCenter(snapshot, terrainMap);
+            await KeyboardKeyAsync(Key.H);
+            var homeTile = BoundKeyboardMapTile(snapshot, new Vector2I((int)home.X, (int)home.Y));
+            UpdateMapGeometry(snapshot);
+            if (keyboardMapTile != homeTile || !mapCanvas.HasFocus() ||
+                !new Rect2(Vector2.Zero, mapCanvas.Size).HasPoint(KeyboardMapCanvasPoint(homeTile)))
+                throw new InvalidOperationException("H must keep the opening view and focused tile through geometry refresh.");
+            cameraZoom = previousZoom;
+            UpdateMapGeometry(snapshot);
             var chosen = keyboardMapTile;
             // A transient small canvas during resize cannot fit the inset.
             // Camera refresh must return even when recentering cannot put the
@@ -297,6 +347,17 @@ public partial class Main
                 await KeyboardKeyAsync(Key.Enter);
                 if (!buildingQuickCard.Visible || selectedBuildingId != lantern.InstanceId)
                     throw new InvalidOperationException($"Keyboard Enter must select both street-lantern styles by their tile: expected={lantern.InstanceId}, selected={selectedBuildingId}, cursor={keyboardMapTile}, quickCard={buildingQuickCard.Visible}.");
+                await KeyboardActivateAsync(buildingQuickCard, buildingDetailsButton);
+                var detailsFocus = GetViewport().GuiGetFocusOwner();
+                if (!buildingDetailsPanel.Visible || detailsFocus is null || !buildingDetailsPanel.IsAncestorOf(detailsFocus))
+                    throw new InvalidOperationException("Opening Details must retain focus in the new panel after the quick card closes.");
+                await KeyboardKeyAsync(Key.Tab);
+                if (GetViewport().GuiGetFocusOwner() is not { } detailControl || !buildingDetailsPanel.IsAncestorOf(detailControl))
+                    throw new InvalidOperationException("Tab must remain in building Details.");
+                await KeyboardKeyAsync(Key.Escape);
+                if (!buildingQuickCard.Visible || GetViewport().GuiGetFocusOwner() is not { } quickControl ||
+                    !buildingQuickCard.IsAncestorOf(quickControl))
+                    throw new InvalidOperationException("Back from Details must focus the restored quick card.");
                 await KeyboardKeyAsync(Key.Escape);
             }
             GD.Print("Keyboard screen walk passed: Settings opener/Back, Agents/Profile/Rename, overflowing Thoughts scrolling, Memories, Family, World Info, Filters, Event Log, World Map camera, Controls, Developer numeric field, ground and both street lanterns.");
@@ -308,6 +369,7 @@ public partial class Main
             agentProfileRequested = previousProfile;
             keyboardMapTile = previousCursor;
             keyboardNavigation = previousKeyboard;
+            cameraZoom = previousZoom;
             isInWorld = previousInWorld;
             observationSession.ResetAfterLoad();
             if (previousReconnect is not null)
