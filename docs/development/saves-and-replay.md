@@ -1228,8 +1228,12 @@ current alpha cutoff.
 Saved tool requests keep their requester, selling household, actual Blacksmith,
 existing recipe, status, worker and real production/offer links. Active and
 terminal lists remain bounded; selected production plans retain the exact
-request identity. Loading checks these links against the canonical production
-and barter records. Every linked job must retain its exact input reservations,
+request identity. Recipe identities retain the full canonical content ID,
+including IDs longer than 128 characters; request validation adds
+no separate recipe-name limit. Withdrawn no-job history keeps that identity even
+after its package is rolled back. Loading checks these links against the
+canonical production and barter records. Every linked job must retain its exact
+input reservations,
 matching the whole recipe and selling household; completed work requires
 completed consumption receipts. Ready work must bind a completed job, and an
 offer must name that job's actual output and the same customer and shop.
