@@ -1,0 +1,1 @@
+- Farms plan fields from their Town's living population and usable food reserve, sharing the remaining need among its farming households. A Town with one farm can plan enough fields for its other households, while stocked Towns stop preparing and planting more fields.

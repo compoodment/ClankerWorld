@@ -7,7 +7,7 @@ using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class TownLandTransferRuntimeTests
+public sealed partial class TownLandTransferRuntimeTests
 {
     private const string Filer = "founder:00000000000000000000000000000003";
     private const string SourcePartner = "founder:00000000000000000000000000000004";
@@ -302,10 +302,12 @@ public sealed class TownLandTransferRuntimeTests
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
-    [Fact]
-    public async Task AdmittedJevProposalCannotCreatePermissionTransferAuthority()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AdmittedJevProposalCannotCreatePermissionTransferAuthority(bool sell)
     {
-        var provider = new TransferProvider(DecisionProviderKind.Jev) { AllowPropose = true };
+        var provider = new TransferProvider(DecisionProviderKind.Jev) { AllowPropose = true, Sell = sell };
         using var world = NewWorld(provider);
         Configure(provider, world);
         var before = world.ExportState();
@@ -315,7 +317,7 @@ public sealed class TownLandTransferRuntimeTests
             var step = await world.AdvanceOneTickAsync();
             admitted |= step.Decisions.Any(decision => decision.InhabitantId == Filer && decision.Admission.Accepted &&
                 !decision.Admission.FellBack && decision.Admission.Intention is { Provider: DecisionProviderKind.Jev } intention &&
-                intention.CandidateId.Contains("|land_transfer_propose|", StringComparison.Ordinal));
+                intention.CandidateId.Contains(sell ? "|land_transfer_sell|" : "|land_transfer_propose|", StringComparison.Ordinal));
         }
         Assert.True(admitted);
         Assert.Empty(world.Towns[0].LandHearings.Transfers);
@@ -332,9 +334,9 @@ public sealed class TownLandTransferRuntimeTests
             .OrderBy(right => right.Id, StringComparer.Ordinal).First().Tiles.ToArray();
     }
 
-    private static PrivateWorldRuntime NewWorld(TransferProvider provider, bool generatedClock = false)
+    private static PrivateWorldRuntime NewWorld(TransferProvider provider, bool generatedClock = false, string seed = "government-personal-path")
     {
-        using var generated = NormalPathWorld.CreateGenerated("government-personal-path", _ => provider);
+        using var generated = NormalPathWorld.CreateGenerated(seed, _ => provider);
         var state = generated.ExportState();
         var society = state.Society.Society;
         var oldDay = society.Config.TicksPerWorldDay;
@@ -404,6 +406,13 @@ public sealed class TownLandTransferRuntimeTests
         public DecisionProviderKind Kind => kind;
         public long ProviderEpoch => 1;
         public bool AllowPropose { get; set; }
+        public bool Sell { get; set; }
+        public string SaleItemKind { get; set; } = "wood";
+        public int SaleQuantity { get; set; } = 2;
+        public bool CollectSalePayment { get; set; } = true;
+        public string? PaymentActor { get; set; }
+        public bool PaySales { get; set; } = true;
+        public bool HoldSellerMeeting { get; set; }
         public bool Proposed { get; set; }
         public bool AcceptGrants { get; set; }
         public bool HoldPartner { get; set; }
@@ -418,6 +427,13 @@ public sealed class TownLandTransferRuntimeTests
         public TransferProvider ReplayPolicy() => new(kind)
         {
             AllowPropose = AllowPropose,
+            Sell = Sell,
+            SaleItemKind = SaleItemKind,
+            SaleQuantity = SaleQuantity,
+            CollectSalePayment = CollectSalePayment,
+            PaymentActor = PaymentActor,
+            PaySales = PaySales,
+            HoldSellerMeeting = HoldSellerMeeting,
             Proposed = Proposed,
             AcceptGrants = AcceptGrants,
             Mode = Mode,
@@ -433,16 +449,22 @@ public sealed class TownLandTransferRuntimeTests
             var observation = request.Observation;
             var candidates = observation.Candidates;
             CognitionCandidate? Pick(string action) => candidates.FirstOrDefault(candidate => candidate.Id.Contains("|" + action + "|", StringComparison.Ordinal));
-            var proposal = AllowPropose && !Proposed && observation.InhabitantId == Filer ? Pick("land_transfer_propose") : null;
+            var proposal = AllowPropose && !Proposed && observation.InhabitantId == Filer
+                ? Pick(Sell ? "land_transfer_sell" : "land_transfer_propose") : null;
             var choice = Kind == DecisionProviderKind.Jev ? proposal : null;
-            choice ??= Pick("read") ?? Pick("land_transfer_read") ?? Pick("visit");
+            choice ??= Pick("read") ?? Pick("land_transfer_read") ??
+                (Sell && PaySales && Mode is null ? (PaymentActor is null || observation.InhabitantId == PaymentActor
+                    ? (CollectSalePayment ? Pick("land_transfer_collect_payment") : null) ?? Pick("land_transfer_pay") : null) ?? Pick("land_transfer_meet") : null) ?? Pick("visit");
             if (choice is null && AcceptGrants)
                 choice = Pick("yes") ?? (observation.InhabitantId is Filer or SourcePartner ? Pick("accept_land_use") : null);
             if (choice is null && Mode == "withdraw" && observation.InhabitantId == Filer) choice = Pick("land_transfer_withdraw");
             if (choice is null && Mode == "decline" && observation.InhabitantId == SourcePartner) choice = Pick("land_transfer_decline");
             if (choice is null && Mode is null && (observation.InhabitantId != Newcomer || AllowNewcomer)) choice = Pick("land_transfer_accept");
             choice ??= proposal ?? candidates.Single(candidate => candidate.Id == "safe_idle");
-            var proposing = choice.Id.Contains("|land_transfer_propose|", StringComparison.Ordinal);
+            if (Sell && HoldSellerMeeting && observation.InhabitantId is Filer or SourcePartner)
+                choice = candidates.Single(candidate => candidate.Id == "safe_idle");
+            var proposing = choice.Id.Contains("|land_transfer_propose|", StringComparison.Ordinal) ||
+                choice.Id.Contains("|land_transfer_sell|", StringComparison.Ordinal);
             if (proposing)
             {
                 Proposed = true;
@@ -453,7 +475,7 @@ public sealed class TownLandTransferRuntimeTests
                 observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest, choice.Id, 1,
                 candidates.ToDictionary(candidate => candidate.Id, candidate => candidate.Id == choice.Id ? 1d : 0d, StringComparer.Ordinal),
                 CivicLandTiles: proposing ? Plot.Select(tile => new CognitionLandTile(tile.X, tile.Y)).ToArray() : null,
-                CivicLandHearing: proposing ? new(HouseholdId: TargetHouseholdId) : null);
+                CivicLandHearing: proposing ? new(HouseholdId: TargetHouseholdId, PaymentItemKind: Sell ? SaleItemKind : null, PaymentQuantity: Sell ? SaleQuantity : null) : null);
             if (HoldPartner && observation.InhabitantId == SourcePartner && held is null && choice.Id.Contains("|land_transfer_accept|", StringComparison.Ordinal))
             {
                 held = response;

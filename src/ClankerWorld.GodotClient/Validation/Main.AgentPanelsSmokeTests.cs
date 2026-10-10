@@ -5,6 +5,36 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private static void VerifyMarriageOrderText()
+    {
+        var instruction = new OwnerWorldInstruction("marriage-ui", "agent-a", "must_do", "Propose marriage", "current", 1, 1, 1,
+            Order: new("propose_marriage", "doing", 1, 0, "marriage_attempts", false, TargetAgentId: "agent-b", TalkStatus: "surname_ready"));
+        var pending = InstructionOrderSummary(instruction);
+        if (!pending.Contains("Proposing marriage to their partner", StringComparison.Ordinal) ||
+            !pending.Contains("0/1 marriage attempts completed", StringComparison.Ordinal) ||
+            !pending.Contains("Marriage agreed; choosing a shared surname", StringComparison.Ordinal))
+            throw new InvalidOperationException($"An unfinished marriage order must show the real surname stage: {pending}");
+        foreach (var (outcome, text) in new[]
+        {
+            ("married", "Marriage and surname completed"),
+            ("proposal_declined", "Marriage proposal declined"),
+            ("not_proposed", "Marriage not proposed"),
+            ("refused", "Invitation refused"),
+        })
+        {
+            var finished = InstructionOrderSummary(instruction with
+            {
+                Order = instruction.Order! with
+                { Status = "finished", CompletedUnits = 1, TalkOutcome = outcome }
+            });
+            if (!finished.Contains(text, StringComparison.Ordinal))
+                throw new InvalidOperationException($"The marriage order must distinguish its actual outcome: {finished}");
+        }
+        var stopped = InstructionOrderSummary(instruction with { Order = instruction.Order! with { TalkStatus = "surname_suspended" } });
+        if (!stopped.Contains("Marriage agreed; surname conversation stopped", StringComparison.Ordinal))
+            throw new InvalidOperationException($"A stopped surname conversation is unfinished: {stopped}");
+    }
+
     /// <summary>
     /// The Profile names whose model made the latest choice without "chosen
     /// by", previews only the newest thought in two lines, lists people with
@@ -16,6 +46,7 @@ public partial class Main
     {
         if (renderedMapSnapshot is not { } shown)
             throw new InvalidOperationException("The agent panel checks need a world on screen.");
+        VerifyMarriageOrderText();
         var rowan = PanelSmokeAgent("agent-panels-rowan", "Rowan", new OwnerWorldPosition(1, 1));
         var pip = PanelSmokeAgent("agent-panels-pip", "Pip", new OwnerWorldPosition(2, 1)) with { Lifecycle = "dead" };
         var mira = PanelSmokeAgent("agent-panels-mira", "Mira", new OwnerWorldPosition(1, 2)) with
@@ -32,7 +63,11 @@ public partial class Main
                 new OwnerWorldPrivateThought(2, "The river bank has good clay. If I carry some back before dusk, Ash can fire the kiln " +
                     "tomorrow and we will finally have pots to store the harvest in before the first frost arrives."),
             ],
-            RecentMemories = [new OwnerWorldAgentMemory(2, rowan.Id, "Rowan", "Rowan shared the last of the bread with me.", "private")],
+            RecentMemories =
+            [
+                new OwnerWorldAgentMemory(2, rowan.Id, "Rowan", "Rowan shared the last of the bread with me.", "private"),
+                new OwnerWorldAgentMemory(1, "agent-panels-mira", "Mira", "I was renamed on day 1 to Mira Hale.", "private", Permanent: true),
+            ],
             RecentBeliefs = [new OwnerWorldAgentBelief(3, "Wren is saving seed for spring.", "hearsay", 6_000, "ash", "Ash", null, null, false, null)],
             RecentKnowledgeFacts = [new OwnerWorldKnowledgeFact(1, 0, 0, "meadow", ["clay"], "Mira", "firsthand", null)],
         };
@@ -174,8 +209,9 @@ public partial class Main
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var tabs = memoryTabs.FindChildren("*", nameof(Button), recursive: true, owned: false).OfType<Button>().Select(button => button.Text).ToArray();
             var memories = MemoryCardsText();
-            if (!tabs.SequenceEqual(["All", "Memories 1", "Beliefs 1", "Maps 1"]) || memoryCards.GetChildCount() != 3 ||
-                !memories.Contains("PRIVATE", StringComparison.Ordinal) || !memories.Contains("Heard from Ash", StringComparison.Ordinal) ||
+            if (!tabs.SequenceEqual(["All", "Memories 2", "Beliefs 1", "Maps 1"]) || memoryCards.GetChildCount() != 4 ||
+                !memories.Contains("PRIVATE", StringComparison.Ordinal) || !memories.Contains("PERMANENT", StringComparison.Ordinal) ||
+                !memories.Contains("I was renamed on day 1 to Mira Hale.", StringComparison.Ordinal) || !memories.Contains("Heard from Ash", StringComparison.Ordinal) ||
                 !memories.Contains("60% sure", StringComparison.Ordinal) || !memories.Contains("Clay near the meadow", StringComparison.Ordinal) ||
                 !memories.Contains("Meadow at 0, 0", StringComparison.Ordinal))
                 throw new InvalidOperationException($"Memories must be tabbed cards with sureness, a Private tag and map places: tabs={string.Join(",", tabs)} text={memories.ReplaceLineEndings(" / ")}");

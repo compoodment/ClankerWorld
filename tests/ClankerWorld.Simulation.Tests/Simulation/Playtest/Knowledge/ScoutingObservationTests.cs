@@ -16,12 +16,12 @@ public sealed partial class NativeOrchardObservationTests
     [InlineData("blocked_return")]
     public async Task ScoutingObservesChangedSitesOnActualArrival(string scenario)
     {
-        var (state, actor, target, _) = await ObserveEmptyTile((initial, site) =>
-            initial.Map.FootNeighbors(site).Any(point =>
+        var (state, actor, target, blocked) = await ObserveEmptyTile((initial, site) =>
+            initial.Map.FootNeighbors(site).Any(point => initial.Map.IsBuildable(point) && !BlockedTiles(initial).Contains(point) &&
                 initial.Map.FootNeighbors(point).OrderBy(next => next.Y).ThenBy(next => next.X).First() == site &&
                 initial.Inhabitants.All(person => person.Position != point)));
         var old = Assert.Single(state.Knowledge!.Facts, fact => fact.OwnerId == actor && fact.Position == target);
-        var origin = state.Map.FootNeighbors(target).First(point =>
+        var origin = state.Map.FootNeighbors(target).First(point => state.Map.IsBuildable(point) && !blocked.Contains(point) &&
             state.Map.FootNeighbors(point).OrderBy(next => next.Y).ThenBy(next => next.X).First() == target &&
             state.Inhabitants.All(person => person.InhabitantId == actor || person.Position != point));
         using (var moving = Restore(state, actor))
@@ -134,4 +134,11 @@ public sealed partial class NativeOrchardObservationTests
             }, cancellationToken);
         }
     }
+
+    /// <summary>The tiles ObserveEmptyTile treats as blocked: buildings, Roads, resources and camp objects.</summary>
+    private static HashSet<GridPoint> BlockedTiles(PrivateWorldRuntimeState state) => state.WorldSimulation!.Buildings
+        .SelectMany(building => WorldContentSimulationRules.Footprint(
+            state.WorldContent!.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building))
+        .Concat(state.RoadTiles ?? []).Concat(state.Map.Resources.Select(resource => resource.Position))
+        .Concat(state.Map.CampObjects.Select(item => item.Position)).ToHashSet();
 }
