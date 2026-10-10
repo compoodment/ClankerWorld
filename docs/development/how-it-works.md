@@ -3735,8 +3735,8 @@ The owner snapshot projects physical boats, cargo, incoming docks and all active
 requests, plus recent settled requests. Godot retains one marker per boat,
 observes its heading and wrap behavior, uses the approved art unchanged at close
 zoom, and shows travel and dock use in tile, Port and Town inspection. Port night
-lights use the approved T-head lantern. Smaller views scale the approved 32-pixel
-boat until #914 supplies approved 16-pixel art.
+lights use the approved T-head lantern. Medium zoom uses the approved 16-pixel
+boat from #914; close zoom retains the unchanged 32-pixel drawing.
 
 Checkpoint compaction retains every active request and the existing 40 recent
 closed requests by sequence. It durably archives full older records before

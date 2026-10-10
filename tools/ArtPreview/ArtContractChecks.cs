@@ -24,6 +24,7 @@ internal static class ArtContractChecks
         CheckApprovedItems();
         CheckApprovedHandcarts();
         CheckApprovedBoatsAndPorts();
+        CheckApprovedSmallVehicles();
         CheckApprovedAnimals();
         CheckApprovedAnimalWalk();
         CheckApprovedYard();
@@ -405,6 +406,21 @@ internal static class ArtContractChecks
                 $"The client's 16 px {neglect} bridge must be the approved look halved.");
         }
 
+    }
+
+    /// <summary>The client's 16 px handcarts and boats are the approved #914 drawings, halved from the approved 32 px ones.</summary>
+    private static void CheckApprovedSmallVehicles()
+    {
+        for (var facing = 0; facing < 8; facing++)
+        {
+            foreach (var (loaded, pulled) in new[] { (false, false), (true, false), (true, true) })
+                Equal(HandcartSprites.Sprite(facing, loaded, pulled, 16),
+                    Proposed.SmallVehicles.SmallVehiclesProposal.Small(HandcartSprites.Sprite(facing, loaded, pulled)),
+                    $"The client's 16 px handcart facing {facing} must match the approved small drawing.");
+            foreach (var rowing in new[] { false, true })
+                Equal(BoatSprites.Sprite(facing, rowing, 16), Proposed.SmallVehicles.SmallVehiclesProposal.Small(BoatSprites.Sprite(facing, rowing)),
+                    $"The client's 16 px boat facing {facing} must match the approved small drawing.");
+        }
     }
 
     private static void Equal(Image actual, Image expected, string message)

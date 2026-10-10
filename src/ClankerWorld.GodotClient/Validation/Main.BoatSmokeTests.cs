@@ -145,9 +145,10 @@ public partial class Main
         cameraZoom = 39f / baseTile; RenderMap(map);
         var smaller = marker.GetNode<TextureRect>("BoatSprite");
         using (var image = smaller.Texture.GetImage())
-            if (currentTileSize != 39 || image.GetWidth() != 32 || smaller.Size != new Vector2(31, 31) ||
-                HandcartPixelDigest(image) != ApprovedBoatPixels[9])
-                throw new InvalidOperationException("Medium zoom must scale approved boat art until #914 provides approved 16px drawings.");
+        using (var reference = BoatSprites.Sprite(4, true, 16))
+            if (currentTileSize != 39 || image.GetWidth() != 16 || smaller.Size != new Vector2(16, 16) ||
+                HandcartPixelDigest(image) != HandcartPixelDigest(reference))
+                throw new InvalidOperationException("Medium zoom must use the approved 16px boat drawing (#914).");
         cameraZoom = 40f / baseTile; RenderMap(map); Expect(4, true);
         map = map with { WrapsEastWest = true, WorldTick = map.WorldTick + 1 }; RenderMap(map); Expect(0, true);
         Move(255, 60, "underway"); Expect(0, true);

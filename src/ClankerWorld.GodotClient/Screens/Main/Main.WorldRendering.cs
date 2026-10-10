@@ -325,9 +325,9 @@ public partial class Main
                 marker.AddChild(sprite);
             }
             var facing = ObserveBoatFacing(boat, mapWidth, snapshot.WrapsEastWest);
-            sprite.Texture = BoatSprites.Texture(facing, boat.Status is "underway" or "returning");
-            // The approved boat is 32 px. Smaller views scale that drawing until #914 supplies approved 16 px art.
-            var size = currentTileSize >= 40 ? 32 : Math.Max(1, currentTileSize - 8);
+            // The approved boat is 32 px; medium zoom uses its approved 16 px drawing.
+            var size = currentTileSize >= 40 ? 32 : 16;
+            sprite.Texture = BoatSprites.Texture(facing, boat.Status is "underway" or "returning", size);
             sprite.Size = new(size, size);
             sprite.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
             sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
@@ -391,11 +391,9 @@ public partial class Main
             }
             var facing = ObserveHandcartFacing(cart, mapWidth, snapshot.WrapsEastWest);
             // The approved vehicle is 32px; the marker has a 4px inset on each
-            // side. Smaller views retain the item icon until 16px art is approved.
+            // side. Medium zoom uses the approved 16px drawing.
             var size = currentTileSize >= 40 ? 32 : 16;
-            sprite.Texture = size == 32
-                ? HandcartSprites.Texture(facing, cart.Cargo.Any(item => item.Quantity > 0), cart.PullerId is not null)
-                : ItemIcons.Texture("handcart", 16);
+            sprite.Texture = HandcartSprites.Texture(facing, cart.Cargo.Any(item => item.Quantity > 0), cart.PullerId is not null, size);
             sprite.Size = new(size, size);
             sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
             PresentMovingMarker(id, marker, cart.Position, new(4, 4), snapshot, agent: false, bob: false);
