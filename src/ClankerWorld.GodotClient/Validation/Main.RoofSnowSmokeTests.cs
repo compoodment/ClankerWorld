@@ -108,7 +108,7 @@ public partial class Main
             }
             using (var arcade = BuildingSprites.SnowOverlay(BuildingKind.Market, 3, 3, 32, BuildingDoor.Default, BuildingNeglect.None, 7))
             {
-                Check(Math.Abs(arcade.GetPixel(20, 80).A - 0.64f) < 1f / 255 && arcade.GetPixel(20, 87).A <= 0.48f,
+                Check(Math.Abs(arcade.GetPixel(20, 79).A - 0.64f) < 1f / 255 && arcade.GetPixel(20, 87).A is > 0 and <= 0.48f,
                     "The actual Market arcade must follow its single slope beneath the hall.");
             }
             foreach (var (kind, tag, width, height) in kinds)
