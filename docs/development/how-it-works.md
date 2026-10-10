@@ -1211,6 +1211,9 @@ as the agent's current map knowledge.
 Households make paper at an authorized House from physically delivered fiber
 and fresh water in a reusable jug. The provisional batch uses two fiber and
 one water to make two paper in sixteen work ticks, leaving the jug intact.
+The writing reserve counts healthy household sheets and sheets collected or
+reserved by eligible writers. Paper on an actively borrowed household Market
+stall stays on sale and does not prevent making replacement paper.
 
 An adult can write a field record, draw a map or bind a book from
 contents they have actually learned. A record holds at most one site and one
