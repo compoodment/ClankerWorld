@@ -263,7 +263,7 @@ public static class WorldEventText
             "town_project_resumed" => $"Work on {townProjectName} can continue.",
             "town_project_cancelled" => $"{townProjectSubject} can't be built where it was approved, so the Town stopped it. " +
                 "Its materials stay where they are; see the Towns page for why.",
-            "town_project_donated" => $"{LeadingName(snapshot, worldEvent.Detail)} donated materials to {townProjectName}.",
+            "town_project_donated" => $"{LeadingName(snapshot, worldEvent.Detail)} donated personal materials to {townProjectName}.",
             "town_project_material_picked_up" => $"{LeadingName(snapshot, worldEvent.Detail)} picked up materials for {townProjectName}.",
             "town_project_material_recovered" => $"{LeadingName(snapshot, worldEvent.Detail)} is taking unused materials from {townProjectName} back to the Town Warehouse.",
             "town_project_material_delivered" => $"{LeadingName(snapshot, worldEvent.Detail)} brought materials to the site for {townProjectName}.",
