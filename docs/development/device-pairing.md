@@ -285,11 +285,15 @@ time. Without it the routes return 404, exactly as on the forwarded listener.
 The game uses it to approve its own pending pairing with the comparison code,
 so the player sees no code to copy.
 
-`POST /api/v1/local/shutdown` exists only on a companion host. It returns 202
-and stops the host. Whenever a private-world host stops, from this request,
-Ctrl+C or a service stop, it waits for the tick loop to finish, cancels hosted
-model work and writes the world's checkpoint before exiting (`host_shutdown`
-in the log). A world halted for inspection is left untouched. The server host
+`POST /api/v1/local/shutdown` exists only on a private-world companion host. It
+pauses the world, cancels hosted model work and writes its checkpoint before
+returning 202 and requesting process exit. If writing fails, it returns 503 and
+keeps the host alive and paused so the game can retry. Pending startup recovery
+returns 409 without rewriting the refused checkpoint. Whenever a private-world
+host stops, it waits for the tick loop to finish and writes a final checkpoint
+(`host_shutdown` in the log). Ctrl+C or a service stop also pauses a companion
+world; a failed final write is logged and sets a nonzero process exit status.
+A world halted for inspection is left untouched. The server host
 started without these settings behaves as before and cannot be stopped over
 HTTP.
 

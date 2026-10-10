@@ -4,6 +4,8 @@ using ClankerWorld.Viewer.Control;
 
 namespace ClankerWorld.Viewer.Observation;
 
+public enum ShutdownSaveOutcome { Saved, PreservedHalted, WriteFailed }
+
 /// <summary>
 /// Advances the integrated private-world alpha at a deliberately readable
 /// cadence. Hosted providers are not called once per render frame.
@@ -98,35 +100,34 @@ public sealed partial class PrivateWorldRuntimeService(
     private static partial void LogShutdownSave(ILogger logger, string outcome, long worldTick);
 
     /// <summary>
-    /// Runs once the tick loop has stopped, when the host is shutting down:
-    /// cancels hosted model work and writes the world's checkpoint, so quitting
-    /// the game or stopping the service never loses the last committed tick. A
-    /// world halted for inspection is left exactly as it was.
+    /// Cancels hosted work and writes the checkpoint. Companion shutdown pauses
+    /// first, so a prepared tick cannot commit after this save. A failed write
+    /// leaves the companion alive and paused; a halted world stays untouched.
     /// </summary>
-    public bool SaveBeforeShutdown()
+    public ShutdownSaveOutcome SaveBeforeShutdown(bool pauseWorld = false)
     {
         if (invalidStateHalt)
         {
             if (logger is not null) LogShutdownSave(logger, "skipped_halted", runtime.WorldTick);
-            return false;
+            return ShutdownSaveOutcome.PreservedHalted;
         }
         var gate = providers?.WorldMutationGate ?? new object();
         try
         {
             lock (gate)
             {
+                if (pauseWorld) runtime.Pause();
                 runtime.CancelPendingHostedDecisions();
                 _ = stateFile.Save(runtime);
             }
             recoveryWritePending = false;
             if (logger is not null) LogShutdownSave(logger, "saved", runtime.WorldTick);
-            return true;
+            return ShutdownSaveOutcome.Saved;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            // The previous per-tick checkpoint is still on disk.
             if (logger is not null) LogShutdownSave(logger, "save_failed", runtime.WorldTick);
-            return false;
+            return ShutdownSaveOutcome.WriteFailed;
         }
     }
 
