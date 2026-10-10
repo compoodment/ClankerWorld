@@ -64,6 +64,8 @@ public static class HostedModelUnusableReply
     public static void RetainTokens(Exception exception, int inputTokens, int outputTokens)
     {
         ArgumentNullException.ThrowIfNull(exception);
+        // Invalid provider counts must not prevent the paid attempt finishing.
+        if (inputTokens < 0 || outputTokens < 0) return;
         exception.Data[InputTokensKey] = inputTokens;
         exception.Data[OutputTokensKey] = outputTokens;
     }

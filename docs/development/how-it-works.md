@@ -1556,7 +1556,8 @@ Concurrent requests share its optional lifetime attempt cap. Failure, retry and
 abandonment keep their spent allowance; only known token counts are added.
 Claude and chat-completions decisions and model checks keep reported counts
 even when the game answer's JSON cannot be read. Missing usage adds no estimated
-tokens.
+tokens. Invalid negative counts are discarded so an unusable reply still finishes
+as a failed attempt.
 Deterministic choices consume no attempt. Reaching the cap persists a pause;
 changing allowance and resuming are separate owner actions.
 

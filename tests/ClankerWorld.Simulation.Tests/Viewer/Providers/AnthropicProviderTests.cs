@@ -260,6 +260,43 @@ public sealed class AnthropicProviderTests
         finally { directory.Delete(recursive: true); }
     }
 
+    [Theory]
+    [InlineData(-1, 30)]
+    [InlineData(120, -1)]
+    public async Task MalformedChatAnswersWithInvalidUsageStillFinishDecisionAndSetupAttempts(int input, int output)
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-invalid-failed-usage-");
+        try
+        {
+            var store = Store(directory);
+            _ = store.Configure(new OwnerProviderConfigurationAction("personal", "openai", "gpt-6-luna",
+                "test-key", false, "inhabitant-test", Guid.NewGuid().ToString("N"), "Test key"));
+            var usagePath = Path.Combine(directory.FullName, "usage.json");
+            var usage = new ProviderUsageStore(usagePath);
+            var body = JsonSerializer.Serialize(new
+            {
+                model = "gpt-6-luna",
+                choices = new[] { new { message = new { content = "not-json" } } },
+                usage = new { prompt_tokens = input, completion_tokens = output },
+            });
+            var handler = new ChatHandler(body);
+            var factory = new FixedHttpClientFactory(handler);
+            var router = new ConfigurableDecisionProvider(store, factory, usageStore: usage);
+            await Assert.ThrowsAsync<InvalidDataException>(() => router.DecideAsync(
+                new CognitionDecisionRequest("invalid-usage", router.ProviderEpoch, Observation(true))).AsTask());
+            var check = await new ProviderSetupCheckService(store, usage, factory).CheckAsync(
+                new OwnerProviderSetupCheckAction("openai", "gpt-6-luna", ApiKey: "test-key"), CancellationToken.None);
+            Assert.Equal("unusable", check.Outcome);
+            Assert.Equal(2, handler.Bodies.Count);
+            var saved = new ProviderUsageStore(usagePath).Capture();
+            Assert.Equal(usage.Capture().Rows, saved.Rows);
+            Assert.Equal(2, saved.Rows.Count);
+            Assert.All(saved.Rows, row => Assert.Equal((1L, 0L, 1L, 0L, 0L, 0L),
+                (row.Attempts, row.Completed, row.Failed, row.Abandoned, row.InputTokens, row.OutputTokens)));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [Fact]
     public async Task OpenAiAndOllamaAgentsSendReasoningEffortOnlyWhenTheyHaveAThinkingLevel()
     {
@@ -523,7 +560,7 @@ public sealed class AnthropicProviderTests
         public override bool CanSeek => false;
     }
 
-    private sealed class ChatHandler : HttpMessageHandler
+    private sealed class ChatHandler(string? reply = null) : HttpMessageHandler
     {
         public List<string> Bodies { get; } = [];
 
@@ -533,7 +570,7 @@ public sealed class AnthropicProviderTests
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(
-                    """{"model":"hosted-test","choices":[{"message":{"content":"{\"selected_candidate_id\":\"safe_idle\",\"confidence\":1.0}"}}]}"""),
+                    reply ?? """{"model":"hosted-test","choices":[{"message":{"content":"{\"selected_candidate_id\":\"safe_idle\",\"confidence\":1.0}"}}]}"""),
             };
         }
     }
