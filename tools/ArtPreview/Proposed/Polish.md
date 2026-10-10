@@ -2,8 +2,8 @@
 
 On October 9 computment picked eight ideas from a list of visual additions
 that would make the map feel more alive. This proposal draws options for
-each over the reference Town corner, as stills at 32 px (close) and 16 px
-(mid zoom) and as short loops. None changes a game rule; each only shows
+each over the reference Town corner, as stills and short loops at close
+and mid zoom where applicable. None changes a game rule; each only shows
 what the world already records, more clearly.
 
 ## What computment chose
@@ -74,8 +74,8 @@ night-lights rule for when a building is lit.
 
 ## 7 · Weather that leaves a mark (`weathermarks`)
 
-Today snowfall never whitens the ground: the only white ground is the
-permanent snow terrain of cold climates. These marks would follow the
+The snow mockups compare cover after snowfall with permanent snow terrain.
+These marks would follow the
 weather the world records for each region, and fade after it passes.
 
 - **Ground snow A:** open ground covered, grass tips and trodden Roads
@@ -119,8 +119,9 @@ zooms in one step.
 - **Building finished A:** a ring of dust settling. **B:** dust, then a small
   flag on the roof for a moment. **C:** dust and a few twinkles.
 - **Grave A:** a small wooden cross. **B:** a rounded headstone. **C:** an
-  earth mound with flowers. How long a grave stays is a question for the
-  review: until something is built there, or fading after a year.
+  earth mound with flowers. The original review offered two lifetimes:
+  until something is built there, or fading after a year. The chosen
+  lifetime is recorded above.
 
 ## 13 · Weather fading in and out (`weatherfade`)
 
