@@ -2665,6 +2665,13 @@ action or player discard control is added.
 
 Each departure allocates at most two unreserved ready-to-eat portions once. Ownership changes at allocation while the existing storage/ground location stays fixed. Saved departure records retain the allocation and collection right; retries with no current membership cannot allocate again. Caregiver IDs and ancestry stay unchanged. Dependents follow the caregiver in physical steps, and a traveling caregiver waits when a dependent falls behind. Housing, ownership, collection and care facts use normal personal-model observations and player inspection; no extra acknowledgement request is made.
 
+Work-tool choices use the same physical collection checks. Collecting the
+actor's own stored or ground tool relocates it into carried custody without
+transferring ownership, including after household departure. A borrowed
+household tool retains its household owner; a Town Warehouse tool transfers
+to the collecting actor. Each pickup still rechecks access, unreserved stock
+and carrying room at the source.
+
 Production jobs capture their owner when the original inputs are reserved. Completion uses that saved owner, including at a public workstation when the worker leaves or forms a household during the job; membership changes cannot redirect the finished goods.
 
 **Housing requests** (`SettlementHousing`). An agent's saved `Housing` record

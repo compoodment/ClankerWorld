@@ -346,9 +346,11 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         if (RecheckGoods(SharedCollectionRequest(actor, item.OwnerId, kind), item.Id) is null) return;
-        // Every household work tool, of any tier, is borrowed rather than handed over.
+        // Personal equipment changes custody; household work tools are borrowed.
         var borrowedTool = item.ItemKind == "tool" || ToolProgressionRules.Find(item.ItemKind) is not null;
-        ApplyInventoryTransition(inventory => borrowedTool && item.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId
+        var keepOwner = item.OwnerId == actor ||
+            borrowedTool && item.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId;
+        ApplyInventoryTransition(inventory => keepOwner
             ? InventoryFixture.Relocate(inventory, $"equipment:{WorldTick}:{actor}:{kind}", item.Id, item.OwnerId, 1, actor)
             : InventoryFixture.Transfer(inventory, $"equipment:{WorldTick}:{actor}:{kind}",
                 item.OwnerId, actor, item.Id, 1, "equipment_collected"));
