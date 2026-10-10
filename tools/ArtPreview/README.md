@@ -17,6 +17,7 @@ dotnet run -- seasons out    # the same reference scenes in spring, summer, autu
 dotnet run -- animate out weather  # proposals that move, such as weather, as numbered frames of each loop
 dotnet run -- movement out   # implemented glide/bob reference frames from the client's walking cadence
 dotnet run -- completion out # approved building-finish C stills and loops, sharing native pixel spans
+dotnet run -- goldenhour out # implemented rose dawn and gold dusk references
 dotnet run -- snow out       # implemented ground snow A and footprints, using the client pixel rules
 dotnet run -- check          # current scene contract checks in memory; writes no pictures
 python3 build_review.py --baseline out/baseline --proposed out/proposed --scene out/scene \

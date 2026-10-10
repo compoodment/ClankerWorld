@@ -28,6 +28,9 @@ switch (command)
     case "completion":
         BuildingCompletionPreview.Run(Path.Combine(outRoot, "baseline", "completion"));
         break;
+    case "goldenhour":
+        GoldenHourPreview.Run(Path.Combine(outRoot, "baseline", "goldenhour"));
+        break;
     case "snow":
         SnowMarksPreview.Run(Path.Combine(outRoot, "baseline", "snow"));
         break;
@@ -35,7 +38,7 @@ switch (command)
         ArtContractChecks.Run();
         break;
     default:
-        Console.Error.WriteLine("usage: baseline|proposed|scene|seasons|movement|animate|completion|snow <out dir> [proposal family] | check");
+        Console.Error.WriteLine("usage: baseline|proposed|scene|seasons|movement|animate|completion|snow|goldenhour <out dir> [proposal family] | check");
         return 2;
 }
 return 0;

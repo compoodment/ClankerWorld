@@ -110,10 +110,15 @@ region, and fade after it passes.
 ## 8 · Golden hour (`goldenhour`)
 
 A day loop: day, dusk glow, the approved night tint, dawn glow, day.
+Approved C is implemented in `Implemented/GoldenHour.cs`, sharing the client’s
+`GoldenHourTint` colours and maximum amount. `dotnet run -- goldenhour out`
+writes its reviewed stills and loop. The reference retains the review’s night
+context; the client keeps its existing night wash and uses host seasonal
+twilight for the warm glow. The eight-second loop is a review picture.
 
 - **A · Amber:** an amber wash of up to 22% at dawn and dusk.
 - **B · Amber and glow:** A, plus warm light catching bright roofs and Roads.
-- **C · Rose and gold:** rose at dawn, gold at dusk.
+- **C · Rose and gold, implemented:** rose at dawn, gold at dusk.
 
 ## 9 · Stock you can see (`stock`)
 

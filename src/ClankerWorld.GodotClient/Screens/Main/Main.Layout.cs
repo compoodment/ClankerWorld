@@ -161,6 +161,10 @@ public partial class Main
         nightLayer.Follow(terrainLayer);
         mapStage.AddChild(nightLayer);
 
+        goldenHourLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        goldenHourLayer.Follow(terrainLayer);
+        mapStage.AddChild(goldenHourLayer);
+
         // Lit windows, doors and fires warm the ground back up through the wash.
         nightLightsLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         nightLightsLayer.Follow(terrainLayer, nightLayer);
