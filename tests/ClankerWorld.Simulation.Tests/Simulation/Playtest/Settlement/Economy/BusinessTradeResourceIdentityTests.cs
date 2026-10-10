@@ -92,8 +92,16 @@ public sealed partial class BusinessTradeTests
                 Assert.True(await host.TryAdvanceOnceAsync());
                 Assert.False(offering.Society.IsPaused);
             }
-            using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(file.Path)),
-                actor => actor == seller ? new ShopProvider("business_continue:") : new ShopProvider("safe_idle"));
+            var savedBytes = File.ReadAllBytes(file.Path);
+            var pendingState = PrivateWorldRuntimeCodec.Decode(savedBytes);
+            using (var pendingReload = PrivateWorldRuntime.Restore(pendingState))
+                Assert.Equal(savedBytes, PrivateWorldRuntimeCodec.Encode(pendingReload.ExportState()));
+            // The seller's changed test policy needs a fresh turn after the completed quote phase.
+            using var restored = PrivateWorldRuntime.Restore(pendingState with
+            {
+                Inhabitants = pendingState.Inhabitants.Select(person => person.InhabitantId == seller
+                    ? person with { LastDecisionContext = null } : person).ToArray(),
+            }, actor => actor == seller ? new ShopProvider("business_continue:") : new ShopProvider("safe_idle"));
             var pending = Assert.Single(restored.BusinessTrades);
             using var resumedHost = new PrivateWorldRuntimeService(restored, file, presence);
             for (var tick = 0; tick < 20 && restored.Society.Inventory.GetOffer(pending.OfferId).State != DirectBarterState.Settled; tick++)
