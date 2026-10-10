@@ -5,7 +5,9 @@ using ClankerWorld.Viewer.Control;
 
 namespace ClankerWorld.Viewer.Observation;
 
-public sealed record StartupRecoveryStatus(bool Pending, string? WorldId, ManualWorldSave? Autosave, string? Reason = null);
+/// <param name="SavedByVersion">The game version that last saved a refused checkpoint, when it was recorded.</param>
+public sealed record StartupRecoveryStatus(bool Pending, string? WorldId, ManualWorldSave? Autosave, string? Reason = null,
+    string? SavedByVersion = null);
 public sealed record StartupRecoveryReceipt(string LoadedId, long WorldTick);
 
 /// <summary>Keep a refused active checkpoint untouched until an authenticated owner accepts a verified autosave.</summary>
@@ -18,6 +20,7 @@ public sealed partial class PrivateWorldStartupRecovery
     private readonly ILogger<PrivateWorldStartupRecovery> logger;
     private readonly byte[]? damagedBytes;
     private readonly string? reason;
+    private readonly string? savedByVersion;
     private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private PrivateWorldRuntime? runtime;
     private readonly string identity;
@@ -42,6 +45,7 @@ public sealed partial class PrivateWorldStartupRecovery
         {
             damagedBytes = File.ReadAllBytes(stateFile.Path);
             reason = RefusalReason(damagedBytes);
+            savedByVersion = SavedBuild.TryRead(stateFile.Path)?.GameVersion;
             identity = ReadCheckpointIdentity(damagedBytes)
                 ?? WorldCatalogStore.ReadActiveIdentity(stateFile.Path)?.WorldId
                 ?? ReadAutosaveIdentity(stateFile.Path)
@@ -64,7 +68,8 @@ public sealed partial class PrivateWorldStartupRecovery
     public StartupRecoveryStatus Capture()
     {
         lock (providers.WorldMutationGate)
-            return new(Pending, identity, Pending ? FindAutosave() : null, Pending ? reason : null);
+            return new(Pending, identity, Pending ? FindAutosave() : null, Pending ? reason : null,
+                Pending ? savedByVersion : null);
     }
 
     private ManualWorldSave? FindAutosave()
