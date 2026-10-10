@@ -320,9 +320,11 @@ their base to main.
 ### After merging
 
 - Fetch main and confirm the squash commit is there, and watch main's CI on
-  that commit, not a run on the pull request or on a later commit. Meanwhile
-  you may review and queue your next pull request. CI that is still running
-  is not a break. If main's CI fails:
+  that commit, not a run on the pull request or on a later commit. The queue
+  merged it only after its run on that exact commit passed, so the push run
+  on main only finds that run and passes within minutes; don't wait for it
+  before queueing your next pull request. CI that is still running is not a
+  break. If main's CI fails:
   - **Known flaky test:** if only one test failed and it has an open Bug issue
     for intermittent failures, add the run link to that issue and carry on. If
     you think a test is flaky but it has no such issue, re-run the failed job
