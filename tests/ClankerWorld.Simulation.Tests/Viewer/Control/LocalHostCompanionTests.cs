@@ -178,7 +178,7 @@ public sealed class LocalHostCompanionTests
 
     private sealed class ShutdownRefusalHandler : HttpMessageHandler
     {
-        private readonly HttpClient inner = new();
+        private readonly HttpMessageInvoker inner = new(new HttpClientHandler());
         public HttpStatusCode? Refusal { get; set; }
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
