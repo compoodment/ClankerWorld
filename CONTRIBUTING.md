@@ -47,6 +47,13 @@ Otherwise use the matching template:
 - computment reads chat, not GitHub comments. An agent that needs their answer
   asks in its chat reply and records the answer afterwards
   ([how](AGENTS.md#ask-the-owner-in-chat)).
+  Review and merge sessions are the exception for decisions found during
+  review: they record the question on the pull request, hand it back and move
+  on without asking in chat or waiting
+  ([how](skills/review-merge/SKILL.md#hand-back-or-close)). They leave ready
+  pull requests labelled `status:needs-decision` for the owner to answer when
+  they choose to. Security reports and questions about a direct owner request
+  in that same session still go to the owner in chat.
 - The owner reports playtests in chat. Record the result in the
   [playtest list](playtest/README.md), with linked Bug or Implementation issues
   labelled `from:playtest` and the build details the owner gave. Do not open a
@@ -187,7 +194,8 @@ completes, and nothing left to ask the owner.
 
 - **Waiting on the owner means draft.** If the pull request needs an owner
   decision, add `status:needs-decision`, ask in chat, and keep it a draft until
-  every answer is in.
+  every answer is in. Reviewers follow the exception above: they record the
+  decision on the pull request and hand it back without asking in chat.
 - **The owner may ask for a draft.** If computment asks for a pull request to
   stay a draft, keep it one; whoever continues it marks it ready only when the
   owner says so ([how](skills/fix-issue/SKILL.md#drafts-and-readiness)).

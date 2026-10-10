@@ -87,6 +87,67 @@ public partial class Main
             buildingDetailsPanel.Position.X > 14.5f)
             throw new InvalidOperationException($"Details must dock on the left with the building's facts, work, storage and people: {facts} / {buildingPeopleText.Text} / {buildingDetailsPanel.GetGlobalRect()}.");
 
+        // The current owner comes from the host's building record, including
+        // when a later property ruling follows an older recovery in history.
+        var hearingJudge = new OwnerLandHearingJudge("judge-ui", "Judge", "land_mayor", "authority-ui", 10);
+        foreach (var (kind, outcomeKind, settled) in new[]
+                 { ("property", "reclaim", true), ("property", "grant", true), ("property", "reclaim", false),
+                     ("property", "reject", true), ("dispute", "confirm", true), ("expiry", "end", true) })
+        {
+            var outcome = new OwnerLandHearingOutcome(outcomeKind,
+                outcomeKind == "grant" ? house.HouseholdId : null,
+                outcomeKind == "grant" ? "Founder's household" : null, null);
+            var ruling = new OwnerLandHearingRuling("land-ruling:town:first:2", 1, hearingJudge, 25,
+                outcome, [new(2, 2)], [], [], "The recorded case outcome.", []);
+            var earlier = ruling with
+            {
+                Id = "land-ruling:town:first:1",
+                Tick = 20,
+                Outcome = new("reclaim", null, null, null)
+            };
+            var hearing = new OwnerTownLandHearing("land-hearing:town:first:2", kind, settled ? "settled" : "open",
+                outcomeKind == "grant" ? 21 : 10, settled ? 25 : null, 1, [new(2, 2)], [], "notice-ui", outcomeKind == "grant" ? 21 : 10, 24, outcome,
+                [], [], [], [], settled ? [ruling] : [],
+                hearingJudge, [], null, null, []);
+            var recovery = hearing with
+            {
+                Id = "land-hearing:town:first:1",
+                FiledTick = 10,
+                PublishedTick = 10,
+                DeadlineTick = 19,
+                SettledTick = 20,
+                NoticeId = "earlier-notice-ui",
+                RequestedOutcome = earlier.Outcome,
+                Rulings = [earlier]
+            };
+            var currentBuilding = settled && outcomeKind == "reclaim" ? house with { HouseholdId = null } : house;
+            var hearingMap = buildingMap with
+            {
+                PlacedBuildings = [currentBuilding],
+                Towns = buildingMap.Towns.Select(town => town.Id == house.TownId
+                    ? town with { LandHearings = outcomeKind == "grant" ? [recovery, hearing] : [hearing] } : town).ToArray(),
+            };
+            RenderBuildingCard(hearingMap);
+            var hearingFacts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
+            var currentOwner = currentBuilding.HouseholdId is null ? "First Town" : "Founder's household";
+            if (!hearingFacts.Contains("Owner\n" + currentOwner, StringComparison.Ordinal) ||
+                (kind == "property" && (hearingFacts.Contains("This hearing does not change", StringComparison.Ordinal) ||
+                    hearingFacts.Contains("Use permission\n", StringComparison.Ordinal))) ||
+                (kind != "property" && (!hearingFacts.Contains("Use permission\n", StringComparison.Ordinal) ||
+                    !hearingFacts.Contains("This hearing does not change the building's owner or access", StringComparison.Ordinal))) ||
+                (settled && kind == "property" && !hearingFacts.Contains("Property outcome\n" + LandHearingText.Outcome(outcome, DisplayWorldClock), StringComparison.Ordinal)) ||
+                (!settled && hearingFacts.Contains("Property outcome\n", StringComparison.Ordinal)))
+                throw new InvalidOperationException($"Building inspection must distinguish {kind}/{outcomeKind}, retain pending/history state and show the current recorded owner: {hearingFacts}.");
+            if (settled)
+            {
+                var description = WorldEventText.Describe(new(1, 25, "town_civic_result", "town:first|" + ruling.Id + "|Recorded outcome."), hearingMap);
+                if (kind == "property" ? !description.Contains("property ruling", StringComparison.Ordinal) || description.Contains("permission change", StringComparison.Ordinal)
+                    : !description.Contains("permission change", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Ruling event text must describe the same recorded property or use-permission case as its building card.");
+            }
+        }
+        RenderBuildingCard(buildingMap);
+
         var storageViews = new[] { buildingQuickStorage, buildingDetailsStorage };
         // Recorded occupancy can include other owners' goods absent from this household's item grid.
         foreach (var storage in storageViews)
@@ -429,7 +490,7 @@ public partial class Main
             "town:first|market-ui|market-ui-north|seller:one|buyer:two|market-ui-offer", north.Position),
             map);
         if (!description.Contains("Sam", StringComparison.Ordinal) || !description.Contains("Lina", StringComparison.Ordinal) ||
-            !description.Contains("exact terms", StringComparison.Ordinal))
+            !description.Contains("a trade at the Market", StringComparison.Ordinal))
             throw new InvalidOperationException("Market event descriptions must retain full pipe-delimited trader identities.");
         ClearBuildingSelection();
         RenderMap(baseMap);

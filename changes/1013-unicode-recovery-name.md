@@ -1,0 +1,1 @@
+- Overwriting a save with a long name that includes emoji or accents keeps whole characters in the recovery copy's name, instead of storing a broken character.

@@ -1,0 +1,1 @@
+- Find and agent/building jumps now glide to their destination, and zoom steps ease while keeping the pointed-at tile under the cursor. New requests start from the shown view; dragging and keyboard panning remain immediate. [#1467](https://github.com/compoodment/ClankerWorld/issues/1467)

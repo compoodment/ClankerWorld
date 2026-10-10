@@ -1856,12 +1856,20 @@ public sealed partial class OwnerWorldObservationStore
                 var hitch = state.HandcartHitches!.FirstOrDefault(item => item.CartLotId == cart.Id);
                 return new ViewerHandcart(cart.Id, cart.OwnerId, Name(cart.OwnerId),
                     new(cart.GroundPosition!.Value.X, cart.GroundPosition.Value.Y), InventoryContainerRules.HandcartCapacity,
-                    cart.ConditionBasisPoints / 100, hitch?.PullerId, hitch is null ? null : Name(hitch.PullerId),
+                    ShownConditionPercent(cart.ConditionBasisPoints), hitch?.PullerId, hitch is null ? null : Name(hitch.PullerId),
                     inventory.Lots.Where(lot => lot.ContainerLotId == cart.Id).GroupBy(lot => lot.ItemKind, StringComparer.Ordinal)
                         .OrderBy(group => group.Key, StringComparer.Ordinal)
                         .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray());
             }).ToArray();
     }
+
+    /// <summary>
+    /// A cart's condition as a whole percentage for the owner: rounded down,
+    /// except that a cart with any condition left shows at least 1%, so 0%
+    /// always means broken and a nearly worn-out cart never looks broken
+    /// while it can still be pulled.
+    /// </summary>
+    internal static int ShownConditionPercent(int basisPoints) => basisPoints <= 0 ? 0 : Math.Max(1, basisPoints / 100);
 
     /// <summary>
     /// Whether an abandoned Town has stood empty for a full season (a quarter

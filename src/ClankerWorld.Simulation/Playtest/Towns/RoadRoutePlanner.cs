@@ -10,6 +10,10 @@ namespace ClankerWorld.Simulation.Playtest;
 /// are already part of the network. <see cref="Roads"/> are the existing Road
 /// tiles a new street should meet rather than run beside, and a non-null
 /// <see cref="Border"/> keeps the street inside the Town border.
+/// <see cref="ReuseRoads"/> selects inter-Town routing: existing Road costs
+/// apply, with no local side-street spacing penalty. Optional <see cref="Occupied"/>
+/// distinguishes physical diagonal-corner obstructions from held land when
+/// following an existing Road; new Road edges still respect all blocked land.
 /// </summary>
 public sealed record RoadRouteRequest(
     SeededMap Map,
@@ -18,7 +22,9 @@ public sealed record RoadRouteRequest(
     IReadOnlySet<GridPoint> Blocked,
     IReadOnlyList<BridgeState> Bridges,
     IReadOnlySet<GridPoint>? Roads = null,
-    IReadOnlySet<GridPoint>? Border = null);
+    IReadOnlySet<GridPoint>? Border = null,
+    bool ReuseRoads = false,
+    IReadOnlySet<GridPoint>? Occupied = null);
 
 /// <summary>
 /// A complete, not yet committed street: every land tile it uses in order
@@ -78,6 +84,7 @@ public static class RoadRoutePlanner
         var starts = request.Starts.Distinct().Where(point => IsRoadGround(request, point))
             .OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
         if (starts.Length == 0) return new RoadRouteResult(null, RoadRouteOutcomes.NoEntrance);
+        if (request.Network.Count == 0) return new RoadRouteResult(null, RoadRouteOutcomes.RouteUnavailable);
         var existing = request.Bridges.Select(RiverBridgeRules.ToCrossing).ToArray();
         var redundancy = new Dictionary<string, bool>(StringComparer.Ordinal);
         var banned = new HashSet<string>(StringComparer.Ordinal);
@@ -123,7 +130,8 @@ public static class RoadRoutePlanner
                 !links.Any(pair => pair[0] == from && pair[1] == to || pair[0] == to && pair[1] == from))
                 return "route_broken";
         }
-        var newTiles = tiles.Where(tile => !request.Network.Contains(tile)).ToArray();
+        var newTiles = tiles.Where(tile => !request.Network.Contains(tile) &&
+            (!request.ReuseRoads || request.Roads?.Contains(tile) != true)).ToArray();
         var roadsAfter = (request.Roads ?? new HashSet<GridPoint>()).Concat(tiles).ToHashSet();
         return ValidateGrowth(map, request.Blocked, roadsAfter, request.Bridges, newTiles, proposal.NewCrossings);
     }
@@ -167,7 +175,15 @@ public static class RoadRoutePlanner
         var byEntrance = request.Bridges.OrderBy(item => item.Id, StringComparer.Ordinal)
             .SelectMany(bridge => bridge.Entrances.Select(entrance => (Entrance: entrance, Bridge: bridge)))
             .ToLookup(item => item.Entrance, item => item.Bridge);
-        var open = new PriorityQueue<GridPoint, (int Cost, int Y, int X, int Order)>();
+        var minX = request.ReuseRoads ? request.Network.Min(point => point.X) : 0;
+        var maxX = request.ReuseRoads ? request.Network.Max(point => point.X) : 0;
+        var minY = request.ReuseRoads ? request.Network.Min(point => point.Y) : 0;
+        var maxY = request.ReuseRoads ? request.Network.Max(point => point.Y) : 0;
+        // A simple route can use each existing Road tile/deck at most once.
+        // 43 is the largest saving (a 141-cost diagonal becomes 98).
+        var maximumSavings = request.ReuseRoads ? 43L * (roads.Count + request.Bridges.Where(bridge => bridge.Trigger == BridgeTriggers.Road)
+            .Sum(bridge => (long)bridge.Span.Count)) : 0;
+        var open = new PriorityQueue<GridPoint, (int Score, int Cost, int Y, int X, int Order)>();
         var best = new Dictionary<GridPoint, int>();
         var predecessor = new Dictionary<GridPoint, Link>();
         var order = 0;
@@ -175,7 +191,7 @@ public static class RoadRoutePlanner
         {
             best[start] = 0;
             predecessor[start] = new Link(start, LinkKind.Start, null, null);
-            open.Enqueue(start, (0, start.Y, start.X, order++));
+            open.Enqueue(start, (Heuristic(start), 0, start.Y, start.X, order++));
         }
 
         while (open.TryDequeue(out var current, out var priority) && best.Count <= MaximumSearchTiles)
@@ -186,7 +202,7 @@ public static class RoadRoutePlanner
             foreach (var next in map.FootNeighbors(current))
             {
                 if (!Landing(next, out var joins) || !IsStreetStep(request, current, next)) continue;
-                Relax(next, checked(priority.Cost + map.FootStepCost(current, next) + Beside(next, joins)),
+                Relax(next, checked(priority.Cost + GroundCost(current, next) + Beside(next, joins)),
                     new Link(current, LinkKind.Ground, null, null));
             }
 
@@ -212,7 +228,9 @@ public static class RoadRoutePlanner
                     .Append(far).Prepend(current).ToArray();
                 var cost = priority.Cost;
                 for (var index = 1; index < walk.Length; index++)
-                    cost = checked(cost + map.FootStepCost(walk[index - 1], walk[index]));
+                    cost = checked(cost + (request.ReuseRoads && bridge.Trigger == BridgeTriggers.Road
+                        ? Math.Max(1, map.FootStepCost(walk[index - 1], walk[index]) * 70 / 100)
+                        : map.FootStepCost(walk[index - 1], walk[index])));
                 Relax(far, checked(cost + Beside(far, joins)), new Link(current, LinkKind.Bridge, bridge.Id, null));
             }
         }
@@ -223,19 +241,37 @@ public static class RoadRoutePlanner
         bool Landing(GridPoint tile, out bool joins)
         {
             joins = request.Network.Contains(tile);
-            return map.IsBuildable(tile) && (!request.Blocked.Contains(tile) || joins) &&
+            return IsRoadGround(request, tile) &&
                 (request.Border is null || joins || request.Border.Contains(tile));
         }
 
-        int Beside(GridPoint tile, bool joins) => !joins && TownStreets.Directions.Any(step =>
+        int GroundCost(GridPoint from, GridPoint to) => request.ReuseRoads && roads.Contains(from) && roads.Contains(to)
+            ? Math.Max(1, map.FootStepCost(from, to) * 70 / 100) : map.FootStepCost(from, to);
+
+        int Beside(GridPoint tile, bool joins) => !request.ReuseRoads && !joins && TownStreets.Directions.Any(step =>
             roads.Contains(new GridPoint(tile.X + step.X, tile.Y + step.Y))) ? BesideRoadCost : 0;
+
+        int Heuristic(GridPoint point)
+        {
+            if (!request.ReuseRoads) return 0;
+            var y = Math.Clamp(point.Y, minY, maxY);
+            var clamped = new GridPoint(Math.Clamp(point.X, minX, maxX), y);
+            var left = new GridPoint(minX, y);
+            var right = new GridPoint(maxX, y);
+            var direct = Math.Min(map.FootRouteHeuristicCost(point, clamped),
+                Math.Min(map.FootRouteHeuristicCost(point, left), map.FootRouteHeuristicCost(point, right)));
+            var steps = Math.Min(map.FootDistance(point, clamped), Math.Min(map.FootDistance(point, left), map.FootDistance(point, right)));
+            // Both bounds ignore obstacles and cannot exceed the actual route:
+            // cheapest possible steps, or dry-ground cost minus all possible savings.
+            return Math.Max(checked(steps * 70), (int)Math.Max(0, direct - maximumSavings));
+        }
 
         void Relax(GridPoint next, int cost, Link link)
         {
             if (best.TryGetValue(next, out var previous) && previous <= cost) return;
             best[next] = cost;
             predecessor[next] = link;
-            open.Enqueue(next, (cost, next.Y, next.X, order++));
+            open.Enqueue(next, (checked(cost + Heuristic(next)), cost, next.Y, next.X, order++));
         }
 
         bool IsRedundant(RiverCrossing crossing)
@@ -248,17 +284,23 @@ public static class RoadRoutePlanner
 
     /// <summary>
     /// A legal step between two street tiles: one foot step, and a diagonal
-    /// only where both corner tiles are clear ground (not across the seam).
+    /// only where both corner tiles are clear ground. Inter-Town routes also
+    /// permit diagonal steps across the map's enabled east-west seam.
     /// </summary>
     private static bool IsStreetStep(RoadRouteRequest request, GridPoint from, GridPoint to)
     {
         var map = request.Map;
         if (map.FootDistance(from, to) != 1 || !map.CanFootStep(from, to)) return false;
         if (!map.IsDiagonalFootStep(from, to)) return true;
-        return Math.Abs(to.X - from.X) == 1 &&
+        return (Math.Abs(to.X - from.X) == 1 || request.ReuseRoads && map.WrapsEastWest && Math.Abs(to.X - from.X) == map.Width - 1) &&
             IsClearCorner(new GridPoint(to.X, from.Y)) && IsClearCorner(new GridPoint(from.X, to.Y));
 
-        bool IsClearCorner(GridPoint tile) => map.IsBuildable(tile) && !request.Blocked.Contains(tile);
+        bool IsClearCorner(GridPoint tile)
+        {
+            var blocked = request.ReuseRoads && request.Roads?.Contains(from) == true && request.Roads.Contains(to)
+                ? request.Occupied ?? request.Blocked : request.Blocked;
+            return map.IsBuildable(tile) && !blocked.Contains(tile);
+        }
     }
 
     private static RoadRouteProposal Reconstruct(GridPoint end, Dictionary<GridPoint, Link> predecessor)
@@ -284,5 +326,6 @@ public static class RoadRoutePlanner
 
     private static bool IsRoadGround(RoadRouteRequest request, GridPoint point) =>
         request.Map.Contains(point) && request.Map.IsBuildable(point) &&
-        (!request.Blocked.Contains(point) || request.Network.Contains(point));
+        (!request.Blocked.Contains(point) || request.Network.Contains(point) ||
+         request.ReuseRoads && request.Roads?.Contains(point) == true);
 }

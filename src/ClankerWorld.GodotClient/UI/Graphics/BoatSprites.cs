@@ -2,10 +2,13 @@ using Godot;
 
 namespace ClankerWorld.GodotClient.UI;
 
-/// <summary>The approved rowing boat, with shipped or working oars in eight directions.</summary>
+/// <summary>
+/// The approved rowing boat, with shipped or working oars in eight directions,
+/// at 32 px and as the approved 16 px version for medium zoom (#914).
+/// </summary>
 public static class BoatSprites
 {
-    private static readonly Dictionary<(int Facing, bool Rowing), Texture2D> Textures = [];
+    private static readonly Dictionary<(int Facing, bool Rowing, int Size), Texture2D> Textures = [];
     private static readonly Facing[] Facings =
         [Facing.South, Facing.SouthWest, Facing.West, Facing.NorthWest, Facing.North, Facing.NorthEast, Facing.East, Facing.SouthEast];
     private static readonly Ramp Timber = Ramp.Of("3F2A1A", "6E4E31", "8A6440", "A77C52", "D2AC77");
@@ -13,14 +16,19 @@ public static class BoatSprites
     private static readonly Ramp River = Ramp.Of("2F5A75", "3B7294", "4786AB", "5695B8", "7FB4CF");
     private static readonly Color SmallShadow = new(0.05f, 0.08f, 0.05f, 0.28f);
 
-    public static Image Sprite(int facing, bool rowing) => Boat(Facings[Normalize(facing)], rowing);
-
-    public static Texture2D Texture(int facing, bool rowing)
+    /// <summary>The boat at 32 px, or its approved 16 px drawing for sizes below 24 px.</summary>
+    public static Image Sprite(int facing, bool rowing, int size = 32)
     {
-        var key = (Normalize(facing), rowing);
+        var approved = Boat(Facings[Normalize(facing)], rowing);
+        return size >= 24 ? approved : PixelArt.HalveSprite(approved);
+    }
+
+    public static Texture2D Texture(int facing, bool rowing, int size = 32)
+    {
+        var key = (Normalize(facing), rowing, size >= 24 ? 32 : 16);
         if (!Textures.TryGetValue(key, out var texture))
         {
-            texture = ImageTexture.CreateFromImage(Sprite(key.Item1, rowing));
+            texture = ImageTexture.CreateFromImage(Sprite(key.Item1, rowing, key.Item3));
             Textures.Add(key, texture);
         }
         return texture;

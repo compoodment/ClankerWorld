@@ -1,0 +1,1 @@
+- Conversation summaries and bubble tooltips keep whole accented letters, flags and joined emoji when shortening public speech. The full heard turn remains in Show history.

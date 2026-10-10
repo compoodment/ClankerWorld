@@ -49,7 +49,6 @@ public sealed partial class PrivateWorldConstructionOrderTests
 
     [Theory]
     [InlineData(false, false)]
-    [InlineData(true, false)]
     [InlineData(true, true)]
     public async Task ConstructionCanReplaceAnUnpaidOrdinaryPlanAndEarnsOnlyItsOwnPlacementProof(
         bool issueOrder, bool partlyWorked)

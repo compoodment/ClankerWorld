@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using ClankerWorld.Simulation.Cognition;
@@ -28,12 +29,18 @@ public sealed class InvalidHostedDecisionTests
             using var world = new PrivateWorldRuntime("invalid-hosted-answer", id =>
                 id == "founder-scout" ? router : new ActionCoverageRecorder(chooseIdle: true));
             CognitionAdmissionResult? admission = null;
-            for (var tick = 0; tick < 25 && admission is null; tick++)
+            var started = false;
+            // Allow the hosted task to finish under instrumentation while
+            // retaining this one native reply and its metered effects.
+            var wait = Stopwatch.StartNew();
+            while (admission is null && wait.Elapsed < TimeSpan.FromSeconds(10))
             {
                 var result = await world.AdvanceOneTickNonBlockingAsync();
+                started |= result.Events.Any(item => item.Kind == "hosted_decision_started" && item.Detail == "founder-scout");
                 admission = result.Decisions.FirstOrDefault(item => item.InhabitantId == "founder-scout")?.Admission;
                 await Task.Delay(30);
             }
+            Assert.True(started);
             Assert.NotNull(admission);
             Assert.True(admission.Accepted);
             Assert.Equal(outcome, admission.Outcome);

@@ -465,8 +465,11 @@ public partial class Main
         {
             facts.Add(("Land hearing", LandHearingText.Summary(hearing)));
             if (hearing.Rulings.Count > 0)
-                facts.Add(("Use permission", LandHearingText.Outcome(hearing.Rulings[^1].Outcome, DisplayWorldClock)));
-            facts.Add(("Private property", "This hearing does not change the building's owner or access"));
+                facts.Add((hearing.Kind == "property" ? "Property outcome" : "Use permission",
+                    LandHearingText.Outcome(hearing.Rulings[^1].Outcome, DisplayWorldClock)));
+            facts.Add(("Private property", hearing.Kind == "property"
+                ? "Property rulings can change ownership and access; the current owner is shown above"
+                : "This hearing does not change the building's owner or access"));
         }
         foreach (var transfer in LandTransferText.ForInspection(snapshot.Towns.SelectMany(item => item.LandTransfers).Where(item =>
                      item.Tiles.Any(tile => tile.X >= building.Position.X && tile.X < building.Position.X + building.Width &&

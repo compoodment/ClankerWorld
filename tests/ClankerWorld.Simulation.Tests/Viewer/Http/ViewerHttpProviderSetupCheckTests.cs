@@ -58,6 +58,18 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
             Assert.Equal(0, handler.RequestCount);
 
+            // A valid owner signature with a malformed new setting must fail validation
+            // before authorization consumes it or a paid request can be reserved.
+            var invalidThinking = action with { Thinking = "max" };
+            var invalidPayload = payload + "\nthinking=" + Convert.ToBase64String(Encoding.UTF8.GetBytes("max"))
+                .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            var malformed = await CreateSignedRequestAsync(host, client, key, device.DeviceId,
+                SetupCheckPath, invalidThinking, invalidPayload);
+            using (var rejected = await client.PostAsJsonAsync(SetupCheckPath, malformed))
+                Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+            Assert.Equal(0, handler.RequestCount);
+            Assert.Equal(0, host.Services.GetRequiredService<ProviderUsageStore>().Capture().Attempts);
+
             var identity = host.Services.GetRequiredService<OwnerAuthorityStore>().Identity;
             using var signer = new SettingsKeySigner(key);
             var api = new OwnerWorldApi(client);

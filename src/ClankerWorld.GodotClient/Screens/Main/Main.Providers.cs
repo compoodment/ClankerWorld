@@ -168,7 +168,7 @@ public partial class Main
         var role = SelectedRoleId();
         var provider = SelectedProviderId();
         var target = SelectedCognitionTarget();
-        var hostedAgent = target is not null && provider is ("openai" or "ollama-cloud");
+        var hostedAgent = target is not null && IsHostedProvider(provider);
         var credentialChoice = hostedAgent ? SelectedCredentialChoice() : null;
         var creatingSlot = credentialChoice == "new";
         if (creatingSlot && (string.IsNullOrWhiteSpace(cognitionCredentialLabelInput.Text) ||
@@ -191,7 +191,8 @@ public partial class Main
             ForgetCredential: false,
             InhabitantId: target,
             CredentialSlotId: creatingSlot ? Guid.NewGuid().ToString("N") : credentialChoice is null or "default" ? null : credentialChoice,
-            NewCredentialLabel: creatingSlot ? EmptyToNull(cognitionCredentialLabelInput.Text) : null);
+            NewCredentialLabel: creatingSlot ? EmptyToNull(cognitionCredentialLabelInput.Text) : null,
+            Thinking: hostedAgent ? SelectedThinking(cognitionThinkingChoice) : null);
         try
         {
             await RunOwnerActionAsync(async () =>
@@ -337,6 +338,7 @@ public partial class Main
         {
             AddProviderChoice("OpenAI", "openai");
             AddProviderChoice("Ollama Cloud", "ollama-cloud");
+            AddProviderChoice("Anthropic", "anthropic");
         }
         if (SelectedCognitionTarget() is not null && selectedProvider == "jev")
             AddProviderChoice("Jev (legacy assignment)", "jev");
@@ -383,6 +385,8 @@ public partial class Main
         }
         cognitionCredentialChoice.AddItem("Add another API key...");
         cognitionCredentialChoice.SetItemMetadata(cognitionCredentialChoice.ItemCount - 1, "new");
+        // The agent's saved thinking level applies only to the provider it was set for.
+        SelectThinking(cognitionThinkingChoice, SelectedAssignment()?.Provider == provider ? SelectedAssignment()?.Thinking : null);
         var assignedSlot = SelectedAssignment()?.Provider == provider ? SelectedAssignment()?.CredentialSlotId : null;
         for (var index = 0; index < cognitionCredentialChoice.ItemCount; index++)
         {
@@ -393,6 +397,38 @@ public partial class Main
         cognitionCredentialChoice.Select(0);
     }
 
+    /// <summary>Providers that host an agent's own paid model, with a key and a thinking setting.</summary>
+    private static bool IsHostedProvider([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? provider) =>
+        provider is "openai" or "ollama-cloud" or "anthropic";
+
+    /// <summary>The thinking levels every hosted provider accepts; the model default sends nothing.</summary>
+    private static void PopulateThinkingChoices(OptionButton choice)
+    {
+        choice.Clear();
+        foreach (var (label, id) in new[] { ("Model default", "default"), ("Low", "low"), ("Medium", "medium"), ("High", "high") })
+        {
+            choice.AddItem(label);
+            choice.SetItemMetadata(choice.ItemCount - 1, id);
+        }
+        choice.ClipText = true;
+        choice.TooltipText = "How much the model thinks before it answers; more thinking takes longer and uses more paid tokens.";
+        choice.Select(0);
+    }
+
+    private static string? SelectedThinking(OptionButton choice) => choice.Selected < 0 ||
+        choice.GetItemMetadata(choice.Selected).AsString() is not { } id || id == "default" ? null : id;
+
+    private static void SelectThinking(OptionButton choice, string? thinking)
+    {
+        for (var index = 0; index < choice.ItemCount; index++)
+        {
+            if (choice.GetItemMetadata(index).AsString() != (thinking ?? "default")) continue;
+            choice.Select(index);
+            return;
+        }
+        choice.Select(0);
+    }
+
     private void RenderProviderConfiguration()
     {
         var provider = SelectedProviderId();
@@ -401,9 +437,10 @@ public partial class Main
         var hosted = provider is not ("deterministic" or "inherit");
         var personalSetupCheckAvailable = SelectedCognitionTarget() is not null && HasModelList(provider);
         cognitionRoleChoice.Visible = SelectedCognitionTarget() is null;
-        var agentCredential = hosted && SelectedCognitionTarget() is not null && provider is ("openai" or "ollama-cloud");
+        var agentCredential = hosted && SelectedCognitionTarget() is not null && IsHostedProvider(provider);
         var newCredential = agentCredential && SelectedCredentialChoice() == "new";
         cognitionModelPicker.Visible = hosted;
+        cognitionThinkingChoice.Visible = agentCredential;
         cognitionModelSetupCheckButton.Visible = personalSetupCheckAvailable;
         cognitionCredentialChoice.Visible = agentCredential;
         cognitionCredentialLabelInput.Visible = newCredential;
@@ -453,7 +490,7 @@ public partial class Main
         var child = observationSession.Current?.Baseline.Snapshot.Inhabitants.FirstOrDefault(item => item.Id == childId);
         var birthProvider = child?.DecisionFactors.FirstOrDefault(item => item.Key == "birth-model-provider")?.Detail;
         var birthModel = child?.DecisionFactors.FirstOrDefault(item => item.Key == "birth-model-id")?.Detail;
-        if ((routine is null || planning is null) && birthProvider is "openai" or "ollama-cloud" &&
+        if ((routine is null || planning is null) && IsHostedProvider(birthProvider) &&
             !string.IsNullOrWhiteSpace(birthModel))
         {
             var pendingModelName = $"{ProviderDisplayName(birthProvider)} · {birthModel}";
@@ -531,6 +568,7 @@ public partial class Main
         "decisions" or "openaidecisions" => "OpenAI Decisions",
         "openai" => "OpenAI",
         "ollama-cloud" => "Ollama Cloud",
+        "anthropic" => "Anthropic",
         "inherit" => "World default",
         _ => "Built-in rules",
     };
@@ -540,6 +578,7 @@ public partial class Main
         "jev" => "jev-1.13.0",
         "openai" or "decisions" => "gpt-6-luna",
         "ollama-cloud" => "glm-5.3-flash:cloud",
+        "anthropic" => "claude-haiku-5-5",
         _ => string.Empty,
     };
 
@@ -620,6 +659,10 @@ public partial class Main
         cognitionModelPicker.ModelChanged += ClearCognitionModelSetupCheck;
         body.AddChild(FieldCaption("Model", cognitionModelPicker));
         body.AddChild(cognitionModelPicker);
+        PopulateThinkingChoices(cognitionThinkingChoice);
+        cognitionThinkingChoice.ItemSelected += _ => ClearCognitionModelSetupCheck();
+        body.AddChild(FieldCaption("Thinking", cognitionThinkingChoice));
+        body.AddChild(cognitionThinkingChoice);
         cognitionModelSetupCheckButton.Text = "Test model · 1 paid call";
         cognitionModelSetupCheckButton.TooltipText = "Sends one request with this model and key. It counts toward your paid-call limit.";
         StyleButton(cognitionModelSetupCheckButton);
