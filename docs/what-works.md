@@ -821,6 +821,11 @@ enough Town food stops new tilling and autonomous planting. Fields, planting
 supplies and harvests still belong to their existing households. This adds no
 delivery or sharing of the harvest.
 
+Preparing births protect household food on an actively borrowed Market stall.
+The food gate, parents' cards, caregiver guidance and four-portion payment all
+exclude that sale stock. Once borrowing ends, it can count and pay normally.
+Usable household food elsewhere can fund the birth while the stall stays stocked.
+
 Restaurant trading uses the normal private-world path; its
 [Windows playtest checklist](../playtest/561-concrete-meals.md) is pending.
 Restaurant adults visit ingredient shops in any Town, and adult customers
