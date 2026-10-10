@@ -121,6 +121,15 @@ repairs use their actor's saved skill with existing progress. Native paired
 continuation retains outputs, material costs, full completion receipts and
 current-format checkpoints; refused ticks keep the preceding state.
 
+Workstation recipes that output fresh water are refused before reserving
+materials or creating a job: their output path has no destination jug, and
+inventory requires fresh water inside a water jug. Autonomous production and
+workstation supply planning skip those recipes, including mixed-output ones.
+A running job admitted by an earlier build remains loadable. When it becomes
+due, it cancels and releases its remaining reservations without consuming
+inputs, wearing its tool or creating output. The cancellation saves and
+replays normally; no schema change or water-production feature is added.
+
 Private-world schema 34 adds household field tiles and their crop/work state.
 The saved inventory also records a ground position for physical harvest lots.
 Field ownership, work inputs, growth times and replanting reservations are

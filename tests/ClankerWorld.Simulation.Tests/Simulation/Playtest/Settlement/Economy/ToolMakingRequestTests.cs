@@ -712,7 +712,7 @@ public sealed class ToolMakingRequestTests
         return state;
     }
 
-    private static (PrivateWorldRuntimeState State, string Buyer, string Seller, PlacedBuilding Shop) Prepared()
+    internal static (PrivateWorldRuntimeState State, string Buyer, string Seller, PlacedBuilding Shop) Prepared()
     {
         using var setup = NormalPathWorld.CreateGenerated("probe-a", _ => new RequestChoices());
         var state = setup.ExportState();
