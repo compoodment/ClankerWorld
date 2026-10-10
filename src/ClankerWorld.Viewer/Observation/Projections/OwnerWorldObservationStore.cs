@@ -538,6 +538,7 @@ public sealed partial class OwnerWorldObservationStore
             {
                 Tags = plan.Tags,
                 CompletedBoatId = project.CompletedBoatId,
+                RemovedTick = project.RemovedTick,
             };
         }
         string MarketOwnerName(string id) => inhabitantsById.GetValueOrDefault(id)?.Name ??

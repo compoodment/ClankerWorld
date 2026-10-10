@@ -568,6 +568,7 @@ public sealed record ViewerTownProject(string Id, string ProposalId, string Name
 {
     public IReadOnlyList<string> Tags { get; init; } = [];
     public string? CompletedBoatId { get; init; }
+    public long? RemovedTick { get; init; }
 }
 public sealed record ViewerCivicCandidate(string Id, string Name, int Votes);
 public sealed record ViewerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,

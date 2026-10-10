@@ -852,9 +852,15 @@ If they gather new wood or stone, those goods stay personal until their own mode
 freshly chooses to donate them. **Speak → Suggest** may ask an adult to consider
 helping or donating; an Order cannot give away their goods. After completion,
 select the Hall for its project and payment details. Agents read civic notices
-there, with the same nearby learning and relay rules as before. A blocked project
+there, with the same nearby learning and relay rules as before. If you remove a
+finished Hall, the Towns page keeps its paid construction history and labels it
+**Built, later removed**, without offering it for selection on the map. Older
+Event Log lines keep the project name even when its worker is no longer present.
+A blocked project
 keeps its materials as Town property and releases unused claims rather than
-building for free. If its site can no longer be used, the Town stops the
+building for free. Its waiting message explains that work retries when the
+approved site is usable and reachable and the required materials are available.
+If its site can no longer be used, the Town stops the
 project and the Towns page says why; its leftover materials stay Town
 property where they are. See [What works today](what-works.md#life-work-and-society)
 for this first version's limits and provisional amounts. Its

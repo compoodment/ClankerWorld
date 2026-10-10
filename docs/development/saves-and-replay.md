@@ -1267,6 +1267,10 @@ returned by a counter. Only a pending household land request keeps a project
 blocked; any other site failure saves it as `cancelled` with its reason and
 released claims, and a cancelled project no longer protects its site. A
 completed Hall remains bound to its original paid receipt history.
+The owner observation projects the retained `RemovedTick` to the client without
+changing the saved stage or receipts. Towns displays a removed asset as retained
+construction history, and historical project event names resolve from complete
+retained project IDs even when their actor is absent from the observation.
 
 Current-format restore and replay must keep partial multi-load supply, consumed
 receipts, shared work and civic knowledge without duplicating approval, stock,
