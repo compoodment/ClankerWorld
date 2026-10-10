@@ -69,8 +69,9 @@ Several reviewers may be merging at the same time, so:
   counts as P2. Leave pull requests that wait on an owner decision alone,
   even if they are marked ready: the owner answers decisions when they choose
   to, not when a reviewer reaches them. Choose by priority, then age; don't
-  pick easy pull requests to raise a merge count. Before a deep review, check its dependencies,
-  duplicates, authors, current head, readiness and any existing claim. Add
+  pick easy pull requests to raise a merge count. Before a deep review, check
+  its dependencies, duplicates, authors, current head, readiness and any
+  existing claim. Add
   `status:reviewing` and comment with who is
   reviewing and the commit you started from. Then read the comments again: if
   someone else claimed it before you and their claim has not been released
@@ -119,7 +120,8 @@ doesn't already make the same change.
   is further along: more complete, already reviewed, or the older between
   equals. Hand the other back to draft with a comment saying which pull
   request it duplicates, so its author decides; if another reviewer holds it,
-  comment instead. If it isn't clear which to keep, ask the owner in chat.
+  comment instead. If it isn't clear which to keep, record the choice on the
+  pull request and hand it back for an owner decision.
 
 ## Keep two pull requests moving
 
@@ -395,7 +397,8 @@ whoever closes a pull request:
   request or issue that waited on it that it closed without merging. Where the
   work can go on without it, remove `status:blocked` and the `Waits on` or
   `Blocked by` line, and give an issue nobody holds `status:needs-pr`.
-  Otherwise ask the owner in chat what it should wait on now.
+  Otherwise record the question on that blocked work, add
+  `status:needs-decision` and leave it for the owner's decisions sweep.
 
 ## Wait without wasting time
 

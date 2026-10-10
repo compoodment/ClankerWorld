@@ -46,11 +46,13 @@ remove `status:needs-decision` from the issue and from any pull request that
 waited on it. If nobody holds the issue (no `status:in-progress`) and it is not
 a decision or owner task, add `status:needs-pr` too.
 
-Review and merge sessions are the exception for decisions: they don't ask the
-owner for one. They skip pull requests waiting on the owner, and when a review
-turns up a question only the owner can answer, they write it on the pull
-request and hand it back ([how](skills/review-merge/SKILL.md#hand-back-or-close)).
-The owner answers those when they choose to, through the searches below.
+Review and merge sessions follow the
+[decision exception](CONTRIBUTING.md#issues-and-design-questions): they skip
+pull requests waiting on the owner, and when a review turns up a question only
+the owner can answer, they write it on the pull request and hand it back
+([how](skills/review-merge/SKILL.md#hand-back-or-close)). The owner answers those
+when they choose to, through the searches below. Security reports and questions
+about a direct owner request in that same session still go to the owner in chat.
 
 An instruction the owner gives you in chat applies to your session at once,
 even where it differs from these files; say in your comments that it was the
