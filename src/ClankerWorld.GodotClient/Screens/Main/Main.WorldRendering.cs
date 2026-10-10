@@ -15,6 +15,7 @@ public partial class Main
 
     private void ResetDisplayedWorldContext()
     {
+        keyboardMapTile = null;
         knownEvents.Clear();
         eventsWorldId = null;
         lastSeenEventId = long.MinValue;
@@ -67,6 +68,7 @@ public partial class Main
         usagePauseWorldId = null;
         lastLifePaceWorldId = null;
         renderedTownList = null;
+        renderedRosterPresentation = null;
         foreach (var marker in inhabitantVisuals.Values) marker.QueueFree();
         inhabitantVisuals.Clear();
         inhabitantCanonicalXs.Clear();
@@ -452,8 +454,13 @@ public partial class Main
                 actorMarker.ObserveTile(snapshot.WorldId, new Vector2I(inhabitant.Position.X, inhabitant.Position.Y),
                     mapWidth, snapshot.WrapsEastWest);
                 actorMarker.Activity = AgentMarker.ActivityFor(inhabitant);
+                actorMarker.Swimming = inhabitant.Route.Status == "swim";
+                actorMarker.ObserveModelWait(snapshot.WorldId,
+                    inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "model-status")?.Detail == "waiting",
+                    snapshot.Authoring?.IsPaused == true);
                 var actorTooltip = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)} · " +
                     (inhabitant.PublicIntention?.Summary ?? "taking in the world");
+                if (actorMarker.Swimming) actorTooltip += "\nSwimming";
                 var conversation = LatestConversationFor(snapshot, inhabitant.Id);
                 actorMarker.ConversationBadgeVisible = conversation is not null;
                 actorMarker.ConversationUnread = conversation is not null &&

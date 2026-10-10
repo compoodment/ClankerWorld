@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using ClankerWorld.GodotClient.UI;
 using Godot;
 
@@ -75,6 +77,8 @@ public partial class Main
             if (slots != 4 || !towns.Contains("27 items", StringComparison.Ordinal) || !towns.Contains("Nothing stored", StringComparison.Ordinal) ||
                 meter?.Percent != 36 || !towns.Contains("36% · building", StringComparison.Ordinal) || blocker?.ThemeTypeVariation != "BadLabel")
                 throw new InvalidOperationException($"Household stores must be item slots and projects a progress bar with any blocker in red: slots={slots} meter={meter?.Percent} text={towns.ReplaceLineEndings(" / ")}");
+
+            VerifyTownProjectHistory(snapshot);
 
             // Many notes make the Town details scroll inside a panel that stays on screen.
             RenderTownExtras(snapshot with
@@ -206,6 +210,41 @@ public partial class Main
         }
         finally { UiTheme.Apply(GetTree().Root, savedTheme); }
         Render(initial, []);
+    }
+
+    private void VerifyTownProjectHistory(OwnerWorldSnapshot snapshot)
+    {
+        var project = new OwnerWorldTownProject("town:river:proposal:1:construction", "proposal:1",
+            "Communal Hall", "former:worker", "Mira", "town-hall", "Town Hall", new(4, 4), new(5, 8),
+            3, 4, [new("wood", 24, 24), new("stone", 12, 12)], 10, 10, "completed", null,
+            "paid-hall", new("proposal:1", "town_project", "Build the Hall", "passed", 2, 0, 2, 0));
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var removedJson = JsonSerializer.SerializeToNode(project, options)!;
+        removedJson["removedTick"] = 60;
+        var removed = removedJson.Deserialize<OwnerWorldTownProject>(options)!;
+        var town = snapshot.Towns[0];
+        RenderWorldInfo(snapshot with { Towns = [town with { Projects = [project] }] });
+        var activeText = PageText(townList);
+        if (!activeText.Contains("Built · select the Town Hall", StringComparison.Ordinal))
+            throw new InvalidOperationException("A standing paid Hall must keep its map selection hint.");
+        RenderWorldInfo(snapshot with { Towns = [town with { Projects = [removed] }] });
+        var removedText = PageText(townList);
+        if (!removedText.Contains("Built, later removed", StringComparison.Ordinal) ||
+            removedText.Contains("Built · select", StringComparison.Ordinal) ||
+            !removedText.Contains("10 / 10", StringComparison.Ordinal) ||
+            !removedText.Contains("24 / 24", StringComparison.Ordinal))
+            throw new InvalidOperationException("A removed Hall must retain its paid history without offering an absent building on the map.");
+        var blocked = project with { Stage = "blocked", Blocker = "A household land request is pending.", CompletedBuildingId = null };
+        RenderWorldInfo(snapshot with { Towns = [town with { Projects = [blocked] }] });
+        var blockedText = PageText(townList);
+        if (!blockedText.Contains("Waiting: A household land request is pending.", StringComparison.Ordinal) ||
+            !blockedText.Contains("Work retries", StringComparison.Ordinal))
+            throw new InvalidOperationException("A blocked Town project must show its reason and explain when work retries.");
+        RenderWorldInfo(snapshot with { Towns = [town with { Projects = [blocked with { Stage = "cancelled" }] }] });
+        var cancelledText = PageText(townList);
+        if (!cancelledText.Contains("Not built:", StringComparison.Ordinal) || cancelledText.Contains("Work retries", StringComparison.Ordinal))
+            throw new InvalidOperationException("A cancelled Town project must not promise another retry.");
+        RenderWorldInfo(snapshot);
     }
 
 }

@@ -23,9 +23,17 @@ public partial class Main
         foreach (var request in snapshot.BoatRequests.Where(request => request.BoatTownId == town.Id &&
                      request.Status is "waiting" or "underway").OrderBy(request => request.Sequence))
         {
-            var destination = snapshot.PlacedBuildings.FirstOrDefault(port => port.InstanceId == request.DestinationPortId);
+            var boat = request.Status == "underway" ? boats.FirstOrDefault(item => item.Id == request.BoatId) : null;
+            var destinationId = boat?.DestinationPortId ?? request.DestinationPortId;
+            var destination = snapshot.PlacedBuildings.FirstOrDefault(port => port.InstanceId == destinationId);
             var place = destination is null ? "destination Port" : $"Port at {destination.Position.X}, {destination.Position.Y}";
-            lines.Add($"{request.PassengerName} → {place} · {(request.Status == "waiting" ? "waiting to depart" : "aboard")}");
+            var status = request.Status == "waiting" ? "waiting to depart" : boat?.Status switch
+            {
+                "returning" => "returning",
+                "waiting" => "waiting for a safe arrival",
+                _ => "aboard",
+            };
+            lines.Add($"{request.PassengerName} → {place} · {status}");
         }
         return string.Join('\n', lines);
     }
