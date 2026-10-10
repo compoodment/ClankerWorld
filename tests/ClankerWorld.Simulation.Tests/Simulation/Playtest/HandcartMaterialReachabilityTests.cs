@@ -12,8 +12,10 @@ public sealed class HandcartMaterialReachabilityTests
     [Theory]
     [InlineData("unreachable", false, false)]
     [InlineData("missing", false, false)]
+    [InlineData("reserved", false, false)]
     [InlineData("reachable", false, true)]
     [InlineData("unreachable", true, false)]
+    [InlineData("reserved", true, false)]
     [InlineData("reachable", true, true)]
     public async Task CartMaterialsAreCollectedOrKeptOnlyWhenTheRemainingSetCanBeReached(
         string fittings, bool alreadyCarried, bool finishable)
@@ -45,6 +47,8 @@ public sealed class HandcartMaterialReachabilityTests
             var position = fittings == "unreachable" ? remote : smith.Position;
             inventory = InventoryFixture.AddLot(inventory, "cart-route-fittings", "iron_fittings", household, 2,
                 groundPosition: new(position.X, position.Y));
+            if (fittings == "reserved") inventory = InventoryFixture.Reserve(inventory, "cart-route-held", household,
+                "cart-route-fittings", 2, "other-work", long.MaxValue);
         }
         state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear) with
         {
@@ -96,6 +100,8 @@ public sealed class HandcartMaterialReachabilityTests
             var position = fittings == "unreachable" ? remote : smith.Position;
             Assert.Equal((household, 2, new InventoryGroundPosition(position.X, position.Y)),
                 (lot.OwnerId, lot.Quantity, lot.GroundPosition));
+            if (fittings == "reserved") Assert.Equal(InventoryReservationState.Reserved,
+                world.Society.Inventory.GetReservation("cart-route-held").State);
         }
         bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var reload = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes),

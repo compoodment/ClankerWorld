@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-09
+updated: 2026-10-10
 ---
 
 # How the game works
@@ -181,8 +181,16 @@ Animal-supply sources use Collect and recheck before pickup; care permission,
 feed reserves, product capacity, destination room and workstation surplus
 remain feature-specific filters. These are the first household pickup callers
 of [#1370](https://github.com/compoodment/ClankerWorld/issues/1370). Personal
-recovery, birth food, material counts and the remaining Warehouse/Town paths
-still use their existing helpers.
+recovery and birth food still use their existing helpers.
+
+Warehouse stock uses Holdings before route checks and ReachableHoldings
+for reachable stock, keeping the resident-Town/abandoned-Town and Warehouse
+ordering. Handcart household material counts use the same reachable query.
+Preparation still permits making cargo room first; actual cart and construction
+material pickups recheck the selected lot with Collect. Town access, top-level
+stock, the intended return route and delivery quantities remain native filters.
+Other Town-stock and personal-recovery callers remain in
+[#1370](https://github.com/compoodment/ClankerWorld/issues/1370).
 
 With `Explain`, exclusions retain their first failure in this fixed order:
 owner, kind, building, damage, spoilage, vessel, empty stock, reservation,
@@ -2416,6 +2424,10 @@ mayoral consent and contests, and separate land, ordinary and non-land mandate t
 `TownGovernmentRules` coordinates them with the existing Council engine. Law
 adoption consumes passed structured Council proposals once; amendment and repeal
 bind their base version, so a stale passed proposal cannot overwrite a later law.
+Amendment and repeal labels shorten the display to 256 UTF-16 units, reserving
+one for an ellipsis and omitting a whole surrogate pair when it crosses the
+boundary. The structured draft retains the full wording; saved validation
+reconstructs the label with the same rule.
 Territorial applicability uses formal title records, including a saved site
 subset, rather than the drawn Town border. Law text grants no physical powers.
 
@@ -2964,8 +2976,11 @@ for other buildings, Town project sites, expansions, fields, tree planting and
 household land requests. The provisional starter budget is 24 wood,
 8 stone and 4 fiber with 10 work units; another stall costs 4 wood and 2 fiber
 with 3 work units. General plaza growth has no implementation or agreed rule.
-Physical stock receipts retain the personal or household owner. One named
-active adult borrows a stall while they remain inside the hall-and-plaza area;
+Physical stock receipts retain the personal or household owner. Each receipt
+keeps complete native source and destination lot IDs, including long
+split/move histories and a partial deposit's derived destination. Its hashed
+identity and exact inventory event bind that history to the real deposit.
+A named active adult borrows a stall while they remain inside the hall-and-plaza area;
 leaving, household change, death or removal ends borrowing and releases
 unfinished offer claims without transferring leftovers.
 
@@ -3301,7 +3316,9 @@ pending-will restore behavior.
 ## Fertility and household fields
 
 `LandFertility` derives each land tile's fertility from the world seed,
-rainfall, climate, surface and nearby rivers or lakes. It is derived data,
+rainfall, climate, surface and nearby rivers or lakes. Generated maps reuse
+the selected candidate's rainfall seed, including its east/west wrapping.
+Legacy fixture maps keep their original world-seed rainfall. It is derived data,
 not a saved object or a resource lot. Grass and meadow commonly support
 farming; dry scrub is poor, and sand, rock, snow, mountains and water cannot
 be farmed. Inspection uses Poor, Fair, Good and Rich rather than a score.

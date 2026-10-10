@@ -45,6 +45,12 @@ internal static partial class OwnerEndpoints
             await next(context);
         });
 
+        // Prove that this listener is the companion holding the game's secret,
+        // without creating a pairing or changing the world.
+        app.MapGet("/api/v1/local/companion", (HttpContext context, OwnerPairingHostOptions options) =>
+            options.IsCompanionHost && options.IsLocalApprovalRequest(context)
+                ? Results.Ok() : Results.NotFound());
+
         app.MapPost("/api/v1/local/pairings", (
             StartOwnerPairingHttpRequest request, HttpContext context, OwnerPairingHostOptions options,
             OwnerAuthorityStore authority, OwnerAuthorityStateFile stateFile) =>
@@ -164,13 +170,22 @@ internal static partial class OwnerEndpoints
         });
 
         // The game that started a companion host stops it here when the player
-        // quits. Stopping the host saves the world first; see PrivateWorldStartupService.
+        // quits. Keep it alive and paused if its last committed tick cannot be saved.
         app.MapPost("/api/v1/local/shutdown", (
             HttpContext context,
             OwnerPairingHostOptions options,
             IHostApplicationLifetime lifetime) =>
         {
             if (!options.IsCompanionShutdownRequest(context)) return Results.NotFound();
+            var recovery = context.RequestServices.GetService<PrivateWorldStartupRecovery>();
+            if (recovery is null) return Results.NotFound();
+            if (recovery.Pending) return Results.Conflict(new { message = "Choose world recovery before saving." });
+            var advancing = context.RequestServices.GetRequiredService<PrivateWorldRuntimeService>();
+            var outcome = advancing.SaveBeforeShutdown(pauseWorld: true);
+            if (outcome == ShutdownSaveOutcome.WriteFailed)
+                return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable,
+                    title: "The world could not be saved",
+                    detail: "The host is still running and the world is paused. Try again.");
             CompanionHostTelemetry.ShutdownRequested(app.Logger);
             lifetime.StopApplication();
             return Results.Accepted();
