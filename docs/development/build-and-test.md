@@ -66,8 +66,11 @@ local checks should fit the change. List checks you could not run and why.
 
 ### How CI runs
 
-The Protect main ruleset requires three checks: `verify`,
-`windows-documentation` and `windows-provider-storage`. `verify` passes only
+The Protect main ruleset merges pull requests only through GitHub's merge
+queue, by squash, and requires three checks: `verify`,
+`windows-documentation` and `windows-provider-storage`. They must pass on a
+pull request's head before it joins the queue, and again on each batch the
+queue builds on top of main. `verify` passes only
 when every part of the Verify workflow passes:
 
 - **scope** decides which of the other jobs the change needs.
@@ -107,8 +110,13 @@ the client files its `<Compile Include>` lines name, so no other client file
 can change a test result. A change to one of those files, to anything under
 `tests/`, or to anything outside the client folder runs everything.
 
-Pushes to main always run everything. A newer push to a pull request cancels
-its older run.
+Each batch the merge queue tests on top of main runs everything. The queue then
+moves main to the very commit it tested, so the push to main finds that green
+run and runs nothing more, and main's green runs on this page are the queue's.
+A push the queue didn't test runs everything. When a pull request in the queue
+fails, the queue rebuilds the ones behind it, and each rebuilt run cancels its
+pull request's older queue runs. A newer push to a pull request cancels its
+older run.
 
 The test jobs split the tests by how long each took on main, so new slow tests
 spread out on their own and nobody needs to rebalance them by hand. Each test
@@ -214,7 +222,7 @@ code, durability checks or test assertions.
 
 Hands-on checks above describe useful verification, not a blanket pre-merge
 playtest gate. Routine owner playtesting may follow merge under
-[Drafts and readiness](../../CONTRIBUTING.md#drafts-and-readiness). Keep pending
+[Change and verification rules](../../CONTRIBUTING.md#change-and-verification-rules). Keep pending
 playtests explicit in the [playtest list](#windows-playtests); do not equate a
 passing automated check with actual play.
 The separate release gates still apply when preparing a release.
@@ -257,6 +265,45 @@ the logo art in `UI/MenuLogo.cs` and embedded in the exported `.exe`. After
 changing that art, rebuild the icon with
 `godot --headless --path src/ClankerWorld.GodotClient -- --write-app-icon`.
 The UI smoke test fails if the committed icon no longer matches the art.
+
+## Compare tick equivalence
+
+For a behavior-preserving runtime change, run the same portable native probe
+against the base and candidate checkouts:
+
+```bash
+bash scripts/compare-tick-equivalence.sh /path/to/base /path/to/candidate /tmp/tick-proof
+```
+
+The script needs the pinned .NET SDK, Python 3 and an output directory without
+previous `base` or `candidate` results. Like `measure-town-ticks.sh`, it compiles
+one unchanged C# probe against each checkout. It uses the built-in deterministic
+provider, with a wrapper that records observations and returns its response
+unchanged. It makes no model-service calls.
+
+Defaults are two seeds, sixteen ticks per seed, and both generated Small worlds
+and the legacy fixture. Generated worlds use native first-Town layout,
+founder placement and Start World. Override seeds, tick count and modes with
+the fourth through sixth arguments, for example:
+
+```bash
+bash scripts/compare-tick-equivalence.sh /path/to/base /path/to/candidate /tmp/tick-proof-64 town-project-real-donation 64 generated
+```
+
+The comparison includes the initial frame and every committed tick. It compares
+decompressed checkpoint bytes exactly, ordered world events and every observed
+cognition digest. At the first differing frame it prints the seed, mode and tick,
+the first checkpoint byte offset, and the first differing event or digest value.
+Exit status is zero for equality, one for a difference, and two for a failed
+build, probe or comparison. A failed setup cannot count as equality.
+
+Each output contains the actual checkpoint bytes compressed with gzip, JSON
+events and digests, the unchanged probe source, build/probe logs, and the
+checkout commit and working-tree status. Keep this evidence with the PR. These bounded scenarios
+prove equivalence for their exercised paths; run additional seeds and longer
+tick counts when the moved area needs them. They are correctness checks, not
+tick-performance measurements. The [runtime system rules](how-it-works.md#runtime-systems)
+describe the state and ordering contracts that every refactor step keeps.
 
 ## Focused documentation checks
 

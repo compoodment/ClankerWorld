@@ -1,0 +1,1 @@
+- New World can create different maps using the same seed while keeping their saves and settings separate; an identical map still cannot be created again just by changing its name. [#1298](https://github.com/compoodment/ClankerWorld/issues/1298)

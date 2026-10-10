@@ -87,7 +87,7 @@ public sealed partial class PrivateWorldRuntime
     {
         return ToolProgressionRules.All
             .Where(definition => definition.Family == required.Family && definition.Tier >= required.Tier)
-            .Select(definition => (Definition: definition, Lot: SharedItem(definition.ItemKind, actor)))
+            .Select(definition => (Definition: definition, Lot: SharedPreparationItem(definition.ItemKind, actor)))
             .Where(item => item.Lot is { ContainerLotId: null, ConditionBasisPoints: > 0, FreshnessBasisPoints: > 0 })
             .OrderByDescending(item => item.Definition.Tier)
             .ThenByDescending(item => item.Lot!.ConditionBasisPoints)
@@ -218,7 +218,7 @@ public sealed partial class PrivateWorldRuntime
             var missing = Math.Max(0, input.Amount - carried);
             if (missing == 0) continue;
 
-            if (SharedItem(input.ResourceId, actor) is { } shared)
+            if (SharedPreparationItem(input.ResourceId, actor) is { } shared)
             {
                 if (AvailableLotQuantity(shared) < missing)
                     return false;
@@ -303,20 +303,20 @@ public sealed partial class PrivateWorldRuntime
         foreach (var input in materialNeeds)
         {
             if (HasCarriedMaterial(actor, input.ResourceId, input.Amount)) continue;
-            if (SharedItem(input.ResourceId, actor) is not null)
+            if (SharedPreparationItem(input.ResourceId, actor, blacksmith.Position) is not null)
             {
                 if (MakeRoomForToolRepairInput(actor, state, lotId, input.Amount, null, materialNeeds, protectedToolIds))
                     return null;
-                CollectEquipment(actor, state, input.ResourceId);
+                CollectEquipment(actor, state, input.ResourceId, blacksmith.Position);
                 return null;
             }
-            if (MaterialSource(input.ResourceId, actor) is { } source)
+            if (MaterialSource(input.ResourceId, actor, blacksmith.Position) is { } source)
             {
                 if (ProjectMaterialHarvest(actor, input.ResourceId, source) is { } plan &&
                     MakeRoomForToolRepairInput(actor, state, lotId,
                         checked(plan.Quantity + plan.TreeSeedQuantity), plan.ToolLotId, materialNeeds, protectedToolIds))
                     return null;
-                GatherProjectMaterial(actor, state, input.ResourceId, source);
+                GatherProjectMaterial(actor, state, input.ResourceId, source, returnTo: blacksmith.Position);
                 return null;
             }
             return null;
@@ -379,11 +379,7 @@ public sealed partial class PrivateWorldRuntime
 
     private static int UnreservedQuantity(InventoryCheckpoint inventory, InventoryLot lot)
     {
-        var reserved = inventory.Reservations.Where(reservation => reservation.LotId == lot.Id &&
-                reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
-                    InventoryReservationState.Committed)
-            .Sum(reservation => reservation.Quantity);
-        return Math.Max(0, lot.Quantity - reserved);
+        return Math.Max(0, InventoryRules.UnreservedQuantity(InventoryIndex.For(inventory), lot));
     }
 
 }

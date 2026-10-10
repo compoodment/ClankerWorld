@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Playtest;
@@ -20,14 +21,22 @@ public static class PlayerDecisionProviders
     public const string Decisions = "decisions";
     public const string OpenAi = "openai";
     public const string OllamaCloud = "ollama-cloud";
+    public const string Anthropic = "anthropic";
 
     public const string DefaultJevModel = "jev-1.13.0";
     public const string DefaultOpenAiModel = "gpt-6-luna";
     public const string DefaultOllamaCloudModel = "glm-5.3-flash:cloud";
+    public const string DefaultAnthropicModel = "claude-haiku-5-5";
 
     public static readonly Uri JevEndpoint = new("https://api.typesafe.ai/v1/systemone", UriKind.Absolute);
     public static readonly Uri OpenAiEndpoint = new("https://api.openai.com/v1/chat/completions", UriKind.Absolute);
     public static readonly Uri OllamaCloudEndpoint = new("https://ollama.com/v1/chat/completions", UriKind.Absolute);
+
+    /// <summary>Anthropic's API root; its official client adds the Messages and Models paths.</summary>
+    public static readonly Uri AnthropicEndpoint = new("https://api.anthropic.com", UriKind.Absolute);
+
+    /// <summary>Providers that host an agent's own paid model, with a key and a thinking setting.</summary>
+    public static bool IsHosted(string? provider) => provider is OpenAi or OllamaCloud or Anthropic;
 
     public static string Normalize(string? provider) => provider?.Trim().ToLowerInvariant() switch
     {
@@ -36,8 +45,9 @@ public static class PlayerDecisionProviders
         Decisions => Decisions,
         OpenAi or "openai-compatible" => OpenAi,
         "ollama" or OllamaCloud => OllamaCloud,
+        "claude" or Anthropic => Anthropic,
         _ => throw new ArgumentException(
-            "Provider must be deterministic, jev, decisions, openai, or ollama-cloud.",
+            "Provider must be deterministic, jev, decisions, openai, ollama-cloud, or anthropic.",
             nameof(provider)),
     };
 
@@ -48,6 +58,7 @@ public static class PlayerDecisionProviders
         Decisions => DefaultOpenAiModel,
         OpenAi => DefaultOpenAiModel,
         OllamaCloud => DefaultOllamaCloudModel,
+        Anthropic => DefaultAnthropicModel,
         _ => throw new InvalidOperationException("Unsupported decision provider."),
     };
 
@@ -64,16 +75,16 @@ public static class PlayerDecisionProviders
         var normalizedProvider = Normalize(provider);
         var valid = normalizedRole switch
         {
-            RoutineRole => normalizedProvider is Deterministic or Jev or OpenAi or OllamaCloud,
-            PlanningRole => normalizedProvider is Deterministic or OpenAi or OllamaCloud,
+            RoutineRole => normalizedProvider is Deterministic or Jev || IsHosted(normalizedProvider),
+            PlanningRole => normalizedProvider is Deterministic || IsHosted(normalizedProvider),
             _ => false,
         };
         if (!valid)
         {
             throw new ArgumentException(
                 normalizedRole == RoutineRole
-                    ? "Routine cognition must use deterministic, Jev, OpenAI, or Ollama Cloud."
-                    : "Planning cognition must use deterministic, OpenAI, or Ollama Cloud.",
+                    ? "Routine cognition must use deterministic, Jev, OpenAI, Ollama Cloud, or Anthropic."
+                    : "Planning cognition must use deterministic, OpenAI, Ollama Cloud, or Anthropic.",
                 nameof(provider));
         }
     }
@@ -86,7 +97,9 @@ public sealed record ProviderConfigurationSeed(
     string? OpenAiModel,
     string? OpenAiApiKey,
     string? OllamaCloudModel,
-    string? OllamaCloudApiKey);
+    string? OllamaCloudApiKey,
+    string? AnthropicModel = null,
+    string? AnthropicApiKey = null);
 
 public sealed record StoredProviderCredential(string Model, string? ApiKey);
 
@@ -102,7 +115,8 @@ public sealed record ProviderConfigurationState(
     StoredProviderCredential OllamaCloud,
     IReadOnlyList<InhabitantProviderAssignment>? Assignments = null,
     IReadOnlyList<ProviderCredentialSlot>? CredentialSlots = null,
-    IReadOnlyList<string>? DeletedCredentialSlotIds = null);
+    IReadOnlyList<string>? DeletedCredentialSlotIds = null,
+    StoredProviderCredential? Anthropic = null);
 
 public sealed record RuntimeProviderConfiguration(
     string RoutineProvider,
@@ -112,7 +126,8 @@ public sealed record RuntimeProviderConfiguration(
     StoredProviderCredential OllamaCloud,
     long Revision,
     IReadOnlyList<InhabitantProviderAssignment>? Assignments = null,
-    IReadOnlyList<ProviderCredentialSlot>? CredentialSlots = null);
+    IReadOnlyList<ProviderCredentialSlot>? CredentialSlots = null,
+    StoredProviderCredential? Anthropic = null);
 
 internal sealed record FrozenChildModelBinding(
     ChildPersonalModelSelection Selection,
@@ -186,7 +201,8 @@ public sealed class ProviderConfigurationStore
                 state.OllamaCloud,
                 state.Revision,
                 state.Assignments,
-                state.CredentialSlots);
+                state.CredentialSlots,
+                AnthropicCredential(state.Anthropic));
         }
     }
 
@@ -205,8 +221,8 @@ public sealed class ProviderConfigurationStore
         if (!Guid.TryParseExact(action.CredentialSlotId, "N", out _))
             throw new ArgumentException("Choose a valid named credential slot.", nameof(action));
         var provider = PlayerDecisionProviders.Normalize(action.Provider);
-        if (provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
-            throw new ArgumentException("Choose OpenAI or Ollama Cloud for this key.", nameof(action));
+        if (!PlayerDecisionProviders.IsHosted(provider))
+            throw new ArgumentException("Choose OpenAI, Ollama Cloud or Anthropic for this key.", nameof(action));
         var label = NormalizeSlotLabel(action.Label);
         var key = NormalizeRequiredApiKey(action.ApiKey);
         lock (gate)
@@ -294,8 +310,7 @@ public sealed class ProviderConfigurationStore
     {
         ArgumentNullException.ThrowIfNull(selection);
         ArgumentNullException.ThrowIfNull(configuration);
-        if (selection.Provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud) ||
-            selection.CredentialSlotId is not null)
+        if (!PlayerDecisionProviders.IsHosted(selection.Provider) || selection.CredentialSlotId is not null)
         {
             return new FrozenChildModelBinding(selection, null);
         }
@@ -305,6 +320,7 @@ public sealed class ProviderConfigurationStore
         {
             PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.Decisions => configuration.OpenAi,
             PlayerDecisionProviders.OllamaCloud => configuration.OllamaCloud,
+            PlayerDecisionProviders.Anthropic => AnthropicCredential(configuration.Anthropic),
             _ => throw new InvalidOperationException("A child model provider is unsupported."),
         };
         var slotId = Guid.NewGuid().ToString("N");
@@ -341,8 +357,7 @@ public sealed class ProviderConfigurationStore
             {
                 throw new InvalidDataException("The saved child model assignment does not match its birth choice.");
             }
-            if (boundSelection.Provider is { } selectedProvider &&
-                selectedProvider is PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud)
+            if (boundSelection.Provider is { } selectedProvider && PlayerDecisionProviders.IsHosted(selectedProvider))
             {
                 selectedProvider = PlayerDecisionProviders.Normalize(selectedProvider);
                 if (boundSelection.CredentialSlotId is not { } slotId || !Guid.TryParseExact(slotId, "N", out _))
@@ -379,14 +394,14 @@ public sealed class ProviderConfigurationStore
             {
                 provider = PlayerDecisionProviders.Normalize(provider);
                 if (provider == PlayerDecisionProviders.Jev ||
-                    provider is not (PlayerDecisionProviders.Deterministic or PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+                    provider != PlayerDecisionProviders.Deterministic && !PlayerDecisionProviders.IsHosted(provider))
                     throw new ArgumentException("A child needs a personal model provider.", nameof(frozen));
                 if (boundSelection.ChoiceReason == PrivateWorldRuntime.ChildModelChoiceNoParentModel)
                     throw new ArgumentException("An unconfigured child cannot have a provider assignment.", nameof(frozen));
                 if (provider == PlayerDecisionProviders.Deterministic &&
                     (boundSelection.ModelId is not null || boundSelection.CredentialSlotId is not null))
                     throw new ArgumentException("Built-in child decisions cannot reference a model or key slot.", nameof(frozen));
-                if (provider is PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud &&
+                if (PlayerDecisionProviders.IsHosted(provider) &&
                     (string.IsNullOrWhiteSpace(boundSelection.ModelId) ||
                      boundSelection.CredentialSlotId is { } slotId && !Guid.TryParseExact(slotId, "N", out _)))
                     throw new ArgumentException("The inherited child model choice is incomplete.", nameof(frozen));
@@ -432,7 +447,7 @@ public sealed class ProviderConfigurationStore
         // deterministic cognition, never another hosted account's credential.
         var deleted = state.DeletedCredentialSlotIds ?? [];
         var ordered = assignments.Select(item => item.CredentialSlotId is { } slot && deleted.Contains(slot) && item.SelectionReason is null
-                ? item with { Provider = PlayerDecisionProviders.Deterministic, Model = null, CredentialSlotId = null }
+                ? item with { Provider = PlayerDecisionProviders.Deterministic, Model = null, CredentialSlotId = null, Thinking = null }
                 : item)
             .OrderBy(item => item.InhabitantId, StringComparer.Ordinal)
             .ThenBy(item => item.Role, StringComparer.Ordinal).ToArray();
@@ -453,6 +468,8 @@ public sealed class ProviderConfigurationStore
             }
             if (action.CredentialSlotId is not null || action.NewCredentialLabel is not null)
                 throw new ArgumentException("Credential slots belong to individual inhabitants.", nameof(action));
+            if (action.Thinking is not null)
+                throw new ArgumentException("Thinking is set for each agent with its model.", nameof(action));
             var provider = PlayerDecisionProviders.Normalize(action.Provider);
             PlayerDecisionProviders.ValidateRoleProvider(role, provider);
             var current = state;
@@ -492,7 +509,7 @@ public sealed class ProviderConfigurationStore
         var next = state;
         if (action.Provider == PlayerDecisionProviders.Inherit)
         {
-            if (action.Model is not null || action.ApiKey is not null ||
+            if (action.Model is not null || action.ApiKey is not null || action.Thinking is not null ||
                 action.CredentialSlotId is not null || action.NewCredentialLabel is not null)
             {
                 throw new ArgumentException("Inheritance does not accept a model or key.", nameof(action));
@@ -507,11 +524,14 @@ public sealed class ProviderConfigurationStore
                 throw new ArgumentException("Choose a personal model for this agent; routine helpers belong to the world.", nameof(action));
             PlayerDecisionProviders.ValidateRoleProvider(
                 role == PlayerDecisionProviders.PersonalRole ? PlayerDecisionProviders.PlanningRole : role, provider);
+            var thinking = ModelThinking.Normalize(action.Thinking);
+            if (thinking is not null && !PlayerDecisionProviders.IsHosted(provider))
+                throw new ArgumentException("Only a hosted model has a thinking setting.", nameof(action));
             string? slotId = null;
             string? model;
             if (action.CredentialSlotId is not null)
             {
-                if (provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud) ||
+                if (!PlayerDecisionProviders.IsHosted(provider) ||
                     !Guid.TryParseExact(action.CredentialSlotId, "N", out _))
                     throw new ArgumentException("A hosted agent credential needs a valid slot ID.", nameof(action));
                 slotId = action.CredentialSlotId;
@@ -543,7 +563,7 @@ public sealed class ProviderConfigurationStore
                     next = WithCredential(next, provider, CredentialFor(next, provider)! with { Model = CredentialFor(state, provider)!.Model });
             }
             foreach (var assignedRole in roles)
-                assignments.Add(new InhabitantProviderAssignment(id, assignedRole, provider, model, slotId));
+                assignments.Add(new InhabitantProviderAssignment(id, assignedRole, provider, model, slotId, Thinking: thinking));
         }
 
         next = next with
@@ -574,6 +594,8 @@ public sealed class ProviderConfigurationStore
             var json = ProviderCredentialFile.Decode(stored);
             var loaded = JsonSerializer.Deserialize<ProviderConfigurationState>(json, JsonOptions) ??
                 throw new InvalidDataException("The provider-configuration state file is empty.");
+            // Files written before Anthropic was added have no record for it.
+            loaded = loaded with { Anthropic = AnthropicCredential(loaded.Anthropic) };
             if (loaded.SchemaVersion == 2)
             {
                 loaded = loaded with { SchemaVersion = StateSchemaVersion, CredentialSlots = [] };
@@ -599,14 +621,16 @@ public sealed class ProviderConfigurationStore
         var ollamaCloud = new StoredProviderCredential(
             NormalizeModel(seed.OllamaCloudModel, PlayerDecisionProviders.DefaultOllamaCloudModel),
             NormalizeOptionalApiKey(seed.OllamaCloudApiKey));
+        var anthropic = new StoredProviderCredential(
+            NormalizeModel(seed.AnthropicModel, PlayerDecisionProviders.DefaultAnthropicModel),
+            NormalizeOptionalApiKey(seed.AnthropicApiKey));
         var requestedProvider = PlayerDecisionProviders.Normalize(seed.ActiveProvider);
         var hasRequestedCredential = requestedProvider == PlayerDecisionProviders.Deterministic ||
-            !string.IsNullOrWhiteSpace(CredentialFor(requestedProvider, jev, openAi, ollamaCloud).ApiKey);
+            !string.IsNullOrWhiteSpace(CredentialFor(requestedProvider, jev, openAi, ollamaCloud, anthropic).ApiKey);
         var routineProvider = requestedProvider == PlayerDecisionProviders.Jev && hasRequestedCredential
             ? PlayerDecisionProviders.Jev
             : PlayerDecisionProviders.Deterministic;
-        var planningProvider = requestedProvider is PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud &&
-            hasRequestedCredential
+        var planningProvider = PlayerDecisionProviders.IsHosted(requestedProvider) && hasRequestedCredential
                 ? requestedProvider
                 : PlayerDecisionProviders.Deterministic;
 
@@ -617,7 +641,8 @@ public sealed class ProviderConfigurationStore
             planningProvider,
             jev,
             openAi,
-            ollamaCloud);
+            ollamaCloud,
+            Anthropic: anthropic);
     }
 
     private static ProviderConfigurationState SelectProvider(
@@ -712,21 +737,28 @@ public sealed class ProviderConfigurationStore
             PlayerDecisionProviders.Jev => state with { Jev = credential },
             PlayerDecisionProviders.OpenAi => state with { OpenAi = credential },
             PlayerDecisionProviders.OllamaCloud => state with { OllamaCloud = credential },
+            PlayerDecisionProviders.Anthropic => state with { Anthropic = credential },
             _ => throw new ArgumentException("The selected provider does not store a credential.", nameof(provider)),
         };
 
     private static StoredProviderCredential? CredentialFor(ProviderConfigurationState state, string provider) =>
-        CredentialFor(provider, state.Jev, state.OpenAi, state.OllamaCloud);
+        CredentialFor(provider, state.Jev, state.OpenAi, state.OllamaCloud, AnthropicCredential(state.Anthropic));
+
+    /// <summary>Anthropic's default record, for files and seeds from before it was added.</summary>
+    internal static StoredProviderCredential AnthropicCredential(StoredProviderCredential? stored) =>
+        stored ?? new StoredProviderCredential(PlayerDecisionProviders.DefaultAnthropicModel, null);
 
     private static StoredProviderCredential CredentialFor(
         string provider,
         StoredProviderCredential jev,
         StoredProviderCredential openAi,
-        StoredProviderCredential ollamaCloud) => provider switch
+        StoredProviderCredential ollamaCloud,
+        StoredProviderCredential anthropic) => provider switch
         {
             PlayerDecisionProviders.Jev => jev,
             PlayerDecisionProviders.OpenAi => openAi,
             PlayerDecisionProviders.OllamaCloud => ollamaCloud,
+            PlayerDecisionProviders.Anthropic => anthropic,
             PlayerDecisionProviders.Deterministic => new StoredProviderCredential(string.Empty, null),
             _ => throw new ArgumentException("Unsupported decision provider.", nameof(provider)),
         };
@@ -741,6 +773,8 @@ public sealed class ProviderConfigurationStore
             new(PlayerDecisionProviders.Jev, state.Jev.Model, !string.IsNullOrWhiteSpace(state.Jev.ApiKey)),
             new(PlayerDecisionProviders.OpenAi, state.OpenAi.Model, !string.IsNullOrWhiteSpace(state.OpenAi.ApiKey)),
             new(PlayerDecisionProviders.OllamaCloud, state.OllamaCloud.Model, !string.IsNullOrWhiteSpace(state.OllamaCloud.ApiKey)),
+            new(PlayerDecisionProviders.Anthropic, AnthropicCredential(state.Anthropic).Model,
+                !string.IsNullOrWhiteSpace(state.Anthropic?.ApiKey)),
         ]), state.Assignments ?? [], (state.CredentialSlots ?? [])
             .Select(item => new OwnerProviderCredentialStatus(item.Id, item.Provider, item.Label)).ToArray());
 
@@ -758,11 +792,12 @@ public sealed class ProviderConfigurationStore
         ValidateCredential(state.Jev, PlayerDecisionProviders.DefaultJevModel);
         ValidateCredential(state.OpenAi, PlayerDecisionProviders.DefaultOpenAiModel);
         ValidateCredential(state.OllamaCloud, PlayerDecisionProviders.DefaultOllamaCloudModel);
+        ValidateCredential(AnthropicCredential(state.Anthropic), PlayerDecisionProviders.DefaultAnthropicModel);
         var slotIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var slot in state.CredentialSlots ?? [])
         {
             if (!Guid.TryParseExact(slot.Id, "N", out _) || !slotIds.Add(slot.Id) ||
-                slot.Provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+                !PlayerDecisionProviders.IsHosted(slot.Provider))
                 throw new InvalidDataException("A credential slot has an invalid or duplicate identity.");
             _ = NormalizeSlotLabel(slot.Label);
             _ = NormalizeRequiredApiKey(slot.ApiKey);
@@ -784,11 +819,15 @@ public sealed class ProviderConfigurationStore
             if (assignment.Provider == PlayerDecisionProviders.Inherit)
             {
                 if (assignment.Role is not (PlayerDecisionProviders.RoutineRole or PlayerDecisionProviders.PlanningRole) ||
-                    assignment.Model is not null || assignment.CredentialSlotId is not null || assignment.SelectionReason is not null)
+                    assignment.Model is not null || assignment.CredentialSlotId is not null || assignment.SelectionReason is not null ||
+                    assignment.Thinking is not null)
                     throw new InvalidDataException("An inherited assignment cannot carry a model or credential.");
                 continue;
             }
             PlayerDecisionProviders.ValidateRoleProvider(assignment.Role, assignment.Provider);
+            if (assignment.Thinking is not null &&
+                (!PlayerDecisionProviders.IsHosted(assignment.Provider) || ModelThinking.Normalize(assignment.Thinking) != assignment.Thinking))
+                throw new InvalidDataException("An agent assignment has an invalid thinking setting.");
             if (assignment.SelectionReason is not null &&
                 (assignment.SelectionReason is not (PrivateWorldRuntime.ChildModelChoiceParentsAgreed or
                     PrivateWorldRuntime.ChildModelChoiceInitiatingParent) ||
@@ -1016,7 +1055,7 @@ public sealed partial class ConfigurableDecisionProvider(
 
     public bool CanSpeakAs(string agentId)
     {
-        if (string.IsNullOrWhiteSpace(agentId) || agentId.Length > 128 || agentId != agentId.Trim()) return false;
+        if (string.IsNullOrWhiteSpace(agentId) || agentId != agentId.Trim() || agentId.Any(char.IsControl)) return false;
         try
         {
             var route = ConversationRouteFor(configuration.CaptureRuntimeConfiguration(), agentId);
@@ -1066,52 +1105,32 @@ public sealed partial class ConfigurableDecisionProvider(
 
         var purposeWire = PurposeWireValue(request.Purpose);
 
-        var payload = new
+        const string instructions = "Speak as one agent in a bounded shared conversation. Use only your own identity plus the public history included below. An observer_requested_activity is what the outside observer asked this speaker to attempt, not public speech or evidence of anyone's agreement; personal consent and allowed effects remain your own choices. Never claim the other person agreed. Do not invent events, private thoughts, promises, ownership, resources or world changes. Return JSON only with utterance (one line, at most 500 characters), disposition (continue or withdraw), and effect (one of allowed_effects). Mutual trust and marriage are proposals only: both people must separately accept the same wrap-up. For surname_choice, marriage consent already exists: include surname_choice, exactly one of allowed_surnames, and effect none. Each partner has at most two alternating valid turns; continued disagreement after four turns uses a disclosed seeded draw. A withdrawal suspends that surname session without counting a turn. Do not include reasoning.";
+        var input = JsonSerializer.Serialize(new
         {
-            model = route.Credential.Model,
-            response_format = new { type = "json_object" },
-            messages = new object[]
+            purpose = purposeWire,
+            observer_requested_activity = request.RequestedActivity,
+            speaker = new
             {
-                new
-                {
-                    role = "system",
-                    content = "Speak as one agent in a bounded shared conversation. Use only your own identity plus the public history included below. Never claim the other person agreed. Do not invent events, private thoughts, promises, ownership, resources or world changes. Return JSON only with utterance (one line, at most 500 characters), disposition (continue or withdraw), and effect (one of allowed_effects). Mutual trust and marriage are proposals only: both people must separately accept the same wrap-up. For surname_choice, marriage consent already exists: include surname_choice, exactly one of allowed_surnames, and effect none. Each partner has at most two alternating valid turns; continued disagreement after four turns uses a disclosed seeded draw. A withdrawal suspends that surname session without counting a turn. Do not include reasoning.",
-                },
-                new
-                {
-                    role = "user",
-                    content = JsonSerializer.Serialize(new
-                    {
-                        purpose = purposeWire,
-                        speaker = new
-                        {
-                            id = request.SpeakerId,
-                            name = request.SpeakerName,
-                            personality = request.SpeakerPersonality,
-                            aspiration = request.SpeakerAspiration,
-                        },
-                        other_participant = new { id = request.OtherParticipantId, name = request.OtherParticipantName },
-                        public_history = request.PublicHistory.Select(turn => new
-                        {
-                            speaker_id = turn.SpeakerId,
-                            utterance = turn.Text,
-                            is_wrap_up = turn.IsWrapUp,
-                            surname_choice = turn.SurnameChoice,
-                        }).ToArray(),
-                        allowed_effects = request.AllowedEffects.Select(EffectWireValue).ToArray(),
-                        allowed_surnames = request.AllowedSurnames,
-                    }, ConversationJsonOptions),
-                },
+                id = request.SpeakerId,
+                name = request.SpeakerName,
+                personality = request.SpeakerPersonality,
+                aspiration = request.SpeakerAspiration,
+
             },
-        };
-        var json = JsonSerializer.Serialize(payload, ConversationJsonOptions);
+            other_participant = new { id = request.OtherParticipantId, name = request.OtherParticipantName },
+            public_history = request.PublicHistory.Select(turn => new
+            {
+                speaker_id = turn.SpeakerId,
+                utterance = turn.Text,
+                is_wrap_up = turn.IsWrapUp,
+                surname_choice = turn.SurnameChoice,
+            }).ToArray(),
+            allowed_effects = request.AllowedEffects.Select(EffectWireValue).ToArray(),
+            allowed_surnames = request.AllowedSurnames,
+        }, ConversationJsonOptions);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(45));
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, route.Endpoint)
-        {
-            Content = new StringContent(json, Encoding.UTF8, "application/json"),
-        };
-        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", route.Credential.ApiKey);
+        timeout.CancelAfter(ConversationTimeout);
 
         var role = "conversation";
         var usageTicket = usageStore?.Begin(route.Provider, route.Credential.Model, role);
@@ -1120,15 +1139,53 @@ public sealed partial class ConfigurableDecisionProvider(
         var outputTokens = 0;
         try
         {
-            using var response = await httpClientFactory.CreateClient("model").SendAsync(
-                httpRequest,
-                HttpCompletionOption.ResponseHeadersRead,
-                timeout.Token).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-                throw new HttpRequestException("The assigned conversation model did not complete the request.");
+            AgentConversationTurnResponse turn;
+            if (route.Provider == PlayerDecisionProviders.Anthropic)
+            {
+                HostedModelReply reply;
+                try
+                {
+                    reply = await new AnthropicModelClient(httpClientFactory.CreateClient("model"), route.Credential.ApiKey!)
+                        .CompleteAsync(new HostedModelCall(route.Credential.Model, instructions, input, route.Thinking, ConversationTimeout),
+                            timeout.Token).ConfigureAwait(false);
+                }
+                catch (InvalidDataException rejected) when (
+                    HostedModelUnusableReply.TryGetTokens(rejected, out inputTokens, out outputTokens))
+                {
+                    // A refused or cut-off turn was still charged; its counts stay for failure accounting.
+                    throw;
+                }
+                inputTokens = reply.InputTokens;
+                outputTokens = reply.OutputTokens;
+                turn = ParseConversationFields(request, reply.Text, route.Credential.Model, inputTokens, outputTokens);
+            }
+            else
+            {
+                // OpenAI and Ollama Cloud read reasoning_effort; the model default sends none.
+                var payload = new JsonObject
+                {
+                    ["model"] = route.Credential.Model,
+                    ["response_format"] = new JsonObject { ["type"] = "json_object" },
+                    ["messages"] = new JsonArray(
+                        new JsonObject { ["role"] = "system", ["content"] = instructions },
+                        new JsonObject { ["role"] = "user", ["content"] = input }),
+                };
+                if (route.Thinking is not null) payload["reasoning_effort"] = route.Thinking;
+                using var httpRequest = new HttpRequestMessage(HttpMethod.Post, route.Endpoint)
+                {
+                    Content = new StringContent(payload.ToJsonString(ConversationJsonOptions), Encoding.UTF8, "application/json"),
+                };
+                httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", route.Credential.ApiKey);
+                using var response = await httpClientFactory.CreateClient("model").SendAsync(
+                    httpRequest,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    timeout.Token).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode)
+                    throw new HttpRequestException("The assigned conversation model did not complete the request.");
 
-            var body = await ProviderResponseBody.ReadAsync(response.Content, timeout.Token).ConfigureAwait(false);
-            var turn = ParseConversationResponse(request, body, route.Credential.Model, out inputTokens, out outputTokens);
+                var body = await ProviderResponseBody.ReadAsync(response.Content, timeout.Token).ConfigureAwait(false);
+                turn = ParseConversationResponse(request, body, route.Credential.Model, out inputTokens, out outputTokens);
+            }
             timer.Stop();
             if (usageTicket is not null)
                 usageStore!.Finish(usageTicket, "completed", turn.InputTokens, turn.OutputTokens);
@@ -1165,7 +1222,9 @@ public sealed partial class ConfigurableDecisionProvider(
         MaxDepth = 12,
     };
 
-    private sealed record ConversationRoute(string Provider, StoredProviderCredential Credential, Uri Endpoint);
+    private static readonly TimeSpan ConversationTimeout = TimeSpan.FromSeconds(45);
+
+    private sealed record ConversationRoute(string Provider, StoredProviderCredential Credential, Uri Endpoint, string? Thinking = null);
 
     private static ConversationRoute ConversationRouteFor(RuntimeProviderConfiguration selected, string speakerId)
     {
@@ -1174,7 +1233,7 @@ public sealed partial class ConfigurableDecisionProvider(
         if (assignment.Provider == PlayerDecisionProviders.Deterministic)
             return new ConversationRoute(PlayerDecisionProviders.Deterministic,
                 new StoredProviderCredential(string.Empty, null), new Uri("http://127.0.0.1/"));
-        if (assignment.Provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+        if (!PlayerDecisionProviders.IsHosted(assignment.Provider))
             throw new ProviderConversationUnavailableException("The assigned planning provider cannot speak in conversations.");
 
         var credential = CredentialFor(selected, assignment.Provider);
@@ -1187,10 +1246,13 @@ public sealed partial class ConfigurableDecisionProvider(
         if (assignment.Model is { } model) credential = credential with { Model = model };
         if (string.IsNullOrWhiteSpace(credential.Model) || string.IsNullOrWhiteSpace(credential.ApiKey))
             throw new ProviderConversationUnavailableException("The assigned personal model is unavailable.");
-        var endpoint = assignment.Provider == PlayerDecisionProviders.OpenAi
-            ? PlayerDecisionProviders.OpenAiEndpoint
-            : PlayerDecisionProviders.OllamaCloudEndpoint;
-        return new ConversationRoute(assignment.Provider, credential, endpoint);
+        var endpoint = assignment.Provider switch
+        {
+            PlayerDecisionProviders.OpenAi => PlayerDecisionProviders.OpenAiEndpoint,
+            PlayerDecisionProviders.OllamaCloud => PlayerDecisionProviders.OllamaCloudEndpoint,
+            _ => PlayerDecisionProviders.AnthropicEndpoint,
+        };
+        return new ConversationRoute(assignment.Provider, credential, endpoint, assignment.Thinking);
     }
 
     private static string EffectWireValue(AgentConversationEffect effect) => effect switch
@@ -1234,7 +1296,25 @@ public sealed partial class ConfigurableDecisionProvider(
                 message.ValueKind != JsonValueKind.Object ||
                 !message.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.String)
                 throw new InvalidDataException("The conversation provider response envelope is invalid.");
-            using var reply = JsonDocument.Parse(content.GetString()!, new JsonDocumentOptions { MaxDepth = 8 });
+            return ParseConversationFields(request, content.GetString()!, model, inputTokens, outputTokens);
+        }
+        catch (JsonException)
+        {
+            throw new InvalidDataException("The conversation provider returned invalid JSON.");
+        }
+    }
+
+    /// <summary>Validates one conversation turn's JSON fields, whichever wire format carried them.</summary>
+    private static AgentConversationTurnResponse ParseConversationFields(
+        AgentConversationTurnRequest request,
+        string text,
+        string model,
+        int inputTokens,
+        int outputTokens)
+    {
+        try
+        {
+            using var reply = JsonDocument.Parse(text, new JsonDocumentOptions { MaxDepth = 8 });
             var fields = reply.RootElement;
             if (fields.ValueKind != JsonValueKind.Object)
                 throw new InvalidDataException("The conversation provider response fields are invalid.");
@@ -1372,6 +1452,7 @@ public sealed partial class ConfigurableDecisionProvider(
         }
         if (providerId != PlayerDecisionProviders.Deterministic && string.IsNullOrWhiteSpace(credential.ApiKey))
             throw new CognitionProviderUnavailableException("missing_key", "Add a key in this agent's model settings.");
+        var thinking = PlayerDecisionProviders.IsHosted(providerId) ? routing.Assignment?.Thinking : null;
         IDecisionProvider provider = providerId switch
         {
             PlayerDecisionProviders.Deterministic => new DeterministicDecisionProvider(),
@@ -1389,12 +1470,19 @@ public sealed partial class ConfigurableDecisionProvider(
                 () => credential.ApiKey,
                 PlayerDecisionProviders.OpenAiEndpoint,
                 credential.Model,
-                providerEpoch: providerEpoch),
+                providerEpoch: providerEpoch,
+                thinking: thinking),
             PlayerDecisionProviders.OllamaCloud => new OpenAiCompatibleDecisionProvider(
                 httpClientFactory.CreateClient("model"),
                 () => credential.ApiKey,
                 PlayerDecisionProviders.OllamaCloudEndpoint,
                 credential.Model,
+                providerEpoch: providerEpoch,
+                thinking: thinking),
+            PlayerDecisionProviders.Anthropic => new OpenAiCompatibleDecisionProvider(
+                new AnthropicModelClient(httpClientFactory.CreateClient("model"), credential.ApiKey!),
+                credential.Model,
+                thinking,
                 providerEpoch: providerEpoch),
             _ => throw new InvalidOperationException("Unsupported cognition provider configuration."),
         };
@@ -1480,6 +1568,13 @@ public sealed partial class ConfigurableDecisionProvider(
     {
         var helper = policy.Helper;
         var routine = IsRoutine(observation);
+        var helperEligible = observation.Self?.LifeStage is "Adult" or "Elder" ||
+            (observation.Self is null && !observation.RequiresPersonalProvider);
+        // Birth provenance protects personal requests throughout life. It does
+        // not exclude a grown resident from the shared routine helper.
+        if (routine && helperEligible && helper.Provider != "off" &&
+            (helper.Provider == "decisions" || policy.Revision > 0 || observation.RequiresPersonalProvider))
+            return (helper.Provider, null);
         var role = routine ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole;
         var assigned = AssignmentFor(configuration, observation.InhabitantId, role);
         if (assigned?.Provider == PlayerDecisionProviders.Inherit)
@@ -1488,25 +1583,20 @@ public sealed partial class ConfigurableDecisionProvider(
                 return (PlayerDecisionProviders.Deterministic, assigned);
             assigned = null;
         }
-        // Children born in this world never inherit a potentially billable
-        // world default. Their own explicit assignment is the only route to a
-        // personal model after infancy; until then they use local safe choices.
+        // World-born residents never inherit a potentially billable world
+        // default for personal requests. Their explicit assignment remains
+        // the route to their own model, including after they grow up.
         if (observation.RequiresPersonalProvider && assigned is null)
             return (PlayerDecisionProviders.Deterministic, null);
         if (observation.RequiresPersonalProvider && assigned?.SelectionReason is not null &&
             !HasUsableCredential(configuration, assigned))
             return (PlayerDecisionProviders.Deterministic, null);
-        // An explicit world helper handles eligible adult routine choices while
-        // personal assignments remain available for planning, guidance and identity.
-        // The initial policy retains the installation's existing Jev routing.
-        if (routine && !observation.RequiresPersonalProvider && helper.Provider != "off" &&
-            (helper.Provider == "decisions" || policy.Revision > 0)) return (helper.Provider, null);
         var provider = assigned?.Provider ?? (routine ? configuration.RoutineProvider : configuration.PlanningProvider);
         if (observation.RequiresPersonalProvider && provider == PlayerDecisionProviders.Jev)
             return (PlayerDecisionProviders.Deterministic, null);
-        if (routine && provider == PlayerDecisionProviders.Jev && helper.Provider != "off")
+        if (routine && helperEligible && provider == PlayerDecisionProviders.Jev && helper.Provider != "off")
             return (helper.Provider, null);
-        if (routine && provider == PlayerDecisionProviders.Jev && helper.Provider == "off")
+        if (routine && provider == PlayerDecisionProviders.Jev && (helper.Provider == "off" || !helperEligible))
         {
             // Jev is a world-level helper, never a requirement for an agent to
             // continue. Prefer this agent's personal planner, then the world
@@ -1534,6 +1624,7 @@ public sealed partial class ConfigurableDecisionProvider(
 
     private static bool IsRoutine(InhabitantObservation observation) =>
         observation.ObserverGuidance is not { Count: > 0 } &&
+        !observation.NeedsName && !observation.IsNameRetry &&
         !observation.NeedsPersonality && !observation.NeedsAspiration &&
         observation.Candidates.All(candidate => RoutineCandidateIds.Contains(candidate.Id) || candidate.Id.StartsWith("care:", StringComparison.Ordinal));
 
@@ -1544,6 +1635,7 @@ public sealed partial class ConfigurableDecisionProvider(
             PlayerDecisionProviders.Jev => configuration.Jev,
             PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.Decisions => configuration.OpenAi,
             PlayerDecisionProviders.OllamaCloud => configuration.OllamaCloud,
+            PlayerDecisionProviders.Anthropic => ProviderConfigurationStore.AnthropicCredential(configuration.Anthropic),
             PlayerDecisionProviders.Deterministic => new StoredProviderCredential(string.Empty, null),
             _ => throw new InvalidOperationException("Unsupported cognition provider configuration."),
         };
@@ -1553,7 +1645,8 @@ public sealed partial class ConfigurableDecisionProvider(
         PlayerDecisionProviders.Deterministic => DecisionProviderKind.Deterministic,
         PlayerDecisionProviders.Jev => DecisionProviderKind.Jev,
         PlayerDecisionProviders.Decisions => DecisionProviderKind.OpenAiDecisions,
-        PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud => DecisionProviderKind.LargeLanguageModel,
+        PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud or PlayerDecisionProviders.Anthropic =>
+            DecisionProviderKind.LargeLanguageModel,
         _ => throw new InvalidOperationException("Unsupported cognition provider configuration."),
     };
 

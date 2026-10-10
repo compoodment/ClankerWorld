@@ -75,6 +75,8 @@ public partial class Main
         FitMenuScrolls(viewport.Y);
 
         var toastSize = statusToast.GetCombinedMinimumSize();
+        saveDiskWarningPanel.Position = new Vector2(
+            Math.Max(14, (viewport.X - saveDiskWarningPanel.GetCombinedMinimumSize().X) / 2), 58);
         statusToast.Position = new Vector2(
             Math.Max(14, (viewport.X - toastSize.X) / 2),
             Math.Max(14, viewport.Y - toastSize.Y - 18));
@@ -138,8 +140,11 @@ public partial class Main
         // The map is drawn at screen resolution; the card lives in interface pixels.
         var stride = currentTileSize + TileGap;
         var tile = currentTileSize / (float)uiLayer.Factor;
-        var actorCorner = (mapStage.Position + new Vector2(inhabitant.Position.X * stride, inhabitant.Position.Y * stride)) / uiLayer.Factor;
-        PlaceQuickCard(selectedInhabitantCard, new Rect2(actorCorner, new Vector2(tile, tile)));
+        var target = inhabitantVisuals.TryGetValue(inhabitant.Id, out var marker) && marker.Visible
+            ? new Rect2((mapStage.Position + marker.Position) / uiLayer.Factor, marker.Size / uiLayer.Factor)
+            : new Rect2((mapStage.Position + new Vector2(inhabitant.Position.X * stride, inhabitant.Position.Y * stride)) / uiLayer.Factor,
+                new Vector2(tile, tile));
+        PlaceQuickCard(selectedInhabitantCard, target);
     }
 
     /// <summary>
@@ -150,6 +155,7 @@ public partial class Main
     /// </summary>
     private void PlaceQuickCard(PanelContainer card, Rect2 target)
     {
+        if (CameraMoving && !cameraPinnedCards.Add(card)) return;
         var ui = UiSize;
         var cardSize = card.GetCombinedMinimumSize();
         var cardWidth = cardSize.X;

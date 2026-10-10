@@ -233,7 +233,7 @@ public sealed partial class PrivateWorldRuntime
         }
         if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, person.Survival?.IllnessBasisPoints ?? 0)) return null;
         var progress = repair.WorkDone + 1;
-        if (progress < PersonalEquipmentRules.RepairWorkTicks)
+        if (progress < SkilledWorkTicks(actor, SettlementSkillKind.Crafting, PersonalEquipmentRules.RepairWorkTicks))
         {
             inhabitants[actor] = person with { Equipment = person.Equipment with { Repair = repair with { WorkDone = progress } } };
             return null;
