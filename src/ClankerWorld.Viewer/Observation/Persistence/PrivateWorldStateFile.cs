@@ -18,6 +18,7 @@ public sealed class PrivateWorldStateFile
     private readonly WorldStartPace newWorldPace;
     private readonly GeographyOptions? newWorldGeography;
     private readonly bool allowDifferentSavedSeed;
+    private bool buildRecorded;
 
     public PrivateWorldStateFile(string path, Func<string, IDecisionProvider>? providerFactory = null,
         WorldStartPace newWorldPace = WorldStartPace.Legacy, GeographyOptions? newWorldGeography = null,
@@ -99,6 +100,8 @@ public sealed class PrivateWorldStateFile
         // evidence. Check the exact bytes before replacing the last good file.
         _ = PrivateWorldRuntimeCodec.Decode(checkpointBytes);
         WriteCheckpointBytes(Path, checkpointBytes);
+        // Once per host run: every later checkpoint comes from the same build.
+        if (!buildRecorded) buildRecorded = SavedBuild.TryWrite(Path);
         return state;
     }
 

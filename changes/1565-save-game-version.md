@@ -1,0 +1,1 @@
+- Saves now record which game version wrote them, and a save this version cannot open names the version that last saved it.
