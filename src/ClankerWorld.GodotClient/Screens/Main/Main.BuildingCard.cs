@@ -241,7 +241,7 @@ public partial class Main
     private void CenterOnSelectedBuilding()
     {
         if (SelectedBuilding() is not { } building) return;
-        CenterCameraAt(new Vector2(building.Position.X + Math.Max(1, building.Width) / 2f,
+        CenterKeyboardCameraAt(new Vector2(building.Position.X + Math.Max(1, building.Width) / 2f,
             building.Position.Y + Math.Max(1, building.Height) / 2f));
     }
 

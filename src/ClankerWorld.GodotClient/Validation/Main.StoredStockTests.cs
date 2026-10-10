@@ -52,6 +52,19 @@ public partial class Main
                 !land.Any(tile => tile.X == pile.Tile.X && tile.Y == pile.Tile.Y)) || Frame().Length == 0 ||
             storedStockLayer.MouseFilter != Control.MouseFilterEnum.Ignore || storedStockLayer.GetChildCount() != 0)
             throw new InvalidOperationException("Real stored kinds must produce separate full piles on clear Town ground, never the Road or doorstep; empty stores emit none.");
+        foreach (var (itemKind, pileKind) in new[]
+        {
+            ("wood", StockPileKind.Logs), ("grain", StockPileKind.Sacks), ("stone", StockPileKind.Crates)
+        })
+        {
+            var singleKind = occupied with
+            {
+                PlacedBuildings = [house with { StoredItems = [new(itemKind, 80)] }]
+            };
+            var singlePile = Piles(singleKind);
+            if (singlePile.Length != 1 || singlePile[0].Kind != pileKind)
+                throw new InvalidOperationException($"Accepted {itemKind} stock must draw as {pileKind}.");
+        }
         foreach (var paint in Frame())
             if (!piles.Any(pile => new Rect2((Vector2)pile.Tile * terrainLayer.Stride, Vector2.One * terrainLayer.Stride)
                 .Grow(0.01f).Encloses(paint.Area)))
@@ -78,6 +91,16 @@ public partial class Main
         RenderMap(blocked);
         await Settle();
         if (Frame().Length != 0) throw new InvalidOperationException("Stock must stay hidden when every beside-door tile is occupied by Roads.");
+        var buildingBlocked = occupied with
+        {
+            PlacedBuildings = [house,
+                house with { InstanceId = "west-store", Position = new(10, 10), Height = 2,
+                    StoredItems = [], StoredQuantity = 0, Entrance = new(10, 12) },
+                house with { InstanceId = "east-store", Position = new(12, 10), Height = 2,
+                    StoredItems = [], StoredQuantity = 0, Entrance = new(12, 12) }]
+        };
+        if (Piles(buildingBlocked).Length != 0)
+            throw new InvalidOperationException("Stock must stay hidden when adjacent building footprints occupy every beside-door tile.");
         if (Piles(occupied with { Towns = [] }).Length != 0 ||
             Piles(occupied with { PlacedBuildings = [house with { StoredItems = null }] }).Length != 0)
             throw new InvalidOperationException("Stock without accepted Town ground or known stored kinds must not invent piles.");

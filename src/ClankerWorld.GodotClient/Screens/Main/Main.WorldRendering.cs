@@ -15,6 +15,8 @@ public partial class Main
 
     private void ResetDisplayedWorldContext()
     {
+        smokeLayer.SetBuildings([]);
+        keyboardMapTile = null;
         storedStockLayer.SetPiles([]);
         knownEvents.Clear();
         eventsWorldId = null;
@@ -61,10 +63,14 @@ public partial class Main
         renderedMapSnapshot = null;
         terrainMap = null;
         terrainWorldId = null;
+        terrainPackedTerrain = null;
+        terrainPackedLayers = null;
+        terrainTiles = [];
         cameraWorldId = null;
         usagePauseWorldId = null;
         lastLifePaceWorldId = null;
         renderedTownList = null;
+        renderedRosterPresentation = null;
         foreach (var marker in inhabitantVisuals.Values) marker.QueueFree();
         inhabitantVisuals.Clear();
         inhabitantCanonicalXs.Clear();
@@ -94,6 +100,7 @@ public partial class Main
         wasObservedPaused = isPaused;
         observedCalendarPace = snapshot.CalendarPace;
         RenderRoutineHelperSettings(snapshot);
+        RenderGenerationSettings(snapshot);
         if (cameraWorldId is not null && cameraWorldId != snapshot.WorldId)
         {
             knownEvents.Clear();
@@ -147,6 +154,13 @@ public partial class Main
         return x >= 0 && y >= 0 && x < width && y < height;
     }
 
+    private bool TerrainInputsMatch(WorldTerrainMap map, OwnerWorldSnapshot snapshot) =>
+        string.Equals(terrainWorldId, snapshot.WorldId, StringComparison.Ordinal) &&
+        map.WrapsEastWest == snapshot.WrapsEastWest &&
+        (map.Width, map.Height) == MapDimensions(snapshot) &&
+        terrainPackedTerrain == snapshot.PackedTerrain && terrainPackedLayers == snapshot.PackedMapLayers &&
+        (snapshot.PackedTerrain is not null || terrainTiles.SequenceEqual(snapshot.Tiles));
+
     private void RenderMap(OwnerWorldSnapshot snapshot)
     {
         if (renderedMapSnapshot is not { } previous ||
@@ -183,6 +197,7 @@ public partial class Main
 
         if (!HasMap(snapshot))
         {
+            smokeLayer.SetBuildings([]);
             storedStockLayer.SetPiles([]);
             handcartFacings.Clear();
             animalFacings.Clear();
@@ -195,22 +210,22 @@ public partial class Main
             return;
         }
 
-        var manifest = snapshot.Authoring?.CurrentMapManifestDigest ?? snapshot.MapManifestDigest;
-        if (terrainMap is null || !string.Equals(terrainWorldId, snapshot.WorldId, StringComparison.Ordinal) ||
-            !string.Equals(terrainManifestDigest, manifest, StringComparison.Ordinal) ||
-            !string.Equals(terrainLayersDigest, snapshot.MapLayersDigest, StringComparison.Ordinal) ||
-            (!terrainMap.HasMapLayers && snapshot.PackedMapLayers is not null))
+        if (terrainMap is null || !TerrainInputsMatch(terrainMap, snapshot))
         {
             var (width, height) = MapDimensions(snapshot);
             terrainMap = snapshot.PackedTerrain is { } packed
                 ? WorldTerrainMap.FromPacked(packed, snapshot.PackedMapLayers, snapshot.WrapsEastWest)
                 : WorldTerrainMap.FromTiles(snapshot.Tiles, width, height, snapshot.PackedMapLayers, snapshot.WrapsEastWest);
             terrainWorldId = snapshot.WorldId;
-            terrainManifestDigest = manifest;
-            terrainLayersDigest = snapshot.MapLayersDigest;
+            terrainPackedTerrain = snapshot.PackedTerrain;
+            terrainPackedLayers = snapshot.PackedMapLayers;
+            terrainTiles = snapshot.PackedTerrain is null ? snapshot.Tiles.ToArray() : [];
             terrainLayer.SetWorld(terrainMap);
             worldOverview.SetWorld(terrainMap);
         }
+        var observedSeason = snapshot.Authoring?.Season ?? snapshot.WorldSystems?.Season;
+        terrainLayer.SetSeason(observedSeason);
+        terrainLayer.SetAutumnLeaves(observedSeason);
         terrainLayer.SetTrees(snapshot.Resources);
         terrainLayer.SetNaturalObjects(snapshot.Resources);
         terrainLayer.SetWeatherRegions(snapshot.WeatherRegionSize, snapshot.WeatherRegions);
@@ -220,8 +235,10 @@ public partial class Main
         worldOverview.SetFields(snapshot.Fields);
         terrainLayer.SetMarkets(snapshot.Towns);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects, snapshot.Towns);
+        var buildingLights = BuildingLights(snapshot);
+        nightLightsLayer.SetBuildings(buildingLights);
+        smokeLayer.SetBuildings(buildingLights);
         storedStockLayer.SetPiles(StoredStockPiles(snapshot, terrainMap!));
-        nightLightsLayer.SetBuildings(BuildingLights(snapshot));
         nightLightsLayer.SetLanterns(StreetLanterns(snapshot), snapshot.WrapsEastWest);
         terrainLayer.SetConstructionSites(snapshot.ConstructionSites);
         nightLightsLayer.SetLanternSites(StreetLanternSites(snapshot));
@@ -446,8 +463,13 @@ public partial class Main
                 actorMarker.ObserveTile(snapshot.WorldId, new Vector2I(inhabitant.Position.X, inhabitant.Position.Y),
                     mapWidth, snapshot.WrapsEastWest);
                 actorMarker.Activity = AgentMarker.ActivityFor(inhabitant);
+                actorMarker.Swimming = inhabitant.Route.Status == "swim";
+                actorMarker.ObserveModelWait(snapshot.WorldId,
+                    inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "model-status")?.Detail == "waiting",
+                    snapshot.Authoring?.IsPaused == true);
                 var actorTooltip = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)} · " +
                     (inhabitant.PublicIntention?.Summary ?? "taking in the world");
+                if (actorMarker.Swimming) actorTooltip += "\nSwimming";
                 var conversation = LatestConversationFor(snapshot, inhabitant.Id);
                 actorMarker.ConversationBadgeVisible = conversation is not null;
                 actorMarker.ConversationUnread = conversation is not null &&
