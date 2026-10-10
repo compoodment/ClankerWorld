@@ -36,7 +36,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBuildingExpansionState(worldSimulation, worldContent, society.Checkpoint, map, checkpointSchemaVersion);
         ValidateBoatTransport(CaptureState());
         ValidateAnimalState(CaptureState());
-        ValidateTalkOrderBindings(instructionsByIdempotency.Values, conversations);
+        ValidateTalkOrderBindings(instructionsByIdempotency.Values, conversations, marriages);
         ValidateCartOrderBindings(society.Checkpoint.Inventory, instructionsByIdempotency.Values);
         ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
@@ -503,7 +503,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateBuildingExpansionState(state.WorldSimulation, state.WorldContent, state.Society.Society,
             state.Map, state.SchemaVersion);
         ValidateBoatTransport(state);
-        ValidateTalkOrderBindings(state.Instructions ?? [], state.Conversations ?? []);
+        ValidateTalkOrderBindings(state.Instructions ?? [], state.Conversations ?? [], state.Marriages ?? []);
         ValidateCartOrderBindings(state.Society.Society.Inventory, state.Instructions ?? []);
         ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
@@ -642,7 +642,7 @@ public sealed partial class PrivateWorldRuntime
         var terminal = order.Status is "finished" or "cancelled" or "not_understood";
         var isCompleted = completedInstructionIds.Contains(instruction.InstructionId, StringComparer.Ordinal);
         if (order.Action != "read_knowledge" && (order.TargetKnowledgeArtifactId is not null || order.KnowledgeReadCompletion is not null)) return false;
-        if (order.Action != "talk_to" && (order.TalkConversationId is not null || order.TalkOutcome is not null)) return false;
+        if (!IsConversationOrder(order.Action) && (order.TalkConversationId is not null || order.TalkOutcome is not null)) return false;
         if (!IsCartOrder(order.Action) && order.TargetCartLotId is not null) return false;
         if ((order.TargetAnimalId is not null) != IsAnimalOrder(order.Action)) return false;
         if ((order.BoatTravel is not null) != (order.Action == "travel_by_boat")) return false;
@@ -677,6 +677,7 @@ public sealed partial class PrivateWorldRuntime
             return false;
 
         if (order.Action == "read_knowledge") return IsValidKnowledgeReadOrderShape(order, instruction, worldTick);
+        if (order.Action == "propose_marriage") return IsValidMarriageOrder(instruction, people);
         if (order.Action == "talk_to")
             return order.TargetAgentId is { } target && people.Contains(target) && target != instruction.TargetInhabitantId &&
                 order.RequestedUnits == 1 && order.CompletedUnits is >= 0 and <= 1 && !order.RepeatUntilCancelled && !order.QuantityIsExplicit &&

@@ -269,7 +269,8 @@ alternating turns; if they still disagree, the game discloses a draw for the
 surname. A failed call, pause or cancellation keeps the completed turns and
 leaves marriage incomplete until the surname is settled. The agent's Profile
 shows their spouse and whether that choice is still pending. Marriage is not
-required to have a child.
+required to have a child. **Propose marriage** orders the selected adult to
+attempt this process with their current partner; it cannot make the partner agree.
 
 Either partner may end their partnership and marriage alone. A partner's
 death also ends the marriage. Both keep their names, and a living former
@@ -377,6 +378,18 @@ acceptance, stopped conversation or outcome; a finished talk attempt can have
 been refused. Queued work waits for the conversation to end. Loading an
 accepted unfinished conversation stops it until both people choose to resume.
 Cancelling the order removes the task; it does not make either person agree.
+
+Use **Propose marriage** or **Propose marriage to my partner** for an adult
+with an eligible current partner. They approach that partner and attempt the
+conversation using their own model. Their partner may refuse the invitation
+or marriage, and either person keeps their own wrap-up and surname choices.
+The card distinguishes refusal, a conversation without a proposal, and marriage
+completed with a shared surname. Accepted marriage waits for that surname
+choice before the order finishes and queued work proceeds. Saving an unfinished
+conversation stops it until both people choose to resume. Cancelling the order
+removes the task while keeping any consent and surname progress already made.
+If the selected person stops being their partner, the order explains the blocker
+and does not choose someone else.
 
 When a child needs a guardian, an adult can follow **Become guardian for Élodie Vale**,
 using the child's full name. Names with accents work when typed or pasted,
@@ -679,6 +692,19 @@ the household council and recent social activity; the page scrolls once it is
 long. **World** shows today's date, the season and weather where you are
 looking and the year length, then counts of agents, Towns, households,
 buildings, road tiles, bridges, resource sites and the map size.
+
+Residents with a personal model can propose a supported default estate law
+through their Town's ordinary Council. Its proposal names the Town's share:
+0%, 25%, 50%, 75% or 100%. It needs the Council's usual majority. The law
+applies only to residents who die after adoption without a valid will; a valid
+will keeps priority. Read the proposal and recorded law in Towns. Changing or
+repealing it later leaves earlier estates under their original rule.
+The final will's default choice describes the law effective at that death;
+choosing it uses default inheritance rather than overriding the Town share.
+The Town keeps eligible goods in its Warehouse while there is room, and living
+household heirs share the rest. Whole vessels stay together. With no living
+household heir, goods belong to the deceased resident's Town; non-food goods
+in an abandoned Town's Warehouse can be salvaged through the usual choice.
 
 Town residents make civic choices through their normal personal-model turns.
 Adults can agree to stand for election, visit their Town's public notice place
