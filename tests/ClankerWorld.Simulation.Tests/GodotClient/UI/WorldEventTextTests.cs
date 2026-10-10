@@ -9,6 +9,103 @@ public sealed class WorldEventTextTests
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
     [Fact]
+    public void FamilyLinesNameThePeopleTheRecordsHoldAtThatMoment()
+    {
+        var child = Person(ChildId, "Corin") with
+        {
+            Relationships =
+            [
+                new("parent-1", FounderId, "biological_parentage", "accepted", "family", 5, "child"),
+                new("parent-2", AgentId, "biological_parentage", "accepted", "family", 5, "child"),
+                new("care-1", AgentId, "caregiver", "accepted", "family", 31),
+            ],
+        };
+        var aster = Person(AgentId, "Aster") with
+        {
+            Relationships = [new("proposal-1", ChildId, "partnership", "proposed", "private", 21, "partner"), new("partner-1", FounderId, "partnership", "accepted", "private", 21, "partner")],
+        };
+        var snapshot = Snapshot(aster, Person(FounderId, "Mira"), child);
+        string Line(long tick, string kind, string detail) => WorldEventText.Describe(new(1, tick, kind, detail), snapshot);
+
+        Assert.Equal("Corin was born to Mira and Aster.", Line(5, "child_born", ChildId));
+        Assert.Equal("Aster and Mira became partners.", Line(20, "partnership_accepted", AgentId));
+        // A partnership that began at another moment never names a later partner.
+        Assert.Equal("Aster formed a partnership.", Line(21, "partnership_accepted", AgentId));
+        Assert.Equal("Aster's partnership ended.", Line(40, "partnership_ended", AgentId));
+        Assert.Equal("Aster is now caring for Corin.", Line(30, "caregiver_assigned", ChildId));
+        Assert.Equal("Corin has a new caregiver.", Line(31, "caregiver_assigned", ChildId));
+        Assert.Equal("Aster agreed to look after Corin.", Line(31, "guardian_assigned", ChildId));
+        Assert.Equal("Corin needs a guardian. No adult has agreed to look after them yet.", Line(1, "guardian_needed", ChildId));
+        Assert.Equal("Aster agreed to take over caring for Corin.", Line(1, "replacement_care_accepted", AgentId + "|" + ChildId));
+        Assert.Equal("Aster's will was accepted for their estate.",
+            Line(1, "estate_will_accepted", "estate:" + AgentId + ":44:even:2"));
+        Assert.Equal("Aster's estate will use default inheritance.",
+            Line(1, "estate_will_default", "estate:" + AgentId + ":44:invalid_estate_or_heir"));
+        Assert.Equal("Aster agreed to let Mira treat them.", Line(1, "medical_care_allowed", AgentId + ":medical_caregiver:" + FounderId));
+        Assert.Equal("Aster's estate will use default inheritance.",
+            Line(1, "estate_will_default", "estate:" + AgentId + ":44:household_selected"));
+        Assert.Equal("Aster no longer lets Mira treat them.", Line(1, "medical_care_revoked", AgentId + ":medical_caregiver:" + FounderId));
+        Assert.Equal("Aster gave their handcart and its load to Mira.", Line(1, "handcart_transferred", AgentId + ":cart-1:" + FounderId));
+        Assert.Equal("Aster's handcart can't go this way. Park it or choose another route; its load is safe.",
+            Line(1, "handcart_blocked", AgentId + ":steep"));
+    }
+
+    [Fact]
+    public void AnimalTransferNamesTheHouseholdWithItsCompleteIdentifier()
+    {
+        var snapshot = Snapshot() with
+        {
+            Animals = [new("animal-7", "Bess", "cow", "female", 300, "adult", new(0, 0),
+                "household:camp-alpha", "Mira's household", "cared", null, 0, null, null, null, null, false, [], [])],
+            Stockpiles = [new("household:camp-alpha", "Mira's household", [])],
+        };
+        Assert.Equal("Bess now belongs to Mira's household.", WorldEventText.Describe(
+            new(1, 1, "animal_transferred", "animal-offer-abc:animal-7:household:camp-alpha"), snapshot));
+    }
+
+    [Theory]
+    [InlineData("exploration_started", AgentId + ":10,12", "Aster set out to scout.")]
+    [InlineData("exploration_return_started", AgentId, "Aster is heading back from scouting.")]
+    [InlineData("exploration_completed", AgentId + ":visited=42", "Aster came back from scouting.")]
+    [InlineData("exploration_aborted", AgentId + ":return_blocked", "Aster's scouting trip ended before they got back: the way home was blocked.")]
+    [InlineData("exploration_aborted", AgentId + ":interrupted_movement", "Aster's scouting trip was cut short.")]
+    public void ScoutingTripsReachTheLog(string kind, string detail, string expected)
+    {
+        Assert.True(GameUiText.IsPlayerFacingEvent(kind));
+        Assert.Equal(expected, WorldEventText.Describe(new(1, 1, kind, detail), Snapshot(Person(AgentId, "Aster"))));
+    }
+
+    [Theory]
+    // Life events the log used to leave out.
+    [InlineData("marriage_accepted", true)]
+    [InlineData("marriage_surname_agreed", true)]
+    [InlineData("skill_learned", true)]
+    [InlineData("animal_tamed", true)]
+    [InlineData("animal_born", true)]
+    [InlineData("animal_died", true)]
+    [InlineData("animal_transferred", true)]
+    // Every new tile a scout steps on would flood the log.
+    [InlineData("exploration_discovered", false)]
+    // Routine steps that the next line already reports.
+    [InlineData("food_consumed", false)]
+    [InlineData("food_harvested", false)]
+    [InlineData("recipe_started", false)]
+    [InlineData("handcart_loaded", false)]
+    [InlineData("land_transfer_read", false)]
+    [InlineData("settlement_founded", false)]
+    public void EventLogShowsLifeEventsAndLeavesOutRoutineSteps(string kind, bool shown) =>
+        Assert.Equal(shown, GameUiText.IsPlayerFacingEvent(kind));
+
+    [Fact]
+    public void MarriageLineUsesThePlayerWordingForTheRecordedSentence()
+    {
+        var worldEvent = new OwnerWorldEvent(1, 1, "marriage_accepted",
+            "Aster and Mira agreed to marry; their shared surname is still undecided.");
+        Assert.Equal("Aster and Mira agreed to marry. They haven't chosen a shared surname yet.",
+            WorldEventText.Describe(worldEvent, Snapshot()));
+    }
+
+    [Fact]
     public void ModelLogKeepsOneContinuingProblemAndUsesTheCompleteDescendantIdentity()
     {
         OwnerWorldEvent Status(long id, string status) => new(id, id, "model_attempt_status", $"{ChildId}:{status}");
@@ -90,9 +187,9 @@ public sealed class WorldEventTextTests
             ("inhabitant_removed", id, "died"),
             ("inhabitant_building_proposed", id + ":house", "suggested a new building design"),
             ("household_delivery_recovered", id + ":spoiled-greens:4:camp-alpha",
-                "returned unusable delivery supplies to their household's pile at camp"),
+                "brought back supplies they couldn't deliver and left them at their household's pile"),
             ("instruction_not_understood", id + ":private-instruction-0000000001",
-                "didn't understand your order. Try a supported task, or use Suggest for broader guidance"),
+                "didn't understand your order. Try one of the listed tasks, or use Suggest instead"),
         };
         foreach (var (kind, detail, action) in cases)
         {
@@ -109,8 +206,9 @@ public sealed class WorldEventTextTests
     public void RecoveringUnusedTownMaterialsNamesTheCarrierAndWarehouseDestination()
     {
         var worldEvent = new OwnerWorldEvent(1, 1, "town_project_material_recovered", ChildId + ":unknown-project:unused-load:2:wood");
-        Assert.True(GameUiText.IsPlayerFacingEvent(worldEvent.Kind));
-        Assert.Equal("Aster picked up unused materials from a Town project to return to the Town Warehouse.",
+        // Picking materials up is hidden from the log; the returned line reports the move.
+        Assert.False(GameUiText.IsPlayerFacingEvent(worldEvent.Kind));
+        Assert.Equal("Aster is taking unused materials from a Town project back to the Town Warehouse.",
             WorldEventText.Describe(worldEvent, Snapshot(Person(ChildId, "Aster"))));
     }
 
@@ -121,19 +219,20 @@ public sealed class WorldEventTextTests
         var cases = new[]
         {
             ("field_work_started", ChildId + ":field-12-7:Till", "Aster started work on a field."),
-            ("field_prepared", ChildId + ":field-12-7:", "Aster prepared a field."),
+            ("field_prepared", ChildId + ":field-12-7:", "Aster tilled a field."),
             ("field_planted", ChildId + ":field-12-7:cultivated_greens", "Aster planted cultivated greens."),
             ("field_tended", ChildId + ":field-12-7:grain", "Aster tended grain."),
             ("field_harvested", ChildId + ":field-12-7:potatoes", "Aster harvested potatoes."),
             ("field_ready", "field-12-7", "A field is ready to harvest."),
-            ("field_work_interrupted", "field-12-7", "Work on a field stopped."),
-            ("crop_weather_loss", "field-12-7:harvest:2:snow", "Snow reduced a crop harvest."),
-            ("crop_moisture_effect", "field-12-7:harvest:2:wet:70", "Moist soil improved a crop harvest."),
-            ("crop_moisture_effect", "field-12-7:harvest:2:dry:10", "Dry soil reduced a crop harvest."),
+            ("field_work_interrupted", "field-12-7", "Work on a field stopped before it was finished."),
+            ("crop_weather_loss", "field-12-7:harvest:2:snow", "Snow damaged a crop, so its harvest will be smaller."),
+            ("crop_moisture_effect", "field-12-7:harvest:2:wet:70", "Damp soil gave a crop a bigger harvest."),
+            ("crop_moisture_effect", "field-12-7:harvest:2:dry:10", "Dry soil gave a crop a smaller harvest."),
         };
         foreach (var (kind, detail, expected) in cases)
         {
-            Assert.True(GameUiText.IsPlayerFacingEvent(kind));
+            // Starting and tending repeat what the tilled, planted and harvested lines report.
+            Assert.Equal(kind is not ("field_work_started" or "field_tended"), GameUiText.IsPlayerFacingEvent(kind));
             var worldEvent = new OwnerWorldEvent(1, 1, kind, detail);
             Assert.Equal(expected, WorldEventText.Describe(worldEvent, snapshot));
             Assert.Equal(detail, worldEvent.Detail);
@@ -158,9 +257,9 @@ public sealed class WorldEventTextTests
             ("town_admission_accepted", $"town:second|{AgentId}|none|2",
                 "Aster became a resident of Second Town. Their dependent children moved with them."),
             ("town_admission_approved", $"town:second|{AgentId}|town:second:proposal:4",
-                "Second Town's council approved Aster's admission. They have one unpaused world day to accept."),
+                "Second Town's council agreed to let Aster join. They have one game day to accept."),
             ("town_admission_lapsed", $"town:first|{AgentId}|town:first:proposal:2|joined_elsewhere",
-                "Aster did not join First Town: the approval no longer fits their circumstances."),
+                "Aster didn't join First Town: the approval no longer fits their situation."),
             ("town_admission_accepted", "town:gone|agent:missing|none|1", "Someone became a resident of a Town."),
             ("town_admission_accepted", "town:second", "Someone became a Town resident."),
         };
@@ -217,8 +316,8 @@ public sealed class WorldEventTextTests
 
     [Theory]
     [InlineData("volunteer", "Aster volunteered to move out of their overcrowded House.")]
-    [InlineData("latest_unrelated_arrival", "Aster has notice to move out of their overcrowded House as its most recent arrival outside the main family.")]
-    [InlineData("latest_arrival", "Aster has notice to move out of their overcrowded House as its most recent arrival; no family has a majority.")]
+    [InlineData("latest_unrelated_arrival", "Aster must move out of their overcrowded House. They're the newest arrival who isn't family.")]
+    [InlineData("latest_arrival", "Aster must move out of their overcrowded House. They're its newest arrival.")]
     public void RelocationNoticeExplainsTheSelectionWithoutSplittingAnAgentIdentity(string reason, string expected)
     {
         var snapshot = Snapshot(Person(FounderId, "Wrong parent"), Person(ChildId, "Aster"));
@@ -244,12 +343,11 @@ public sealed class WorldEventTextTests
     }
 
     [Theory]
-    [InlineData("market_built", "town:first|town:first:proposal:1:construction:market|hall|2", "Riverbend's Market was built. Adults can borrow one of its stalls to sell goods.")]
+    [InlineData("market_built", "town:first|town:first:proposal:1:construction:market|hall|2", "Riverbend's Market was built. Adults can take a stall there to sell goods.")]
     [InlineData("market_stall_built", "town:first|market|stall|1", "Riverbend's Market gained another stall.")]
-    [InlineData("market_stock_loaded", "town:first|market|stall|" + AgentId + "|lot", "Aster picked up household goods to carry to the Market; their recorded owner is unchanged.")]
-    [InlineData("market_stock_collected", "town:first|market|stall|" + AgentId + "|lot", "Aster collected their goods from a Market stall.")]
-    [InlineData("market_trade_offered", "town:first|market|stall|" + AgentId + "|" + FounderId + "|offer", "Mira offered Aster an exchange at a Market stall. See the stall for its exact terms.")]
-    [InlineData("market_trade_completed", "town:first|market|stall|" + AgentId + "|" + FounderId + "|offer", "Mira received a Market purchase from Aster; the real payment stays with the seller's household.")]
+    [InlineData("market_stock_collected", "town:first|market|stall|" + AgentId + "|lot", "Aster took their goods back from the Market stall.")]
+    [InlineData("market_trade_offered", "town:first|market|stall|" + AgentId + "|" + FounderId + "|offer", "Mira offered Aster a trade at the Market.")]
+    [InlineData("market_trade_completed", "town:first|market|stall|" + AgentId + "|" + FounderId + "|offer", "Mira bought goods from Aster at the Market.")]
     public void MarketEventsNameTheTownAndTheRightTrader(string kind, string detail, string expected)
     {
         Assert.True(GameUiText.IsPlayerFacingEvent(kind));
@@ -261,8 +359,8 @@ public sealed class WorldEventTextTests
     }
 
     [Theory]
-    [InlineData("voluntary", "Aster left their household and may collect their personal belongings.")]
-    [InlineData("displaced", "Aster moved out because their House was overcrowded and may collect their personal belongings.")]
+    [InlineData("voluntary", "Aster left their household. They can go back for their belongings.")]
+    [InlineData("displaced", "Aster moved out of their overcrowded House. They can go back for their belongings.")]
     public void DepartureDistinguishesDisplacementFromAnOrdinaryMove(string reason, string expected)
     {
         Assert.Equal(expected, WorldEventText.Describe(
@@ -290,9 +388,9 @@ public sealed class WorldEventTextTests
     }
 
     [Theory]
-    [InlineData("land-ruling:town:first:4", "Land hearing decided: confirm.", "A Town posted the result of a land ruling. See the Towns page for its permission change and reasons.")]
-    [InlineData("land-transfer:town:first:5", "Voluntary household permission transfer completed.", "A Town posted the outcome of a household permission transfer. See the Towns page for its terms.")]
-    [InlineData("town:first:proposal:6", "land_use proposal passed: Grant household use.", "A Town's council recorded a decision. See the Towns page for its result.")]
+    [InlineData("land-ruling:town:first:4", "Land hearing decided: confirm.", "A Town posted the result of a land ruling. See the Towns page for what changed and why.")]
+    [InlineData("land-transfer:town:first:5", "Voluntary household permission transfer completed.", "A Town posted the outcome of a land handover between households. See the Towns page.")]
+    [InlineData("town:first:proposal:6", "land_use proposal passed: Grant household use.", "A Town's council made a decision. See the Towns page for the result.")]
     public void OnlyCouncilResultNoticesAreDescribedAsCouncilDecisions(string subject, string notice, string expected)
     {
         Assert.Equal(expected, WorldEventText.Describe(new(1, 0, "town_civic_result", $"town:first|{subject}|{notice}"), Snapshot()));
@@ -300,8 +398,8 @@ public sealed class WorldEventTextTests
     }
 
     [Theory]
-    [InlineData("land_transfer_settled", "Permission transfer 5 completed after every current source and receiving household adult accepted. ")]
-    [InlineData("land_transfer_blocked", "Permission transfer 5 stopped because its published terms no longer qualify. ")]
+    [InlineData("land_transfer_settled", "The land handover went ahead after everyone involved agreed.")]
+    [InlineData("land_transfer_blocked", "The land handover stopped because its terms no longer apply. ")]
     public void TransferOutcomeLinesStartWithACapital(string kind, string start)
     {
         Assert.StartsWith(start, WorldEventText.Describe(new(1, 0, kind, "town:first|land-transfer:town:first:5|1||done"), Snapshot()), StringComparison.Ordinal);

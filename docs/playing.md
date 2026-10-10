@@ -325,6 +325,10 @@ An agent can also eat from a usable storage pot they own and carry, leaving
 the pot and remaining food together. Eating a serving needs no extra carrying
 space; food reserved for other work or being delivered is unavailable.
 
+A hungry child whose load is full can put spare unreserved supplies at their
+household House or camp to make room for food. Worn equipment, maps, held work
+supplies and delivery loads stay with them. Infants still need their caregivers.
+
 Material orders can gather wood, stone, plant fiber, clay, iron ore, gold ore
 or diamond. For example, use **Gather five wood**, **Keep gathering clay**, or
 **Gather stone at (12, 4)**. One ordinary load is the default; a quantity counts
@@ -666,7 +670,11 @@ in the morning; loading a saved world keeps its recorded time.
 
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
-heading for each day, each with an icon for its kind. An event with a known
+heading for each day, each with an icon for its kind. Lines name who was
+involved: births, deaths, partnerships, marriages, skills learned, animals and
+scouting trips all appear. Routine steps such as meals, forage trips, cart
+loading and each Town project work shift are left out, because a later line
+already reports what came of them. An event with a known
 location has a **Find** button that moves the camera there. The log grows to
 fit wrapped text and day headings until it reaches the bottom of the screen,
 then scrolls. It adjusts when the window changes size. Opening the log
@@ -897,6 +905,12 @@ available food from a stall and eat it, including during an unrelated active
 Order. That survival interruption keeps the task and its progress. Other
 Market work waits until urgent hunger passes. The
 [Market hands-on checklist](../playtest/564-market-stalls.md) remains pending.
+
+A preparing birth cannot count or spend household food on a stall while borrowing
+is active. Its food shortage is shown in the parents' cards and caregiver's
+guidance. Leaving the stall makes that food available again under the normal
+birth reserve and payment rules; enough separate household food can fund the
+birth while sale stock stays untouched.
 
 Residents can also propose a **stone street lamp** or **hanging street lantern**
 beside an existing Road. The Council approves its design, Road edge and exact

@@ -115,6 +115,20 @@ assignments, extend these guards and document its boundary here. Run the
 against the exact base and include the result in the PR. Later steps extend
 the writer ratchet to the state they move.
 
+## Client roster presentation
+
+The Godot client compares the sorted, non-draft Agents list presentation on
+each accepted observation: IDs, names, living/deceased state, readable activity,
+fullness label, Cold/Ill tags and portrait life stage. Unchanged presentation
+retains both the selection text list and native cards and portrait textures,
+including while the panel is hidden. Selection changes update the existing
+rows separately, preserving browsing position unless another agent is selected.
+
+Actual presentation changes refresh immediately, so opening a hidden list shows
+the latest accepted information. World identity, a theme change or resetting the
+displayed world invalidates reuse. This cache belongs only to client presentation;
+it changes no observation cadence, simulation state, saved data or history.
+
 ## Finding goods
 
 `Kernel/InventoryIndex.cs` caches derived inventory facts by checkpoint identity
@@ -1211,6 +1225,9 @@ as the agent's current map knowledge.
 Households make paper at an authorized House from physically delivered fiber
 and fresh water in a reusable jug. The provisional batch uses two fiber and
 one water to make two paper in sixteen work ticks, leaving the jug intact.
+The writing reserve counts healthy household sheets and sheets collected or
+reserved by eligible writers. Paper on an actively borrowed household Market
+stall stays on sale and does not prevent making replacement paper.
 
 An adult can write a field record, draw a map or bind a book from
 contents they have actually learned. A record holds at most one site and one
@@ -2406,6 +2423,14 @@ storage need or when there is no resident place, but added places use only the
 completed footprint. Unfinished expansion does not reserve room for another
 resident.
 
+The birth food gate and contribution selector exclude household food on an
+actively borrowed Market stall through the same boundary as ordinary goods
+pickup. Their queries capture both the society checkpoint and Town state;
+owner cards and private continuity guidance use that same captured state.
+Ending borrowing makes the stock eligible again. The reserve remains two
+ready-to-eat portions per active household member plus four, and the transaction
+still spends four actual portions. No collection or trade is performed by birth.
+
 **Overcrowding relocation** (`HouseRelocationRules`, `SettlementRelocation`).
 Selection uses the completed House footprint and active permanent residents.
 Volunteers come first, then existing notices and the latest eligible arrivals,
@@ -3070,7 +3095,14 @@ The orchard planting choice requires carrying room to collect a shared seed.
 An already carried planting seed remains usable at full capacity. Ordinary
 wood-tree seeds remain distinct.
 
-Urgent food recovery first sets down ordinary spare cargo. If that cannot free
+Food-room recovery is admitted and revalidated for children as well as adults
+and elders; the final child gate permits that existing self-feeding action.
+It frees only the missing physical room and preserves selected equipment,
+artifacts, work reservations and delivery loads. Infants remain excluded.
+Children use only ordinary unreserved cargo; the planting-reservation exception
+below remains an adult action.
+
+Urgent adult food recovery first sets down ordinary spare cargo. If that cannot free
 enough carrying room, it may also select the actor's own orchard propagation
 seeds. Their selected planting reservations are released in the same inventory
 transition that stores the seeds with the household, after reaching the House
@@ -3300,7 +3332,9 @@ read back by the simulation, so they cannot change a tick, a save or replay.
   checkpoint, switching worlds or restarting the host clears them until the
   next tick.
 - **`LastTickMilliseconds`** on the snapshot is the wall-clock time to prepare
-  and advance the latest committed tick, rounded to 0.1 ms. It leaves out
+  and advance the latest committed tick, including synchronous reply admission,
+  listener belief extraction, child-model selection preparation and world commit,
+  rounded to 0.1 ms. The timer pauses for runtime-gate reacquisition. It leaves out
   waiting for the runtime gate, hosted model calls between ticks and the
   checkpoint save. It is null until the first tick after start, load or a
   world switch, and the legacy fixture host never reports it.
@@ -3868,6 +3902,12 @@ Collection from another animal and saddling another horse prepare with
 order credit. The following native action rechecks permissions and foot
 capacity; existing product and fitted-saddle reservations remain held during
 preparation, and existing dismount rules preserve excess cargo.
+
+Carried milk drinking is offered with ordinary survival choices, including
+for children, and passes the final child age gate. The existing selector still
+checks ownership, physical custody, jug condition, freshness and reservations;
+drinking consumes one portion and preserves the jug. Infant self-feeding and
+adult-only animal work remain age restricted.
 
 Milk stock travels as an actual household jug to a held Store or borrowed Market
 stall, with a stock receipt at a stall. Fresh seller and buyer personal choices
