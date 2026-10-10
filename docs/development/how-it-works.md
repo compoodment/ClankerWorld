@@ -2123,7 +2123,10 @@ allow earlier proposal reconsideration.
 rechecks authority when applying choices. `civic|...` actions let actors visit
 the public notice place, read posted notices, relay them within interaction
 range, nominate another resident, register their own consent and choose proposals
-or ballots. A nomination posts a notice; only the named agent's personal response
+or ballots. Personal-model context includes at most three learned notices, with
+270 UTF-16 units per readable notice and 1,024 units in total. Both excerpts keep
+complete Unicode characters while the full notice text and read/relay receipts
+stay unchanged. A nomination posts a notice; only the named agent's personal response
 can add agreement. An adult with no Town, or a resident of another Town, may
 request their own admission at a Town's notice place. An adult with no Town may
 walk there from anywhere, and a resident of another Town from inside its border,
