@@ -46,8 +46,12 @@ opens its Main Menu; you still choose worlds in the game's **Load World**.
 **Versions** lists each installed version with its size and the worlds it last
 saved, with **Repair** (checks every file against the release) and **Remove**
 (keeps your worlds), plus the versions you can install. **Settings** has
-**Developer mode** and buttons for the saves and logs folders. The game does
-not read Developer mode yet, so F12 Developer tools still open in every build. The launcher checks each download against the
+**Developer mode**, which turns on F12 Developer tools in the game, and buttons
+for the saves and logs folders. Started without the launcher, the game turns
+Developer mode on with the `--developer-mode` start option
+(`ClankerWorld.exe -- --developer-mode`); runs from the Godot editor always
+have it. A game the launcher started has **Quit to Launcher** on its Main Menu,
+which saves, closes the game and reopens the launcher with that version chosen. The launcher checks each download against the
 release's published SHA-256 before unpacking it, never installs anything
 without your click, and never updates itself: it tells you when a newer
 launcher is published. If it can't reach GitHub, you can still play an
@@ -997,8 +1001,8 @@ placement, Enter uses the same placement action as clicking that tile. Move
 the pointer to return to mouse browsing. In **World Map**, Tab to the atlas and
 use arrows to move the camera. Key remapping is not available.
 
-Press **F12** in a world to open **Developer tools** at the right edge of the
-screen, and again to close them; **Escape** closes them once nothing newer is
+With Developer mode on, press **F12** in a world to open **Developer tools** at
+the right edge of the screen, and again to close them; **Escape** closes them once nothing newer is
 open. Time keeps running. The panel shows the coordinates and facts of the last
 tile under the pointer, the frame time, the tick time (how long the server took
 to work out the latest step of world time) and how many agents are living.

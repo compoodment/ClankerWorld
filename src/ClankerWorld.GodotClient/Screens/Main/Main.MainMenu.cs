@@ -135,6 +135,8 @@ public partial class Main
         mainMenuConnectButton.Pressed += () => _ = OpenMainMenuConnectionAsync();
         body.AddChild(mainMenuConnectButton);
 
+        BuildQuitToLauncher(body);
+
         quitGameButton.Text = "Quit Game";
         StyleMenuChoice(quitGameButton);
         quitGameButton.Pressed += () => PopupDialog(quitGameConfirmation);

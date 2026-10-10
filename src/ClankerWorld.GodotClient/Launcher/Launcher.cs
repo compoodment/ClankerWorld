@@ -52,6 +52,10 @@ public partial class Launcher : Control
         store = new GameVersionStore(layout, http);
         feed = new GameReleaseFeed(http);
         settings = LauncherSettings.Load(layout);
+        // Quit to Launcher in the game names the version it came from.
+        var chosen = OS.GetCmdlineUserArgs().FirstOrDefault(value => value.StartsWith("--choose-version=", StringComparison.Ordinal));
+        if (GameVersionName.Parse(chosen?["--choose-version=".Length..]) is { } version)
+            settings = settings with { LastPlayedVersion = version.ToString() };
         if (DisplayServer.GetName() != "headless") DisplayServer.SetIcon(MenuLogo.Icon(64));
         TextureFilter = TextureFilterEnum.Nearest;
         // A smaller window than the game's, at the same pixel scale.

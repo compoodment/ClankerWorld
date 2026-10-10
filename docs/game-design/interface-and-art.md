@@ -2,7 +2,7 @@
 title: The interface, art and audio
 type: game-design
 status: active
-updated: 2026-10-09
+updated: 2026-10-10
 ---
 
 # The interface, art and audio
@@ -206,6 +206,12 @@ everything that is available in the current build. See [what works today](../wha
   a relationship. Every direct edit is written to the Event Log as a developer
   edit, so playtest results are not mixed up with normal play. Time tools, such
   as stepping one tick, are not in the first set.
+- **Agreed on October 10
+  ([#1566](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1566)):**
+  **F12** works only in **Developer mode**. The launcher's Settings turn it on
+  and pass it to the game as a start option; a game started without the
+  launcher uses the same start option, with no in-game switch. A game the
+  launcher started offers **Quit to Launcher** on its Main Menu.
 - **Agreed after the October 2 panel review:** computment accepted redesigns
   of the panels that had not been touched yet, shown as before-and-after game
   screenshots, with these changes of their own:

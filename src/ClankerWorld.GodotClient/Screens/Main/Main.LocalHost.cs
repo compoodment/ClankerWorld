@@ -81,6 +81,7 @@ public partial class Main
     {
         if (localHost is null)
         {
+            OpenLauncherIfAsked();
             GetTree().Quit();
             return;
         }
@@ -93,6 +94,7 @@ public partial class Main
         }
         finally
         {
+            OpenLauncherIfAsked();
             GetTree().Quit();
         }
     }
