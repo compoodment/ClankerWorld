@@ -45,6 +45,12 @@ internal static partial class OwnerEndpoints
             await next(context);
         });
 
+        // Prove that this listener is the companion holding the game's secret,
+        // without creating a pairing or changing the world.
+        app.MapGet("/api/v1/local/companion", (HttpContext context, OwnerPairingHostOptions options) =>
+            options.IsCompanionHost && options.IsLocalApprovalRequest(context)
+                ? Results.Ok() : Results.NotFound());
+
         app.MapPost("/api/v1/local/pairings", (
             StartOwnerPairingHttpRequest request, HttpContext context, OwnerPairingHostOptions options,
             OwnerAuthorityStore authority, OwnerAuthorityStateFile stateFile) =>
