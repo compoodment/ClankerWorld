@@ -375,6 +375,42 @@ public partial class Main
             if (!conversationReaderStatus.Text.StartsWith("Interrupted · world paused", StringComparison.Ordinal))
                 throw new InvalidOperationException("An interrupted conversation must keep its pause reason visible in the summary.");
 
+            var unicodeFailures = new List<string>();
+            foreach (var limit in new[] { 150, 80 })
+                foreach (var (character, units) in new[] { ("e\u0301", 1), ("🇳🇿", 2), ("👨‍👩", 2), ("🌱", 1) })
+                {
+                    var prefix = new string('W', limit - units);
+                    var text = prefix + character + " public words";
+                    var unicodeConversation = conversations[0] with
+                    {
+                        Turns = conversations[0].Turns.Select((turn, index) => index == 6 ? turn with { Text = text } : turn).ToArray(),
+                    };
+                    var unicodeMap = conversationMap with { Conversations = [unicodeConversation] };
+                    RenderMap(unicodeMap);
+                    OpenConversationReader(unicodeMap, firstAgentId, unicodeConversation.Id);
+                    var preview = limit == 150 ? conversationReaderSummary.Text : inhabitantVisuals[firstAgentId].TooltipText;
+                    if (!preview.Contains(prefix + "...", StringComparison.Ordinal))
+                        unicodeFailures.Add($"{limit}-unit preview split {character}");
+                    conversationHistoryExpanded = true;
+                    RenderConversationReader(unicodeMap, unicodeConversation, firstAgentId, 0);
+                    if (!conversationHistoryText.Text.Contains(text, StringComparison.Ordinal))
+                        throw new InvalidOperationException("Shortening a preview must keep the complete heard public turn in expanded history.");
+                }
+            var shortSpeech = "Good 🌱";
+            var shortConversation = conversations[0] with
+            {
+                Turns = conversations[0].Turns.Select((turn, index) => index == 6 ? turn with { Text = shortSpeech } : turn).ToArray(),
+            };
+            var shortMap = conversationMap with { Conversations = [shortConversation] };
+            RenderMap(shortMap);
+            OpenConversationReader(shortMap, firstAgentId, shortConversation.Id);
+            if (!conversationReaderSummary.Text.Contains(shortSpeech, StringComparison.Ordinal) ||
+                !inhabitantVisuals[firstAgentId].TooltipText.Contains(shortSpeech, StringComparison.Ordinal))
+                throw new InvalidOperationException("A complete short public turn must remain intact in both previews.");
+            RenderMap(conversationMap);
+            if (unicodeFailures.Count > 0)
+                throw new InvalidOperationException("Conversation previews must retain whole visible characters: " + string.Join("; ", unicodeFailures));
+
             var surname = new OwnerWorldConversation("conversation:ui-surname", firstAgentId, "Aster Ash", secondAgentId, "Rowan Ash",
                 "closed", null, "surname_draw", 8, 12,
                 Enumerable.Range(0, 4).Select(index => new OwnerWorldConversationTurn(
