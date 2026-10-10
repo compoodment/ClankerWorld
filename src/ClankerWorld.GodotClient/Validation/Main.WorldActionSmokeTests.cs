@@ -99,6 +99,31 @@ public partial class Main
                 host.ReleaseSelect.SetResult();
                 await opening.WaitAsync(TimeSpan.FromSeconds(5));
             }
+
+            // A world another version saved names that version on a red button.
+            // Started without the launcher, the game can only say which version to start.
+            using (var host = new WorldActionSmokeHost(key.PublicKeySpkiBase64))
+            {
+                registration = new(host.Authority, "smoke-device", key.PublicKeyFingerprint, host.Address);
+                worldUrlInput.Text = host.Address;
+                ShowWorldActionSmokeMenu();
+                var older = WorldActionSmokeCatalog(["A", "B"]);
+                host.Catalog = older with
+                {
+                    Worlds = [older.Worlds[0], older.Worlds[1] with { Compatibility = OtherVersion, GameVersion = "0.0.1-older" }],
+                };
+                await RefreshWorldListAsync();
+                ChooseWorldActionSmokeRow(1);
+                if (worldSelectButton.Text != "Open in 0.0.1-older" || worldSelectButton.ThemeTypeVariation != "DangerButton" ||
+                    !worldSelectButton.Disabled || !worldMenuStatus.Text.Contains("Start that version", StringComparison.Ordinal))
+                    throw new InvalidOperationException("A world another version saved must name that version on a red button.");
+                await SelectListedWorldAsync();
+                if (host.PauseCount != 0 || openInVersionConfirmation.Visible)
+                    throw new InvalidOperationException("Without the launcher, Open in another version must not try to open the world.");
+                ChooseWorldActionSmokeRow(0);
+                if (worldSelectButton.Text != "Open World" || worldSelectButton.ThemeTypeVariation != "PrimaryButton")
+                    throw new InvalidOperationException("Other worlds keep the green Open World button.");
+            }
         }
         finally
         {

@@ -41,6 +41,7 @@ public partial class Launcher : Control
     private IReadOnlyList<InstalledVersion> installed = [];
     private ReleaseFeedResult releases = new([], null);
     private bool releasesReached;
+    private string? requestedVersion;
     private bool busy;
 
     public override void _Ready()
@@ -55,7 +56,10 @@ public partial class Launcher : Control
         // Quit to Launcher in the game names the version it came from.
         var chosen = OS.GetCmdlineUserArgs().FirstOrDefault(value => value.StartsWith("--choose-version=", StringComparison.Ordinal));
         if (GameVersionName.Parse(chosen?["--choose-version=".Length..]) is { } version)
+        {
             settings = settings with { LastPlayedVersion = version.ToString() };
+            requestedVersion = version.ToString();
+        }
         if (DisplayServer.GetName() != "headless") DisplayServer.SetIcon(MenuLogo.Icon(64));
         TextureFilter = TextureFilterEnum.Nearest;
         // A smaller window than the game's, at the same pixel scale.
@@ -145,7 +149,11 @@ public partial class Launcher : Control
     {
         ((BoxContainer)playPage).AddThemeConstantOverride("separation", 10);
         playPage.AddChild(new Label { Text = "Version" });
-        versionChoice.ItemSelected += _ => UpdatePlayButton();
+        versionChoice.ItemSelected += _ =>
+        {
+            requestedVersion = null;
+            UpdatePlayButton();
+        };
         playPage.AddChild(versionChoice);
         playButton.Text = "Play";
         StyleButton(playButton, primary: true);
@@ -272,7 +280,8 @@ public partial class Launcher : Control
     private void RefreshInstalled()
     {
         installed = store.Installed();
-        var previous = versionChoice.Selected >= 0 ? versionChoice.GetItemText(versionChoice.Selected) : settings.LastPlayedVersion;
+        var previous = requestedVersion ??
+            (versionChoice.Selected >= 0 ? versionChoice.GetItemText(versionChoice.Selected) : settings.LastPlayedVersion);
         versionChoice.Clear();
         foreach (var name in Choices())
         {
@@ -291,6 +300,10 @@ public partial class Launcher : Control
             (releases.Games.Count > 0 ? releases.Games[0] : null);
         if (newest is not null && installed.All(version => version.Version != newest.Version))
             yield return newest.Version.ToString();
+        // A version the game asked for, to open a world it saved, can be installed from here too.
+        var wanted = releases.Games.FirstOrDefault(release => release.Version.ToString() == (requestedVersion ?? settings.LastPlayedVersion));
+        if (wanted is not null && wanted != newest && installed.All(version => version.Version != wanted.Version))
+            yield return wanted.Version.ToString();
         foreach (var version in installed) yield return version.Version.ToString();
     }
 
@@ -500,6 +513,10 @@ public partial class Launcher : Control
             RefreshInstalled();
             Expect(playButton.Text == "Install and Play 0.1.0-alpha.2", "Play offers the newest release");
             Expect(launcherUpdate.Visible, "A newer launcher is announced, never installed");
+            // The game's red Load World button asks for the version that saved a world.
+            requestedVersion = "0.1.0-alpha.1";
+            RefreshInstalled();
+            Expect(playButton.Text == "Install and Play 0.1.0-alpha.1", "The version a world needs is chosen");
             versionsTab.EmitSignal(BaseButton.SignalName.Pressed);
             Expect(versionsPage.Visible && availableRows.GetChildCount() == 2, "Versions lists both releases");
             settingsTab.EmitSignal(BaseButton.SignalName.Pressed);
@@ -515,7 +532,7 @@ public partial class Launcher : Control
             try { Directory.Delete(layout.Root, recursive: true); }
             catch (DirectoryNotFoundException) { }
         }
-        if (failures.Count == 0) GD.Print("Launcher checks passed: pages, version choice, release list, launcher notice and Developer mode.");
+        if (failures.Count == 0) GD.Print("Launcher checks passed: pages, version choice, release list, launcher notice, the version a world needs and Developer mode.");
         else GD.PrintErr("Launcher checks failed: " + string.Join("; ", failures));
         GetTree().Quit(failures.Count == 0 ? 0 : 1);
     }

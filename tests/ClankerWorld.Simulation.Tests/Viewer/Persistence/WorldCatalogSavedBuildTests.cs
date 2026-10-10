@@ -39,6 +39,20 @@ public sealed class WorldCatalogSavedBuildTests
         finally { directory.Delete(recursive: true); }
     }
 
+    [Fact]
+    public void AnUnrestorableWorldAnotherVersionSavedCanBeOpenedThere()
+    {
+        var world = new CatalogWorld(new string('a', 32), "Old", "world", "seed", DateTimeOffset.UnixEpoch, [], null,
+            GameVersion: "0.0.1-older");
+
+        var other = WorldSelectionCoordinator.Unrestorable(world);
+        Assert.Equal(WorldSelectionCoordinator.OtherVersion, other.Compatibility);
+        Assert.Contains("0.0.1-older", other.CompatibilityReason, StringComparison.Ordinal);
+        // A damaged save from this build, or one from before versions were recorded, stays "can't open".
+        Assert.Equal("incompatible", WorldSelectionCoordinator.Unrestorable(world with { GameVersion = BuildInformation.Version }).Compatibility);
+        Assert.Equal("incompatible", WorldSelectionCoordinator.Unrestorable(world with { GameVersion = null }).Compatibility);
+    }
+
     private static void AssertThisBuild(CatalogWorld world)
     {
         Assert.Equal(BuildInformation.Version, world.GameVersion);

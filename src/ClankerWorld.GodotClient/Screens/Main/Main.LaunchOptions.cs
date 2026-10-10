@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using ClankerWorld.GodotClient.UI;
 using Godot;
 
 namespace ClankerWorld.GodotClient;
@@ -15,7 +16,10 @@ public partial class Main
     private const string LauncherOption = "--launcher=";
     private readonly Button quitToLauncherButton = new();
     private readonly ConfirmationDialog quitToLauncherConfirmation = new();
+    private const string OtherVersion = "other_version";
+    private readonly ConfirmationDialog openInVersionConfirmation = new();
     private bool openLauncherOnQuit;
+    private string launcherVersionOnQuit = BuildInformation.Version;
     private bool? developerMode;
     private string? launcherPath;
     private bool launcherPathRead;
@@ -52,7 +56,34 @@ public partial class Main
             QuitGame();
         };
         AddChild(quitToLauncherConfirmation);
+
+        StyleConfirmation(openInVersionConfirmation, "Open in another version?", "Open in Launcher");
+        openInVersionConfirmation.Confirmed += () =>
+        {
+            openLauncherOnQuit = true;
+            QuitGame();
+        };
+        AddChild(openInVersionConfirmation);
     }
+
+    /// <summary>
+    /// The red Load World button for a world another version saved: save and
+    /// close this game, and open the launcher with that version chosen. The
+    /// launcher offers to download it if it isn't installed.
+    /// </summary>
+    private void OpenInSavedVersion(CatalogWorld world)
+    {
+        if (world.GameVersion is not { Length: > 0 } version || LauncherPath is null) return;
+        launcherVersionOnQuit = version;
+        openInVersionConfirmation.DialogText =
+            $"ClankerWorld {version} last saved {world.Name}. Save and close this game, then choose {version} in the launcher to open it?";
+        PopupDialog(openInVersionConfirmation);
+    }
+
+    /// <summary>What Load World says about a world another version saved.</summary>
+    private string OtherVersionStatus(CatalogWorld world) => LauncherPath is null
+        ? $"ClankerWorld {world.GameVersion} saved this world. Start that version to open it. Your save is safe."
+        : $"ClankerWorld {world.GameVersion} saved this world. Choose Open in {world.GameVersion} to play it there. Your save is safe.";
 
     /// <summary>Opens the launcher with this version chosen, as the game closes.</summary>
     private void OpenLauncherIfAsked()
@@ -62,7 +93,7 @@ public partial class Main
         {
             var start = new ProcessStartInfo(path) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(path) };
             start.ArgumentList.Add("--");
-            start.ArgumentList.Add("--choose-version=" + BuildInformation.Version);
+            start.ArgumentList.Add("--choose-version=" + launcherVersionOnQuit);
             Process.Start(start)?.Dispose();
         }
         catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or IOException)
