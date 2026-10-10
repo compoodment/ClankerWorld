@@ -573,7 +573,11 @@ public sealed partial class PrivateWorldRuntime
                     worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId)?.Position);
             else
                 AppendEvent(completed ? "recipe_completed" : "recipe_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
-            if (completed) CreditProductionOrderJob(job, recipe);
+            if (completed)
+            {
+                LearnProducedRecipe(job, recipe, targetTick);
+                CreditProductionOrderJob(job, recipe);
+            }
         }
     }
 

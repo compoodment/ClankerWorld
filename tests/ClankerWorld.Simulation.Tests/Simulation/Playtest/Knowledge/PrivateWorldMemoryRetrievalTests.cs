@@ -160,6 +160,7 @@ public sealed class PrivateWorldMemoryRetrievalTests
         const string repeatedExperience = "Mira described a quasar, tungsten, zirconium, and xylophonic monolith.";
         var memories = new[]
         {
+            new SocietySocialMemory("permanent-rename", "founder-scout", "founder-scout", "I was renamed on day 1 to Scout Vale.", "private", 0, Permanent: true),
             new SocietySocialMemory("experience-major", "founder-scout", "founder-mira", repeatedExperience, "private", 0),
             new SocietySocialMemory("experience-low-1", "founder-scout", "founder-rowan", repeatedExperience, "private", 0),
             new SocietySocialMemory("experience-low-2", "founder-scout", "founder-ilya", repeatedExperience, "private", 0),
@@ -194,7 +195,7 @@ public sealed class PrivateWorldMemoryRetrievalTests
         var compaction = Assert.Single(world.Society.MemoryCompactions!, item => item.OwnerId == "founder-scout");
         Assert.Equal(6, compaction.Sources.Count);
         Assert.Contains(compaction.Sources, item => item.Kind == SocietyMemorySourceKind.Belief && item.SourceId == belief.Id);
-        Assert.DoesNotContain(compaction.Sources, item => item.SourceId == "other-agent-secret");
+        Assert.DoesNotContain(compaction.Sources, item => item.SourceId is "other-agent-secret" or "permanent-rename");
         Assert.Equal(1, provider.JevDecisionCount);
         Assert.Equal(memories.OrderBy(item => item.Id, StringComparer.Ordinal), world.Society.Memories);
         Assert.Equal(belief, Assert.Single(world.Society.Beliefs!));
@@ -219,6 +220,7 @@ public sealed class PrivateWorldMemoryRetrievalTests
         Assert.Equal(1, provider.PersonalDecisionCount);
         Assert.Null(personal.MemoryCompactionCandidates);
         Assert.Equal(4, personal.RetrievedMemories!.Count);
+        Assert.Equal("permanent-rename", personal.RetrievedMemories[0].Id);
         var recalledMajorExperience = Assert.Single(personal.RetrievedMemories!, item => item.Id == "experience-major");
         Assert.Equal(repeatedExperience, recalledMajorExperience.Summary);
         Assert.Equal(10_000, recalledMajorExperience.ImportanceBasisPoints);

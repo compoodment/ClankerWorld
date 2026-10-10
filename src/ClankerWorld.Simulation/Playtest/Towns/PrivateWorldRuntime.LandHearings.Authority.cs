@@ -31,6 +31,7 @@ public sealed partial class PrivateWorldRuntime
         while (lots.Any(lot => lot.ContainerLotId is { } parent && onsite.Contains(parent) && !onsite.Contains(lot.Id)))
             foreach (var lot in lots.Where(lot => lot.ContainerLotId is { } parent && onsite.Contains(parent))) onsite.Add(lot.Id);
         return item.Filings.Where(filing => filing.AgentId is not null).Select(filing => filing.AgentId!)
+            .Concat(item.Property is { } property ? TownPropertyRules.RequiredConsent(property.Snapshots[^1]) : [])
             .Concat(buildings.Where(building => building.HouseholdId is not null).SelectMany(building => HouseholdAdults(building.HouseholdId!)))
             .Concat(fields.Where(field => tiles.Contains(field.Position)).SelectMany(field => HouseholdAdults(field.HouseholdId)))
             .Concat(lots.Where(lot => onsite.Contains(lot.Id)).SelectMany(lot => agents.Contains(lot.OwnerId) ? new[] { lot.OwnerId } : HouseholdAdults(lot.OwnerId)))

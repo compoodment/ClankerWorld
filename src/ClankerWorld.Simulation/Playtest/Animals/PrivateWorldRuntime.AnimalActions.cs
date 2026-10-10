@@ -240,6 +240,7 @@ public sealed partial class PrivateWorldRuntime
         var people = society.Checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active && person.HouseholdId == household)
             .Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
         var ready = society.Checkpoint.Inventory.Lots.Where(item => IsEdibleFood(item.ItemKind) &&
+            InUsableVesselOrLoose(item) && !OnBorrowedMarketStall(item) &&
             (item.OwnerId == household || people.Contains(item.OwnerId))).Sum(AvailableLotQuantity);
         return ready - quantity >= people.Count * 2 + (inhabitants.Values.Any(person => people.Contains(person.InhabitantId) && ActiveParenthood(person.Parenthood)) ? 4 : 0);
     }
@@ -259,8 +260,8 @@ public sealed partial class PrivateWorldRuntime
         });
     }
     private InventoryLot? CarriedMilk(string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.ItemKind == "milk" && lot.ContainerLotId is { } jug &&
-        society.Checkpoint.Inventory.GetLot(jug).ConditionBasisPoints > 0 && AvailableLotQuantity(lot) > 0 &&
+        lot.ItemKind == "milk" && lot.DeliveryBuildingId is null && lot.ContainerLotId is { } jug &&
+        society.Checkpoint.Inventory.GetLot(jug) is { ConditionBasisPoints: > 0, DeliveryBuildingId: null } && AvailableLotQuantity(lot) > 0 &&
         PersonalEquipmentRules.IsPhysicallyCarried(society.Checkpoint.Inventory, lot, actor) &&
         (lot.OwnerId == actor || lot.OwnerId == HouseholdFor(actor)));
 

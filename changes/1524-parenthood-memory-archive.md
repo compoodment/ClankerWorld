@@ -1,0 +1,1 @@
+- Completed or postponed parenthood plans no longer keep ordinary old memories and beliefs from moving into the private archive. Active plans and lasting memories remain protected.

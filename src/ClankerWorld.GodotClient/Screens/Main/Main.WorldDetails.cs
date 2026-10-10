@@ -12,8 +12,7 @@ public partial class Main
     {
         var snapshot = observationSession.Current?.Baseline.Snapshot;
         var offersNewcomer = WorldEventText.OffersNewcomer(snapshot);
-        var entries = knownEvents.Values
-            .Where(worldEvent => GameUiText.IsPlayerFacingEvent(worldEvent.Kind))
+        var entries = GameUiText.PlayerEvents(knownEvents.Values)
             .OrderByDescending(worldEvent => worldEvent.EventId)
             .Take(30)
             .Select(worldEvent => (worldEvent.EventId, Located: worldEvent.Position is not null,
@@ -114,7 +113,7 @@ public partial class Main
             !knownEvents.TryGetValue(id, out var worldEvent) ||
             worldEvent.Position is not { } position)
             return;
-        CenterCameraAt(new Vector2(position.X + 0.5f, position.Y + 0.5f));
+        CenterKeyboardCameraAt(new Vector2(position.X + 0.5f, position.Y + 0.5f));
         eventsPanel.Hide();
     }
 

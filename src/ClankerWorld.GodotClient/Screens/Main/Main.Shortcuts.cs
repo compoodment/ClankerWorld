@@ -44,6 +44,7 @@ public partial class Main
     /// </summary>
     public override void _Input(InputEvent @event)
     {
+        if (HandleKeyboardNavigationInput(@event)) return;
         // Observe releases before a menu or another GUI control consumes them.
         if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Middle, Pressed: false })
             draggingMap = false;
@@ -104,6 +105,9 @@ public partial class Main
             case Key.H:
                 CenterOnHome();
                 return true;
+            case Key.K:
+                mapCanvas.GrabFocus();
+                return true;
             case Key.Equal or Key.Plus or Key.KpAdd:
                 ZoomAt(mapCanvas.Size / 2, zoomIn: true);
                 return true;
@@ -143,7 +147,7 @@ public partial class Main
     private void CenterOnHome()
     {
         if (renderedMapSnapshot is not { } snapshot || terrainMap is null || !HasMap(snapshot)) return;
-        CenterCameraAt(InitialCameraCenter(snapshot, terrainMap));
+        CenterKeyboardCameraAt(InitialCameraCenter(snapshot, terrainMap));
     }
 
     /// <summary>Zooms one step while keeping the world point under <paramref name="canvasPoint"/> fixed.</summary>

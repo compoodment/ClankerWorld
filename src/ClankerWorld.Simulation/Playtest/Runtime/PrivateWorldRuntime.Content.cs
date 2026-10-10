@@ -410,6 +410,7 @@ public sealed partial class PrivateWorldRuntime
                 : null;
             var workDuration = knife is null ? recipe.DurationTicks :
                 ToolProgressionRules.WorkDuration(recipe.DurationTicks, knife.WorkUnits);
+            workDuration = SkilledWorkTicks(normalizedWorkerId, SkillForRecipe(recipe), workDuration);
             var jobId = $"production-{worldSimulation.NextProductionJobSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}";
             var completionTick = checked(WorldTick + workDuration);
             // A handcart belongs to the adult who builds it, not to the Blacksmith's household.
