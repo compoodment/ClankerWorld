@@ -64,7 +64,13 @@ public sealed class MarketResourceIdentityTests
             presence.RecordAuthenticatedReconnect("test-owner");
             async Task<PrivateWorldRuntimeState> RunPhaseAsync(PrivateWorldRuntimeState initial, Func<PrivateWorldRuntime, bool> done)
             {
-                using var world = PrivateWorldRuntime.Restore(initial, policy.CreateProvider);
+                // A changed test policy wakes a fresh turn at the completed phase boundary.
+                // Every actual position, lot, offer, receipt and occupancy remains intact.
+                using var world = PrivateWorldRuntime.Restore(initial with
+                {
+                    Inhabitants = initial.Inhabitants.Select(person => person.InhabitantId == buyer || person.InhabitantId == seller
+                        ? person with { LastDecisionContext = null } : person).ToArray(),
+                }, policy.CreateProvider);
                 file.Save(world);
                 using var host = new PrivateWorldRuntimeService(world, file, presence);
                 for (var tick = 0; tick < 120 && !done(world); tick++)

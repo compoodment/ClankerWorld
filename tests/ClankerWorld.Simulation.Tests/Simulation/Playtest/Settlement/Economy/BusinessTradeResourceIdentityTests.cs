@@ -24,7 +24,7 @@ public sealed partial class BusinessTradeTests
         var recipe = new RecipeDefinition(digest, "payment", version, "Make payment",
             [new("wood", 1)], [new(kind, 1)], 1, shop.DefinitionId, []);
         var definition = new ContentDefinition(RecipeDefinition.SchemaKind, recipe.LocalId, version,
-            recipe.DisplayName, digest, JsonSerializer.Serialize(new
+            recipe.DisplayName, recipe.PayloadDigest, JsonSerializer.Serialize(new
             {
                 schema = "recipe/v1",
                 recipe.Inputs,
@@ -83,6 +83,11 @@ public sealed partial class BusinessTradeTests
                 var offer = offering.Society.Inventory.GetOffer(trade.OfferId);
                 Assert.Equal(DirectBarterState.Open, offer.State);
                 Assert.Equal(kind, offering.Society.Inventory.GetLot(offer.SecondLotId).ItemKind);
+                var altered = offering.ExportState() with
+                {
+                    BusinessTrades = [trade with { PaymentKind = kind[..^1] + "z" }],
+                };
+                Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(altered));
                 offering.Resume();
                 Assert.True(await host.TryAdvanceOnceAsync());
                 Assert.False(offering.Society.IsPaused);
