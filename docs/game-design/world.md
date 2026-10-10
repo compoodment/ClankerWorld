@@ -66,22 +66,23 @@ everything that is available in the current build. See [what works today](../wha
   signing (a publisher signature on the files) come later.
 - **Agreed on October 10
   ([#468](https://github.com/ClankerWorldOrg/ClankerWorld/issues/468)):** the
-  first alpha, `v0.1.0-alpha.1`, is that portable zip. The player opens
-  `ClankerWorld.exe`, which starts the bundled host in the background, waits
-  until it is ready and opens the main menu. There is no separate launcher
-  window in this first package. If the host cannot start, the game says so and
-  offers to try again. The game files sit in a folder named for their version,
-  and the player's saves, keys and model-call count sit in their own Windows
-  user folder, so replacing or adding a version never touches them. Each saved
-  world records the game version that last saved it.
+  first alpha, `v0.1.0-alpha.1`, is the portable zip together with the
+  launcher below, and it is the first release whose changelog carries a
+  version. The game itself, `ClankerWorld.exe`, starts the bundled host in the
+  background, waits until it is ready and opens the main menu, so it also runs
+  on its own without the launcher. If the host cannot start, the game says so
+  and offers to try again. The game files sit in a folder named for their
+  version, and the player's saves, keys and model-call count sit in their own
+  Windows user folder, so replacing or adding a version never touches them.
+  Each saved world records the game version that last saved it.
 - **Agreed on October 10
   ([#1259](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1259)):**
-  from the second alpha, a **launcher** keeps the game up to date and lets the
-  player choose which installed version to play. It downloads new versions
-  from the project's published releases, checks that each download is exactly
-  the published file before running it, and keeps earlier versions installed.
-  When a newer version cannot load a world, the launcher offers the version
-  that last saved it, so an alpha update never strands a world. A **per-user
+  a **launcher** keeps the game up to date and lets the player choose which
+  installed version to play. It downloads new versions from the project's
+  published releases, checks that each download is exactly the published file
+  before running it, and keeps earlier versions installed. When a newer
+  version cannot load a world, the launcher offers the version that last saved
+  it, so an alpha update never strands a world. In a later alpha, a **per-user
   installer** that needs no administrator rights installs the launcher, adds a
   Start-menu and desktop shortcut and can uninstall it without removing saves.
   Code signing still comes later, so Windows may warn about an unknown
