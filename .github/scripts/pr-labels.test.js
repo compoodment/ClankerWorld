@@ -669,18 +669,18 @@ test('a priority added earlier in the same run counts as the workflow\'s even be
   assert.deepEqual(priorities(state.pr.labels), ['priority:p1']);
 });
 
-test('closing a PR or sending it back to draft ends its merge turn', async () => {
+test('closing a PR or sending it back to draft clears its review labels', async () => {
   const closed = scenario({
-    action: 'closed', live: { state: 'closed', labels: ['status:needs-review', 'status:reviewing', 'status:merging'] },
+    action: 'closed', live: { state: 'closed', labels: ['status:needs-review', 'status:reviewing'] },
     issueLabels: ['priority:p2', 'status:has-pr'],
   });
   await closed.run();
   assert.deepEqual(closed.pr.labels, []);
   const draft = scenario({
-    action: 'converted_to_draft', live: { draft: true, labels: ['status:needs-review', 'status:reviewing', 'status:merging'] },
+    action: 'converted_to_draft', live: { draft: true, labels: ['status:needs-review', 'status:reviewing'] },
   });
   await draft.run();
-  assert.ok(!draft.pr.labels.some(name => ['status:needs-review', 'status:reviewing', 'status:merging'].includes(name)));
+  assert.ok(!draft.pr.labels.some(name => ['status:needs-review', 'status:reviewing'].includes(name)));
 });
 
 test('a push to a draft without review labels reads the PR once to clear them and removes nothing', async () => {

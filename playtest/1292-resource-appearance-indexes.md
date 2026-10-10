@@ -1,0 +1,1 @@
+- On Small and Medium worlds, pause and zoom repeatedly, then plant and fell trees, harvest and regenerate natural sites, and use camp supplies; check that their art updates immediately. Load another world and return to confirm no old resource sprites remain. [#1292](https://github.com/compoodment/ClankerWorld/issues/1292)

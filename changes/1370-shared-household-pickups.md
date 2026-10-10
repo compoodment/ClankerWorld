@@ -1,0 +1,1 @@
+- Household equipment, planting supplies and animal-care cargo share pickup checks for usable stock, reserved vessels, delivery and Market promises, ownership, whole-jug carrying space and reachable paths.

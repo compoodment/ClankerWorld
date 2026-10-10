@@ -12,6 +12,7 @@ public sealed class ArtSet
 {
     public string Name = "current";
     public Func<TerrainStyle, int, int, Image> Tile = TerrainTextures.Tile;
+    public Func<TerrainStyle, Color> GroundColour = TerrainTextures.BaseColor;
     public Func<int, int, Image> Hill = TerrainTextures.HillOverlay;
     public Func<TerrainStyle, int, int, int, Image> WaterTile = (style, x, y, size) =>
         WaterTextures.Atlas(size).GetImage().GetRegion((Rect2I)WaterTextures.Region(style, x, y, size));
@@ -252,7 +253,7 @@ public static class SceneComposer
                             foreach (var (_, piece) in pieces)
                                 Place(image, Tint(art.CoastPiece(CoastEdges.FoamRow, piece, atlasSize), CoastEdges.Foam), px, py, tileSize);
                         foreach (var (land, piece) in pieces)
-                            Place(image, Tint(art.CoastPiece(CoastEdges.LandRow, piece, atlasSize), TerrainTextures.BaseColor(land)), px, py, tileSize);
+                            Place(image, Tint(art.CoastPiece(CoastEdges.LandRow, piece, atlasSize), art.GroundColour(land)), px, py, tileSize);
                     }
                     continue;
                 }

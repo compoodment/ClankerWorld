@@ -1,0 +1,1 @@
+- Unreachable household stock no longer prevents Blacksmith supply from gathering local wood or ore. Routine supply and supply orders use current pickup and delivery routes while leaving remote stock in place.

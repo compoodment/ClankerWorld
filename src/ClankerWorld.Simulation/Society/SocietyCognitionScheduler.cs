@@ -260,7 +260,7 @@ public sealed class SocietyCognitionScheduler
         if (index < 0) return;
         var entry = queue[index];
         var self = entry.Observation.Self is { } previousSelf
-            ? previousSelf with { Name = name, Personality = personality, Aspiration = aspiration }
+            ? previousSelf with { Name = name, Personality = personality, Aspiration = aspiration, FamilyBackground = null }
             : null;
         if (!entry.Observation.NeedsPersonality && !entry.Observation.NeedsAspiration &&
             entry.Observation.Self == self)
