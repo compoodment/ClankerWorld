@@ -939,6 +939,10 @@ Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
+Rain falls as straight streaks with tiny landing bursts. Storm streaks arrive
+in gusts, and snowflake crosses drift sideways. The weather stays light enough
+to read the map and freezes with the world when paused.
+
 Game Settings controls the window, theme, weather effects, date/time format
 and the model-call limit.
 Dates name the season and its day, such as **Autumn 2, Year 1 · 14:20**; a new
