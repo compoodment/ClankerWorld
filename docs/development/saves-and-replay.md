@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Saves and replay
@@ -652,14 +652,30 @@ food, cancellation/replacement, exact targeting, full/partial knowledge limits,
 malformed progress and rejected read ticks. This number is provisional until
 merge. Older alpha checkpoints are refused and preserved without migration.
 
-Private-world schema 117 adds typed default estate laws to Town law drafts
+Private-world schema 117 adds `propose_marriage` orders using the existing
+`TargetAgentId`, `TalkConversationId` and `TalkOutcome` fields. A selected partner
+stays bound; an order without a partner must have neither a conversation nor
+progress. Linked orders identify one actual ordinary invitation between their
+actor and target. Completion requires a deterministic `marriage-order:` receipt
+and the actual closed outcome: `refused`, `proposal_declined`, `not_proposed` or
+another native unsuccessful outcome. `married` additionally requires completed
+native marriage and surname records. Retained marriage consent also verifies
+closed order outcomes after ordinary history is trimmed. Accepted consent without a finished surname
+leaves progress at zero. Existing marriage validation protects both consent and
+surname receipts. Reload stops accepted ordinary or surname conversations,
+clears one-sided resume choices and requires both personal models again.
+Cancellation and replay preserve actual consent without duplicating task or
+marriage effects; rejected ticks admit neither. The number is provisional until
+merge. Older alpha saves are refused and preserved without migration.
+
+Private-world schema 118 adds typed default estate laws to Town law drafts
 and version history. The bounded Town share, exact prospective wording,
 Resident-duty scope, Council proposal and historical version must agree;
 missing shares, mismatched effects and overlapping rules are refused.
 At settlement, the deceased resident's saved Town and the law history at their
 death derive the default division. No extra mutable estate-policy snapshot is
 saved. A valid will wins, and adoption, later amendment or repeal cannot change
-an earlier death's division. The number is provisional until merge; schema 116
+an earlier death's division. The number is provisional until merge; schema 117
 and older alpha saves are refused and preserved without migration.
 
 Private-world schema 84 adds required marriage records and conversation kinds.
@@ -912,6 +928,14 @@ does not change. An older build refuses, and keeps, a save that places an
 agent, a map memory, an exploration path or traffic evidence in a two-tile
 river.
 
+Swimming uses existing physical position, warmth and travel-cooldown fields;
+there is no new save field or schema version. Live and archived positions may
+lie in a wide river or lake. A sea position still requires the saved boat
+passenger evidence. Loading does not apply the starting warmth, illness or load
+gate to someone already in swimming water: they must be able to reach shore.
+Refused ticks commit no movement or warmth loss. Older builds refuse and keep
+a checkpoint that places an agent in swimming water.
+
 Scouting waypoints record already walked steps, rather than permission to
 repeat those steps now. Loading checks each ordered edge against the current
 bridge map or against the same terrain with only bridges built strictly before
@@ -966,7 +990,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 117. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 118. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus

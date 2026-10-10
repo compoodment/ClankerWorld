@@ -5,6 +5,36 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private static void VerifyMarriageOrderText()
+    {
+        var instruction = new OwnerWorldInstruction("marriage-ui", "agent-a", "must_do", "Propose marriage", "current", 1, 1, 1,
+            Order: new("propose_marriage", "doing", 1, 0, "marriage_attempts", false, TargetAgentId: "agent-b", TalkStatus: "surname_ready"));
+        var pending = InstructionOrderSummary(instruction);
+        if (!pending.Contains("Proposing marriage to their partner", StringComparison.Ordinal) ||
+            !pending.Contains("0/1 marriage attempts completed", StringComparison.Ordinal) ||
+            !pending.Contains("Marriage agreed; choosing a shared surname", StringComparison.Ordinal))
+            throw new InvalidOperationException($"An unfinished marriage order must show the real surname stage: {pending}");
+        foreach (var (outcome, text) in new[]
+        {
+            ("married", "Marriage and surname completed"),
+            ("proposal_declined", "Marriage proposal declined"),
+            ("not_proposed", "Marriage not proposed"),
+            ("refused", "Invitation refused"),
+        })
+        {
+            var finished = InstructionOrderSummary(instruction with
+            {
+                Order = instruction.Order! with
+                { Status = "finished", CompletedUnits = 1, TalkOutcome = outcome }
+            });
+            if (!finished.Contains(text, StringComparison.Ordinal))
+                throw new InvalidOperationException($"The marriage order must distinguish its actual outcome: {finished}");
+        }
+        var stopped = InstructionOrderSummary(instruction with { Order = instruction.Order! with { TalkStatus = "surname_suspended" } });
+        if (!stopped.Contains("Marriage agreed; surname conversation stopped", StringComparison.Ordinal))
+            throw new InvalidOperationException($"A stopped surname conversation is unfinished: {stopped}");
+    }
+
     /// <summary>
     /// The Profile names whose model made the latest choice without "chosen
     /// by", previews only the newest thought in two lines, lists people with
@@ -16,6 +46,7 @@ public partial class Main
     {
         if (renderedMapSnapshot is not { } shown)
             throw new InvalidOperationException("The agent panel checks need a world on screen.");
+        VerifyMarriageOrderText();
         var rowan = PanelSmokeAgent("agent-panels-rowan", "Rowan", new OwnerWorldPosition(1, 1));
         var pip = PanelSmokeAgent("agent-panels-pip", "Pip", new OwnerWorldPosition(2, 1)) with { Lifecycle = "dead" };
         var mira = PanelSmokeAgent("agent-panels-mira", "Mira", new OwnerWorldPosition(1, 2)) with

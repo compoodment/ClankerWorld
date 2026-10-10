@@ -670,6 +670,7 @@ public sealed partial class PrivateWorldRuntime
                     : [AgentConversationEffect.None, AgentConversationEffect.MutualTrust]
                 : [AgentConversationEffect.None])
         {
+            RequestedActivity = RequestedConversationActivity(conversation, speakerId),
             AllowedSurnames = purpose == AgentConversationPurpose.SurnameChoice
                 ? AgentMarriageRules.AllowedSurnames(marriages.Single(item => item.SurnameConversationId == conversation.Id))
                 : [],

@@ -367,6 +367,7 @@ public sealed record InhabitantObservation(
                         "park the selected attached handcart here with its cargo intact" or
                         "repair the selected owned handcart with real carried supplies" or
                         "attempt to talk with the named person; agreement and resumption remain each participant's choice" or
+                        "attempt marriage with your current partner; both people keep their consent and surname choices" or
                         "care for the named animal with real feed and jug water" or
                         "collect the named animal's ready products locally" or
                         "tame the named wild animal for your household" or

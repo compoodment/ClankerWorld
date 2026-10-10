@@ -34,7 +34,7 @@ public sealed partial class PrivateWorldRuntime
         var missing = CartRepairKinds.Where(kind => !HasCarriedMaterial(actor, kind, 1)).ToArray();
         if (missing.Length > 0 && missing.Length > FreeCarryCapacity(actor))
             return "Make carrying space for the cart's repair supplies.";
-        if (missing.Any(kind => SharedItem(kind, actor) is null))
+        if (missing.Any(kind => SharedItem(kind, actor, CartPosition(cart)) is null))
             return "The cart repair needs one available wood, iron fitting and rope in your hands or permitted household or Town stock.";
         return null;
     }
@@ -42,6 +42,12 @@ public sealed partial class PrivateWorldRuntime
     private void ExecuteCartRepairOrderStep(OwnerQueuedInstruction instruction, PlaytestInhabitantState person, InventoryLot cart)
     {
         var candidate = CartRepairOrderCandidateFor(instruction, cart);
+        if (candidate.Id.StartsWith(CollectCartRepairPrefix, StringComparison.Ordinal))
+        {
+            CollectEquipment(instruction.TargetInhabitantId, person,
+                candidate.Id[CollectCartRepairPrefix.Length..], CartPosition(cart));
+            return;
+        }
         ApplyHandcartCandidate(instruction.TargetInhabitantId, person, candidate.Id);
         if (candidate.Id != RepairCartPrefix + cart.Id ||
             society.Checkpoint.Inventory.GetLot(cart.Id).ConditionBasisPoints <= cart.ConditionBasisPoints) return;

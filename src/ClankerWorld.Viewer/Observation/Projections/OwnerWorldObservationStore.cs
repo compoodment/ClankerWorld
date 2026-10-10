@@ -675,7 +675,7 @@ public sealed partial class OwnerWorldObservationStore
                 : null,
             LastTickMilliseconds = diagnostics.LastTickMilliseconds,
             Inhabitants = activeInhabitants
-                .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]) with
+                .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id], map) with
                 {
                     PlannedRoute = ToPlannedRoute(diagnostics.PlannedRoutes.GetValueOrDefault(inhabitant.Id)),
                 })
@@ -869,8 +869,7 @@ public sealed partial class OwnerWorldObservationStore
                         order.TargetOutputKind, order.TargetItemKind, order.TargetBuildingKind, order.TargetAnimalId,
                         order.TargetKnowledgeKind, order.TargetCartLotId,
                         order.TalkConversationId,
-                        (state.Conversations ?? []).FirstOrDefault(item => item.Id == order.TalkConversationId) is { } talk
-                            ? ConversationStatus(talk.Status) : order.TalkOutcome is not null ? "closed" : null,
+                        ConversationOrderStatus(state, order),
                         order.TalkOutcome, order.TargetKnowledgeArtifactId) : null))
                 .ToArray(),
             Cognition = ToCognition(state),
@@ -1180,7 +1179,7 @@ public sealed partial class OwnerWorldObservationStore
     private static ViewerInhabitant ToPlaytestInhabitant(
         PrivateWorldRuntimeState state,
         SocietyInhabitant inhabitant,
-        PlaytestInhabitantState physical)
+        PlaytestInhabitantState physical, SeededMap travelMap)
     {
         // A handcart and the goods inside it stay with the cart, not in its owner's hands.
         var cartIds = state.Society.Society.Inventory.Lots.Where(lot => lot.ItemKind == InventoryContainerRules.Handcart)
@@ -1188,7 +1187,7 @@ public sealed partial class OwnerWorldObservationStore
         var inventory = state.Society.Society.Inventory.Lots.Where(lot =>
                 PersonalEquipmentRules.IsPhysicallyCarried(state.Society.Society.Inventory, lot, inhabitant.Id) && !cartIds.Contains(lot.Id))
             .GroupBy(lot => lot.ItemKind).Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity))).ToArray();
-        var route = DeterminePlaytestRoute(state, physical, inventory);
+        var route = DeterminePlaytestRoute(state, physical, inventory, travelMap);
         var perceived = KnownNearby(state.Map, physical.Position).ToArray();
         var known = KnownFixtureTopology(physical.Position, perceived, route);
         var household = state.Society.Society.Households
@@ -1953,12 +1952,14 @@ public sealed partial class OwnerWorldObservationStore
     private static ViewerRoute DeterminePlaytestRoute(
         PrivateWorldRuntimeState state,
         PlaytestInhabitantState physical,
-        IReadOnlyList<ViewerInventoryEntry> inventory)
+        IReadOnlyList<ViewerInventoryEntry> inventory, SeededMap travelMap)
     {
         if (state.BoatTransport.Boats.FirstOrDefault(boat => boat.Journey?.PassengerId == physical.InhabitantId) is { Journey: { } journey })
             return new ViewerRoute(journey.WaitingSinceTick is not null ? "boat_waiting" : journey.Returning ? "boat_returning" : "boat_travel",
                 journey.Returning ? journey.OriginPortId : journey.DestinationPortId, ToPosition(journey.ReservedDock),
                 journey.WaterPath.Skip(journey.PathIndex + 1).Select(ToPosition).ToArray(), state.Map.ManifestDigest);
+        if (SwimmingRules.IsSwimmingWater(travelMap, physical.Position))
+            return new ViewerRoute("swim", null, null, [], state.Map.ManifestDigest);
         var food = inventory.FirstOrDefault(item => item.Kind == "food");
         if (food is { Quantity: > 0 } && physical.HungerBasisPoints < 8_500)
         {
@@ -2156,4 +2157,13 @@ public sealed partial class OwnerWorldObservationStore
         OwnerInstructionState.Queued => "queued",
         _ => throw new ArgumentOutOfRangeException(nameof(state)),
     };
+    private static string? ConversationOrderStatus(PrivateWorldRuntimeState state, OwnerInstructionOrder order)
+    {
+        if (order.Action == "propose_marriage" && (state.Marriages ?? []).FirstOrDefault(item => item.Consent.Id == order.TalkConversationId) is { CompletedTick: null } marriage)
+            return (state.Conversations ?? []).FirstOrDefault(item => item.Id == marriage.SurnameConversationId) is { } surname
+                ? "surname_" + ConversationStatus(surname.Status) : "surname_pending";
+        return (state.Conversations ?? []).FirstOrDefault(item => item.Id == order.TalkConversationId) is { } talk
+            ? ConversationStatus(talk.Status) : order.TalkOutcome is not null ? "closed" : null;
+    }
+
 }
