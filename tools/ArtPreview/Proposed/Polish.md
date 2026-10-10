@@ -56,11 +56,17 @@ The families are `movement`, `smoke`, `weathermarks`, `goldenhour`, `stock`,
 An agent walks four tiles along the main street and a cow four tiles along
 the meadow, one tile per world update, as the host reports them.
 
-- **A · Today:** each figure jumps a tile at every update.
+- **A · Previous look:** each figure jumps a tile at every update.
 - **B · Glide:** each figure slides steadily to the tile the latest update
   reports, with the walk frames changing every quarter second. A jump longer
   than three tiles, such as after a reload, still snaps.
-- **C · Glide and bob:** as B, with a one-pixel bob on each step.
+- **C · Glide and bob:** approved and implemented by #1461. The client's
+  `WalkingMotion` supplies the same quarter-second frames and one-pixel bob;
+  `tools/ArtPreview/Implemented/Movement.cs` renders its reference frames with
+  `dotnet run -- movement out`. C has left the proposal list; A and B remain
+  the review record. Native markers glide to reported tiles over one second,
+  freeze while paused, and snap for long jumps or checkpoint rewinds. Boats
+  and handcarts also glide, without the agent/animal bob.
 
 ## 3 · Chimney smoke (`smoke`)
 
