@@ -348,6 +348,9 @@ public sealed partial class PrivateWorldRuntime
             {
                 return ProductionStartResult.Rejected(normalizedRecipeId, "The recipe is not active.");
             }
+            if (HasUnsupportedWaterOutput(recipe))
+                return ProductionStartResult.Rejected(normalizedRecipeId,
+                    "Workstation recipes cannot produce fresh water. Collect it into a water jug instead.");
             if (IsGenericFoodRecipe(recipe))
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     "Cook named ingredients at your household House or Restaurant.");

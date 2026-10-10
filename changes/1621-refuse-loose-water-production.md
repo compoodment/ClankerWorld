@@ -1,0 +1,1 @@
+- Recipes that would produce fresh water without a jug are refused before taking materials. Previously started batches cancel safely and free their materials, so they no longer halt the world.
