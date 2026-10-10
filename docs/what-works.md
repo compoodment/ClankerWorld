@@ -1495,6 +1495,14 @@ covers the new sizes and their ordinary work.
 
 ## Maps, weather and appearance
 
+Agents and animals glide between the host's reported tiles, with walking
+frames every quarter second and a one-pixel bob. Boats and handcarts glide
+without a bob. Pause freezes local motion; resume continues it. Long jumps,
+world switches and checkpoint rewinds snap. Hit targets, names and the
+selected agent's quick card follow the drawing, while the host still decides
+actual travel and position. [Windows movement checks](../playtest/1461-gliding-map-markers.md)
+remain pending.
+
 In autumn, a few fallen leaves lie beneath mature broadleaf and fruiting or
 picked orchard trees at close and mid zoom. Their warm colours follow the
 approved leaf drawing. Conifers, saplings, Roads and water have none; leaves
