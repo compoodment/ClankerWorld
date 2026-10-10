@@ -951,6 +951,10 @@ to read the map and freezes with the world when paused.
 
 Game Settings controls the window, theme, weather effects, date/time format
 and the model-call limit.
+At close and mid zoom, autumn adds a few fallen leaves under mature broadleaf
+and fruiting or picked orchard trees. They stay off Roads and water and
+disappear when autumn ends. You cannot gather them.
+
 Dates name the season and its day, such as **Autumn 2, Year 1 · 14:20**; a new
 world's year has four ten-day seasons: Spring, Summer, Autumn and Winter. The
 top bar then shows the weather beside the date without naming the season again.

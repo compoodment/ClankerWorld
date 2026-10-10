@@ -3079,6 +3079,7 @@ public partial class Main
             await VerifyTerrainCacheRefreshAsync();
             await VerifyDesertAndSnowArtAsync();
             await VerifyGroundSnowAsync();
+            await VerifyAutumnLeavesAsync();
             VerifyOrchardSaplingAppearance(sample);
             var crowded = sample with
             {

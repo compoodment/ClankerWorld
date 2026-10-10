@@ -796,6 +796,7 @@ public partial class WorldTerrainLayer : Control
 
     private void DrawMapContents()
     {
+        AutumnLeafDrawCount = 0;
         OverviewNaturalObjectDrawCount = 0;
         BeginReliefDraw();
         if (world is null) return;
@@ -873,6 +874,7 @@ public partial class WorldTerrainLayer : Control
         DrawRoads(bounds, stride);
         DrawGroundSnow(bounds, stride);
         DrawBridges(bounds, stride);
+        DrawAutumnLeaves(bounds, stride);
         DrawBuildings(bounds, stride);
         // Trees are objects, not baked ground colors: keep them visible both
         // above full-size tiles and above the small-tile palette cache.

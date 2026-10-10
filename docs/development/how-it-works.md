@@ -1591,6 +1591,15 @@ reachable area (see [Material gathering](#material-gathering)). Boat transport u
 described in [Ports and communal boats](#ports-and-communal-boats). Trees and planting are described in
 [Trees and planting](#trees-and-planting).
 
+Autumn ground leaves use the shared `AutumnLeaves` drawing promoted from the
+approved October 9 art review. The observed season enables the leaf pass,
+using authoring data first and the world summary when it is absent, as the
+landscape colors do. No clock, saved cover or resource is added. At sprite zoom it visits
+only visible trees and one neighboring tile, draws at most fourteen sparse
+leaves per eligible tree, and rejects Roads, Market plazas, bridges, building
+footprints and water. The pass runs beneath buildings and nature sprites.
+Overview zoom skips the leaf commands. Wrapped copies use the same map seeds.
+
 Godot draws camera-visible tiles from a compact terrain index and samples it
 for the overview. It does not create a Control per tile. Generated terrain uses
 row-major packed bytes, with separate layer digests. Signed cache claims omit

@@ -1490,6 +1490,12 @@ covers the new sizes and their ordinary work.
 
 ## Maps, weather and appearance
 
+In autumn, a few fallen leaves lie beneath mature broadleaf and fruiting or
+picked orchard trees at close and mid zoom. Their warm colours follow the
+approved leaf drawing. Conifers, saplings, Roads and water have none; leaves
+stay beneath trees and other sprites and disappear outside autumn. They are
+a visual detail, with no harvest or effect on work.
+
 Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
 diagonal steps and slower mountain travel. Agents wade straight across rivers
