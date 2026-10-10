@@ -762,6 +762,10 @@ both vessels retain their owners. Only one pending sale may use each milk lot;
 closing the offer frees any remaining usable milk for another sale. Spoiled
 milk can be poured away for jug reuse.
 
+Hungry children and adults can drink fresh, unreserved milk from a usable
+carried jug they or their household own. Each drink spends one portion and
+keeps the jug intact. Animal care, collection and trade remain adult actions.
+
 Replacing or cancelling an animal task releases its unfinished supply trip.
 The adult keeps already collected goods under their existing ownership and
 can fetch supplies for a new animal task without finishing the cancelled one.

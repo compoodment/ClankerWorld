@@ -3882,6 +3882,12 @@ order credit. The following native action rechecks permissions and foot
 capacity; existing product and fitted-saddle reservations remain held during
 preparation, and existing dismount rules preserve excess cargo.
 
+Carried milk drinking is offered with ordinary survival choices, including
+for children, and passes the final child age gate. The existing selector still
+checks ownership, physical custody, jug condition, freshness and reservations;
+drinking consumes one portion and preserves the jug. Infant self-feeding and
+adult-only animal work remain age restricted.
+
 Milk stock travels as an actual household jug to a held Store or borrowed Market
 stall, with a stock receipt at a stall. Fresh seller and buyer personal choices
 exchange one held portion into the buyer's real carried jug for the named
