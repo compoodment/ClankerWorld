@@ -32,6 +32,10 @@ public sealed record TownRuntimeState(
     [JsonRequired]
     public long? AbandonedSinceTick { get; init; }
 
+    /// <summary>The first completed building remains recorded after all buildings are removed.</summary>
+    [JsonRequired]
+    public long? FirstBuildingCompletedTick { get; init; } = AssignedBuildingIds is { Count: > 0 } ? FoundedTick : null;
+
     [JsonRequired]
     public TownLandHearingState LandHearings { get; init; } = TownLandHearingState.Create();
 

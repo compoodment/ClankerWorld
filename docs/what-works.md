@@ -996,7 +996,7 @@ revived Town looks lived in again. Its street lanterns and its Port's pier
 lantern stay dark at night; the street lanterns also fade, gathering moss and
 weeds, the lantern fittings on its buildings fade with them, and its bridges
 fade and lose boards, then whole planks once the Town falls apart.
-An adult on buildable unclaimed land away from other Towns can deliberately found a new Town through their personal model. Its first layout records title and an all-adult council. The founder leaves their old Town; dependent children who shared it follow membership without moving or changing care. Existing household buildings and fields keep their owners and use rights; other households’ property blocks the site. No House, Roads or materials are supplied. Later visitors need ordinary admission. A House built outside all Towns remains an ordinary household House until an adult deliberately founds there. [The Windows founding playtest](../playtest/1305-found-new-town.md) is pending.
+An adult on buildable unclaimed land away from other Towns can deliberately found a new Town through their personal model. Its first layout records title and an all-adult council. The founder leaves their old Town; dependent children who shared it follow membership without moving or changing care. Existing household buildings and fields keep their owners and use rights; other households’ property blocks the site. Founding supplies no House or materials. Roads appear once the Town has its first completed building, including an existing House incorporated into the Town. Later visitors need ordinary admission. A House built outside all Towns remains an ordinary household House until an adult deliberately founds there. [The Windows founding playtest](../playtest/1305-found-new-town.md) is pending.
 
 Each founded Town has its own council. Its recorded living adult residents
 include travelers and adults without a home; visitors gain no vote. All adults
@@ -1599,8 +1599,13 @@ starting layout keeps its streets on dry land. No bridge is added where one alre
 banks and agents can walk along both banks to reach it. Peaks that block either
 bank can leave room for another needed crossing. A wider stretch between narrow
 crossings does not cause an extra bridge when both banks still connect to the
-existing one. Road links between Towns are unfinished, and bridges have not been
-checked in hands-on Windows play.
+existing one. When a new Town's first building completes, a Road links it to
+the nearest Town along a cheapest legal route, reusing existing Roads and
+bridging legal narrow rivers. An already completed House incorporated while
+founding triggers the same link. No legal route leaves the Town unconnected;
+it does not select a farther Town. Inter-Town Roads look like Town streets
+and survive save/load without enlarging either Town's land. Roads and bridges
+have not been checked in hands-on Windows play.
 
 Resources can deplete or regrow. Each tile holds at most one tree. Wood trees
 have sapling, mature and stump stages. Felling one for wood also gives the agent
