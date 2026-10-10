@@ -1,0 +1,1 @@
+- Autumn adds a few fallen leaves beneath mature broadleaf and fruiting or picked orchard trees at close and mid zoom. They stay off Roads and water and vanish when autumn ends. [#1464](https://github.com/compoodment/ClankerWorld/issues/1464)

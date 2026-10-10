@@ -260,7 +260,8 @@ public sealed record SocietySocialMemory(
     string Summary,
     string Visibility,
     long SourceTick,
-    long? TombstonedTick = null)
+    long? TombstonedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Permanent = false)
 {
     [JsonRequired]
     public SocietyMemoryKind Kind { get; init; } = SocietyMemoryKind.Experience;
@@ -373,6 +374,9 @@ public sealed record SocietyEstateLot(
 
 /// <summary>An exact part of one frozen lot left to one named heir.</summary>
 public sealed record SocietyWillBequest(string LotId, string HeirId, int Quantity);
+
+/// <summary>Derived from the deceased resident's Town and its law history at death.</summary>
+public sealed record SocietyDefaultEstateDivision(string EstateId, string TownId, int TownSharePercent);
 
 /// <summary>
 /// A will's validated choice in society IDs: one to three distinct heirs in the

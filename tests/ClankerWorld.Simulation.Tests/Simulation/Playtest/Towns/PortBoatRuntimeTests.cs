@@ -521,14 +521,21 @@ public sealed partial class PortBoatRuntimeTests
         scenario.World.Resume();
     }
 
-    private static async Task<byte[]> BuildPaidBoatAsync(bool stopBeforeFirstPort = false, int ticksPerDay = 24)
+    private static async Task<byte[]> BuildPaidBoatAsync(bool stopBeforeFirstPort = false, int ticksPerDay = 24, bool freshwater = false)
     {
-        var policy = new BoatPolicy { Build = true };
+        var policy = new BoatPolicy
+        {
+            Build = true,
+            Freshwater = freshwater,
+            FirstPortSite = freshwater ? new(202, 99) : new(189, 14),
+            SecondPortSite = freshwater ? new(201, 108) : new(198, 13),
+            PortLocalId = freshwater ? "port-east" : "port-south",
+        };
         using var created = new PrivateWorldRuntime("probe-a", policy.CreateProvider,
             startPace: WorldStartPace.FounderSetup,
             geographyOptions: new GeographyOptions("probe-a", WorldSizePreset.Small));
         created.InitializeFirstTownContent();
-        created.AcceptFirstTownLayout(new(194, 11));
+        created.AcceptFirstTownLayout(freshwater ? new(202, 106) : new(194, 11));
         // These are genuine paused founder placements beside the notice place.
         // Keep voters in the same land component as the coastal Town.
         var map = created.ExportState().Map;
@@ -553,10 +560,10 @@ public sealed partial class PortBoatRuntimeTests
             inventory = InventoryFixture.Reserve(inventory, "unrelated-" + kind, TownBorderRules.FirstTownId,
                 "boat-stock-" + kind, held, "unrelated-town-work", long.MaxValue);
             inventory = InventoryFixture.AddLot(inventory, "available-boat-stock-" + kind, kind, TownBorderRules.FirstTownId,
-                quantity - held - (kind == "wood" ? 16 : kind == "stone" ? 4 : 0), groundPosition: new(189, 14));
+                quantity - held - (kind == "wood" ? 16 : kind == "stone" ? 4 : 0), groundPosition: new(policy.FirstPortSite.X, policy.FirstPortSite.Y));
             if (kind is "wood" or "stone")
                 inventory = InventoryFixture.AddLot(inventory, "second-port-stock-" + kind, kind, TownBorderRules.FirstTownId,
-                    kind == "wood" ? 16 : 4, groundPosition: new(198, 13));
+                    kind == "wood" ? 16 : 4, groundPosition: new(policy.SecondPortSite.X, policy.SecondPortSite.Y));
         }
         foreach (var person in state.Inhabitants)
         {
@@ -637,6 +644,10 @@ public sealed partial class PortBoatRuntimeTests
         internal const string Author = "founder:00000000000000000000000000000001";
         internal PrivateWorldRuntime? World { get; set; }
         internal bool Build { get; set; }
+        internal bool Freshwater { get; set; }
+        internal GridPoint FirstPortSite { get; set; } = new(189, 14);
+        internal GridPoint SecondPortSite { get; set; } = new(198, 13);
+        internal string PortLocalId { get; set; } = "port-south";
         internal bool Trips { get; set; }
         internal string TripActor { get; set; } = Author;
         internal bool CancelWaiting { get; set; }
@@ -691,8 +702,8 @@ public sealed partial class PortBoatRuntimeTests
                 {
                     var prefix = projects.Count(project => project.Stage == "completed" && project.Plan.BoatPortId is null) switch
                     {
-                        0 => "|project|port-south|189,14",
-                        1 => "|project|port-",
+                        0 => $"|project|{policy.PortLocalId}|{policy.FirstPortSite.X},{policy.FirstPortSite.Y}",
+                        1 => policy.Freshwater ? $"|project|{policy.PortLocalId}|{policy.SecondPortSite.X},{policy.SecondPortSite.Y}" : "|project|port-",
                         _ => "|boat_project|",
                     };
                     // The second Port takes the first offered site other than the launch Port's.
@@ -700,7 +711,7 @@ public sealed partial class PortBoatRuntimeTests
                         (prefix != "|project|port-" || !candidate.Id.EndsWith("|project|port-south|189,14", StringComparison.Ordinal)));
                     if (prefix == "|boat_project|")
                     {
-                        var launchPort = projects.Single(project => project.Plan.Site == new GridPoint(189, 14) && project.Plan.BoatPortId is null).CompletedBuildingId!;
+                        var launchPort = projects.Single(project => project.Plan.Site == policy.FirstPortSite && project.Plan.BoatPortId is null).CompletedBuildingId!;
                         selected = candidates.FirstOrDefault(candidate => candidate.Id.Contains(prefix + launchPort + "|", StringComparison.Ordinal));
                     }
                     text = prefix.Contains("boat_project", StringComparison.Ordinal) ? "Passage boat" : "Port " + (projects.Count + 1);

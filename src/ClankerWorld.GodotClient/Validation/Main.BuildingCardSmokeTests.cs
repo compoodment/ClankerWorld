@@ -490,7 +490,7 @@ public partial class Main
             "town:first|market-ui|market-ui-north|seller:one|buyer:two|market-ui-offer", north.Position),
             map);
         if (!description.Contains("Sam", StringComparison.Ordinal) || !description.Contains("Lina", StringComparison.Ordinal) ||
-            !description.Contains("exact terms", StringComparison.Ordinal))
+            !description.Contains("a trade at the Market", StringComparison.Ordinal))
             throw new InvalidOperationException("Market event descriptions must retain full pipe-delimited trader identities.");
         ClearBuildingSelection();
         RenderMap(baseMap);

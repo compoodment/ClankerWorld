@@ -43,7 +43,7 @@ public sealed partial class PrivateWorldRuntime
                 var excess = PersonalEquipmentRules.CarriedQuantity(inventory, rider, person.Equipment) -
                     PersonalEquipmentRules.Capacity(inventory, rider, person.Equipment);
                 if (excess <= 0) break;
-                if (HasActiveContainerReservation(inventory, lot.Id)) continue;
+                if (InventoryContainerRules.IsContainer(lot.ItemKind) && HasActiveContainerReservation(inventory, lot.Id)) continue;
                 var quantity = InventoryContainerRules.IsContainer(lot.ItemKind) ? 1 : Math.Min(excess, PhysicalUnreservedQuantity(lot));
                 if (quantity <= 0) continue;
                 ApplyInventoryTransition(current => InventoryFixture.Relocate(current,

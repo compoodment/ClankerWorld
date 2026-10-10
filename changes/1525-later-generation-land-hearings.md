@@ -1,0 +1,1 @@
+- Later-generation adults can take part in land and property hearings, give personal consent and stand in case elections without their ancestry-based identities preventing the hearing from saving.

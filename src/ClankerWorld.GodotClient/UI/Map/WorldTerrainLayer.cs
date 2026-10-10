@@ -100,6 +100,8 @@ public partial class WorldTerrainLayer : Control
 
     public int WeatherRegionSize => weatherRegionSize;
 
+    internal IReadOnlyDictionary<Vector2I, string> WeatherRegions => weatherRegions;
+
     /// <summary>Changes whenever the map or its weather regions change, for layers that cache weather.</summary>
     public int WeatherVersion { get; private set; }
 
@@ -118,6 +120,7 @@ public partial class WorldTerrainLayer : Control
     public void SetWorld(WorldTerrainMap map)
     {
         world = map;
+        ResetGroundSnow();
         ResetResourceAppearanceInputs();
         ResetRelief();
         townSiteGuidanceTexture = null;
@@ -795,6 +798,7 @@ public partial class WorldTerrainLayer : Control
 
     private void DrawMapContents()
     {
+        AutumnLeafDrawCount = 0;
         OverviewNaturalObjectDrawCount = 0;
         BeginReliefDraw();
         if (world is null) return;
@@ -870,7 +874,9 @@ public partial class WorldTerrainLayer : Control
         DrawFields(bounds, stride);
         DrawTownSiteGuidance(bounds, stride);
         DrawRoads(bounds, stride);
+        DrawGroundSnow(bounds, stride);
         DrawBridges(bounds, stride);
+        DrawAutumnLeaves(bounds, stride);
         DrawBuildings(bounds, stride);
         // Trees are objects, not baked ground colors: keep them visible both
         // above full-size tiles and above the small-tile palette cache.

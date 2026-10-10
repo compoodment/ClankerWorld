@@ -4,7 +4,7 @@ namespace ClankerWorld.GodotClient.UI;
 
 /// <summary>A small label on a world or save card, such as Current or Autosave.</summary>
 /// <param name="Note">Drawn outlined and muted rather than filled, for notes such as "Can't open".</param>
-public readonly record struct SlotTag(string Text, bool Note = false);
+public readonly record struct SlotTag(string Text, bool Note = false, string? Tooltip = null);
 
 /// <summary>
 /// A scrolling list of worlds or saves drawn as cards: a pixel icon, the name
@@ -132,9 +132,10 @@ public partial class SlotList : ScrollContainer
             row.AddChild(new Label
             {
                 Text = tag.Text.ToUpperInvariant(),
+                TooltipText = tag.Tooltip ?? string.Empty,
                 ThemeTypeVariation = tag.Note ? "TagNoteLabel" : "TagLabel",
                 SizeFlagsVertical = SizeFlags.ShrinkCenter,
-                MouseFilter = MouseFilterEnum.Ignore,
+                MouseFilter = tag.Tooltip is null ? MouseFilterEnum.Ignore : MouseFilterEnum.Pass,
             });
         if (muted) row.Modulate = new Color(1, 1, 1, 0.55f);
         card.AddChild(row);

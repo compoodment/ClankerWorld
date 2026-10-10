@@ -1,0 +1,1 @@
+- Deaths leave wooden crosses or headstones on open ground at close and mid zoom. They stay for a game year and fade over the following day. [#1476](https://github.com/compoodment/ClankerWorld/issues/1476)

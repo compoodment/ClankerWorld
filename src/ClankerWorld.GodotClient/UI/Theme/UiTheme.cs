@@ -280,13 +280,13 @@ public static class UiTheme
         var hover = Bevel(p.ButtonHover, p.ButtonLight, p.ButtonDark, p.ButtonEdge);
         var pressed = Bevel(p.Pressed, p.PressedDark, p.PressedLight, p.ButtonEdge);
         var disabled = Bevel(p.FieldDisabled, p.FieldDisabled, p.FieldDisabled, p.PaperEdge);
-        SetButton(theme, "Button", button, hover, pressed, disabled, p.Ink, p.InkFaint, Focus(p));
+        SetButton(theme, "Button", button, hover, pressed, disabled, p.Ink, p.InkMuted, Focus(p));
         theme.SetTypeVariation("PrimaryButton", "Button");
         SetButton(theme, "PrimaryButton",
             Bevel(p.Primary, p.PrimaryLight, p.PrimaryDark, p.PrimaryEdge),
             Bevel(p.PrimaryLight, p.PrimaryLight, p.PrimaryDark, p.PrimaryEdge),
             Bevel(p.PrimaryDark, p.PrimaryEdge, p.Primary, p.PrimaryEdge),
-            disabled, p.PrimaryInk, p.InkFaint, Focus(p));
+            disabled, p.PrimaryInk, p.InkMuted, Focus(p), hoverInk: p.EmberInk);
         // Square icon buttons: close (×), back (‹) and other one-glyph actions.
         // Their white icons take the ink color, so they follow the theme.
         theme.SetTypeVariation("IconButton", "Button");
@@ -295,7 +295,7 @@ public static class UiTheme
             Bevel(p.ButtonHover, p.ButtonLight, p.ButtonDark, p.ButtonEdge, IconButtonMargin, IconButtonMargin),
             Bevel(p.Pressed, p.PressedDark, p.PressedLight, p.ButtonEdge, IconButtonMargin, IconButtonMargin),
             Bevel(p.FieldDisabled, p.FieldDisabled, p.FieldDisabled, p.PaperEdge, IconButtonMargin, IconButtonMargin),
-            p.Ink, p.InkFaint, Focus(p));
+            p.Ink, p.InkMuted, Focus(p));
         foreach (var item in new[] { "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_hover_pressed_color", "icon_focus_color" })
             theme.SetColor(item, "IconButton", p.Ink);
         theme.SetColor("icon_disabled_color", "IconButton", p.InkFaint);
@@ -305,17 +305,17 @@ public static class UiTheme
             Bevel(p.Seal, p.SealRing, p.Seal.Darkened(0.3f), p.ButtonEdge),
             Bevel(p.SealRing, p.SealRing, p.Seal.Darkened(0.3f), p.ButtonEdge),
             Bevel(p.Seal.Darkened(0.3f), p.ButtonEdge, p.Seal, p.ButtonEdge),
-            disabled, p.SealInk, p.InkFaint, Focus(p));
+            disabled, p.SealInk, p.InkMuted, Focus(p), hoverInk: p.EmberInk);
         theme.SetTypeVariation("EmberButton", "Button");
         SetButton(theme, "EmberButton",
             Bevel(p.Ember, p.EmberLight, p.EmberDark, p.EmberEdge),
             Bevel(p.EmberLight, p.EmberLight, p.EmberDark, p.EmberEdge),
             Bevel(p.EmberDark, p.EmberEdge, p.Ember, p.EmberEdge),
-            disabled, p.EmberInk, p.InkFaint, Focus(p));
+            disabled, p.EmberInk, p.InkMuted, Focus(p), pressedInk: p.SealInk);
         // Settings categories and other tab-like selectors: flat until chosen.
         theme.SetTypeVariation("TabButton", "Button");
         var tabIdle = new StyleBoxEmpty { ContentMarginLeft = 12, ContentMarginRight = 12, ContentMarginTop = 7, ContentMarginBottom = 7 };
-        SetButton(theme, "TabButton", tabIdle, Flat(p.ButtonHover, 12, 7), pressed, tabIdle, p.InkMuted, p.InkFaint, Focus(p));
+        SetButton(theme, "TabButton", tabIdle, Flat(p.ButtonHover, 12, 7), pressed, tabIdle, p.InkMuted, p.InkMuted, Focus(p));
         theme.SetColor("font_hover_color", "TabButton", p.Ink);
         theme.SetColor("font_pressed_color", "TabButton", p.Ink);
         theme.SetColor("font_hover_pressed_color", "TabButton", p.Ink);
@@ -327,11 +327,11 @@ public static class UiTheme
         SetLabel(theme, "SectionLabel", p.Section, "Label");
         SetLabel(theme, "SoftLabel", p.InkSoft, "Label");
         SetLabel(theme, "DimLabel", p.InkMuted, "Label");
-        SetLabel(theme, "WarningLabel", p.Warning, "Label");
-        SetLabel(theme, "GoodLabel", p.Good, "Label");
-        SetLabel(theme, "BadLabel", p.Bad, "Label");
+        SetLabel(theme, "WarningLabel", ReadableInk(p, p.Warning, p.Pressed), "Label");
+        SetLabel(theme, "GoodLabel", ReadableInk(p, p.Good, p.Pressed), "Label");
+        SetLabel(theme, "BadLabel", ReadableInk(p, p.Bad, p.Pressed), "Label");
         SetLabel(theme, "KeyLabel", p.Section, "Label");
-        SetLabel(theme, "NewMarkLabel", p.Warning, "Label");
+        SetLabel(theme, "NewMarkLabel", ReadableInk(p, p.Warning, p.Pressed), "Label");
         // Text sitting straight on a wooden bar rather than on parchment.
         SetLabel(theme, "WoodLabel", p.OnWood, "Label");
         SetLabel(theme, "WoodSoftLabel", p.OnWoodSoft, "Label");
@@ -353,6 +353,7 @@ public static class UiTheme
         theme.SetColor("selection_color", "RichTextLabel", p.Selection);
         theme.SetStylebox("normal", "RichTextLabel", new StyleBoxEmpty());
         theme.SetStylebox("focus", "RichTextLabel", new StyleBoxEmpty());
+        theme.SetStylebox("focus", "ScrollContainer", Focus(p));
 
         // Sliders: a sunken track that fills green up to a wooden knob.
         theme.SetStylebox("slider", "HSlider", Box(p.Field, p.FieldEdge, 2, 0, 3));
@@ -372,7 +373,7 @@ public static class UiTheme
             theme.SetStylebox("focus", type, fieldFocus);
             theme.SetStylebox("read_only", type, fieldOff);
             theme.SetColor("font_color", type, p.Ink);
-            theme.SetColor("font_placeholder_color", type, p.InkFaint);
+            theme.SetColor("font_placeholder_color", type, p.InkMuted);
             theme.SetColor("font_uneditable_color", type, p.InkMuted);
             theme.SetColor("font_readonly_color", type, p.InkMuted);
             theme.SetColor("caret_color", type, p.Ink);
@@ -380,7 +381,7 @@ public static class UiTheme
             theme.SetColor("font_selected_color", type, p.Ink);
         }
         var fieldHover = Box(p.ButtonHover, p.FieldEdge, 2, 10, 6);
-        SetButton(theme, "OptionButton", field, fieldHover, fieldFocus, fieldOff, p.Ink, p.InkFaint, Focus(p));
+        SetButton(theme, "OptionButton", field, fieldHover, fieldFocus, fieldOff, p.Ink, p.InkMuted, Focus(p));
         theme.SetIcon("arrow", "OptionButton", Arrow(p.Ink));
         theme.SetConstant("arrow_margin", "OptionButton", 8);
         theme.SetConstant("h_separation", "OptionButton", 8);
@@ -391,7 +392,7 @@ public static class UiTheme
         theme.SetStylebox("hover", "PopupMenu", Flat(p.Pressed, 6, 3));
         theme.SetColor("font_color", "PopupMenu", p.Ink);
         theme.SetColor("font_hover_color", "PopupMenu", p.Ink);
-        theme.SetColor("font_disabled_color", "PopupMenu", p.InkFaint);
+        theme.SetColor("font_disabled_color", "PopupMenu", p.InkMuted);
         theme.SetColor("font_separator_color", "PopupMenu", p.InkMuted);
         theme.SetStylebox("separator", "PopupMenu", Line(p.Separator, false));
         theme.SetIcon("radio_checked", "PopupMenu", Dot(p.Primary, 12));
@@ -429,7 +430,7 @@ public static class UiTheme
             theme.SetColor("font_pressed_color", type, p.Ink);
             theme.SetColor("font_hover_pressed_color", type, p.Ink);
             theme.SetColor("font_focus_color", type, p.Ink);
-            theme.SetColor("font_disabled_color", type, p.InkFaint);
+            theme.SetColor("font_disabled_color", type, p.InkMuted);
             theme.SetConstant("h_separation", type, 8);
         }
         theme.SetIcon("checked", "CheckBox", Check(p, true, false));
@@ -450,7 +451,7 @@ public static class UiTheme
         foreach (var (type, vertical) in new[] { ("VScrollBar", true), ("HScrollBar", false) })
         {
             theme.SetStylebox("scroll", type, Flat(p.Inset, vertical ? 5 : 0, vertical ? 0 : 5, p.InsetEdge));
-            theme.SetStylebox("scroll_focus", type, Flat(p.Inset, vertical ? 5 : 0, vertical ? 0 : 5, p.InsetEdge));
+            theme.SetStylebox("scroll_focus", type, Focus(p));
             theme.SetStylebox("grabber", type, Bevel(p.Wood, p.WoodLight, p.WoodDark, p.WoodEdge, 3));
             theme.SetStylebox("grabber_highlight", type, Bevel(p.WoodLight, p.WoodLight, p.WoodDark, p.WoodEdge, 3));
             theme.SetStylebox("grabber_pressed", type, Bevel(p.WoodDark, p.WoodEdge, p.Wood, p.WoodEdge, 3));
@@ -550,8 +551,18 @@ public static class UiTheme
         return ImageTexture.CreateFromImage(image);
     }
 
+    /// <summary>Keep existing palette ink readable on a colored text surface.</summary>
+    public static Color ReadableInk(UiPalette palette, Color preferred, Color surface)
+    {
+        if (Contrast(preferred, surface) >= 4.5f) return preferred;
+        var ink = palette.Ink;
+        foreach (var candidate in new[] { palette.EmberInk, palette.SealInk })
+            if (Contrast(candidate, surface) > Contrast(ink, surface)) ink = candidate;
+        return ink;
+    }
+
     private static void SetButton(Theme theme, string type, StyleBox normal, StyleBox hover, StyleBox pressed,
-        StyleBox disabled, Color ink, Color disabledInk, StyleBox focus)
+        StyleBox disabled, Color ink, Color disabledInk, StyleBox focus, Color? hoverInk = null, Color? pressedInk = null)
     {
         theme.SetStylebox("normal", type, normal);
         theme.SetStylebox("hover", type, hover);
@@ -561,6 +572,12 @@ public static class UiTheme
         theme.SetStylebox("focus", type, focus);
         foreach (var item in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color" })
             theme.SetColor(item, type, ink);
+        if (hoverInk is { } over) theme.SetColor("font_hover_color", type, over);
+        if (pressedInk is { } down)
+        {
+            theme.SetColor("font_pressed_color", type, down);
+            theme.SetColor("font_hover_pressed_color", type, down);
+        }
         theme.SetColor("font_disabled_color", type, disabledInk);
         foreach (var item in new[] { "icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_hover_pressed_color", "icon_focus_color" })
             theme.SetColor(item, type, Colors.White);

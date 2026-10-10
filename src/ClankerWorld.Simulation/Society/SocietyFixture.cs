@@ -204,6 +204,8 @@ public static partial class SocietyFixture
         var next = checkpoint with
         {
             Inhabitants = checkpoint.Inhabitants.Where(item => item.Id != founderId).ToArray(),
+            // Undo removes this not-yet-started person, including their personal setup history.
+            Memories = checkpoint.Memories.Where(item => item.OwnerId != founderId && item.SubjectId != founderId).ToArray(),
             Households = checkpoint.Households.Select(item => item.Id == householdId
                 ? item with { MemberIds = item.MemberIds.Where(id => id != founderId).ToArray() }
                 : item).ToArray(),
@@ -532,7 +534,9 @@ public static partial class SocietyFixture
     {
         Validate(checkpoint);
         ArgumentNullException.ThrowIfNull(memory);
-        EnsureActive(checkpoint, memory.OwnerId);
+        // A player can also rename a deceased person; their permanent history remains inspectable.
+        if (memory.Permanent) _ = checkpoint.GetInhabitant(memory.OwnerId);
+        else EnsureActive(checkpoint, memory.OwnerId);
         if (!checkpoint.Inhabitants.Any(item => item.Id == memory.SubjectId) ||
             checkpoint.AllMemories().Any(item => item.Id == memory.Id))
         {
@@ -945,7 +949,8 @@ public static partial class SocietyFixture
     public static SocietyOperationResult AdvanceTo(
         SocietyCheckpoint checkpoint,
         long targetTick,
-        IReadOnlyList<SocietyTownStore>? townStores = null)
+        IReadOnlyList<SocietyTownStore>? townStores = null,
+        IReadOnlyList<SocietyDefaultEstateDivision>? defaultEstates = null)
     {
         Validate(checkpoint);
         ArgumentOutOfRangeException.ThrowIfLessThan(targetTick, checkpoint.WorldTick);
@@ -1031,7 +1036,7 @@ public static partial class SocietyFixture
             WorldTick = targetTick,
             Inventory = WithInventoryTick(current.Inventory, targetTick),
         };
-        current = SettleDueEstates(current, targetTick, townStores ?? []);
+        current = SettleDueEstates(current, targetTick, townStores ?? [], defaultEstates ?? []);
         return new SocietyOperationResult(
             current,
             null,
@@ -1225,6 +1230,14 @@ public static partial class SocietyFixture
         EnsureCanonicalIds(checkpoint.Organizations.Select(item => item.Id), "organizations");
         EnsureCanonicalIds(checkpoint.Memories.Select(item => item.Id), "memories");
         ValidateMemoryArchive(checkpoint);
+        foreach (var memory in checkpoint.AllMemories().Where(item => item.Permanent || item.Id.StartsWith("player-rename:", StringComparison.Ordinal)))
+        {
+            if (!memory.Permanent || !checkpoint.Inhabitants.Any(person => person.Id == memory.OwnerId) || memory.SubjectId != memory.OwnerId ||
+                memory.Visibility != "private" || memory.TombstonedTick is not null ||
+                memory.SourceTick < 0 || memory.SourceTick > checkpoint.WorldTick ||
+                !IsCanonicalBoundedText(memory.Summary, 256))
+                throw new InvalidDataException("A permanent personal memory must retain its owner, source date and private contents.");
+        }
         ValidateAgentBeliefs(checkpoint);
         ValidateAgentMemoryCompactions(checkpoint);
         EnsureCanonicalIds(checkpoint.Estates.Select(item => item.Id), "estates");
@@ -1306,10 +1319,12 @@ public static partial class SocietyFixture
         EnsureCanonicalIds((checkpoint.Beliefs ?? []).Select(item => item.Id), "agent beliefs");
         var beliefs = checkpoint.AllBeliefs().OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
         EnsureCanonicalIds(beliefs.Select(item => item.Id), "agent beliefs");
+        if (beliefs.Length == 0) return;
         var byId = beliefs.ToDictionary(item => item.Id, StringComparer.Ordinal);
+        var index = new SocietyBeliefValidationIndex(checkpoint, byId);
         foreach (var belief in beliefs)
         {
-            ValidateBeliefInput(checkpoint, belief, allowSupersedes: true);
+            ValidateBeliefInput(checkpoint, belief, allowSupersedes: true, index);
             if (belief.SupersedesBeliefId is { } priorId)
             {
                 if (!byId.TryGetValue(priorId, out var prior) || prior.OwnerId != belief.OwnerId ||
@@ -1374,7 +1389,8 @@ public static partial class SocietyFixture
     private static void ValidateBeliefInput(
         SocietyCheckpoint checkpoint,
         SocietyAgentBelief belief,
-        bool allowSupersedes)
+        bool allowSupersedes,
+        SocietyBeliefValidationIndex? index = null)
     {
         if (!IsSafeBeliefId(belief.Id) || string.IsNullOrWhiteSpace(belief.OwnerId) ||
             belief.OwnerId != belief.OwnerId.Trim() || belief.OwnerId.Any(char.IsControl) ||
@@ -1388,9 +1404,10 @@ public static partial class SocietyFixture
             belief.SupersedesBeliefId is { } superseded && !IsSafeBeliefId(superseded))
             throw new InvalidDataException("An agent belief has invalid bounded fields.");
 
-        if (!checkpoint.Inhabitants.Any(item => item.Id == belief.OwnerId) ||
-            belief.SourceAgentId is { } sourceAgent && !checkpoint.Inhabitants.Any(item => item.Id == sourceAgent) ||
-            belief.AboutInhabitantId is { } subject && !checkpoint.Inhabitants.Any(item => item.Id == subject))
+        index ??= new SocietyBeliefValidationIndex(checkpoint);
+        if (!index.KnowsInhabitant(belief.OwnerId) ||
+            belief.SourceAgentId is { } sourceAgent && !index.KnowsInhabitant(sourceAgent) ||
+            belief.AboutInhabitantId is { } subject && !index.KnowsInhabitant(subject))
             throw new InvalidDataException("An agent belief references an unknown inhabitant.");
 
         if ((belief.Provenance == SocietyBeliefProvenance.Hearsay &&
@@ -1401,40 +1418,13 @@ public static partial class SocietyFixture
 
         if (belief.SourceTurnId is not null &&
             (belief.Provenance != SocietyBeliefProvenance.Hearsay || belief.SourceAgentId is null ||
-             checkpoint.AllBeliefs().Any(item => item.OwnerId == belief.OwnerId &&
-                 item.SourceTurnId == belief.SourceTurnId &&
-                 !SharesCorrectionLineage(checkpoint, belief, item))))
+             !index.AllowsSourceTurn(belief)))
             throw new InvalidDataException("An agent belief source turn is invalid or already recorded for this owner.");
 
         if ((!allowSupersedes && (belief.SupersedesBeliefId is not null ||
                                   belief.SupersededByBeliefId is not null || belief.SupersededTick is not null)) ||
             belief.SupersededByBeliefId is null && belief.SupersededTick is not null)
             throw new InvalidDataException("Only a correction may link a belief to its predecessor.");
-    }
-
-    private static bool SharesCorrectionLineage(
-        SocietyCheckpoint checkpoint,
-        SocietyAgentBelief first,
-        SocietyAgentBelief second) =>
-        BeliefDescendsFrom(checkpoint, first, second.Id) ||
-        BeliefDescendsFrom(checkpoint, second, first.Id);
-
-    private static bool BeliefDescendsFrom(
-        SocietyCheckpoint checkpoint,
-        SocietyAgentBelief descendant,
-        string ancestorId)
-    {
-        if (descendant.Id == ancestorId) return true;
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var current = descendant;
-        while (current.SupersedesBeliefId is { } previousId && seen.Add(previousId))
-        {
-            if (previousId == ancestorId) return true;
-            var previous = checkpoint.AllBeliefs().FirstOrDefault(item => item.Id == previousId);
-            if (previous is null) return false;
-            current = previous;
-        }
-        return false;
     }
 
     private static SocietyAgentBelief NormalizeBelief(SocietyAgentBelief belief) => belief with
@@ -1612,16 +1602,23 @@ public static partial class SocietyFixture
     /// its Warehouse while there is room for that kind. Anything the will
     /// cannot deliver, such as a share for an heir who has since died, food or
     /// goods the Warehouse cannot take, follows the household default: an equal
-    /// split between the living household beneficiaries, or communal stock when
-    /// none remain. A vessel and its contents always move together, keeping
+    /// split between the living household beneficiaries, or the deceased's
+    /// recorded Town when none remain. Without a will, a derived prospective
+    /// Town law can allocate a bounded share before that household split.
+    /// A vessel and its contents always move together, keeping
     /// their IDs. People who inherit hear any final words as a private memory.
     /// </summary>
     private static SocietyCheckpoint SettleDueEstates(
         SocietyCheckpoint checkpoint,
         long targetTick,
-        IReadOnlyList<SocietyTownStore> townStores)
+        IReadOnlyList<SocietyTownStore> townStores,
+        IReadOnlyList<SocietyDefaultEstateDivision> defaultEstates)
     {
         var current = checkpoint;
+        if (defaultEstates.Any(division => division is null || division.TownSharePercent is < 0 or > 100 ||
+            string.IsNullOrWhiteSpace(division.TownId) || !checkpoint.Estates.Any(estate => estate.Id == division.EstateId)) ||
+            defaultEstates.Select(division => division.EstateId).Distinct(StringComparer.Ordinal).Count() != defaultEstates.Count)
+            throw new InvalidOperationException("Derived default estate divisions must name actual estates, a Town and one bounded share.");
         var room = townStores.ToDictionary(item => item.TownId, item => item.FreeRoom, StringComparer.Ordinal);
         foreach (var estate in checkpoint.Estates.Where(item => !item.Settled &&
                      item.WillStatus != "pending" && item.ExpiryTick <= targetTick)
@@ -1637,6 +1634,9 @@ public static partial class SocietyFixture
             var nextLots = current.Inventory.Lots.Where(lot => lot.OwnerId != estate.Id).ToList();
             var listeners = new SortedSet<string>(StringComparer.Ordinal);
             var bequests = estate.WillBequests ?? [];
+            var division = defaultEstates.SingleOrDefault(item => item.EstateId == estate.Id);
+            var townShare = estate.WillStatus == "accepted" ? 0 : division?.TownSharePercent ?? 0;
+            var fallbackOwner = division?.TownId ?? "settlement:communal";
             var containerOrdinal = 0;
             foreach (var lot in lots.Where(lot => lot.ContainerLotId is null))
             {
@@ -1649,6 +1649,8 @@ public static partial class SocietyFixture
                     var heir = bequests.FirstOrDefault(item => item.LotId == lot.Id)?.HeirId;
                     string? owner = null;
                     string? storage = lot.StorageBuildingId;
+                    if (heir is null && (beneficiaries.Length == 0 || townShare == 100) && division is not null)
+                        heir = division.TownId;
                     if (heir is not null && IsLiving(heir))
                     {
                         owner = heir;
@@ -1661,7 +1663,7 @@ public static partial class SocietyFixture
                         (owner, storage) = (store.TownId, store.WarehouseId);
                     }
                     owner ??= beneficiaries.Length == 0
-                        ? "settlement:communal"
+                        ? fallbackOwner
                         : beneficiaries[containerOrdinal++ % beneficiaries.Length];
                     if (IsLiving(owner)) listeners.Add(owner);
                     nextLots.AddRange(family.Select(member => member with
@@ -1677,6 +1679,19 @@ public static partial class SocietyFixture
 
                 var parts = new List<(string OwnerId, string? StorageId, int Quantity)>();
                 var undelivered = lot.Quantity;
+                if (bequests.Count == 0 && division is not null &&
+                    townStores.FirstOrDefault(store => store.TownId == division.TownId) is { } defaultStore &&
+                    !defaultStore.RefusedItemKinds.Contains(lot.ItemKind))
+                {
+                    var wanted = beneficiaries.Length == 0 ? undelivered : (int)((long)undelivered * townShare / 100);
+                    var delivered = Math.Min(wanted, Math.Max(0, room[defaultStore.TownId]));
+                    if (delivered > 0)
+                    {
+                        parts.Add((defaultStore.TownId, defaultStore.WarehouseId, delivered));
+                        room[defaultStore.TownId] -= delivered;
+                        undelivered -= delivered;
+                    }
+                }
                 foreach (var bequest in bequests.Where(item => item.LotId == lot.Id))
                 {
                     var quantity = Math.Min(bequest.Quantity, undelivered);
@@ -1700,7 +1715,7 @@ public static partial class SocietyFixture
 
                 if (undelivered > 0 && beneficiaries.Length == 0)
                 {
-                    parts.Add(("settlement:communal", lot.StorageBuildingId, undelivered));
+                    parts.Add((fallbackOwner, lot.StorageBuildingId, undelivered));
                 }
                 else if (undelivered > 0)
                 {
@@ -1711,12 +1726,12 @@ public static partial class SocietyFixture
                 }
 
                 var merged = parts.Where(part => part.Quantity > 0)
-                    .GroupBy(part => part.OwnerId, StringComparer.Ordinal)
-                    .Select(group => (OwnerId: group.Key, group.First().StorageId, Quantity: group.Sum(part => part.Quantity)))
-                    .OrderBy(part => part.OwnerId, StringComparer.Ordinal).ToArray();
+                    .GroupBy(part => (part.OwnerId, part.StorageId))
+                    .Select(group => (group.Key.OwnerId, group.Key.StorageId, Quantity: group.Sum(part => part.Quantity)))
+                    .OrderBy(part => part.OwnerId, StringComparer.Ordinal).ThenBy(part => part.StorageId, StringComparer.Ordinal).ToArray();
                 foreach (var part in merged)
                 {
-                    if (part.OwnerId == "settlement:communal" && part.Quantity == lot.Quantity)
+                    if (part.OwnerId == fallbackOwner && part.StorageId == lot.StorageBuildingId && part.Quantity == lot.Quantity)
                     {
                         nextLots.Add(lot with
                         {
@@ -1735,7 +1750,8 @@ public static partial class SocietyFixture
                     var preserveIdentity = lot.Quantity == 1 && lot.ItemKind is "field_map" or "field_record" or "book";
                     nextLots.Add(lot with
                     {
-                        Id = preserveIdentity ? lot.Id : $"{lot.Id}#estate:{estate.Id}:{part.OwnerId}",
+                        Id = preserveIdentity ? lot.Id : $"{lot.Id}#estate:{estate.Id}:{part.OwnerId}" +
+                            (merged.Count(candidate => candidate.OwnerId == part.OwnerId) > 1 ? ":storage:" + (part.StorageId ?? "ground") : ""),
                         OwnerId = part.OwnerId,
                         CarrierId = part.StorageId is null && lot.CarrierId != part.OwnerId ? lot.CarrierId : null,
                         Quantity = part.Quantity,

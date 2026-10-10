@@ -8,7 +8,7 @@ public static class SocietyMemoryArchiveRules
 
     private static readonly string[] PermanentPrefixes = ["final-words:", "lesson-gratitude:", "project-gratitude:", "settlement-trust:", "rename:", "life-event:"];
 
-    public static bool IsPermanent(SocietySocialMemory memory) => memory.Kind != SocietyMemoryKind.Experience ||
+    public static bool IsPermanent(SocietySocialMemory memory) => memory.Permanent || memory.Kind != SocietyMemoryKind.Experience ||
         PermanentPrefixes.Any(prefix => memory.Id.StartsWith(prefix, StringComparison.Ordinal));
 
     public static SocietyCheckpoint Archive(SocietyCheckpoint checkpoint, IReadOnlySet<string> protectedOwners,
