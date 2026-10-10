@@ -1,0 +1,1 @@
+- Depositing goods at a Market remains saveable after many splits and moves of the same stack, including partial deliveries. Resuming and loading a checkpoint preserve the actual deposited stock and its owner.
