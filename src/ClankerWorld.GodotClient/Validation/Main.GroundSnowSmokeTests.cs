@@ -52,7 +52,7 @@ public partial class Main
             Check(terrainLayer.GroundSnowAt(120, 60) == 1 && terrainLayer.GroundSnowAt(150, 60) == 0 &&
                 terrainLayer.GroundSnowAt(112, 32) == 0 && terrainLayer.GroundSnowAt(113, 32) == 0 &&
                 terrainLayer.GroundSnowAt(114, 32) == 0,
-                "Only the region that snowed may whiten; permanent snow, water and buildings keep their original art.");
+                "Only the region that snowed may whiten; permanent snow, water and building tiles must not receive ground snow.");
             cameraCenterTiles = new(120, 60); cameraZoom = 3; Show();
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             Check(terrainLayer.DrawnSnowTileCount > 0 && terrainLayer.GetChildCount() == 0,

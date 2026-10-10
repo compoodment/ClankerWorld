@@ -1632,8 +1632,12 @@ Observed snowfall now leaves white cover on open ground in that region,
 keeping grass tips and trodden Roads visible. Cover builds over a game hour
 and melts over two hours after snow stops. Walking agents and animals leave
 footprints that fade within an hour. Pause freezes both; reload, rewind and
-world changes clear this local display history. Water, buildings, trees and
-permanent snow retain their own artwork. Close/mid zoom and snowy walking
+world changes clear this local display history. Roofs share the same cover:
+gable, hipped and conical slopes keep the approved shaded-side snow and sunny
+ridge-to-eave dusting. Flues, outlines, grass shadows and open yards stay clear;
+roofs crossing a region edge use each side's cover. Water, trees and permanent
+snow retain their own artwork. Roof appearance at close/mid zoom still needs
+[the Windows check](../playtest/1475-roof-snow.md). Snowy walking
 still need [the Windows check](../playtest/1463-ground-snow-footprints.md).
 
 Rain, storms and snow fade in or out over 1.2 seconds when regional weather

@@ -3081,6 +3081,7 @@ public partial class Main
             await VerifyDesertAndSnowArtAsync();
             await VerifyCameraMotionAsync(sample);
             await VerifyGroundSnowAsync();
+            await VerifyRoofSnowAsync();
             await VerifyAutumnLeavesAsync();
             VerifyOrchardSaplingAppearance(sample);
             var crowded = sample with

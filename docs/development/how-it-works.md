@@ -1560,6 +1560,15 @@ textures instead of a draw command per snowy tile. Changes to buildings,
 construction, bridges and Roads invalidate that overview cache. Cover itself
 is indexed by weather region.
 
+Roofs read that same observed region cover, including tiles blocked from the
+ground overlay. The building pass draws a cached transparent snow texture over
+actual roof planes at close/mid zoom. It shares the approved A2 slope and tint
+rules; comparison with an undecorated roof excludes flues, signs and other
+fittings. Roof outlines, open yards and grass shadows remain clear. Each roof
+is clipped by weather region before drawing, including wrapped copies, so a
+snowy side does not whiten a dry neighbour. At most 256 textures are cached;
+cover changes reuse them. No extra node, host field, event or saved state is added.
+
 Small and Medium generated maps are connected to the normal world path. The
 older tiny map remains a compatibility fixture/world; generation is no longer
 merely a separate primitive. Large/Huge/Mega generator outputs do not imply
