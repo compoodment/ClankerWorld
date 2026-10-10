@@ -1,0 +1,1 @@
+- A portable Windows zip that includes its own world server is now built with every change, so the game can run entirely on your PC.

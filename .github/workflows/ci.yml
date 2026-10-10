@@ -112,6 +112,18 @@ jobs:
           name: clankerworld-windows-11-x64
           path: export/windows-x64
           if-no-files-found: error
+      - name: Package the portable Windows 11 x64 zip with its host
+        if: needs.scope.outputs.code == 'true'
+        run: bash scripts/package-windows.sh
+      - name: Upload the portable Windows 11 x64 zip
+        if: needs.scope.outputs.code == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: clankerworld-windows-11-x64-portable
+          path: export/package
+          # Already a zip; don't spend time compressing it again.
+          compression-level: 0
+          if-no-files-found: error
 
   # The test suite split across parallel jobs by scope's plan (.github/scripts/ci-plan.js);
   # every test runs in exactly one of them.
