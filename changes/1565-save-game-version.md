@@ -1,1 +1,1 @@
-- Saves now record which game version wrote them, and a save this version cannot open names the version that last saved it.
+- Saves and the world list now record which game version last saved each world, and a save this version cannot open names the version that last saved it.
