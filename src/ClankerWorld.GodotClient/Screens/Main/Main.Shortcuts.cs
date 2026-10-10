@@ -147,18 +147,23 @@ public partial class Main
     private void CenterOnHome()
     {
         if (renderedMapSnapshot is not { } snapshot || terrainMap is null || !HasMap(snapshot)) return;
-        CenterKeyboardCameraAt(InitialCameraCenter(snapshot, terrainMap));
+        CenterKeyboardCameraAt(InitialCameraCenter(snapshot, terrainMap), immediately: true);
     }
 
     /// <summary>Zooms one step while keeping the world point under <paramref name="canvasPoint"/> fixed.</summary>
     private void ZoomAt(Vector2 canvasPoint, bool zoomIn)
     {
         if (renderedMapSnapshot is not { } snapshot || !HasMap(snapshot)) return;
-        var nextZoom = Math.Clamp(cameraZoom * (zoomIn ? 1.25f : 0.8f), minimumCameraZoom, maximumCameraZoom);
-        if (Math.Abs(nextZoom - cameraZoom) <= 0.001f) return;
-        var anchor = (canvasPoint - mapStage.Position) / (currentTileSize + TileGap);
-        cameraZoom = nextZoom;
-        RenderMap(snapshot);
-        CenterCameraAt(anchor - (canvasPoint - mapCanvas.Size / 2) / (currentTileSize + TileGap));
+        var desired = cameraZooming ? cameraZoomTo : cameraZoom;
+        var nextZoom = Math.Clamp(desired * (zoomIn ? 1.25f : 0.8f), minimumCameraZoom, maximumCameraZoom);
+        if (Math.Abs(nextZoom - desired) <= 0.001f) return;
+        BeginCameraMotion();
+        cameraGliding = false;
+        cameraZoomAnchor = (canvasPoint - mapStage.Position) / (currentTileSize + TileGap);
+        cameraZoomPoint = canvasPoint;
+        cameraZoomFrom = cameraZoom;
+        cameraZoomTo = nextZoom;
+        cameraZoomElapsed = 0;
+        cameraZooming = Math.Abs(cameraZoomTo - cameraZoomFrom) > 0.001f;
     }
 }

@@ -1026,8 +1026,7 @@ world](world.md#river-crossings-and-visible-forests-and-mountains)), so traffic
 can bridge two-tile crossings too. Only actual traversal counts, not route
 previews, failed attempts or waiting. Keep bounded crossing evidence across
 saves; the threshold can be tuned after playtesting. Generated-Road bridges
-need not wait for this traffic. Both bridge triggers are now built; Road links
-between Towns wait for a second Town. [What works
+need not wait for this traffic. [What works
 today](../what-works.md#maps-weather-and-appearance) says what normal play
 shows so far, and [How it
 works](../development/how-it-works.md#roads-and-bridges) says how the same

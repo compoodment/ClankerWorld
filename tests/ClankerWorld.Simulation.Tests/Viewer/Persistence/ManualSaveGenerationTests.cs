@@ -6,8 +6,14 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class ManualSaveGenerationTests
 {
-    [Fact]
-    public void RepeatedOverwriteSelectsWholeGenerationsAndPreservesRecoveryPairs()
+    [Theory]
+    [InlineData(null, 0, true)]
+    [InlineData("🌱", 59, false)]
+    [InlineData("🌱", 58, true)]
+    [InlineData("e\u0301", 59, false)]
+    [InlineData("🇳🇿", 58, false)]
+    [InlineData("👨‍👩", 58, false)]
+    public void RepeatedOverwriteSelectsWholeGenerationsAndPreservesRecoveryPairs(string? finalCharacter, int prefixLength, bool characterFits)
     {
         var directory = Directory.CreateTempSubdirectory("save-generation-");
         try
@@ -18,13 +24,19 @@ public sealed class ManualSaveGenerationTests
             var store = new ManualWorldSaveStore(path);
             var oldSettings = new WorldAutosaveSettings(runtime.Society.WorldId, true, 5, 5, DateTimeOffset.UtcNow, 0);
             var oldAssignments = new InhabitantProviderAssignment[] { new("founder-scout", "planning", "openai", "old-model") };
-            var save = store.Create("Selected", runtime, oldAssignments, oldSettings);
+            var name = finalCharacter is null ? "Selected"
+                : new string('W', prefixLength) + finalCharacter + new string('W', 80 - prefixLength - finalCharacter.Length);
+            var recoveryName = finalCharacter is null ? "Before overwriting: Selected"
+                : "Before overwriting: " + new string('W', prefixLength) + (characterFits ? finalCharacter : string.Empty);
+            var save = store.Create(name, runtime, oldAssignments, oldSettings);
             var original = PrivateWorldRuntimeCodec.Encode(store.Read(save.Id));
             runtime.SetJevEnabled(false);
             var newSettings = oldSettings with { Enabled = false, IntervalMinutes = 1 };
             var newAssignments = new InhabitantProviderAssignment[] { oldAssignments[0] with { Model = "new-model" } };
             var first = store.Overwrite(save.Id, runtime, newAssignments, newSettings);
             var reopened = new ManualWorldSaveStore(path);
+            Assert.Equal(name, reopened.List().Single(item => item.Id == save.Id).Name);
+            Assert.Equal(recoveryName, reopened.List().Single(item => item.Id == first.BackupId).Name);
             var committed = reopened.ReadCommitted(save.Id);
             Assert.False(committed.Checkpoint.JevEnabled);
             Assert.Equal(newAssignments, committed.Assignments);
@@ -33,6 +45,7 @@ public sealed class ManualSaveGenerationTests
             Assert.Equal(oldAssignments, reopened.ReadAssignments(first.BackupId));
             runtime.SetJevEnabled(true);
             var second = reopened.Overwrite(save.Id, runtime, oldAssignments, oldSettings);
+            Assert.Equal(recoveryName, new ManualWorldSaveStore(path).List().Single(item => item.Id == second.BackupId).Name);
             Assert.False(reopened.Read(second.BackupId).JevEnabled);
             Assert.Equal(newAssignments, reopened.ReadAssignments(second.BackupId));
             Assert.Equal(newSettings, reopened.ReadAutosaveSettings(second.BackupId));

@@ -90,5 +90,9 @@ public sealed partial class PrivateWorldRuntime
         AdvanceTownGovernance();
         SettleTownAdmissions();
         AppendEvent("town_founded", $"{town.Id}|{actor}|{previous ?? "none"}|{group.Length}", inhabitants[actor].Position);
+        if (worldSimulation.Buildings.Where(building => assigned.Contains(building.InstanceId))
+            .OrderBy(building => building.PlacedTick).ThenBy(building => building.InstanceId, StringComparer.Ordinal)
+            .FirstOrDefault() is { } firstBuilding)
+            GenerateRoadBetweenTowns(town, firstBuilding);
     }
 }

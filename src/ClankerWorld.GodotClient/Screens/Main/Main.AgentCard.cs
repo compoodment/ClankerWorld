@@ -363,7 +363,7 @@ public partial class Main
     }
 
     /// <summary>Whether a decision came from an agent's own model rather than a routine helper or the built-in rules.</summary>
-    private static bool IsModelProvider(string provider) => provider is "openai" or "ollama-cloud";
+    private static bool IsModelProvider(string provider) => IsHostedProvider(provider);
 
     /// <summary>A flat, short tab-style button that sits beside a section heading.</summary>
     private static void StyleCompactToggle(Button button)

@@ -49,7 +49,10 @@ Loading a named save requires both its seed and saved world identity to match
 the selected world. A save from a different same-seed map is refused before
 creating a backup or changing its timeline, runtime or settings.
 Installation state includes device authority, provider credentials and usage
-accounting. Saves store slot IDs and model choices, never API-key bytes.
+accounting. Saves store slot IDs and model choices, never API-key bytes. An
+agent's model choice can carry a thinking level, written only when one is
+chosen. Provider files from before Anthropic was added load with an empty
+Anthropic record; the provider file's schema stays 3.
 
 New-world genesis no longer seeds Copper, a 100-unit household wallet or the
 legacy `camp-no-theft` fine. Currency and faction-law collections start empty.
@@ -196,6 +199,16 @@ unrelated action or a stale order cannot advance a replacement task. Alpha saves
 must use the current checkpoint schema; older saves are refused without
 migration and remain unchanged.
 
+Private-world schema 121 records each Town's first completed building time,
+including a completed building incorporated at founding. The time remains
+after removal, abandonment and reload, so constructing a replacement cannot
+repeat the first-building Road link. Loading checks it against the Town's
+founding time and world clock and requires it when a Town has buildings.
+Inter-Town Road tiles and bridges use their existing saved records. Current
+roundtrips and replay preserve the time, complete Road network and original
+Town/household land; older alpha schemas are refused and preserved without
+migration.
+
 Food consumption progress keeps a fixed-length SHA-256 receipt derived from
 the actual consumption's world time, actor and complete lot identity. Valid
 inventory splits can lengthen that lot identity without lengthening the saved
@@ -257,7 +270,13 @@ default beneficiaries and adds, for an accepted will, the named heirs in order,
 the split, the exact quantity of each frozen lot each heir receives, and any
 final words. Frozen lots retain their original building storage when present,
 so escrow and communal inheritance cannot claim an unrelated House as storage.
-The deceased archive records the Town the agent lived in. Loading
+The deceased archive records the Town the agent lived in. It also retains the
+committed death tick and final physical position. The owner observation exposes
+that position and the `death-tick` decision factor; the client derives map grave
+markers from them. Marker selection uses SHA-256 parity of the saved person ID,
+placement uses current legal open ground, and expiry uses the reported calendar.
+No grave placement, fade state or removal event is saved. Reloading recomputes
+the display from the same death records without changing checkpoints or replay. Loading
 checks that only an accepted will has heirs and a division, that the division
 covers every frozen lot exactly with no other lots, that a held vessel's
 contents go to the vessel's heir, that person heirs are known agents and Town
@@ -493,6 +512,9 @@ Earlier alpha checkpoints are refused and preserved without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
+An Anthropic birth choice uses the endpoint identity `anthropic-messages-v1`
+in the same record, with no schema change. The birth record has no thinking
+level, so the child's model starts at its default.
 Matching parent assignments are disclosed as agreement; when they differ, the
 parent who began the family plan is the tie-break. The provider store preserves that
 choice if its key is unavailable after moving a save or deleting a key, so the
@@ -1022,7 +1044,7 @@ from timed displacement even when their dependent lives in another household.
 No older-save migration or backfill is added.
 
 Private-world schema 70 introduced the chosen-name marker. The current standalone
-`clankerworld.society/v3` and `clankerworld.society-runtime/v3` envelopes require
+`clankerworld.society/v4` and `clankerworld.society-runtime/v4` envelopes require
 `HasChosenName` for every inhabitant. This separates a chosen identity
 from a temporary label after automatic naming has ended. Loading rejects a
 missing marker, chosen names still awaiting naming, or duplicate normalized
@@ -1037,7 +1059,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 120. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 122. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -1193,6 +1215,7 @@ current alpha cutoff.
 | Schema 104 | Scouting can continue beyond eight steps and explicitly return. Loop-free outward paths are bounded by map tile count; visited tiles and recent discoveries retain their 256-entry limits. Current-format saves retain longer outward and returning paths, original origins, actual knowledge and historical bridge validation. Replay includes chosen return, occupied-corner detours, interruption and refused-tick rollback. Earlier alpha saves are refused and preserved without migration. |
 | Schema 103 | Boat transport requires compact retired-request sequence ranges. Checkpoint compaction durably archives full older closed requests before retaining all active requests and the latest 40 closed requests. Ranges and live requests cover each issued sequence exactly once, including gaps around older active travelers. Loading verifies that the reachable archive contains exactly those retired closed requests. Earlier alpha saves are refused and preserved without migration. |
 | Schema 113 and society/runtime v3 | Required owner-private experience/belief archive lists and source kinds distinguish active recall from retained original evidence. Strict loading validates unique storage, owner/subject identities, archive times, protected kinds, salience sources, conversation evidence and corrections across both ledgers. Older alpha saves and society envelopes are refused and preserved without migration. |
+| Schema 122 and society/runtime v4 | Required owner-private summaries retain canonical typed sources and validated extracts alongside the experience/belief archives. Active recall can use summaries without exposing another owner’s evidence. Strict loading validates unique storage, owner/subject identities, archive times, protected kinds, salience sources, conversation evidence and corrections across both ledgers. Older alpha saves and society envelopes are refused and preserved without migration. |
 | Schema 102 | Copy orders retain the exact held source while gathering supplies and writing, alongside the native project and paid completion receipt. Strict load checks source kind, project/source/order links and copy provenance; original writing cannot credit a copy task. Source loss releases the project while retaining the source pointer for retry; completion clears both pointers. Older alpha checkpoints are refused and preserved without migration. |
 | Schema 101 | Knowledge-writing orders bind their exact native project and credit only completed physical artifacts carrying that instruction ID. Reload checks actor, kind, current-order priority, paid artifact provenance and exact progress. Cancellation and replacement release only owned unspent reservations; ordinary writing is preserved. Older alpha checkpoints are refused and preserved without migration. |
 | Schema 109 | Native newborns retain a pending first personality/aspiration choice through infancy and failed personal replies. Their ordinary initial-choice observation may retain at most two bounded parental identities as family background, covered by the observation digest. Accepted choices clear retained queued background and cannot apply twice after reload. Native birth, day-3 decisions, retry, and paired replay cover the marker and chosen fields. Earlier alpha checkpoints are refused and preserved; no migration is added. |
@@ -1445,7 +1468,24 @@ events contain counts only, with no private source text. Ordinary recall and
 living agents' recent-memory lists use active records. Deceased historical
 profiles inspect retained records from both ledgers, filtered to their original
 owner. Earlier formats are refused and
-preserved; no archive migration, helper summary or automatic deletion is added.
+preserved; no archive migration or automatic deletion is added.
+
+## Private memory summaries
+
+Private-world schema 122 and society/runtime v4 require a non-null
+`MemorySummaries` list, empty until a routine helper selects an extract. Each
+summary saves its owner, creation tick, choice, source-derived text and four to
+twelve exact typed source IDs and ticks. Its stable ID hashes the owner and
+canonical source list. Validation rejects unknown or foreign sources, duplicated
+coverage, altered extracts, noncanonical order and future or too-recent sources.
+Original archive records and their provenance remain intact. Later corrections
+retain their original source links; recall resolves current correction markers.
+
+Off, refused or failed helpers do not create summaries. Native save/reload,
+paired continuation, refused ticks and a late reply after switching Off are
+covered by the summary tests. Earlier alpha checkpoints and society envelopes
+are refused and preserved without migration. Summary timing and usefulness
+remain provisional.
 
 ## Paid Markets and stall trade
 

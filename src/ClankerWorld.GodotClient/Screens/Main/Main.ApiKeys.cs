@@ -27,6 +27,8 @@ public partial class Main
         apiKeyProviderChoice.SetItemMetadata(0, "openai");
         apiKeyProviderChoice.AddItem("Ollama Cloud");
         apiKeyProviderChoice.SetItemMetadata(1, "ollama-cloud");
+        apiKeyProviderChoice.AddItem("Anthropic");
+        apiKeyProviderChoice.SetItemMetadata(2, "anthropic");
         apiKeyProviderChoice.ItemSelected += _ => apiKeyInput.Text = string.Empty;
         body.AddChild(apiKeyProviderChoice);
         apiKeyLabelInput.PlaceholderText = "Name this key (for example, Personal account)";
