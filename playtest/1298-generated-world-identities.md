@@ -1,0 +1,1 @@
+- Create Small and Medium worlds with the same seed, give them different names and autosave settings, and make a named save in each. Switch and restart the game; check that each world retains its map, settings and own save list. Creating the same choices again under a new name should still be refused. [#1298](https://github.com/compoodment/ClankerWorld/issues/1298)

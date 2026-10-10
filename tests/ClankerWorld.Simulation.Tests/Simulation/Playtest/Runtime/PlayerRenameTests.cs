@@ -5,7 +5,7 @@ using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class PlayerRenameTests
+public sealed partial class PlayerRenameTests
 {
     private const string First = "founder:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     private const string Second = "founder:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -45,6 +45,12 @@ public sealed class PlayerRenameTests
             };
         }
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(saved)));
+        if (deceased)
+        {
+            Assert.True(world.RenameAgent(First, "Élodie Shore"));
+            Assert.Contains(world.Society.Memories, item => item.OwnerId == First && item.Permanent &&
+                item.Summary == "I was renamed on day 1 to Élodie Shore.");
+        }
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         Assert.Throws<InhabitantNameTakenException>(() => world.RenameAgent(Second, proposed));
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
@@ -119,6 +125,8 @@ public sealed class PlayerRenameTests
         using var world = PrivateWorldRuntime.Restore(saved);
         var person = world.Society.GetInhabitant(First);
         Assert.True(world.RenameAgent(First, "Rowan Lake"));
+        Assert.Contains(world.Society.Memories, memory => memory.OwnerId == First &&
+            memory.Summary == "I was renamed on day 1 to Rowan Lake.");
         Assert.Equal(person with { Name = "Rowan Lake" }, world.Society.GetInhabitant(First));
         Assert.Equal(saved.Society.Society.Households, world.Society.Households);
         Assert.Equal(saved.Society.Society.Relationships, world.Society.Relationships);
@@ -130,6 +138,17 @@ public sealed class PlayerRenameTests
         Assert.False(restored.RenameAgent(First, "Rowan Lake"));
         Assert.Equal(beforeRetry, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         Assert.Equal(First, restored.Society.GetInhabitant(First).Id);
+        var history = restored.Society.Memories.Where(item => item.OwnerId == First).ToArray();
+        Assert.Equal(2, history.Length);
+        Assert.All(history, memory =>
+        {
+            Assert.True(memory.Permanent);
+            Assert.Equal(First, memory.SubjectId);
+            Assert.Equal("private", memory.Visibility);
+            Assert.Null(memory.TombstonedTick);
+        });
+        Assert.Contains(history, item => item.Summary == "I was renamed on day 1 to Rowan Vale.");
+        Assert.Contains(history, item => item.Summary == "I was renamed on day 1 to Rowan Lake.");
         Assert.Equal("I am Rowan Vale.", Assert.Single(Assert.Single(restored.Conversations).Turns).Text);
     }
 

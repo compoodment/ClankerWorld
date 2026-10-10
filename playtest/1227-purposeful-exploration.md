@@ -1,0 +1,5 @@
+# Purposeful exploration
+
+- [ ] In the Windows game, order an agent to gather a material without naming a site. With no known usable source, check that the agent searches beyond a short trip, ignores unrelated or depleted discoveries and eventually resumes ordinary gathering after finding a usable source. Movement and discovery should not count as gathered output. [#1227](https://github.com/compoodment/ClankerWorld/issues/1227)
+- [ ] Check that ordinary choices can include looking for needed food or project materials, and forest or mountain terrain for material needs, while curiosity still works. Inspecting another agent's discoveries should not reveal a destination to the searching agent. [#1227](https://github.com/compoodment/ClankerWorld/issues/1227)
+- [ ] Save and load during a search; check the requested kind, remaining order and discoveries continue. Cancel the order and suggest returning to the trip's start; verify the agent retains discoveries without gaining harvest progress. Check an explicitly named site retains precedence, and urgent food or warmth can interrupt the search. [#1227](https://github.com/compoodment/ClankerWorld/issues/1227)

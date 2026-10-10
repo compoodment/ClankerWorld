@@ -156,7 +156,8 @@ public partial class WorldTerrainLayer
                     {
                         // Keep generation and texture memory bounded as the player pans.
                         if (snowTextures.Count >= 256) snowTextures.Remove(snowTextures.Keys.First());
-                        texture = ImageTexture.CreateFromImage(GroundSnowSprites.OverlayTile(key.Item1, key.Item2, key.Item3, key.Item4, size));
+                        using var overlay = GroundSnowSprites.OverlayTile(key.Item1, key.Item2, key.Item3, key.Item4, size);
+                        texture = ImageTexture.CreateFromImage(overlay);
                         snowTextures.Add(key, texture);
                     }
                     DrawTextureRect(texture, tile, false, Colors.White with { A = cover });

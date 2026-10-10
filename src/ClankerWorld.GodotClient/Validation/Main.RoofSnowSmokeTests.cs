@@ -59,6 +59,58 @@ public partial class Main
                 terrainLayer.GroundSnowAt(14, 12) == 0 && Mathf.IsEqualApprox(terrainLayer.GroundSnowAt(13, 12), 0.5f),
                 "The actual roof draw must share observed buildup while its footprint stays out of ground snow.");
             map = map with { WorldTick = 60 }; await Show();
+            foreach (var neglect in new[] { BuildingNeglect.Neglected, BuildingNeglect.FallingApart })
+            {
+                using var neglected = BuildingSprites.Render(BuildingKind.House, 1, 1, 16, BuildingDoor.Default, neglect);
+                using var snow = BuildingSprites.SnowOverlay(BuildingKind.House, 1, 1, 16, BuildingDoor.Default, neglect, 7);
+                var covered = 0;
+                for (var y = 0; y < 16; y++)
+                    for (var x = 0; x < 16; x++)
+                    {
+                        var color = neglected.GetPixel(x, y);
+                        if (color.A < 0.99f || color.R * 0.3f + color.G * 0.59f + color.B * 0.11f < 0.2f)
+                            Check(snow.GetPixel(x, y).A == 0, "Mid-zoom snow must stay registered to the actual neglected roof gaps.");
+                        if (snow.GetPixel(x, y).A > 0) covered++;
+                    }
+                Check(covered > 0, "Intact parts of neglected roofs must retain snow at mid zoom.");
+            }
+            foreach (var size in new[] { 32, 16 })
+            {
+                using var silo = BuildingSprites.SnowOverlay(BuildingKind.Silo, 1, 1, size, BuildingDoor.Default, BuildingNeglect.None, 7);
+                Check(silo.GetPixel(size == 32 ? 9 : 4, size == 32 ? 5 : 3).A == 0,
+                    "The actual Silo's circular outline must remain clear of snow.");
+                Check(silo.GetPixel(size == 32 ? 11 : 5, size == 32 ? 7 : 4).A > 0,
+                    "The Silo's roof interior must keep snow next to its clear circular rim.");
+            }
+            foreach (var side in new[] { DoorSide.North, DoorSide.East })
+            {
+                using var awning = BuildingSprites.SnowOverlay(BuildingKind.MarketStall, 1, 1, 32, new(side), BuildingNeglect.None, 7);
+                var covered = 0;
+                for (var y = 0; y < 32; y++)
+                    for (var x = 0; x < 32; x++)
+                        if (awning.GetPixel(x, y).A > 0)
+                        {
+                            Check(Math.Abs(awning.GetPixel(x, y).A - 0.74f) < 1f / 255,
+                                "A shaded single-face awning must not invent sunny hipped-roof sectors.");
+                            covered++;
+                        }
+                Check(covered > 0, "Shaded single-face awnings must retain snow.");
+            }
+            using (var awning = BuildingSprites.SnowOverlay(BuildingKind.MarketStall, 1, 1, 32, BuildingDoor.Default, BuildingNeglect.None, 7))
+            {
+                Check(Math.Abs(awning.GetPixel(16, 5).A - 0.64f) < 1f / 255 && awning.GetPixel(16, 16).A <= 0.48f,
+                    "A south-facing awning must melt from its actual eave across its full single slope.");
+            }
+            using (var awning = BuildingSprites.SnowOverlay(BuildingKind.MarketStall, 1, 1, 32, new(DoorSide.West), BuildingNeglect.None, 7))
+            {
+                Check(Math.Abs(awning.GetPixel(26, 16).A - 0.64f) < 1f / 255 && awning.GetPixel(15, 16).A <= 0.48f,
+                    "A west-facing awning must keep its ridge covered and melt toward its western eave.");
+            }
+            using (var arcade = BuildingSprites.SnowOverlay(BuildingKind.Market, 3, 3, 32, BuildingDoor.Default, BuildingNeglect.None, 7))
+            {
+                Check(Math.Abs(arcade.GetPixel(20, 80).A - 0.64f) < 1f / 255 && arcade.GetPixel(20, 87).A <= 0.48f,
+                    "The actual Market arcade must follow its single slope beneath the hall.");
+            }
             foreach (var (kind, tag, width, height) in kinds)
             {
                 foreach (var size in new[] { 32, 16 })

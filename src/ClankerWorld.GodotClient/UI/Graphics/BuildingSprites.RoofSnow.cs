@@ -10,10 +10,15 @@ public static partial class BuildingSprites
     {
         width = Math.Clamp(width, 1, 8);
         height = Math.Clamp(height, 1, 8);
-        // The Port and neglected artwork are drawn at 32 and reduced with nearest filtering.
+        // Match the source artwork's sampling: neglected roofs use top-left
+        // pixels; ordinary Ports use Godot's nearest pixel centres.
         if (size != 32 && (kind == BuildingKind.Port || neglect != BuildingNeglect.None))
         {
             var full = SnowOverlay(kind, width, height, 32, door, neglect, seed);
+            if (neglect != BuildingNeglect.None)
+            {
+                using (full) return Neglect.Resize(full, width * size, height * size);
+            }
             full.Resize(width * size, height * size, Image.Interpolation.Nearest);
             return full;
         }
@@ -30,7 +35,12 @@ public static partial class BuildingSprites
                     // Comparing the undecorated roof with the real sprite keeps flues,
                     // signs, doors, yards and shadows clear without guessing their colours.
                     if (baseColor.A < 0.99f || baseColor != roofOnly.GetPixel(x, y)) continue;
-                    if (kind == BuildingKind.Silo && new Vector2(x - width * size / 2f, y - height * size / 2f).Length() <= size / 8f) continue;
+                    if (kind == BuildingKind.Silo)
+                    {
+                        var distance = new Vector2(x + 0.5f - width * size / 2f, y + 0.5f - height * size / 2f).Length();
+                        var radius = (Math.Min(width, height) * 16f - 3) * size / 32f;
+                        if (distance > radius - 1 || distance <= size / 8f) continue;
+                    }
                     var color = shown.GetPixel(x, y);
                     if (color.A < 0.99f || color.R * 0.3f + color.G * 0.59f + color.B * 0.11f < 0.2f) continue;
                     var amount = RoofSnowSprites.SlopeCover(x, y, size, shape,
@@ -47,6 +57,13 @@ public static partial class BuildingSprites
         {
             var plate = new Plate(width * size, height * size, size / 32f);
             var parts = new List<(Rect2I, RoofSnowShape)>();
+            var singleSlope = door.Side switch
+            {
+                DoorSide.North => RoofSnowShape.SingleNorth,
+                DoorSide.East => RoofSnowShape.SingleEast,
+                DoorSide.West => RoofSnowShape.SingleWest,
+                _ => RoofSnowShape.SingleSouth,
+            };
             void Roof(Rect2I bounds, Recipe recipe)
             {
                 PaintRoof(plate, bounds, recipe);
@@ -71,7 +88,7 @@ public static partial class BuildingSprites
                 var depth = MathF.Round((across ? area.Size.Y : area.Size.X) * 0.6f);
                 var bounds = plate.Px(Orient(area, door.Side, 0, 0, along, depth));
                 Awning(plate, bounds, door.Side, Berry);
-                parts.Add((bounds, RoofSnowShape.Hipped));
+                parts.Add((bounds, singleSlope));
             }
             else if (kind == BuildingKind.Port)
             {
@@ -87,7 +104,7 @@ public static partial class BuildingSprites
                     var arcade = plate.Px(frame.Map(4, frame.Length - 19, frame.Breadth - 8, 12));
                     var shadow = new Rect2I(hall.Position.X + plate.P(2), hall.Position.Y + plate.P(3), hall.Size.X, hall.Size.Y);
                     LeanTo(plate, arcade, door.Side, recipe with { Salt = 225 }, shadow);
-                    parts.Add((arcade, RoofSnowShape.Hipped));
+                    parts.Add((arcade, singleSlope));
                     Roof(hall, recipe);
                 }
                 else

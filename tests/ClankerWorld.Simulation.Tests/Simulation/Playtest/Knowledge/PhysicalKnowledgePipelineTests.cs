@@ -9,7 +9,7 @@ using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class PhysicalKnowledgePipelineTests
+public sealed partial class PhysicalKnowledgePipelineTests
 {
     [Fact]
     public async Task BuiltInChoicesGatherAndDeliverPaperInputsForRequestedWriting()
@@ -108,7 +108,12 @@ public sealed class PhysicalKnowledgePipelineTests
         });
         var replayProvider = new ChoosingProvider(actor) { UseBuiltIn = true };
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(working)), _ => replayProvider);
-        for (var tick = 0; tick < recipe.DurationTicks; tick++)
+        Assert.Contains(working.Inhabitants.Single(person => person.InhabitantId == actor).Skills!,
+            skill => skill.Kind == SettlementSkillKind.Crafting);
+        Assert.Equal(12, job.CompletionTick - job.StartedTick);
+        // Inspect the exact output commit before the ordinary chooser can
+        // collect the reusable jug again for another household recipe.
+        while (world.WorldTick < job.CompletionTick)
         {
             Assert.True((await world.AdvanceOneTickAsync()).Advanced);
             Assert.True((await restored.AdvanceOneTickAsync()).Advanced);

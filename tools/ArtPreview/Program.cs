@@ -19,6 +19,18 @@ switch (command)
     case "animate":
         Animations.Run(Path.Combine(outRoot, "animated"), args.Length > 2 ? args[2] : null);
         break;
+    case "seasons":
+        SeasonalScenes.Run(Path.Combine(outRoot, "seasons"));
+        break;
+    case "movement":
+        MovementPreview.Run(Path.Combine(outRoot, "baseline", "movement"));
+        break;
+    case "completion":
+        BuildingCompletionPreview.Run(Path.Combine(outRoot, "baseline", "completion"));
+        break;
+    case "goldenhour":
+        GoldenHourPreview.Run(Path.Combine(outRoot, "baseline", "goldenhour"));
+        break;
     case "snow":
         SnowMarksPreview.Run(Path.Combine(outRoot, "baseline", "snow"));
         break;
@@ -29,7 +41,7 @@ switch (command)
         ArtContractChecks.Run();
         break;
     default:
-        Console.Error.WriteLine("usage: baseline|proposed|scene|animate|snow|roof-snow <out dir> [proposal family] | check");
+        Console.Error.WriteLine("usage: baseline|proposed|scene|seasons|movement|animate|completion|snow|roof-snow|goldenhour <out dir> [proposal family] | check");
         return 2;
 }
 return 0;
@@ -41,6 +53,11 @@ static class Baseline
     {
         Directory.CreateDirectory(root);
         var families = new List<(string Family, List<Entry> Entries, Color? Backdrop, int Columns)>();
+
+        families.Add(("smoke", new SmokeClientPreview().Render().ToList(), null, 2));
+        families.Add(("stock", new StoredStockClientPreview().Render().ToList(), null, 3));
+        families.Add(("weatherfade", new[] { 0.0, 1.4, 2.4, 3.9, 4.8 }
+            .Select(time => new Entry("weatherfade", $"b-fade-{time:0.0}", WeatherFadeClientPreview.Frame(time))).ToList(), null, 5));
 
         // Ground tiles: both variants at 32 px and at the 16 px mid-zoom atlas.
         var terrain = new List<Entry>();
@@ -262,7 +279,7 @@ static class Baseline
     }
 }
 
-/// <summary>Proposed art: any class implementing <see cref="IArtProposal"/> under Proposed/ is rendered.</summary>
+/// <summary>Proposed art: any class implementing <see cref="IArtProposal"/> is rendered, including archived review drawings.</summary>
 public interface IArtProposal
 {
     string Family { get; }

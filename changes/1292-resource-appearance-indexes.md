@@ -1,0 +1,1 @@
+- Zooming and unchanged observation refreshes reuse the map's tree and natural-site indexes, reducing repeated allocations while still updating growth, depletion and camp-resource sprites. [#1292](https://github.com/compoodment/ClankerWorld/issues/1292)

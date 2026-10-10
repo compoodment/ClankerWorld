@@ -22,6 +22,7 @@ public sealed class ViewerWebApplicationFactory : WebApplicationFactory<Program>
     private readonly bool privateWorld;
     private readonly bool legacyPrivateWorld;
     private readonly bool configureProviderUsagePath;
+    private readonly bool advanceScript;
 
     public ViewerWebApplicationFactory()
         : this(null)
@@ -33,7 +34,8 @@ public sealed class ViewerWebApplicationFactory : WebApplicationFactory<Program>
         string? approvedAssetCatalogPath = null,
         bool privateWorld = false,
         bool legacyPrivateWorld = true,
-        bool configureProviderUsagePath = true)
+        bool configureProviderUsagePath = true,
+        bool advanceScript = false)
     {
         ownsStateDirectory = persistedStateDirectory is null;
         stateDirectory = persistedStateDirectory ?? System.IO.Path.Combine(
@@ -43,6 +45,7 @@ public sealed class ViewerWebApplicationFactory : WebApplicationFactory<Program>
         this.privateWorld = privateWorld;
         this.legacyPrivateWorld = legacyPrivateWorld;
         this.configureProviderUsagePath = configureProviderUsagePath;
+        this.advanceScript = advanceScript;
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -59,7 +62,7 @@ public sealed class ViewerWebApplicationFactory : WebApplicationFactory<Program>
         // The compatibility suite uses fixture mode; selected tests opt into
         // the integrated private runtime through the same real host boundary.
         builder.UseSetting("ClankerWorld:Runtime:WorldMode", privateWorld ? "private" : "fixture");
-        builder.UseSetting("ClankerWorld:Runtime:AdvanceScript", "false");
+        builder.UseSetting("ClankerWorld:Runtime:AdvanceScript", advanceScript ? "true" : "false");
         builder.UseSetting("ClankerWorld:Pairing:StatePath", System.IO.Path.Combine(stateDirectory, "authority.json"));
         builder.UseSetting("ClankerWorld:Runtime:StatePath", System.IO.Path.Combine(stateDirectory, "runtime.json"));
         builder.UseSetting(

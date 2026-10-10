@@ -1,10 +1,11 @@
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 
 namespace ClankerWorld.Simulation.Playtest;
 
 /// <summary>
-/// A small, per-person record of places actually visited. An outing only picks
+/// A per-person record of places actually visited. An outing only picks
 /// its next visible neighbour; it does not give the person the player's map.
 /// </summary>
 public sealed record SettlementExploration(
@@ -12,13 +13,35 @@ public sealed record SettlementExploration(
     IReadOnlyList<GridPoint> OutingPath,
     long LastOutingTick,
     bool Returning,
-    IReadOnlyList<GridPoint>? OutingDiscoveries = null);
+    IReadOnlyList<GridPoint>? OutingDiscoveries = null,
+    [property: JsonRequired] SettlementExplorationGoal? Goal = null);
+
+/// <summary>A bounded purpose, without a destination inferred from the hidden map.</summary>
+public sealed record SettlementExplorationGoal(string Kind, string Target, string? OrderInstructionId = null);
 
 public sealed partial class PrivateWorldRuntime
 {
-    private const int ExplorationStepsPerOuting = 8;
+    private const int StartingExplorationWarmthBudgetSteps = 8;
     private const int ExplorationCooldownTicks = 180;
     private const int ExplorationMemoryLimit = 256;
+
+    private PlaytestInhabitantState CompleteExplorationGoal(string actor, PlaytestInhabitantState person)
+    {
+        if (person.Exploration?.Goal is not { } goal) return person;
+        var completed = person with
+        {
+            Exploration = person.Exploration with
+            {
+                OutingPath = [],
+                Returning = false,
+                Goal = null,
+                LastOutingTick = WorldTick,
+            },
+        };
+        inhabitants[actor] = completed;
+        AppendEvent("exploration_goal_found", $"{actor}:{goal.Kind}:{goal.Target}");
+        return completed;
+    }
 
     private void AddExplorationCandidate(List<CognitionCandidate> candidates, string actor, PlaytestInhabitantState person)
     {
@@ -28,34 +51,51 @@ public sealed partial class PrivateWorldRuntime
         var exploration = person.Exploration;
         if (exploration?.OutingPath.Count > 0)
         {
-            candidates.Add(new("explore", "Continue a short local scouting trip, then return to its start.", 75));
+            if (exploration.Returning || HasWarmthForOuting(person))
+                candidates.Add(new(exploration.Goal is { OrderInstructionId: null } goal && !exploration.Returning
+                    ? ExplorationGoalCandidateId(goal) : "explore", exploration.Returning
+                    ? "Keep returning to where your scouting trip started."
+                    : exploration.Goal is { } purpose ? $"Keep looking for {purpose.Target.Replace('_', ' ')}; return when you choose."
+                    : "Continue scouting nearby terrain and resources; return when you choose.", 75));
+            candidates.Add(new("explore_return", "Return to where your scouting trip started.", 76));
             return;
         }
 
         if (!HasWarmthForOuting(person) || person.HungerBasisPoints < OutingFullnessReserve ||
-            person.Project is { Stage: not ("completed" or "cancelled") } ||
             exploration is not null && WorldTick - exploration.LastOutingTick < ExplorationCooldownTicks ||
             !map.FootNeighbors(person.Position).Any(map.IsPassable))
             return;
 
-        candidates.Add(new("explore", "Scout adjacent terrain and resource sites out of curiosity, then return.", 75));
+        if (NeededExplorationResource(actor, person) is { } needed)
+        {
+            var goal = new SettlementExplorationGoal("resource", needed);
+            candidates.Add(new(ExplorationGoalCandidateId(goal), $"Look for {needed.Replace('_', ' ')} needed for food or current work.", 74));
+            if (needed is "wood" or "iron_ore" or "gold_ore" or "diamond")
+            {
+                var terrain = new SettlementExplorationGoal("terrain", needed == "wood" ? "Forest" : "Mountain");
+                candidates.Add(new(ExplorationGoalCandidateId(terrain), $"Look for {terrain.Target.ToLowerInvariant()} terrain for current material needs.", 75));
+            }
+        }
+        if (person.Project is not { Stage: not ("completed" or "cancelled") })
+            candidates.Add(new("explore", "Scout nearby terrain and resources out of curiosity; choose when to return.", 75));
     }
 
     private bool HasWarmthForOuting(PlaytestInhabitantState person)
     {
         if (person.Survival is not { } condition) return true;
-        // Budget the short out-and-back trip using adjacent exposure and actual movement costs.
+        // Keep the starting trial budget, then account for a longer recorded return.
         // Shelter at the starting tile is not protection carried along on the outing.
+        var steps = Math.Max(StartingExplorationWarmthBudgetSteps, person.Exploration?.OutingPath.Count ?? 0);
         return map.FootNeighbors(person.Position).Where(map.IsPassable).All(next =>
         {
             var loss = Math.Max(0, OutdoorExposure(next) - ClothingProtection(person.InhabitantId, next));
             var stepTicks = (RoadStepCost(person.Position, next) + 99) / 100 +
                 SettlementIllnessRules.TravelDelayTicks(condition.IllnessBasisPoints);
-            return loss == 0 || condition.WarmthBasisPoints - loss * stepTicks * ExplorationStepsPerOuting * 2 >= UrgentWarmth;
+            return loss == 0 || condition.WarmthBasisPoints - (long)loss * stepTicks * steps * 2 >= UrgentWarmth;
         });
     }
 
-    private void Explore(string actor, PlaytestInhabitantState person)
+    private void Explore(string actor, PlaytestInhabitantState person, SettlementExplorationGoal? goal = null, bool replaceGoal = false)
     {
         var exploration = person.Exploration ?? new SettlementExploration([], [], WorldTick, false);
         // A return path holds remaining waypoints, not each intermediate detour.
@@ -64,9 +104,14 @@ public sealed partial class PrivateWorldRuntime
         {
             // Another legal intention moved the actor. Never splice that move
             // into a stale scouting path or pretend its intermediate tiles were visited.
-            exploration = exploration with { OutingPath = [], OutingDiscoveries = [], Returning = false };
+            exploration = exploration with { OutingPath = [], OutingDiscoveries = [], Returning = false, Goal = null };
             AppendEvent("exploration_aborted", $"{actor}:interrupted_movement");
         }
+        // An order can supply a purpose to an already running curiosity outing.
+        // Replacement/cancellation never makes its old purpose authoritative.
+        if (replaceGoal || goal is not null || exploration.Goal?.OrderInstructionId is { } orderId &&
+            PendingInstructionFor(actor)?.InstructionId != orderId)
+            exploration = exploration with { Goal = goal };
         if (exploration.OutingPath.Count == 0)
         {
             var learnedStartingTile = RecordKnowledgeFact(actor, person.Position);
@@ -79,13 +124,20 @@ public sealed partial class PrivateWorldRuntime
                 LastOutingTick = WorldTick,
                 Returning = false,
                 OutingDiscoveries = learnedStartingTile ? [person.Position] : [],
+                Goal = goal,
             };
             AppendEvent("exploration_started", $"{actor}:{person.Position.X},{person.Position.Y}");
         }
 
-        if (exploration.Returning || exploration.OutingPath.Count > ExplorationStepsPerOuting)
+        if (exploration.Returning)
         {
             ReturnFromExploration(actor, person, exploration with { Returning = true });
+            return;
+        }
+
+        if (exploration.Goal is { } currentGoal && ExplorationGoalReached(actor, person, currentGoal))
+        {
+            CompleteExplorationGoal(actor, person with { Exploration = exploration });
             return;
         }
 
@@ -128,7 +180,7 @@ public sealed partial class PrivateWorldRuntime
                 VisitedTiles = visited,
                 OutingPath = exploration.OutingPath.Append(moved.Position).ToArray(),
                 OutingDiscoveries = learned
-                    ? (exploration.OutingDiscoveries ?? []).Append(moved.Position).TakeLast(ExplorationStepsPerOuting + 1).ToArray()
+                    ? (exploration.OutingDiscoveries ?? []).Append(moved.Position).TakeLast(ExplorationMemoryLimit).ToArray()
                     : exploration.OutingDiscoveries ?? [],
             }
         };
@@ -140,6 +192,16 @@ public sealed partial class PrivateWorldRuntime
             AppendEvent("exploration_discovered",
                 $"{actor}:{moved.Position.X},{moved.Position.Y}:{terrain}:{string.Join(',', resourcesHere)}");
         }
+        if (exploration.Goal is { } reachedGoal && ExplorationGoalReached(actor, inhabitants[actor], reachedGoal))
+            CompleteExplorationGoal(actor, inhabitants[actor]);
+    }
+
+    private void ChooseExplorationReturn(string actor, PlaytestInhabitantState person)
+    {
+        if (person.Exploration is not { OutingPath.Count: > 0 } exploration) return;
+        if (!exploration.Returning)
+            AppendEvent("exploration_return_started", actor);
+        ReturnFromExploration(actor, person, exploration with { Returning = true });
     }
 
     private void ReturnFromExploration(string actor, PlaytestInhabitantState person, SettlementExploration exploration)
@@ -153,6 +215,7 @@ public sealed partial class PrivateWorldRuntime
                     OutingPath = [],
                     Returning = false,
                     LastOutingTick = WorldTick,
+                    Goal = null,
                 }
             };
             AppendEvent("exploration_completed", $"{actor}:visited={exploration.VisitedTiles.Count}");
@@ -182,6 +245,7 @@ public sealed partial class PrivateWorldRuntime
                     OutingPath = [],
                     Returning = false,
                     LastOutingTick = WorldTick,
+                    Goal = null,
                 }
             };
             AppendEvent("exploration_aborted", $"{actor}:return_blocked");
@@ -192,10 +256,15 @@ public sealed partial class PrivateWorldRuntime
         IEnumerable<BridgeState> bridges, long worldTick)
     {
         if (exploration is null) return;
-        if (exploration.VisitedTiles is null || exploration.OutingPath is null ||
+        if (!ValidExplorationGoal(exploration.Goal) ||
+            exploration.VisitedTiles is null || exploration.OutingPath is null ||
+            exploration.Goal is not null && exploration.OutingPath.Count == 0 ||
             exploration.VisitedTiles.Count > ExplorationMemoryLimit ||
-            exploration.OutingPath.Count > ExplorationStepsPerOuting + 1 ||
-            (exploration.OutingDiscoveries?.Count ?? 0) > ExplorationStepsPerOuting + 1 ||
+            // An outward route never revisits a tile, so the map itself bounds
+            // its length without imposing a distance limit on the scout.
+            exploration.OutingPath.Count > map.Tiles.Count ||
+            exploration.OutingPath.Distinct().Count() != exploration.OutingPath.Count ||
+            (exploration.OutingDiscoveries?.Count ?? 0) > ExplorationMemoryLimit ||
             exploration.LastOutingTick < 0 || exploration.LastOutingTick > worldTick ||
             exploration.VisitedTiles.Any(point => !map.IsPassable(point)) ||
             exploration.OutingPath.Any(point => !map.IsPassable(point)) ||

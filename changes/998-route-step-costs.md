@@ -1,0 +1,1 @@
+- Construction layout and shared route searches reuse the foot-step legality they just checked when computing Road costs, preserving offered choices and placement checks.

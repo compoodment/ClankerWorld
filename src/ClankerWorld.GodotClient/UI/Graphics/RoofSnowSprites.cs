@@ -2,7 +2,7 @@ using Godot;
 
 namespace ClankerWorld.GodotClient.UI;
 
-internal enum RoofSnowShape { GableEastWest, GableNorthSouth, Hipped, Cone }
+internal enum RoofSnowShape { GableEastWest, GableNorthSouth, Hipped, Cone, SingleNorth, SingleEast, SingleSouth, SingleWest }
 
 /// <summary>Approved roof snow A2: shade, ragged sunlit melt lines and a dusting below them.</summary>
 internal static class RoofSnowSprites
@@ -33,6 +33,13 @@ internal static class RoofSnowSprites
         }
         switch (shape)
         {
+            case RoofSnowShape.SingleNorth:
+            case RoofSnowShape.SingleEast:
+                return shaded;
+            case RoofSnowShape.SingleSouth:
+                return Sunlit(h - py, h, px);
+            case RoofSnowShape.SingleWest:
+                return Sunlit(px, w, py);
             case RoofSnowShape.GableEastWest:
                 return py < h / 2 ? shaded : Sunlit(h - py, h / 2, px);
             case RoofSnowShape.GableNorthSouth:
