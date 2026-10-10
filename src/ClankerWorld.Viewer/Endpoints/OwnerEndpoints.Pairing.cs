@@ -163,6 +163,19 @@ internal static partial class OwnerEndpoints
             return Results.Ok(result.Value);
         });
 
+        // The game that started a companion host stops it here when the player
+        // quits. Stopping the host saves the world first; see PrivateWorldStartupService.
+        app.MapPost("/api/v1/local/shutdown", (
+            HttpContext context,
+            OwnerPairingHostOptions options,
+            IHostApplicationLifetime lifetime) =>
+        {
+            if (!options.IsCompanionShutdownRequest(context)) return Results.NotFound();
+            CompanionHostTelemetry.ShutdownRequested(app.Logger);
+            lifetime.StopApplication();
+            return Results.Accepted();
+        });
+
         app.MapPost("/api/v1/owner/challenges", (
             IssueOwnerChallengeHttpRequest request,
             OwnerAuthorityStore authority,

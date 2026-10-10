@@ -2,7 +2,7 @@
 title: Device pairing
 type: development-reference
 status: active
-updated: 2026-10-03
+updated: 2026-10-10
 ---
 
 # Device pairing
@@ -32,7 +32,8 @@ rollback backup. This is the approved pre-release exception described in
 3. A host-local bootstrap administrator approves the matching pairing ID and
    code through a separate loopback-only listener. There is no bootstrap
    password or reusable approval secret in the client, a URL, or deployment
-   configuration. Once an owner device exists, it may approve or revoke further
+   configuration. A host the game starts on the player's own PC also needs a
+   one-launch secret ([companion host](#host-started-by-the-game)). Once an owner device exists, it may approve or revoke further
    devices through signed owner-device-management requests. It may also request
    the signed registry of paired-device lifecycle records. The registry exposes
    only public device IDs, public-key fingerprints, and lifecycle state; it
@@ -258,6 +259,35 @@ This is an operator recovery path, not automatic queue eviction on behalf of an
 untrusted remote client. Keep the returned code and proof local/private. Tests
 cover capacity recovery and signed owner availability; chunked-body enforcement
 is a Kestrel boundary, not claimed from TestServer's Content-Length test alone.
+
+## Host started by the game
+
+For the local Windows package ([#468](https://github.com/ClankerWorldOrg/ClankerWorld/issues/468)),
+the game starts its own host on the player's PC. Every program on that PC can
+reach a loopback listener, so loopback alone cannot prove the request came from
+the game. Before starting the host, the game writes a fresh random value of at
+least 32 characters to a file in the player's own data folder and starts the
+host with:
+
+- `ClankerWorld:Pairing:LocalApprovalPort`, the separate approval listener, and
+- `ClankerWorld:Pairing:CompanionSecretPath`, the path of that file. The path
+  is not secret; the value is never passed in arguments, logged or saved by the
+  host. A missing, short or unreadable file stops startup, and the setting is
+  refused without an approval port.
+
+On such a companion host, every `/api/v1/local/*` request must also carry the
+value in the `X-ClankerWorld-Companion-Secret` header, compared in constant
+time. Without it the routes return 404, exactly as on the forwarded listener.
+The game uses it to approve its own pending pairing with the comparison code,
+so the player sees no code to copy.
+
+`POST /api/v1/local/shutdown` exists only on a companion host. It returns 202
+and stops the host. Whenever a private-world host stops, from this request,
+Ctrl+C or a service stop, it waits for the tick loop to finish, cancels hosted
+model work and writes the world's checkpoint before exiting (`host_shutdown`
+in the log). A world halted for inspection is left untouched. The server host
+started without these settings behaves as before and cannot be stopped over
+HTTP.
 
 ## Bounded owner actions
 

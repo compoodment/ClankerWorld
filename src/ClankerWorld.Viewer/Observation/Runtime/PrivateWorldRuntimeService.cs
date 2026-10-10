@@ -93,6 +93,43 @@ public sealed partial class PrivateWorldRuntimeService(
         return base.StopAsync(cancellationToken);
     }
 
+    [LoggerMessage(EventId = 2322, Level = LogLevel.Information,
+        Message = "host_shutdown outcome={Outcome} tick={WorldTick}")]
+    private static partial void LogShutdownSave(ILogger logger, string outcome, long worldTick);
+
+    /// <summary>
+    /// Runs once the tick loop has stopped, when the host is shutting down:
+    /// cancels hosted model work and writes the world's checkpoint, so quitting
+    /// the game or stopping the service never loses the last committed tick. A
+    /// world halted for inspection is left exactly as it was.
+    /// </summary>
+    public bool SaveBeforeShutdown()
+    {
+        if (invalidStateHalt)
+        {
+            if (logger is not null) LogShutdownSave(logger, "skipped_halted", runtime.WorldTick);
+            return false;
+        }
+        var gate = providers?.WorldMutationGate ?? new object();
+        try
+        {
+            lock (gate)
+            {
+                runtime.CancelPendingHostedDecisions();
+                _ = stateFile.Save(runtime);
+            }
+            recoveryWritePending = false;
+            if (logger is not null) LogShutdownSave(logger, "saved", runtime.WorldTick);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The previous per-tick checkpoint is still on disk.
+            if (logger is not null) LogShutdownSave(logger, "save_failed", runtime.WorldTick);
+            return false;
+        }
+    }
+
     private void OnAgentBeliefChanged(PrivateWorldBeliefTransition transition)
     {
         if (logger is null) return;

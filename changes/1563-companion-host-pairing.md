@@ -1,0 +1,1 @@
+- The host now saves the world when it is stopped, and a host the game starts on your own PC can only be paired with or stopped by that game.

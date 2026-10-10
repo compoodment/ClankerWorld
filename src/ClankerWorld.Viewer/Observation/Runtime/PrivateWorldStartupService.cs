@@ -21,6 +21,7 @@ public sealed class PrivateWorldStartupService(IServiceProvider services,
         finally
         {
             await advancing.StopAsync(CancellationToken.None);
+            advancing.SaveBeforeShutdown();
         }
     }
 }

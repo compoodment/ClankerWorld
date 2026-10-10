@@ -191,7 +191,15 @@ builder.Services.AddSingleton<OwnerWorldObservationStore>(services => isPrivateW
     ? new OwnerWorldObservationStore(services.GetRequiredService<PrivateWorldRuntime>())
     : new OwnerWorldObservationStore(services.GetRequiredService<OwnerWorldRuntime>()));
 builder.Services.AddSingleton(new OwnerAuthorityStateFile(authorityStatePath));
-var pairingHostOptions = new OwnerPairingHostOptions(localApprovalPort);
+// Set only when the game starts this host on the player's own PC.
+var companionSecretPath = builder.Configuration["ClankerWorld:Pairing:CompanionSecretPath"];
+if (companionSecretPath is not null && localApprovalPort == 0)
+{
+    throw new InvalidOperationException(
+        "ClankerWorld:Pairing:CompanionSecretPath needs ClankerWorld:Pairing:LocalApprovalPort.");
+}
+var pairingHostOptions = new OwnerPairingHostOptions(localApprovalPort,
+    companionSecretPath is null ? null : OwnerPairingHostOptions.ReadCompanionSecret(companionSecretPath));
 builder.Services.AddSingleton(pairingHostOptions);
 builder.Services.AddSingleton<PairingRequestBudget>();
 builder.Services.AddSingleton<OwnerAuthorityStore>(services =>
