@@ -8,6 +8,7 @@ internal static class ArtContractChecks
 {
     public static void Run()
     {
+        CheckWeatherFade();
         var current = new ArtSet();
         CheckApprovedSmoke();
         foreach (var size in new[] { 16, 32 })
@@ -81,6 +82,21 @@ internal static class ArtContractChecks
                 Equal(Approved.StockProposal.Frame("a-at-door", level, size), StoredStockClientPreview.Frame(level, size),
                     $"Stock A must match at {size} px, level {level}.");
         Console.WriteLine("Approved stock: 6 exact RGBA scene comparisons, covering all pile families and levels at both atlases.");
+    }
+
+    private static void CheckWeatherFade()
+    {
+        for (var frame = 0; frame < 60; frame++)
+        {
+            var time = frame / 12.0;
+            Equal(WeatherFadeClientPreview.Frame(time), Approved.WeatherFadeProposal.Frame("b-fade", time),
+                $"The client fade envelope must match the approved scene at frame {frame}.");
+            var expected = Approved.WeatherFadeProposal.Amount("b-fade", time).Weather;
+            var actual = WeatherFade.Progress(time - 0.8) * (1 - WeatherFade.Progress(time - 3.3));
+            if (Math.Abs(expected - actual) > 0.000001f)
+                throw new InvalidOperationException($"Weather fade must follow approved B at frame {frame}: {actual} versus {expected}.");
+        }
+        Console.WriteLine("Approved weather fade: 60 exact RGBA scenes and transition-envelope comparisons.");
     }
 
     private static void CheckApprovedBuildings(ArtSet current)

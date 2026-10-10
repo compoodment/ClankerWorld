@@ -1621,6 +1621,10 @@ world changes clear this local display history. Water, buildings, trees and
 permanent snow retain their own artwork. Close/mid zoom and snowy walking
 still need [the Windows check](../playtest/1463-ground-snow-footprints.md).
 
+Rain, storms and snow fade in or out over 1.2 seconds when regional weather
+changes; pause freezes the transition. Loading a world shows its current
+weather immediately.
+
 The map uses the pixel art approved in the October 1 art review: every ground
 type, with mountains, peaks and hills drawn from the world's elevation as one
 landform spanning many tiles, and snow that thins into frost at its edges;

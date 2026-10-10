@@ -978,7 +978,10 @@ in gusts, and snowflake crosses drift sideways. The weather stays light enough
 to read the map and freezes with the world when paused.
 
 Game Settings controls the window, theme, weather effects, date/time format
-and the model-call limit.
+and the model-call limit. Rain, storms and snow fade in or out over about a
+second when regional weather changes. Pausing freezes a fade where it is;
+loading a world shows its existing weather at once.
+
 At close and mid zoom, autumn adds a few fallen leaves under mature broadleaf
 and fruiting or picked orchard trees. They stay off Roads and water and
 disappear when autumn ends. You cannot gather them.

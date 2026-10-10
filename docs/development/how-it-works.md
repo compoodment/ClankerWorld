@@ -1710,9 +1710,14 @@ in eastward gusts, and wind-blown snowflake crosses. The review tool uses the
 same geometry, timing and ink. `WeatherLayer` caches seven tiny nearest-filtered
 textures and submits one command per particle, bounded by the camera. Its
 precipitation timing and particle count describe synchronous command creation;
-they exclude later layout, drawing and GPU work. Weather fields, soft regional
-edges, cloud haze, storm flashes, settings and the pause clock remain unchanged.
-Nothing new is saved or sent by the host.
+they exclude later layout, drawing and GPU work. Each weather kind keeps a
+soft spatial mask, while a local 1.2-second smooth transition changes its
+opacity. Outgoing precipitation survives until its fade finishes; retargeting
+starts from the last displayed amount. The linear masks retain full coverage
+at regional junctions without changing an unchanged neighbour when a fade ends.
+Pausing holds both clocks, and a new world shows its recorded weather at once.
+Cloud haze, storm flashes and their settings remain available. Nothing new is
+saved or sent by the host.
 
 The generator vendors [FastNoiseLite](../../src/ClankerWorld.Simulation/ThirdParty/FastNoiseLite/README.md).
 Its drainage approach draws on [Red Blob's noise guide](https://www.redblobgames.com/maps/terrain-from-noise/),
