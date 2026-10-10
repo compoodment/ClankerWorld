@@ -533,6 +533,9 @@ public sealed partial class PrivateWorldRuntime
                 var civic = intention.CandidateId.Split('|');
                 if (civic.Length == 5 && civic[2] == "visit" && intention.Provider == DecisionProviderKind.LargeLanguageModel)
                     ContinueTownCivicVisit(inhabitant.Id, intention.CandidateId);
+                else if (civic.Length == 5 && civic[2] is "land_transfer_collect_payment" or "land_transfer_pay" or "land_transfer_meet" &&
+                    intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    ContinueTownLandSaleWalk(inhabitant.Id, intention.CandidateId);
                 continue;
             }
             if (IsTownProjectDonationCandidate(intention.CandidateId))

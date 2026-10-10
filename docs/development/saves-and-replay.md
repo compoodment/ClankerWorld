@@ -341,7 +341,9 @@ every required adult's informed acceptance and the unchanged original grant term
 declined, withdrawn or invalidated transfers cannot carry a completed adjustment.
 Pending consent requirements are derived from living adults, so a new adult must
 personally accept before completion. These records preserve original Council
-grant receipts without transferring title or physical property.
+grant receipts and Town title. A goods sale also retains its immutable price
+and actual payment receipt; only the agreed goods payment changes physical
+property ownership.
 
 These records share prepared-tick rollback with permissions, requests, civic
 receipts and events. Current-format reload and continuation retain pending
@@ -638,6 +640,17 @@ requires normal acceptance, which counts against the invitee's daily allowance.
 Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
+
+Private-world schema 120 adds optional goods prices to voluntary permission
+transfers and actual goods payment to their settlement receipts. The notice and
+consent token include the immutable price. A paid request stays pending after
+all current adults accept until physical payment and permission settle together.
+Receipts retain the buyer, seller adult, meeting place and exact inventory
+transfer event IDs and quantities; retained events must match the accepted terms.
+Current-format checks cover pending and completed reload, declined sales,
+refused-step rollback and paired byte-identical continuation. Older alpha saves
+are refused and preserved without migration. This number is provisional until
+merge.
 
 Private-world schema 106 adds `talk_to` order bindings: stable `TargetAgentId`,
 optional `TalkConversationId` and the completed `TalkOutcome`. Validation binds
@@ -1015,7 +1028,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 119. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 120. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
