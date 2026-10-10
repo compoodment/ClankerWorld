@@ -16,6 +16,7 @@ public partial class Main
     private void ResetDisplayedWorldContext()
     {
         goldenHourLayer.Reset();
+        smokeLayer.SetBuildings([]);
         keyboardMapTile = null;
         knownEvents.Clear();
         eventsWorldId = null;
@@ -197,6 +198,7 @@ public partial class Main
         if (!HasMap(snapshot))
         {
             goldenHourLayer.Reset();
+            smokeLayer.SetBuildings([]);
             handcartFacings.Clear();
             animalFacings.Clear();
             boatFacings.Clear();
@@ -233,7 +235,9 @@ public partial class Main
         worldOverview.SetFields(snapshot.Fields);
         terrainLayer.SetMarkets(snapshot.Towns);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects, snapshot.Towns);
-        nightLightsLayer.SetBuildings(BuildingLights(snapshot));
+        var buildingLights = BuildingLights(snapshot);
+        nightLightsLayer.SetBuildings(buildingLights);
+        smokeLayer.SetBuildings(buildingLights);
         nightLightsLayer.SetLanterns(StreetLanterns(snapshot), snapshot.WrapsEastWest);
         terrainLayer.SetConstructionSites(snapshot.ConstructionSites);
         nightLightsLayer.SetLanternSites(StreetLanternSites(snapshot));

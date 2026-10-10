@@ -116,6 +116,11 @@ Both fade away in full day and night. Names, moving figures,
 night lights and weather stay above the glow, and pause holds its transition.
 The [Windows glow check](../playtest/1465-rose-dawn-gold-dusk.md) is pending.
 
+At close and mid zoom, an occupied House or working Blacksmith forge emits
+a soft grey column of smoke that rises, leans east and fades. Empty Houses
+and idle forges emit none; pausing freezes the smoke. The appearance still
+needs a Windows hands-on check.
+
 Buildings in use glow: light falls on the ground from the windows on a
 building's front and sides and from its open door, never from its roof. A House
 is lit only while someone is inside; a Farmhouse, Store, Tailor Shop, Workshop

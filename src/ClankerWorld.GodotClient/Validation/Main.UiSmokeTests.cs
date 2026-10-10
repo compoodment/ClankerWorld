@@ -3384,6 +3384,7 @@ public partial class Main
             await VerifyNightWashAsync(largeMap);
             await VerifyNightLightsAsync(largeMap);
             await VerifyGoldenHourAsync();
+            await VerifySmokeAsync(largeMap);
             var startedMap = largeMap with { FounderSetup = null };
             RenderWorldHud(startedMap);
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);

@@ -677,6 +677,10 @@ the season's changing night length. Names, people, panels, lit windows and
 weather keep their own colours. The glow fades away in full daylight and
 full night, and pausing holds its transition still.
 
+At close and mid zoom, occupied Houses and working Blacksmith forges give off
+soft grey smoke that rises and drifts east. Empty Houses and idle forges give
+off none. Smoke freezes while the world is paused.
+
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
 heading for each day, each with an icon for its kind. Lines name who was

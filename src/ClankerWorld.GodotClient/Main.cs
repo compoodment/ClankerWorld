@@ -96,6 +96,7 @@ public partial class Main : Control
     private readonly NightLayer nightLayer = new();
     private readonly GoldenHourLayer goldenHourLayer = new();
     private readonly NightLightsLayer nightLightsLayer = new();
+    private readonly SmokeLayer smokeLayer = new();
     private WorldTerrainMap? terrainMap;
     private string? terrainWorldId;
     private OwnerWorldPackedTerrain? terrainPackedTerrain;

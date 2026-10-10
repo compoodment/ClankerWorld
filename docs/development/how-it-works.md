@@ -887,6 +887,14 @@ draw the art preview's night proposal (`tools/ArtPreview/Proposed/NightLights.md
 including designs not in the game yet and the street lanterns of
 [#892](https://github.com/compoodment/ClankerWorld/issues/892).
 
+`SmokeLayer` uses the same living, non-draft occupancy and running-job facts,
+restricted to occupied Houses and working Blacksmith forges. `SmokeArt` anchors
+the approved B column to the building atlas’s actual flue or ember pixels at
+16 and 32 px. It groups translucent pixels into horizontal rows, draws only
+camera-visible sources (including wrapped copies), and steps the existing
+weather clock at 12 frames per second. Pausing freezes that clock. Smoke adds
+no host fields, fuel use, heating rules or saved state.
+
 ## Model inputs, usage and memories
 
 The per-world routine helper is Off, Jev or OpenAI Decisions. Decisions uses
