@@ -1284,6 +1284,8 @@ public sealed partial class PrivateWorldRuntime
         {
             candidates.Add(new CognitionCandidate("consume_food", "Eat one carried food item.", 0));
         }
+        if (CarriedMilk(inhabitantId) is not null && state.HungerBasisPoints < ComfortableFullness)
+            candidates.Add(new("drink_milk", "Drink one portion of carried jug milk, leaving the reusable jug intact.", 0));
 
         if (instructionCandidate == "consume_food" && hasFood &&
             state.HungerBasisPoints < ComfortableFullness &&
