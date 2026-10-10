@@ -110,6 +110,10 @@ A day loop: day, dusk glow, the approved night tint, dawn glow, day.
 
 ## 9 · Stock you can see (`stock`)
 
+Approved A now uses `StoredStockArt` in the client. The original review drawings
+remain independently in `tools/ArtPreview/Approved/StoredStock.cs`; baseline
+stock and `stock-client` show the live painter. `check` compares all six scenes.
+
 Log, crate and sack piles that grow with what a building actually stores:
 empty, some and full, beside the Warehouse and between the Farmhouse and
 the Silo.

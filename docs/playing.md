@@ -651,6 +651,14 @@ menu's keyboard highlight as the world updates, including when owner names
 change order. Press **Enter** to select the highlighted owner. If that owner
 becomes unavailable, the menu closes so you can choose from the current list.
 
+At close and mid zoom, stored goods show as log, crate and sack piles beside
+store doors where clear Town ground allows it. Empty stores show none; piles
+use the fuller drawing when recorded storage reaches 80% of its limit. Logs
+show wood, sacks show bulk food, crops, seeds, fiber and herbs, and crates show
+other goods. They are visual groups; click the building to read exact contents.
+Piles avoid Roads, doorsteps, buildings and the Town edge. If there is no clear
+space beside a door, its piles stay hidden.
+
 A building's storage-space bar shows how much of its recorded limit is used,
 with exact used/limit numbers. It counts all stored goods, including materials
 held for work and goods belonging to someone else. It updates when goods move

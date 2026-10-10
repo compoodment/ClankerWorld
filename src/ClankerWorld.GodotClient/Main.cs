@@ -97,6 +97,7 @@ public partial class Main : Control
     private readonly BuildingCompletionLayer buildingCompletionLayer = new();
     private readonly NightLightsLayer nightLightsLayer = new();
     private readonly SmokeLayer smokeLayer = new();
+    private readonly StoredStockLayer storedStockLayer = new();
     private WorldTerrainMap? terrainMap;
     private string? terrainWorldId;
     private OwnerWorldPackedTerrain? terrainPackedTerrain;

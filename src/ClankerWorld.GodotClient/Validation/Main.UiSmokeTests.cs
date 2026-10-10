@@ -3385,6 +3385,7 @@ public partial class Main
             await VerifyNightWashAsync(largeMap);
             await VerifyNightLightsAsync(largeMap);
             await VerifySmokeAsync(largeMap);
+            await VerifyStoredStockAsync(largeMap);
             await VerifyBuildingCompletionAsync();
             var startedMap = largeMap with { FounderSetup = null };
             RenderWorldHud(startedMap);

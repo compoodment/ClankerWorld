@@ -17,6 +17,7 @@ public partial class Main
     {
         smokeLayer.SetBuildings([]);
         keyboardMapTile = null;
+        storedStockLayer.SetPiles([]);
         buildingCompletionLayer.Reset();
         knownEvents.Clear();
         eventsWorldId = null;
@@ -203,6 +204,7 @@ public partial class Main
         if (!HasMap(snapshot))
         {
             smokeLayer.SetBuildings([]);
+            storedStockLayer.SetPiles([]);
             buildingCompletionLayer.Reset();
             handcartFacings.Clear();
             animalFacings.Clear();
@@ -244,6 +246,7 @@ public partial class Main
         var buildingLights = BuildingLights(snapshot);
         nightLightsLayer.SetBuildings(buildingLights);
         smokeLayer.SetBuildings(buildingLights);
+        storedStockLayer.SetPiles(StoredStockPiles(snapshot, terrainMap!));
         nightLightsLayer.SetLanterns(StreetLanterns(snapshot), snapshot.WrapsEastWest);
         terrainLayer.SetConstructionSites(snapshot.ConstructionSites);
         nightLightsLayer.SetLanternSites(StreetLanternSites(snapshot));
