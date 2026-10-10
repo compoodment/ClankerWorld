@@ -217,6 +217,10 @@ draws, and all start off. Town borders show as a pale dashed line. While you
 place a founder or an added agent, the map shows all of them without turning
 Filters on.
 
+Hover or select an agent on land to show their given name below their figure. Names
+keep accented letters, flags and joined emoji together; longer given names
+use an initial.
+
 Agents and animals glide to each reported position, changing walking frames
 with a small bob. Boats and handcarts glide too. Pausing holds their drawing
 in place; resuming continues it. Longer jumps and loaded checkpoints snap to

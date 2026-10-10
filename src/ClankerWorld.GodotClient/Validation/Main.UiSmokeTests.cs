@@ -2695,6 +2695,28 @@ public partial class Main
             founderButton.Selected = false;
             if (!hoverNamed || !selectedNamed || founderButton.NameShown)
                 throw new InvalidOperationException("An agent's name must show only while it is hovered or selected.");
+            var nameplateFailures = new List<string>();
+            foreach (var (name, expectedNameplate) in new[]
+            {
+                ("Rowan Ash", "Rowan"),
+                (new string('W', 11) + "🇳🇿 Reed", new string('W', 11) + "🇳🇿"),
+                (string.Concat(Enumerable.Repeat("e\u0301", 12)) + " Reed", string.Concat(Enumerable.Repeat("e\u0301", 12))),
+                (new string('W', 11) + "👨‍👩 Reed", new string('W', 11) + "👨‍👩"),
+                (new string('W', 11) + "🌱 Reed", new string('W', 11) + "🌱"),
+                ("abcdefghijklmnop Reed", "a."),
+                (new string('W', 12) + "🇳🇿 Reed", "W."),
+            })
+            {
+                RenderMap(occupied with { Inhabitants = [founder with { DisplayName = name }] });
+                var namedMarker = inhabitantVisuals[founder.Id];
+                namedMarker.Selected = true;
+                for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (namedMarker.Caption != expectedNameplate || namedMarker.NameplateText != expectedNameplate)
+                    nameplateFailures.Add(name);
+            }
+            RenderMap(occupied);
+            if (nameplateFailures.Count > 0)
+                throw new InvalidOperationException("Map nameplates must draw the bounded whole given name or initial: " + string.Join("; ", nameplateFailures));
             if (terrainLayer.CampResourceSpriteCount == 0 || mapObjectVisuals["resource:wood"].Text.Contains('▰'))
                 throw new InvalidOperationException("Older camp resources such as the wood store must draw as sprites instead of glyphs.");
             if (terrainLayer.BuildingSpriteCount != occupied.PlacedBuildings.Count ||
