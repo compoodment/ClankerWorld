@@ -1,0 +1,1 @@
+- Animals on the map now use their finished pixel art instead of placeholder ovals, in all eight directions and at mid zoom. Young animals have their own look, horses show whether they wear a saddle, sheep look shorn after their wool is taken, and the animal yard is a fenced pen with a gate, a water trough and hay.

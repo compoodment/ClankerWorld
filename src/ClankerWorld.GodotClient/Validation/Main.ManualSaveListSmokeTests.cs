@@ -24,7 +24,8 @@ public partial class Main
         if (!IsLatestInBranch(harvest, saves) || !IsLatestInBranch(winter, saves) ||
             IsLatestInBranch(flood, saves) || IsLatestInBranch(old, saves))
             throw new InvalidOperationException("Only the newest point of a branch may continue it.");
-        if (BranchLabel(second) != "Branch 2" || BranchLabel(null) != "Earlier saves")
+        if (BranchLabel(second) != "From Before the flood" || BranchLabel(first) != "Branch 1" ||
+            BranchLabel(null) != "Earlier saves")
             throw new InvalidOperationException("Branch labels must name the branch, or saves from before branches.");
 
         // The middle save was deleted, and a recovery copy of the first point
@@ -44,6 +45,9 @@ public partial class Main
         var winterCard = manualSaveList.GetItemTitle(0);
         if (manualSaveList.ItemCount != 4 || winterCard != "Hungry winter")
             throw new InvalidOperationException("The save list must show every branch's saves.");
+        if (!manualSaveList.FindChildren("*", nameof(Label), true, false).OfType<Label>()
+            .Any(label => label.TooltipText == "From Before the flood" && label.Text.StartsWith("FROM ", StringComparison.Ordinal)))
+            throw new InvalidOperationException("The actual save-list card must show its recorded branch origin.");
         allListedManualSaves = [];
         listedManualSaves = [];
         manualSaveList.Clear();
@@ -64,6 +68,61 @@ public partial class Main
             registration = new(host.Authority, "smoke-device", signer.PublicKeyFingerprint, host.Address);
             deviceKey = signer;
             worldUrlInput.Text = host.Address;
+            // A freshly paired launch has its catalog, but has not entered a
+            // world or accepted an observation. Exercise both real buttons and
+            // the signed catalog/save-list transport before any baseline.
+            observationSession.ReplaceRegistration(registration);
+            host.Catalog = WorldActionSmokeCatalog(["A", "B"]);
+            host.ManualSaves =
+            [new("title-named", "Title save", DateTimeOffset.UnixEpoch, 0),
+             new("title-auto", "Autosave", DateTimeOffset.UnixEpoch.AddMinutes(1), 1, true)];
+            OpenWorldMenu(create: false);
+            await RefreshWorldListAsync();
+            ChooseWorldActionSmokeRow(0);
+            if (worldSavesButton.Disabled)
+                throw new InvalidOperationException("A fresh title must offer its active catalog world's saves.");
+            worldSavesButton.EmitSignal(BaseButton.SignalName.Pressed);
+            var started = System.Diagnostics.Stopwatch.GetTimestamp();
+            while (listedManualSaves.Length != 2 && System.Diagnostics.Stopwatch.GetElapsedTime(started) < TimeSpan.FromSeconds(5))
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (observationSession.Current is not null || listedManualSaves.Length != 2 || !manualSaveOverlay.Visible)
+                throw new InvalidOperationException("A fresh title must list the current world's saves without entering it.");
+            for (var row = 0; row < listedManualSaves.Length; row++)
+            {
+                manualSaveList.Select(row);
+                manualSaveList.EmitSignal(SlotList.SignalName.ItemSelected, (long)row);
+                var save = listedManualSaves[row];
+                if (manualSaveDeleteButton.Disabled)
+                    throw new InvalidOperationException("A selected title-screen save must offer Delete Save.");
+                manualSaveDeleteButton.EmitSignal(BaseButton.SignalName.Pressed);
+                if (!deletionConfirmation.Visible || pendingDeletion is not { Kind: "save", WorldId: "world-A" } deletion ||
+                    deletion.Id != save.Id || deletion.ExpectedCreatedUtc != save.CreatedUtc)
+                    throw new InvalidOperationException("Delete Save on a fresh title must confirm the exact save and catalog world identity.");
+                deletionConfirmation.Hide();
+                pendingDeletion = null;
+            }
+            if (host.DeleteCount != 0)
+                throw new InvalidOperationException("Opening and dismissing confirmation must not delete any save.");
+            manualSaveOverlay.Hide();
+            host.ManualSaves = null;
+            var staleTitleSaves = new TaskCompletionSource<ManualWorldSave[]>();
+            var oldTitleOpening = OpenManualSavesAsync(true, _ => staleTitleSaves.Task);
+            host.Catalog = new("B", WorldActionSmokeCatalog(["A", "B"]).Worlds);
+            await RefreshWorldListAsync();
+            staleTitleSaves.SetResult([new("stale-title", "Earlier world save", DateTimeOffset.UnixEpoch, 0)]);
+            await oldTitleOpening;
+            if (listedManualSaves.Length != 0 || !manualSaveDeleteButton.Disabled || observationSession.Current is not null)
+                throw new InvalidOperationException("A late title-screen save list must not publish after its catalog world changes.");
+            manualSaveOverlay.Hide();
+            await worldListRequest.RefreshAsync(_ => Task.FromException<WorldCatalogSnapshot>(
+                new IOException("Controlled unavailable catalog.")));
+            await OpenManualSavesAsync(true, _ => Task.FromResult<ManualWorldSave[]>(
+                [new("unbound", "Unbound save", DateTimeOffset.UnixEpoch, 0)]));
+            manualSaveList.Select(0);
+            manualSaveList.EmitSignal(SlotList.SignalName.ItemSelected, 0L);
+            if (!manualSaveDeleteButton.Disabled || listedSaveWorldId is not null)
+                throw new InvalidOperationException("Delete Save must stay disabled without a known active world identity.");
+            manualSaveOverlay.Hide();
             var handshake = new OwnerWorldHandshake(new(1, 1),
                 ["owner-observation.read.v1", "inhabitant-inspection.read.v1", "spatial-knowledge.read.v1",
                  "owner-control.request.v1", "paused-authoring.request.v1"], []);

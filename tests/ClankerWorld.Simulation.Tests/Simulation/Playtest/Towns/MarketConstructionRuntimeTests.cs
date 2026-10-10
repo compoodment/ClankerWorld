@@ -189,6 +189,7 @@ public sealed class MarketConstructionRuntimeTests
         await MarketSeedTradeScenario.AssertOneMissingSeedIsBoughtAndPlantedWithoutOverbuyAsync(
             scenario.World.ExportState());
         await MarketTradeScenario.AssertPipelineAsync(scenario.World);
+        await MarketAnimalMilkScenario.AssertPipelineAsync(scenario.World.ExportState());
     }
 
     private static int MaterialQuantity(InventoryCheckpoint inventory, string kind) =>

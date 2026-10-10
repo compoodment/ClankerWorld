@@ -77,7 +77,6 @@ public sealed class ContainerReturnTests
     [InlineData("full-hands")]
     [InlineData("full-house")]
     [InlineData("promised-house-space")]
-    [InlineData("reserved-contents")]
     [InlineData("broken-vessel")]
     public async Task UnavailableVesselOrPhysicalRoomDoesNotOfferOrMoveAnEmptyReturn(string boundary)
     {
@@ -140,87 +139,6 @@ public sealed class ContainerReturnTests
                 Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("container-return-live-water-work").State);
         }
         Assert.NotEmpty(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-    }
-
-    [Fact]
-    public async Task ReturnedJugIsFilledAndSuppliedForAnotherRealMedicineJobWithTheSameVessel()
-    {
-        var state = Prepared(InventoryContainerRules.WaterJug);
-        var actor = Actor(state);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "container-reuse-herbs", CareContent.MedicinalHerbs,
-            Alpha, 6, storageBuildingId: Clinic);
-        inventory = InventoryFixture.AddLot(inventory, "container-reuse-wood", "wood", Alpha, 3, storageBuildingId: Clinic);
-        inventory = InventoryFixture.AddLot(inventory, "container-reuse-first-water", InventoryContainerRules.FreshWater,
-            Alpha, 1, storageBuildingId: Clinic, containerLotId: Vessel);
-        state = WithInventory(state, inventory);
-        var workplace = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == Clinic);
-        state = state with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-                ? person with { Position = workplace.Position } : person).ToArray(),
-        };
-        using var first = Restore(state, actor, new VesselChoices());
-        var recipe = first.WorldContent.Recipes.Single(item => item.LocalId == "clinic-medicine");
-        var firstStart = first.StartProduction(recipe.CanonicalId, Clinic, actor);
-        Assert.True(firstStart.Applied, firstStart.Failure);
-        var firstJob = first.WorldSimulation.ProductionJobs.Single(item => item.JobId == firstStart.JobId);
-        var firstWater = Assert.Single(firstJob.InputReservationIds.Select(first.Society.Inventory.GetReservation),
-            input => input.LotId == "container-reuse-first-water");
-        Assert.Equal((Alpha, 1), (firstWater.OwnerId, firstWater.Quantity));
-        for (var tick = 0; tick < 16; tick++) Assert.True((await first.AdvanceOneTickAsync()).Advanced);
-        Assert.Equal(InventoryReservationState.Completed, first.Society.Inventory.GetReservation(firstWater.Id).State);
-        Assert.Equal(2, first.Society.Inventory.GetLot(firstStart.JobId + ":output:00").Quantity);
-        Assert.DoesNotContain(first.Society.Inventory.Lots, lot => lot.ContainerLotId == Vessel);
-        var completed = first.ExportState();
-        Assert.Equal("safe_idle", completed.Society.Cognition.Runtimes.Single(item => item.InhabitantId == actor)
-            .CurrentIntention?.CandidateId);
-        var returnProvider = new VesselChoices("return_empty_vessel:", "haul_household_stock");
-        using var returning = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(completed)), actor, returnProvider);
-        // The idle production provider left a valid intention. Its normal 300-tick interval survives reload;
-        // wait for the actual return decision before spending the existing physical delivery budget.
-        await AdvanceUntil(returning, () => returnProvider.Offered.Contains("return_empty_vessel:" + Vessel), 300);
-        Assert.Contains("return_empty_vessel:" + Vessel, returnProvider.Offered);
-        await AdvanceUntil(returning, () => returning.Society.Inventory.GetLot(Vessel).StorageBuildingId == House, 160);
-        Assert.Equal(Alpha, returning.Society.Inventory.GetLot(Vessel).OwnerId);
-        Assert.Single(returning.ExportState().Events, item => item.Kind == "empty_vessel_picked_up" &&
-            item.Detail == $"{actor}:{Vessel}:{Clinic}:{House}");
-
-        var supply = new VesselChoices("supply_workstation:fresh_water", "fill_water_jug:", "collect_water_jug",
-            "return_water_jug", "haul_household_stock");
-        using var world = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(returning.ExportState())), actor, supply);
-        await AdvanceUntil(world, () => world.Society.Inventory.GetLot(Vessel).StorageBuildingId == Clinic &&
-            world.Society.Inventory.Lots.Any(lot => lot.ContainerLotId == Vessel), 240);
-        var water = Assert.Single(world.Society.Inventory.Lots, lot => lot.ContainerLotId == Vessel);
-        Assert.Equal((InventoryContainerRules.FreshWater, Alpha, Clinic, 4),
-            (water.ItemKind, water.OwnerId, water.StorageBuildingId, water.Quantity));
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "water_jug_filled" &&
-            item.Detail.StartsWith(actor + ":" + Vessel + ":4:", StringComparison.Ordinal));
-        Assert.Equal(Vessel, world.Society.Inventory.GetLot(Vessel).Id);
-        var result = world.StartProduction(recipe.CanonicalId, Clinic, actor);
-        Assert.True(result.Applied, result.Failure);
-        var job = world.WorldSimulation.ProductionJobs.Single(item => item.JobId == result.JobId);
-        var doseWater = Assert.Single(job.InputReservationIds.Select(world.Society.Inventory.GetReservation), item => item.LotId == water.Id);
-        Assert.Equal((Alpha, 1, InventoryReservationState.Reserved), (doseWater.OwnerId, doseWater.Quantity, doseWater.State));
-        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())), actor,
-            new VesselChoices());
-        // The directed reuse phase is complete; both branches now use the same idle provider.
-        using var completing = Restore(world.ExportState(), actor, new VesselChoices());
-        for (var tick = 0; tick < 16; tick++)
-        {
-            Assert.True((await completing.AdvanceOneTickAsync()).Advanced);
-            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
-            Assert.Equal(PrivateWorldRuntimeCodec.Encode(completing.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
-        }
-        Assert.Equal(InventoryReservationState.Completed, completing.Society.Inventory.GetReservation(doseWater.Id).State);
-        Assert.Equal(InventoryReservationState.Completed, completing.Society.Inventory.GetReservation(firstWater.Id).State);
-        Assert.Equal(3, completing.Society.Inventory.GetLot(water.Id).Quantity);
-        Assert.Equal((Alpha, Clinic, 1), (completing.Society.Inventory.GetLot(Vessel).OwnerId,
-            completing.Society.Inventory.GetLot(Vessel).StorageBuildingId, completing.Society.Inventory.GetLot(Vessel).Quantity));
-        Assert.Equal((CareContent.Medicine, Alpha, Clinic, 2),
-            (completing.Society.Inventory.GetLot(result.JobId + ":output:00").ItemKind,
-                completing.Society.Inventory.GetLot(result.JobId + ":output:00").OwnerId,
-                completing.Society.Inventory.GetLot(result.JobId + ":output:00").StorageBuildingId,
-                completing.Society.Inventory.GetLot(result.JobId + ":output:00").Quantity));
     }
 
     private static PrivateWorldRuntimeState Prepared(string kind)

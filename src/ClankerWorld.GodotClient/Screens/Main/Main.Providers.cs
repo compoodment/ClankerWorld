@@ -10,6 +10,7 @@ public partial class Main
 {
     private readonly Label usageScopeHint = new();
     private int usageReads;
+    private bool usageLimitEdited;
 
     private async Task RefreshProviderConfigurationAsync()
     {
@@ -25,6 +26,8 @@ public partial class Main
         {
             providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.GetProviderStatusAsync(
                 ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None));
+            RefreshRoutineHelperKeys(SelectedRoutineHelperKey());
+            if (worldSettingsContent.Visible) RequestRoutineHelperModels();
             PopulateCognitionTargets();
             PopulateProviderChoices(ActiveProviderForSelectedRole());
             PopulateCredentialChoices();
@@ -64,11 +67,13 @@ public partial class Main
     private async Task ObserveUsagePauseAsync()
     {
         if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        var read = ++usageReads;
+        var owner = registration;
         try
         {
             var status = await AwaitCurrentWorldResultAsync(ownerApi.GetUsageStatusAsync(ResolveWorldUri(), authority, deviceId,
                 signer, CancellationToken.None));
-            usageReads++;
+            if (read != usageReads || !ReferenceEquals(owner, registration)) return;
             usageStatus = status;
             RenderUsageStatus();
             if (usageStatus.LimitReached)
@@ -88,6 +93,9 @@ public partial class Main
         if (usageStatus is null)
         {
             usageMeterStatus.Text = "Loading model calls...";
+            usageMeterStatus.TooltipText = string.Empty;
+            grantUsageCallsButton.Hide();
+            RefreshControlAvailability();
             return;
         }
         if (usageStatus.AccountingError is not null)
@@ -98,7 +106,7 @@ public partial class Main
             RefreshControlAvailability();
             return;
         }
-        if (!usageAttemptLimitInput.HasFocus())
+        if (!usageLimitEdited)
             usageAttemptLimitInput.Text = usageStatus.AttemptLimit?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         static string Count(long value) => value.ToString("N0", CultureInfo.InvariantCulture);
         var rows = usageStatus.Rows.OrderByDescending(row => row.Attempts)
@@ -139,6 +147,7 @@ public partial class Main
                 action, signer, CancellationToken.None));
             usageReads++;
             usageStatus = status;
+            usageLimitEdited = false;
             RenderUsageStatus();
             if (grant)
                 return "Allowed 100 more model calls. Resume the world when ready";
@@ -519,6 +528,7 @@ public partial class Main
     private static string ProviderDisplayName(string provider) => provider switch
     {
         "jev" => "Jev",
+        "decisions" or "openaidecisions" => "OpenAI Decisions",
         "openai" => "OpenAI",
         "ollama-cloud" => "Ollama Cloud",
         "inherit" => "World default",
@@ -528,7 +538,7 @@ public partial class Main
     private static string DefaultProviderModel(string provider) => provider switch
     {
         "jev" => "jev-1.13.0",
-        "openai" => "gpt-6-luna",
+        "openai" or "decisions" => "gpt-6-luna",
         "ollama-cloud" => "glm-5.3-flash:cloud",
         _ => string.Empty,
     };
@@ -680,6 +690,7 @@ public partial class Main
         body.AddChild(usageMeterStatus);
         usageAttemptLimitInput.PlaceholderText = "No limit";
         usageAttemptLimitInput.TooltipText = "Your worlds pause when this many calls have been made; it counts calls, not money.";
+        usageAttemptLimitInput.TextChanged += _ => usageLimitEdited = true;
         body.AddChild(DisplaySettingRow("Limit", usageAttemptLimitInput));
         var usageButtons = new HBoxContainer();
         usageButtons.AddThemeConstantOverride("separation", 6);

@@ -79,7 +79,8 @@ public sealed partial class PrivateWorldRuntime
 
     private int MarketStockQuantity(TownMarketState market, MarketStallState stall, InventoryCheckpoint? inventory = null) =>
         MarketTradeRules.StockAt(market, stall.BuildingId, MarketContent.StallSite(market.Site, stall.SlotIndex),
-            inventory ?? society.Checkpoint.Inventory).Sum(lot => lot.Quantity);
+            inventory ?? society.Checkpoint.Inventory).Sum(lot => lot.Quantity +
+                (inventory ?? society.Checkpoint.Inventory).Lots.Where(content => content.ContainerLotId == lot.Id).Sum(content => content.Quantity));
 
     private int MarketIncomingPayment(TownMarketState market, MarketStallState stall,
         InventoryCheckpoint? inventory = null) => market.Trades
@@ -158,7 +159,7 @@ public sealed partial class PrivateWorldRuntime
                          .OrderBy(lot => lot.Id, StringComparer.Ordinal))
                 // Trial exact barter gives and receives one physical unit, so neither receiving load grows.
                 if (PersonalEquipmentRules.CarriedQuantity(inventory, buyer, inhabitants[buyer].Equipment) +
-                    ReservedBusinessCarrySpace(buyer) <= PersonalEquipmentRules.Capacity(inventory, buyer, inhabitants[buyer].Equipment))
+                    ReservedBusinessCarrySpace(buyer) <= PersonalEquipmentRules.Capacity(inventory, buyer, inhabitants[buyer].Equipment) + HorseCargoCapacity(buyer))
                     return (goods, payment);
         }
         return null;
@@ -178,10 +179,13 @@ public sealed partial class PrivateWorldRuntime
                     var occupancy = MarketOccupant(market, stall);
                     // Owners retain physical collection even after the building or borrowing ends.
                     foreach (var lot in MarketTradeRules.StockAt(market, stall.BuildingId, position, inventory)
-                                 .Where(lot => MarketTradeRules.IsLoose(lot) && OwnMarketGoods(actor, lot) &&
-                                     AvailableLotQuantity(lot) > 0 && CanCarryMarketGoods(actor, lot)))
+                                 .Where(lot => (MarketTradeRules.IsLoose(lot) || lot.ItemKind == InventoryContainerRules.WaterJug &&
+                                         VesselFits(lot, FreeCarryCapacity(actor)) && !HasActiveContainerReservation(inventory, lot.Id)) && OwnMarketGoods(actor, lot) &&
+                                     (lot.OwnerId == actor || occupancy is null || occupancy.SellerHouseholdId != lot.OwnerId ||
+                                         occupancy.SellerAgentId == actor) &&
+                                     PhysicalUnreservedQuantity(lot) > 0 && CanCarryMarketGoods(actor, lot)))
                     {
-                        var quantity = Math.Min(MarketTradeRules.LoadQuantity, Math.Min(AvailableLotQuantity(lot), FreeCarryCapacity(actor)));
+                        var quantity = Math.Min(MarketTradeRules.LoadQuantity, Math.Min(PhysicalUnreservedQuantity(lot), FreeCarryCapacity(actor)));
                         if (quantity > 0 && CanReachMarketPoint(actor, position, ResourceInteractionRange))
                             yield return new(MarketChoiceId("collect", market.Id, stall.BuildingId, lot.Id,
                                 quantity.ToString(CultureInfo.InvariantCulture), MarketPlaceMode(actor, position, ResourceInteractionRange)),
@@ -249,10 +253,18 @@ public sealed partial class PrivateWorldRuntime
                 }
     }
 
+    private bool IsMarketFoodCandidate(string actor, string candidateId) =>
+        candidateId.StartsWith("market_collect:", StringComparison.Ordinal) && MarketChoices(actor).Any(choice =>
+            choice.Id == candidateId && choice.Kind == "collect" && choice.Lot is { } lot && IsEdibleFood(lot.ItemKind));
+
     private void AddMarketCandidates(List<CognitionCandidate> candidates, string actor)
     {
+        var urgentFood = NeedsUrgentFood(inhabitants[actor]);
         // Trade answers and leaving come first, so the limit never hides them behind stock choices.
-        foreach (var choice in MarketChoices(actor).OrderBy(item => item.Kind is "continue" or "cancel" or "leave" ? 0 : 1)
+        foreach (var choice in MarketChoices(actor)
+                     .Where(item => !urgentFood || item.Kind == "collect" && IsEdibleFood(item.Lot!.ItemKind) &&
+                         AvailableLotQuantity(item.Lot) > 0)
+                     .OrderBy(item => item.Kind is "continue" or "cancel" or "leave" ? 0 : 1)
                      .Take(MarketCandidateLimit))
         {
             var offer = choice.Trade is { } trade ? society.Checkpoint.Inventory.GetOffer(trade.OfferId) : null;
@@ -354,7 +366,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var lot = choice.Lot!;
         var receiptId = MarketTradeRules.ReceiptId(choice.Occupancy!.Id, lot.Id, lot.OwnerId, choice.Quantity,
-            WorldTick, choice.Market.StockReceipts.Count);
+            WorldTick, choice.Market.NextStockReceiptSequence);
         var operation = receiptId + ":deposit";
         var movedId = lot.Quantity == choice.Quantity ? lot.Id : lot.Id + "#move:" + operation;
         long eventId = 0;
@@ -366,8 +378,15 @@ public sealed partial class PrivateWorldRuntime
             return next;
         });
         var receipt = new MarketStockReceipt(receiptId, choice.Occupancy.Id, actor, lot.OwnerId,
-            lot.Id, movedId, lot.ItemKind, choice.Quantity, WorldTick, eventId);
-        SetMarket(choice.Town.Id, choice.Market with { StockReceipts = choice.Market.StockReceipts.Append(receipt).ToArray() });
+            lot.Id, movedId, lot.ItemKind, choice.Quantity, WorldTick, eventId)
+        {
+            Sequence = choice.Market.NextStockReceiptSequence,
+        };
+        SetMarket(choice.Town.Id, choice.Market with
+        {
+            StockReceipts = choice.Market.StockReceipts.Append(receipt).ToArray(),
+            NextStockReceiptSequence = checked(choice.Market.NextStockReceiptSequence + 1),
+        });
         AppendEvent("market_stock_delivered", $"{choice.Town.Id}|{choice.Market.Id}|{choice.Stall.BuildingId}|{actor}|{receipt.Id}", position);
     }
 
@@ -384,7 +403,12 @@ public sealed partial class PrivateWorldRuntime
                 choice.Lot.Id, 1, choice.Payment.Id, 1, WorldTick + MarketTradeRules.OfferLifetimeTicks)),
             id, 1, buyer));
         var trade = new MarketTradeState(id, occupancy.Id, choice.Stall.BuildingId, seller,
-            choice.Lot.OwnerId, owner, buyer, position, WorldTick, choice.Lot.ItemKind, choice.Payment.ItemKind);
+            choice.Lot.OwnerId, owner, buyer, position, WorldTick, choice.Lot.ItemKind, choice.Payment.ItemKind)
+        {
+            StockReceiptSequence = choice.Market.StockReceipts.Last(receipt => receipt.OccupancyId == occupancy.Id &&
+                receipt.OwnerId == choice.Lot.OwnerId && receipt.ItemKind == choice.Lot.ItemKind &&
+                MarketTradeRules.IsReceiptLot(receipt, choice.Lot)).Sequence,
+        };
         SetMarket(choice.Town.Id, choice.Market with { Trades = choice.Market.Trades.Append(trade).ToArray() });
         AppendEvent("market_trade_offered", $"{choice.Town.Id}|{choice.Market.Id}|{choice.Stall.BuildingId}|{seller}|{buyer}|{id}", position);
     }
@@ -416,7 +440,7 @@ public sealed partial class PrivateWorldRuntime
             return "The exact reserved goods are no longer usable at their agreed location.";
         if (MarketStockQuantity(market, stall) + MarketIncomingPayment(market, stall) > MarketTradeRules.StallCapacity ||
             PersonalEquipmentRules.CarriedQuantity(inventory, trade.BuyerId, inhabitants[trade.BuyerId].Equipment) +
-            ReservedBusinessCarrySpace(trade.BuyerId) > PersonalEquipmentRules.Capacity(inventory, trade.BuyerId, inhabitants[trade.BuyerId].Equipment))
+            ReservedBusinessCarrySpace(trade.BuyerId) > PersonalEquipmentRules.Capacity(inventory, trade.BuyerId, inhabitants[trade.BuyerId].Equipment) + HorseCargoCapacity(trade.BuyerId))
             return "There is no longer enough physical receiving space.";
         if (!IsWithinInteractionRange(inhabitants[trade.BuyerId].Position, trade.Position, ResourceInteractionRange) &&
             FindUnoccupiedRoute(trade.BuyerId, inhabitants[trade.BuyerId].Position, trade.Position, ResourceInteractionRange).Count == 0)
@@ -447,7 +471,7 @@ public sealed partial class PrivateWorldRuntime
         var goodsId = goods.Quantity == offer.FirstQuantity ? goods.Id : goods.Id + "#barter:" + offer.Id;
         var paymentId = payment.Quantity == offer.SecondQuantity ? payment.Id : payment.Id + "#barter:" + offer.Id;
         var receiptId = MarketTradeRules.ReceiptId(trade.OccupancyId, paymentId, trade.PaymentOwnerId,
-            offer.SecondQuantity, WorldTick, choice.Market.StockReceipts.Count, offer.Id);
+            offer.SecondQuantity, WorldTick, choice.Market.NextStockReceiptSequence, offer.Id);
         long eventId = 0;
         ApplyInventoryTransition(inventory =>
         {
@@ -463,11 +487,15 @@ public sealed partial class PrivateWorldRuntime
             return settled;
         });
         var receipt = new MarketStockReceipt(receiptId, trade.OccupancyId, actor, trade.PaymentOwnerId,
-            paymentId, paymentId, trade.PaymentKind, offer.SecondQuantity, WorldTick, eventId, offer.Id);
+            paymentId, paymentId, trade.PaymentKind, offer.SecondQuantity, WorldTick, eventId, offer.Id)
+        {
+            Sequence = choice.Market.NextStockReceiptSequence,
+        };
         SetMarket(choice.Town.Id, choice.Market with
         {
             Trades = choice.Market.Trades.Select(item => item.OfferId == trade.OfferId ? trade with { SettledTick = WorldTick } : item).ToArray(),
             StockReceipts = choice.Market.StockReceipts.Append(receipt).ToArray(),
+            NextStockReceiptSequence = checked(choice.Market.NextStockReceiptSequence + 1),
         });
         AppendEvent("market_trade_completed", $"{choice.Town.Id}|{choice.Market.Id}|{choice.Stall.BuildingId}|{actor}|{trade.BuyerId}|{trade.OfferId}", trade.Position);
     }
@@ -546,5 +574,6 @@ public sealed partial class PrivateWorldRuntime
                         ? stall : stall with { RemovedTick = stall.RemovedTick ?? WorldTick }).ToArray(),
                 });
             }
+        RetireMarketHistory();
     }
 }

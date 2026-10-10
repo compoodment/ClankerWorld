@@ -9,11 +9,23 @@ internal static class ArtContractChecks
     public static void Run()
     {
         var current = new ArtSet();
+        foreach (var size in new[] { 16, 32 })
+            foreach (var badge in new[] { false, true })
+                for (var frame = 0; frame < 8; frame++)
+                    Equal(Proposed.WaitingMarker.WaitingMarkerProposal.Frame('c', size, frame, badge),
+                        Proposed.WaitingMarker.WaitingMarkerProposal.Frame('c', size, frame, badge, clientArt: true),
+                        $"Approved circling spark frame {frame}, badge {badge}, must match at {size} px.");
         CheckApprovedBuildings(current);
         CheckApprovedNature(current);
         CheckApprovedItems();
         CheckApprovedHandcarts();
         CheckApprovedBoatsAndPorts();
+        CheckApprovedAnimals();
+        CheckApprovedAnimalWalk();
+        CheckApprovedYard();
+        CheckApprovedNeglect();
+        CheckApprovedConstruction();
+        CheckApprovedNeglectedLanternsAndBridges();
         foreach (var size in new[] { 16, 32 })
         {
             foreach (var (facing, frame) in new[] { (6, AgentFrame.Walk2), (4, AgentFrame.Carry), (2, AgentFrame.Talk) })
@@ -130,6 +142,8 @@ internal static class ArtContractChecks
         {
             ("potatoes", "potato"), ("cultivated_green_seed", "green_seed"),
             ("medicinal_herbs", "herbs"), ("diamond_ornament", "ornament"), ("simple_meal", "meal"),
+            // The approved raw nuggets now show gold ore; the crude wooden tools keep the wooden tool icons (October 7).
+            ("gold_ore", "gold"), ("crude_wooden_axe", "wooden_axe"), ("crude_wooden_pickaxe", "wooden_pickaxe"),
         };
         foreach (var (item, drawing) in aliases)
         {
@@ -144,6 +158,16 @@ internal static class ArtContractChecks
             }
         }
         Console.WriteLine($"Approved item aliases: {aliases.Length * 3} exact RGBA comparisons.");
+        var drawn = 0;
+        foreach (var kind in Proposed.Items.ItemsRound4Proposal.Kinds)
+            foreach (var size in new[] { 16, 32, 48 })
+            {
+                var expected = Proposed.Items.ItemsRound4Proposal.IconFor(kind).Duplicate();
+                expected.Resize(size, size, Image.Interpolation.Nearest);
+                Equal(ItemIcons.Render(kind, size), expected, $"The item {kind} must use its approved round-four icon at {size} px.");
+                drawn++;
+            }
+        Console.WriteLine($"Approved round-four item icons: {drawn} exact RGBA comparisons.");
     }
 
     private static void CheckApprovedHandcarts()
@@ -190,6 +214,138 @@ internal static class ArtContractChecks
             Equal(BuildingSprites.Render(BuildingKind.Port, w, h, 32, new(side, 1)), reference, "The playable Port must match the independent approved rotation.");
             Console.WriteLine($"Port reference {letter}: {Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(reference.GetData()))}");
         }
+    }
+
+    /// <summary>Every animal, young animal, horse state and facing in the client matches the approved drawing at 32 and 16 px.</summary>
+    /// <summary>The client's walking steps match the approved option B frames pixel for pixel, for every animal, facing, step and size.</summary>
+    private static void CheckApprovedAnimalWalk()
+    {
+        var animals = new (string Id, string Species, bool Young, bool Mounted, bool Saddled, bool Shorn)[]
+        {
+            ("horse", "horse", false, false, true, false), ("horse.bare", "horse", false, false, false, false),
+            ("horse.ridden", "horse", false, true, true, false), ("cow", "cow", false, false, false, false),
+            ("sheep", "sheep", false, false, false, false), ("sheep.shorn", "sheep", false, false, false, true),
+            ("chicken", "chicken", false, false, false, false), ("foal", "horse", true, false, false, false),
+            ("calf", "cow", true, false, false, false), ("lamb", "sheep", true, false, false, false),
+            ("chick", "chicken", true, false, false, false),
+        };
+        foreach (var size in new[] { 16, 32 })
+            foreach (var (id, species, young, mounted, saddled, shorn) in animals)
+                for (var facing = 0; facing < 8; facing++)
+                    foreach (var step in new[] { 1, 2 })
+                        Equal(AnimalSprites.Sprite(species, facing, young, mounted, saddled, shorn, size, step),
+                            Proposed.Animals.AnimalWalkProposal.Frame(id, facing, step, Proposed.Animals.WalkStyle.Legs, size),
+                            $"The client's {id} walking step {step} facing {facing} at {size} px must match the approved walking steps.");
+    }
+
+    private static void CheckApprovedAnimals()
+    {
+        foreach (var size in new[] { 16, 32 })
+            for (var facing = 0; facing < 8; facing++)
+            {
+                void Same(Image client, Image approved, string what) =>
+                    Equal(client, approved, $"The client's {what} facing {facing} at {size} px must match the approved animal art.");
+                Same(AnimalSprites.Sprite("chicken", facing, false, false, size: size), Proposed.Animals.AnimalsProposal.Chicken(facing, size), "hen");
+                Same(AnimalSprites.Sprite("chicken", facing, true, false, size: size), Proposed.Animals.AnimalsProposal.Chick(facing, size), "chick");
+                Same(AnimalSprites.Sprite("sheep", facing, false, false, size: size), Proposed.Animals.AnimalsProposal.Sheep(facing, false, size), "sheep");
+                Same(AnimalSprites.Sprite("sheep", facing, false, false, shorn: true, size: size), Proposed.Animals.AnimalsProposal.Sheep(facing, true, size), "shorn sheep");
+                Same(AnimalSprites.Sprite("sheep", facing, true, false, shorn: true, size: size), Proposed.Animals.AnimalsProposal.Lamb(facing, size), "lamb");
+                Same(AnimalSprites.Sprite("cow", facing, false, false, size: size), Proposed.Animals.AnimalsProposal.Cow(facing, size), "cow");
+                Same(AnimalSprites.Sprite("cow", facing, true, false, size: size), Proposed.Animals.AnimalsProposal.Calf(facing, size), "calf");
+                Same(AnimalSprites.Sprite("horse", facing, false, false, size: size), Proposed.Animals.AnimalsProposal.Horse(facing, false, size, saddled: false), "bare horse");
+                Same(AnimalSprites.Sprite("horse", facing, false, false, saddled: true, size: size), Proposed.Animals.AnimalsProposal.Horse(facing, false, size), "saddled horse");
+                Same(AnimalSprites.Sprite("horse", facing, false, true, size: size), Proposed.Animals.AnimalsProposal.Horse(facing, true, size), "ridden horse");
+                Same(AnimalSprites.Sprite("horse", facing, true, true, saddled: true, size: size), Proposed.Animals.AnimalsProposal.Foal(facing, size), "foal");
+            }
+    }
+
+    /// <summary>The client's animal yard is the approved option A at every footprint and door side, halved at 16 px.</summary>
+    private static void CheckApprovedYard()
+    {
+        foreach (var (width, height) in new[] { (2, 2), (2, 4), (4, 2), (4, 4) })
+            foreach (var side in new[] { DoorSide.South, DoorSide.North, DoorSide.East, DoorSide.West })
+                foreach (var tile in new int?[] { null, 0, 1 })
+                {
+                    var door = new BuildingDoor(side, tile);
+                    var approved = Proposed.Yards.YardsProposal.Draw(Proposed.Yards.YardsProposal.Option.A, width, height, door);
+                    Equal(BuildingSprites.Render(BuildingKind.AnimalYard, width, height, 32, door), approved,
+                        $"The client's {width}×{height} animal yard with a {side} gate must match approved option A.");
+                    approved.Resize(width * 16, height * 16, Image.Interpolation.Nearest);
+                    Equal(BuildingSprites.Render(BuildingKind.AnimalYard, width, height, 16, door), approved,
+                        $"The client's 16 px {width}×{height} animal yard must be the approved yard halved.");
+                }
+    }
+
+    /// <summary>The client's neglected and falling-apart buildings match the approved abandoned looks pixel for pixel.</summary>
+    private static void CheckApprovedNeglect()
+    {
+        var subjects = Proposed.BuildingStates.States.Subjects().ToDictionary(subject => subject.Id);
+        foreach (var (id, kind, width, height, door) in StateCases())
+            foreach (var ruin in new[] { false, true })
+            {
+                var neglect = ruin ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected;
+                var approved = Proposed.BuildingStates.States.AbandonedArt(subjects[id], ruin);
+                Equal(BuildingSprites.Render(kind, width, height, 32, door, neglect), approved,
+                    $"The client's {neglect} {id} must match the approved abandoned look.");
+                approved.Resize(width * 16, height * 16, Image.Interpolation.Nearest);
+                Equal(BuildingSprites.Render(kind, width, height, 16, door, neglect), approved,
+                    $"The client's 16 px {neglect} {id} must be the approved look halved.");
+            }
+    }
+
+    /// <summary>The client's construction stages match the approved stages pixel for pixel.</summary>
+    private static void CheckApprovedConstruction()
+    {
+        var subjects = Proposed.BuildingStates.States.Subjects().ToDictionary(subject => subject.Id);
+        foreach (var (id, kind, width, height, door) in StateCases())
+            foreach (var stage in new[] { 1, 2, 3 })
+            {
+                var approved = Proposed.BuildingStates.States.StageArt(subjects[id], stage);
+                Equal(BuildingSprites.RenderConstruction(kind, width, height, 32, door, stage), approved,
+                    $"The client's {id} at construction stage {stage} must match the approved stage.");
+                approved.Resize(width * 16, height * 16, Image.Interpolation.Nearest);
+                Equal(BuildingSprites.RenderConstruction(kind, width, height, 16, door, stage), approved,
+                    $"The client's 16 px {id} at construction stage {stage} must be the approved stage halved.");
+            }
+    }
+
+    /// <summary>Every building the construction and abandoned looks were approved on, with the door it was drawn with.</summary>
+    private static (string Id, BuildingKind Kind, int Width, int Height, BuildingDoor Door)[] StateCases()
+    {
+        var south = new BuildingDoor(DoorSide.South);
+        return
+        [
+            ("house.1x1", BuildingKind.House, 1, 1, south), ("house.2x2", BuildingKind.House, 2, 2, south),
+            ("farmhouse.1x1", BuildingKind.Farmhouse, 1, 1, south), ("farmhouse.2x2", BuildingKind.Farmhouse, 2, 2, south),
+            ("warehouse.2x2", BuildingKind.Warehouse, 2, 2, south), ("blacksmith.1x2", BuildingKind.Blacksmith, 1, 2, south),
+            ("tailor.1x1", BuildingKind.TailorShop, 1, 1, south), ("store.1x2", BuildingKind.Store, 1, 2, south),
+            ("workshop.1x1", BuildingKind.Workshop, 1, 1, south), ("clinic.1x2", BuildingKind.Clinic, 1, 2, south),
+            ("restaurant.2x2", BuildingKind.Restaurant, 2, 2, south), ("silo.1x1", BuildingKind.Silo, 1, 1, south),
+            ("townhall.3x4", BuildingKind.TownHall, 3, 4, south), ("market.2x2", BuildingKind.Market, 2, 2, south),
+            ("stall.1x1", BuildingKind.MarketStall, 1, 1, south), ("port.2x4", BuildingKind.Port, 2, 4, new BuildingDoor(DoorSide.South, 1)),
+            ("yard.2x2", BuildingKind.AnimalYard, 2, 2, south),
+        ];
+    }
+
+    /// <summary>The client's weathered street lanterns and bridges match the approved abandoned looks pixel for pixel.</summary>
+    private static void CheckApprovedNeglectedLanternsAndBridges()
+    {
+        var subjects = Proposed.BuildingStates.States.Subjects().ToDictionary(subject => subject.Id);
+        var east = new Vector2(1, 0);
+        foreach (var ruin in new[] { false, true })
+        {
+            var neglect = ruin ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected;
+            foreach (var (id, style) in new[] { ("lantern.stone", LanternStyle.Stone), ("lantern.hanging", LanternStyle.Hanging) })
+                Equal(BuildingSprites.NeglectedLantern(style, east, neglect), Proposed.BuildingStates.States.AbandonedArt(subjects[id], ruin),
+                    $"The client's {neglect} {id} must match the approved abandoned look.");
+            var bridge = Proposed.BuildingStates.States.AbandonedArt(subjects["bridge.3"], ruin);
+            Equal(BuildingSprites.RenderNeglectedBridge(true, 3, 32, neglect), bridge,
+                $"The client's {neglect} three-span bridge must match the approved abandoned look.");
+            bridge.Resize(5 * 16, 16, Image.Interpolation.Nearest);
+            Equal(BuildingSprites.RenderNeglectedBridge(true, 3, 16, neglect), bridge,
+                $"The client's 16 px {neglect} bridge must be the approved look halved.");
+        }
+
     }
 
     private static void Equal(Image actual, Image expected, string message)

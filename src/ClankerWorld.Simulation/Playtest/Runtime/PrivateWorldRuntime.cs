@@ -20,7 +20,7 @@ namespace ClankerWorld.Simulation.Playtest;
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 92;
+    public const int StateSchemaVersion = 118;
     // Founded Towns save laws, protected government changes and the mayor's office from this schema.
     public const int TownGovernmentSchemaVersion = 55;
     public const int ObserverGuidanceSchemaVersion = 41;
@@ -83,6 +83,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private string? historyArchiveHead;
     private int checkpointSchemaVersion = StateSchemaVersion;
     private bool jevEnabled = true;
+    private RoutineHelperSettings routineHelper = RoutineHelperSettings.Jev;
     private long jevPolicyRevision;
     private FounderSetupState? founderSetup;
     private List<TownRuntimeState> towns = [];
@@ -90,6 +91,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private List<HouseholdLandUseRight> householdLandUseRights = [];
     private List<HouseholdLandUseRequest> householdLandUseRequests = [];
     private HashSet<GridPoint> roadTiles = [];
+    private AnimalWorldState animalWorld = AnimalWorldState.Empty;
+    public IReadOnlyList<AnimalState> Animals => animalWorld.Animals;
     private List<HandcartHitch> handcartHitches = [];
     private List<AgentConversation> conversations = [];
     private List<AgentMarriage> marriages = [];
@@ -140,7 +143,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         WorldStartPace startPace,
         GeographyOptions? geographyOptions,
         SeededMap? preparedMap,
-        bool includeLegacyBedroll = false)
+        bool includeLegacyBedroll = false,
+        WorldSystemsState? restoredWorldSystems = null,
+        string? savedWorldId = null)
     {
         this.worldSeed = NormalizeRequiredText(worldSeed, nameof(worldSeed));
         if (geographyOptions is not null &&
@@ -165,9 +170,14 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                 : GeographyCandidateSelector.GenerateCandidate(geographyOptions, includeLegacyBedroll: includeLegacyBedroll)
             : SeededMapGenerator.Generate(this.worldSeed, includeLegacyBedroll));
         fertility = new LandFertility(map, this.worldSeed);
-        worldSystems = CreateWorldSystems(this.worldSeed, map, startPace);
+        // Restore supplies an already validated saved state or a trusted tick
+        // snapshot. Only a new world needs genesis ecology, chunks and weather.
+        worldSystems = restoredWorldSystems ?? CreateWorldSystems(this.worldSeed, map, startPace);
+        // Restore and tick preparation reuse the stored ID, avoiding map hashing
+        // after creation and preserving existing seed-identified worlds.
         society = CreateSociety(
             this.worldSeed,
+            savedWorldId ?? (geographyOptions is null ? this.worldSeed : GeneratedWorldId(this.worldSeed, geographyOptions, map)),
             providerFactory,
             maxCognitionQueueLength,
             maxCognitionDispatchPerCycle,
@@ -194,6 +204,21 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         AppendEvent("world_created", $"{this.worldSeed}:inhabitants:{inhabitants.Count}");
         if (towns.Count > 0) AppendEvent("town_founding_started", TownBorderRules.FirstTownId);
         StartContinuityRule();
+    }
+
+    private static string GeneratedWorldId(string seed, GeographyOptions options, SeededMap generatedMap)
+    {
+        // The seed controls generation; identity also binds the selected options
+        // and exact accepted map. A name change must not create a duplicate.
+        var identity = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            Version = 1,
+            Seed = seed,
+            Geography = options,
+            Map = generatedMap.ManifestDigest,
+            Layers = MapLayerManifestCodec.Digest(generatedMap),
+        });
+        return "generated:" + Convert.ToHexStringLower(SHA256.HashData(identity));
     }
 
     /// <summary>Creates a world from the already previewed deterministic map.</summary>
@@ -228,6 +253,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     public WorldSystemsState WorldSystems => worldSystems;
 
     public bool JevEnabled => jevEnabled;
+
+    public RoutineHelperSettings RoutineHelper => routineHelper;
 
     public long JevPolicyRevision => jevPolicyRevision;
 
@@ -292,7 +319,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             state.FounderSetup is null ? WorldStartPace.Legacy : WorldStartPace.FounderSetup,
             state.Geography,
             trustedPreparedState ? state.Map : null,
-            includeLegacyBedroll: state.Map.CampObjects.Any(item => item.Id == "bedroll" && item.Kind == "bedroll"));
+            includeLegacyBedroll: state.Map.CampObjects.Any(item => item.Id == "bedroll" && item.Kind == "bedroll"),
+            restoredWorldSystems: state.WorldSystems!,
+            savedWorldId: state.Society.Society.WorldId);
         if (!trustedPreparedState && !IsCompatibleSavedMap(runtime.map, state))
         {
             runtime.Dispose();
@@ -304,6 +333,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.historyArchiveHead = state.HistoryArchiveHead;
         runtime.checkpointSchemaVersion = StateSchemaVersion;
         runtime.jevEnabled = state.JevEnabled ?? true;
+        runtime.routineHelper = state.RoutineHelper;
         runtime.jevPolicyRevision = state.JevPolicyRevision;
         runtime.founderSetup = state.FounderSetup;
         runtime.society.Dispose();
@@ -316,6 +346,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.fertility = new LandFertility(runtime.map, state.WorldSeed);
         runtime.handcartHitches = state.HandcartHitches!.ToList();
         runtime.boatTransport = state.BoatTransport;
+        runtime.animalWorld = state.AnimalWorld;
         runtime.fields = state.Fields!.OrderBy(field => field.Position.Y)
             .ThenBy(field => field.Position.X).ToList();
         runtime.towns = state.Towns!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
@@ -337,7 +368,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.survivalState = state.Survival;
         runtime.council = state.Council;
         runtime.continuity = state.Continuity!;
-        runtime.worldSystems = state.WorldSystems!;
         RegionalWeatherRules.ValidateMap(runtime.worldSystems, runtime.map);
         runtime.inhabitants.Clear();
         foreach (var inhabitant in state.Inhabitants)
@@ -496,6 +526,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     {
         Marriages = marriages.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         BoatTransport = boatTransport,
+        AnimalWorld = animalWorld,
+        RoutineHelper = routineHelper,
     };
 
     private void AppendEvent(string kind, string detail, GridPoint? eventPosition = null)

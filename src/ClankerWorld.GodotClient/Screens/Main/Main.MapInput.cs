@@ -89,6 +89,9 @@ public partial class Main
         foreach (var (id, visual) in inhabitantVisuals)
             if (inhabitantCanonicalXs.TryGetValue(id, out var x))
                 visual.Position = new Vector2(WrappedMarkerX(x, mapWidth, stride, wrapsEastWest), visual.Position.Y);
+        foreach (var (id, badge) in occupancyBadges)
+            if (occupancyCanonicalXs.TryGetValue(id, out var x))
+                badge.Position = new Vector2(WrappedMarkerX(x, mapWidth, stride, wrapsEastWest), badge.Position.Y);
     }
 
     private void RefreshOverviewViewport(int mapWidth, int mapHeight, float stride, bool wrapsEastWest)
@@ -204,6 +207,7 @@ public partial class Main
         }
         else if (@event is InputEventMouseMotion hoverMotion)
         {
+            if ((hoverMotion.ButtonMask & MouseButtonMask.Middle) == 0) draggingMap = false;
             if (draggingMap)
             {
                 PanCamera(-hoverMotion.Relative / (currentTileSize + TileGap));
@@ -297,6 +301,8 @@ public partial class Main
         }
         foreach (var cart in snapshot.Handcarts.Where(cart => cart.Position.X == tile.X && cart.Position.Y == tile.Y))
             lines.Add(GameUiText.HandcartDescription(cart));
+        foreach (var animal in snapshot.Animals.Where(animal => animal.Position.X == tile.X && animal.Position.Y == tile.Y))
+            lines.Add(GameUiText.AnimalDescription(animal));
         foreach (var stock in snapshot.GroundStocks.Where(stock => stock.Position.X == tile.X && stock.Position.Y == tile.Y))
             lines.Add($"On the ground: {stock.Quantity} {GameUiText.ItemName(stock.Kind)} · {snapshot.Stockpiles.FirstOrDefault(owner => owner.OwnerId == stock.OwnerId)?.Name ?? stock.OwnerId}");
         if (hydrology is not null and not "Land") lines.Add($"Water: {hydrology}");
@@ -307,7 +313,7 @@ public partial class Main
         if (region?.SoilMoisture is { } moisture)
             lines.Add($"Soil moisture: {moisture}%");
         if (elevation is { } level) lines.Add($"Elevation: {level}/255");
-        if (town is not null) lines.Add($"Town: {town.Name}");
+        if (town is not null) lines.Add($"Town: {town.Name}" + (town.IsAbandoned ? " (abandoned)" : string.Empty));
         // Title, use rights, requests and disputes go on the card under shorter names.
         var landFacts = new List<(string Key, string Value)>();
         foreach (var title in titles)

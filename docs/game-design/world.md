@@ -2,7 +2,7 @@
 title: The world, time and survival
 type: game-design
 status: active
-updated: 2026-10-04
+updated: 2026-10-08
 ---
 
 # The world, time and survival
@@ -41,12 +41,19 @@ everything that is available in the current build. See [what works today](../wha
   testing setup. Linux/macOS support is not a launch obligation; interested
   contributors could help add and verify those platforms later. A Linux
   server machine does not count as testing a Linux desktop game.
+  **Agreed on October 8
+  ([#1275](https://github.com/compoodment/ClankerWorld/issues/1275)):** that
+  first release supports **Windows 11 on 64-bit (x64) PCs** only.
 - **Players bring their own model-provider API keys and pay their own provider
   charges.** The game does not include developer-funded AI usage for other
   players. Provider credentials are stored per installation, separate from
   shareable world saves; they are not bundled with the game. Opening the game
   does **not** require a key or a first-launch provider setup gate. Credentials
   are supplied or selected when assigning a provider/model to an agent.
+  **Agreed on October 8
+  ([#1275](https://github.com/compoodment/ClankerWorld/issues/1275)):** keys
+  are stored protected by Windows for the current Windows user, and the player
+  can **Check key** to see which models that key can use.
 - Keep one simulation/game-rules implementation across the private-VPS and
   local-PC deployments. The player-facing Godot client should not become the
   authority merely because the host runs locally. Closing the game still
@@ -68,12 +75,18 @@ everything that is available in the current build. See [what works today](../wha
 
 ### Still to decide
 
-Exact Windows version and architecture support; update design; local credential
-storage and diagnostics export; save migration between deployments;
-performance requirements and packaging tests; and on-demand credential
-validation. These are
+Performance requirements and packaging tests are still open. They are
 implementation choices to prove, not reasons to reopen the agreed player-local
 distribution goal, the companion-process host or the first package.
+
+**Parked until ClankerWorld becomes a public, versioned alpha (October 8):**
+how a player's copy of the game gets updated
+([#1259](https://github.com/compoodment/ClankerWorld/issues/1259)), exporting
+diagnostics for a bug report
+([#1260](https://github.com/compoodment/ClankerWorld/issues/1260)) and moving
+a world between the private server and a player's PC
+([#1262](https://github.com/compoodment/ClankerWorld/issues/1262)). The owner
+is the only player for now, so these wait until then.
 
 ## World time, pausing, and slow models
 
@@ -98,6 +111,12 @@ distribution goal, the companion-process host or the first package.
   not automatically switch that agent to another paid model**. The player may
   repair the credential or explicitly choose a new provider/model from the
   agent popup. Jev cannot impersonate the affected agent's personal model.
+- **While an agent waits for its model, agreed on October 8
+  ([#1247](https://github.com/compoodment/ClankerWorld/issues/1247)):** it keeps
+  doing its current task, eats or shelters if that is urgent and cares for
+  nearby dependents, but starts nothing important without its model. A small
+  marker on the map shows that it is waiting. The Event Log adds one line only
+  when the provider actually fails, not for an ordinary delay.
 - When the player closes the world/game while a model request is in flight,
   save and exit promptly rather than waiting for that answer. Cancel or discard
   the unfinished request, commit **no partial agent action**, and retain the
@@ -105,6 +124,12 @@ distribution goal, the companion-process host or the first package.
   relevant, which may require another provider call. The provider might charge
   for both the abandoned call and its later retry; this is an accepted
   trade-off for responsive quitting and no background model work.
+- **Model requests in flight, agreed on October 8
+  ([#1275](https://github.com/compoodment/ClankerWorld/issues/1275)):**
+  pausing cancels a request in flight the same way quitting does. Autosave
+  runs on its schedule whatever requests are in flight
+  ([Saving and recovery](saves.md#saving-and-recovery)). Changing an agent's
+  model refuses any reply to a request sent before the change.
 - The finished game offers an **optional AI-usage limit** alongside
   a visible usage meter. When the limit is reached, it pauses the world and
   asks before making further paid model calls; it does not cap the fictional
@@ -134,8 +159,13 @@ distribution goal, the companion-process host or the first package.
   span at most 60 world days, 1.5 years, or six seasons. These numbers may be
   changed after playtesting; they are not final performance or pacing promises.
   This custom calendar supersedes the earlier 365-day preference.
-- **Leaning toward:** biological age corresponds to elapsed world/calendar time,
-  but its life-stage milestones need rethinking for short lives. Night affects
+- **Agreed on October 8
+  ([#1273](https://github.com/compoodment/ClankerWorld/issues/1273)):**
+  biological age follows elapsed world/calendar time, with life stages
+  starting at days 3, 15 and 45 ([Agents and social
+  life](agents-and-families.md#life-stages-to-try-in-playtesting)). The stage
+  days can still change after playtesting.
+- **Leaning toward:** night affects
   temperature and weather, without a sleep/energy requirement or a separate
   night-only travel, visibility, work or social restriction. Weather itself
   can still affect agents under the ordinary weather rules.
@@ -167,9 +197,7 @@ distribution goal, the companion-process host or the first package.
 
 Playtest the accepted starting pace and revise it if days, seasons, or agent
 lives feel rushed or slow. Still open: detailed stage effects, how much
-colder night is, night's effect on weather, provider
-work at pause/quit boundaries, safe routine activity for a stalled agent, and
-how to communicate provider delays without freezing the world.
+colder night is, and night's effect on weather.
 
 Provider cost is unknown until agent call rates, token use, model choices, and
 population are measured. Representative tests can measure this before the
@@ -189,10 +217,12 @@ still needs playtesting.
   targets, **not locked constants**.
 - **The first local release supports Small and Medium worlds only.** Large,
   Huge and Mega stay as planned presets until the costs of saving, observing
-  and overviewing a world of that size are measured. **Leaning toward
-  (provisional):** the map's zoom-out limit also stays as it is until Large is
-  measured, and is then tuned; see
-  [Interface and art](interface-and-art.md#leaning-toward).
+  and overviewing a world of that size are measured. **Agreed on October 8
+  ([#1276](https://github.com/compoodment/ClankerWorld/issues/1276)):** the map
+  zooms out until the view spans 70% of a Small or Medium map, and the larger
+  sizes share one floor of 8 pixels per tile. Both numbers are provisional, for
+  playtesting; see
+  [Interface and art](interface-and-art.md#main-menu-world-view-and-controls).
 - Use **64×64 logical tiles per chunk** as the starting arrangement target.
   Chunks help storage, loading, and rendering without forcing an entire chunk
   into one giant texture. Rendering only what the camera sees is distinct from
@@ -203,7 +233,10 @@ still needs playtesting.
   real northern and southern polar regions, not north/south wrapping into a
   torus. **Latitude cooling** is also on by default, giving the world a warmer
   equator and colder poles; it can be turned off independently for unusual
-  climates without changing the map's wrapping choice.
+  climates without changing the map's wrapping choice. **Agreed on October 8
+  ([#1249](https://github.com/compoodment/ClankerWorld/issues/1249)):** the
+  outer rows at the north and south map edges are always polar sea or ice that
+  nobody can cross, so no agent walks into an edge it cannot see.
 - Keep simple New World presets, with a compact Advanced section rather than
   sliders for every generator parameter. **Balanced** is the default climate
   mode; **Uniform** and **Dominant** remain choices. Advanced controls are
@@ -243,8 +276,8 @@ still needs playtesting.
   every coast and especially not along every river. A forest-floor tile should
   visibly contain a tree or plant, mostly trees; grass-surfaced forest tiles
   should instead have scattered trees. Trees and ordinary plants should not
-  grow on sand. Computment now disfavors cacti entirely, though that exclusion
-  was phrased tentatively; avoid expanding cactus content until settled. Hills
+  grow on sand. Computment then tentatively disfavored cacti; the October 1
+  item below settles this by bringing them back on desert sand only. Hills
   forming a readable base around mountain regions were preferred; the next item
   records the September 30 decision, and their exact elevation thresholds
   remain open.
@@ -258,9 +291,12 @@ still needs playtesting.
     sand, rock, mountains and snow can't be farmed. An agent with a hoe tills
     chosen tiles into visible field squares, and crops grow only on tilled
     tiles, so a household's fields can be as small or as large as it makes
-    them. "Fertile soil" sites go away. Exact numbers, soil wear and fields
-    returning to grass are open
-    ([#579](https://github.com/compoodment/ClankerWorld/issues/579)).
+    them. "Fertile soil" sites go away. Exact numbers are still open.
+    **Agreed on October 8
+    ([#1248](https://github.com/compoodment/ClankerWorld/issues/1248)):**
+    farming does not wear the soil out, but a field nobody works for a full
+    season goes back to grass, which tidies abandoned land without adding
+    food pressure.
   - **Cacti come back** as plant cover on desert sand only. This replaces the
     earlier tentative exclusion.
   - **Beaches are patchy:** some stretches of coast have sand and others run
@@ -272,16 +308,22 @@ still needs playtesting.
     on it, and **snow** needs visible variation and a softer edge into
     neighbouring land rather than flat white with a stark border. Hills and
     mountains, and Roads and buildings standing on hills, are to be redrawn.
-- **Leaning toward (provisional, to tune in playtests):** one orchard fruit tree
-  species, which fruits in autumn. The orchard tree itself is already accepted
-  in [Planned game content](content-list.md); its yield and other details
+- **Agreed on October 8
+  ([#1275](https://github.com/compoodment/ClankerWorld/issues/1275)):** one
+  orchard fruit tree species, which fruits in autumn. The orchard tree itself
+  is already accepted in [Planned game content](content-list.md); its yield
+  and other details
   remain open.
 - Generated geography includes **rivers** as well as oceans, shores and lakes.
   Rivers belong to the 2D, top-down tile world and its water layout layer; they
   must remain continuous across an enabled east/west world seam. A noise
   function may sample three input coordinates to make a seamless **2D** map;
   that does not imply 3D graphics or 3D gameplay.
-- Agents can reshape some terrain through activity. They can cross water with
+- Agents can reshape some terrain through activity. **Agreed on October 8
+  ([#1275](https://github.com/compoodment/ClankerWorld/issues/1275)):** they
+  change terrain only by tilling, felling trees, planting, using up deposits,
+  and building Roads and bridges; anything more comes only through
+  inventions. They can cross water with
   crafted boats and shore-connected ports and can later invent improvements.
   Roads exist and influence travel and building placement. **Mountain and peak
   tiles cannot hold construction**—including buildings, farms and roads.
@@ -293,16 +335,19 @@ still needs playtesting.
   map, and roads can also run diagonally. The playable foot route finder now
   supports diagonal steps at 141% of cardinal entry cost and requires both
   orthogonal shoulder tiles to be passable; occupied shoulders also block a
-  live diagonal move. Diagonal Roads are agreed
-  ([Towns](towns.md#how-roads-and-bridges-appear)) but not built yet.
+  live diagonal move. Diagonal Town Roads are drawn on the map too; see
+  [Towns](towns.md#how-roads-and-bridges-appear).
 
 ### Weather over time
 
-Computment is **leaning toward regional weather episodes** rather than a new,
-independent weather roll every day. A region's next condition should depend on
-its climate and previous condition. The first version should not simulate
-storms physically travelling between regions; drifting visual effects do not
-mean a weather front has moved.
+**Agreed on October 8
+([#1275](https://github.com/compoodment/ClankerWorld/issues/1275)):** weather
+comes in **regional episodes** rather than a new, independent weather roll
+every day, in square regions 32 tiles across (a provisional size). A region's
+next condition should depend on its climate and previous condition. The first
+version has no moving fronts: it does not simulate storms physically
+travelling between regions, and drifting visual effects do not mean a weather
+front has moved.
 
 For this direction, ordinary weather should last a variable **one-quarter to
 one in-game day** before changing. This is a starting range to tune through
@@ -372,8 +417,13 @@ Computment wants agents to cross **one-tile-wide rivers on foot, more slowly**
 than dry ground. **Agreed on October 1
 ([#649](https://github.com/compoodment/ClankerWorld/issues/649)):** agents may
 also wade rivers **two tiles wide**, more slowly than a one-tile river, so every
-river the game can bridge can also be crossed on foot. Wider rivers, lakes and
-the sea still need boats. The world automatically adds bridges at sufficiently
+river the game can bridge can also be crossed on foot. **Agreed on October 8
+([#1288](https://github.com/compoodment/ClankerWorld/issues/1288)):** agents
+may also **swim** rivers wider than two tiles and lakes, much more slowly than
+wading, losing warmth and only with a light load. The sea still needs a boat.
+Nobody drowns: an agent that is too cold, ill or loaded does not start a swim.
+Swimming speed, warmth loss and the load limit are provisional, for
+playtesting. The world automatically adds bridges at sufficiently
 used crossings, including two-tile ones. A generated Road may also **create a
 bridge immediately** where its route meets a bridgeable river; it need not
 wait for traffic there. Once a bridge is placed, no redundant bridge is added
@@ -430,12 +480,11 @@ Later transport inventions do not silently change this first-stage Port rule.
 
 Exact terrain/vegetation/object mechanics beyond the accepted base
 [asset roster](content-list.md); exact climate-generation
-formulas, map topology at polar edges, biome transitions, water and elevation
+formulas, biome transitions, water and elevation
 rules, resource distributions, the exact shape of target continents and
 incidental islands,
-travel times, world-size performance, and limits
-on agent-caused terrain changes. **Regional weather details remain open:**
-region size and coherence, exact transition probabilities and effect strengths,
+travel times and world-size performance. **Regional weather details remain
+open:** region coherence, exact transition probabilities and effect strengths,
 and whether moving fronts belong in a later version. Episode durations and rain
 frequency need playtesting before their numerical targets are final.
 Climate's long-run
@@ -452,12 +501,16 @@ The generator uses provisional values for these
 ([How it works](../development/how-it-works.md#terrain-layers-sand-groves-and-hills));
 they become decisions only after computment reviews generated maps.
 
-**Suggestion river-generation approach, not yet a locked algorithm:** generate
+**Agreed on October 8
+([#1275](https://github.com/compoodment/ClankerWorld/issues/1275)):** rivers
+are generated by drainage, as below, and stay the same all year.
+
+**River-generation approach, not yet a locked algorithm:** generate
 elevation and long-run rainfall, route water downhill toward coasts or inland
 lakes, accumulate upstream flow, and mark sufficiently fed channels as rivers.
 Handle trapped low areas as lakes/outlets and use east/west-wrapped neighbors
-when wrapping is enabled. River abundance, width, crossings, seasonal behavior,
-and exact effects on farms and Towns remain open. Noise is a candidate
+when wrapping is enabled. River abundance, width, crossings and exact effects
+on farms and Towns remain open. Noise is a candidate
 for the terrain fields, not a substitute for drainage routing. Relevant
 references: [Red Blob's noise-map guide](https://www.redblobgames.com/maps/terrain-from-noise/),
 [the polygon-map guide](https://xenon.stanford.edu/~amitp/game-programming/polygon-map-generation/),
@@ -486,6 +539,11 @@ call for each weather change.
   natural cover such as a forest or tree when away from home. An invited guest
   may also shelter from storms in another household's House, without access to
   its stock or cooking (see [Towns](towns.md#buildings-land-towns-and-animals)).
+  **Agreed on October 8
+  ([#1237](https://github.com/compoodment/ClankerWorld/issues/1237)):** natural
+  cover gives only partial protection from a storm, less than a House, so
+  Houses keep their value. Residents without a House may shelter at their
+  Town's Town Hall ([Towns](towns.md#buildings-land-towns-and-animals)).
   Weather may sometimes cause illness; food and care support recovery. Illness
   slows work and travel, not personality or normal conversation; staying home
   speeds recovery but confinement is not required. Exact penalties, care and
@@ -537,9 +595,9 @@ Earlier playtesting found agents spent too much time seeking food, rest and
 warmth or trying to feel safe. Rest is now removed; food and warmth still need
 to leave room for exploration, social life, building and invention. Define food
 scarcity and routine upkeep so a daily food economy matters without
-monopolizing action selection. Decide what an
-agent without any House does during a storm, how much natural cover protects,
-and which illness penalties and care/recovery rates work well without
+monopolizing action selection. Tune how much of a House's storm protection
+natural cover gives, and decide which illness penalties and care/recovery rates
+work well without
 recreating an energy meter. Measure the share of time spent on survival against
 socializing, building and exploration, as well as food shortages and illness,
 before treating the starting thresholds as final. Exploration, knowledge

@@ -25,6 +25,7 @@ public enum BuildingKind : byte
     Market,
     MarketStall,
     Port,
+    AnimalYard,
 }
 
 /// <summary>The edge of a building's footprint that its door is on.</summary>
@@ -71,7 +72,7 @@ public readonly record struct BuildingDoor(DoorSide Side, int? Tile = null)
 /// </summary>
 public static partial class BuildingSprites
 {
-    private static readonly Dictionary<(BuildingKind Kind, int Width, int Height, int Tile, BuildingDoor Door), ImageTexture> Cache = [];
+    private static readonly Dictionary<(BuildingKind Kind, int Width, int Height, int Tile, BuildingDoor Door, BuildingNeglect Neglect), ImageTexture> Cache = [];
     private static readonly Color Shadow = new(0.04f, 0.06f, 0.05f, 0.30f);
 
     /// <summary>Chooses a family from building tags, most specific first.</summary>
@@ -79,6 +80,7 @@ public static partial class BuildingSprites
     {
         var set = tags ?? [];
         bool Has(string tag) => set.Contains(tag, StringComparer.Ordinal);
+        if (Has("animal-yard")) return BuildingKind.AnimalYard;
         if (Has("house")) return BuildingKind.House;
         if (Has("warehouse")) return BuildingKind.Warehouse;
         if (Has("farmhouse")) return BuildingKind.Farmhouse;
@@ -111,6 +113,14 @@ public static partial class BuildingSprites
         _ => null,
     };
 
+    /// <summary>
+    /// Whether people under this building's roof are inside it, so the map
+    /// hides them and shows a count instead. Yards, piers, stalls, paths and
+    /// fittings are open air.
+    /// </summary>
+    public static bool HasInterior(BuildingKind kind) => kind is not (BuildingKind.AnimalYard or BuildingKind.MarketStall
+        or BuildingKind.Port or BuildingKind.Path or BuildingKind.Bedroll or BuildingKind.Hearth);
+
     /// <summary>Main roof color, also used as a flat fill at overview zoom.</summary>
     public static Color RoofColor(BuildingKind kind) => ApprovedArt.MainRoof(kind) ?? Palette(kind).Lit;
 
@@ -131,15 +141,29 @@ public static partial class BuildingSprites
         return (roof, null, door.Tile is { } tile ? tile * 32 + 16 : from + length / 2, null);
     }
 
-    public static ImageTexture Texture(BuildingKind kind, int width, int height, int tilePixels, BuildingDoor door = default)
+    public static ImageTexture Texture(BuildingKind kind, int width, int height, int tilePixels, BuildingDoor door = default,
+        BuildingNeglect neglect = BuildingNeglect.None)
     {
         width = Math.Clamp(width, 1, 8);
         height = Math.Clamp(height, 1, 8);
-        var key = (kind, width, height, tilePixels, door);
+        var key = (kind, width, height, tilePixels, door, neglect);
         if (Cache.TryGetValue(key, out var cached)) return cached;
-        var texture = ImageTexture.CreateFromImage(Render(kind, width, height, tilePixels, door));
+        var texture = ImageTexture.CreateFromImage(Render(kind, width, height, tilePixels, door, neglect));
         Cache[key] = texture;
         return texture;
+    }
+
+    /// <summary>
+    /// A building's picture. In an abandoned Town it weathers: the approved
+    /// look is drawn at 32 px and halved for 16 px tiles, as the Port is.
+    /// </summary>
+    public static Image Render(BuildingKind kind, int width, int height, int tilePixels, BuildingDoor door, BuildingNeglect neglect)
+    {
+        if (neglect == BuildingNeglect.None) return Render(kind, width, height, tilePixels, door);
+        width = Math.Clamp(width, 1, 8);
+        height = Math.Clamp(height, 1, 8);
+        var weathered = Neglect.Draw(kind, width, height, door, neglect == BuildingNeglect.FallingApart);
+        return tilePixels == 32 ? weathered : Neglect.Resize(weathered, width * tilePixels, height * tilePixels);
     }
 
     public static Image Render(BuildingKind kind, int width, int height, int tilePixels, BuildingDoor door = default)
@@ -423,7 +447,8 @@ public static partial class BuildingSprites
         };
 
         /// <summary>Whether this kind uses the approved drawing.</summary>
-        public static bool Draws(BuildingKind kind) => kind is BuildingKind.Silo or BuildingKind.MarketStall or BuildingKind.Port || RecipeFor(kind) is not null;
+        public static bool Draws(BuildingKind kind) => kind is BuildingKind.Silo or BuildingKind.MarketStall or BuildingKind.Port or BuildingKind.AnimalYard ||
+            RecipeFor(kind) is not null;
 
         /// <summary>Where a roofed kind's roof, yard and door are, in 32-unit tile space; null for the others.</summary>
         public static (Rect2 Roof, Rect2? Yard, float DoorMiddle, Rect2? Wing)? PlanFor(BuildingKind kind, int tilesWide, int tilesHigh, BuildingDoor door, int tilePixels)
@@ -469,6 +494,7 @@ public static partial class BuildingSprites
             BuildingKind.Silo => SiloWood.Base,
             BuildingKind.Port => Timber.Base,
             BuildingKind.MarketStall => Berry.Base,
+            BuildingKind.AnimalYard => YardDirt.Base,
             _ => RecipeFor(kind)?.Roof.Base,
         };
 
@@ -477,6 +503,7 @@ public static partial class BuildingSprites
         {
             tilesWide = Math.Clamp(tilesWide, 1, 8);
             tilesHigh = Math.Clamp(tilesHigh, 1, 8);
+            if (kind == BuildingKind.AnimalYard) return Yard(tilesWide, tilesHigh, tilePixels, door);
             if (kind == BuildingKind.Port && tilePixels != 32)
             {
                 var approved = Draw(kind, tilesWide, tilesHigh, 32, door);

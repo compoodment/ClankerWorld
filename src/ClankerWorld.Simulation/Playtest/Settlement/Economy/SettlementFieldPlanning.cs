@@ -17,6 +17,7 @@ public sealed partial class PrivateWorldRuntime
         if (householdId is null || FarmhouseForHousehold(householdId) is not { } farmhouse ||
             NeedsUrgentFood(state) || NeedsUrgentWarmth(state) ||
             (state.Project is { Stage: not ("completed" or "cancelled") } project && !project.RequiresFreshChoice)) return;
+        var demand = FarmFoodDemand(householdId);
         var hasHoe = ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, actor, ToolFamily.Hoe) is not null;
         foreach (var field in fields.Where(field => field.HouseholdId == householdId && field.Work is null))
         {
@@ -25,7 +26,7 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Harvest, field.Position), "Harvest the ready crop; it stays on the ground until carried.", 12));
             else if (hasHoe && field.Stage == FarmFieldStage.Growing && !field.Tended)
                 candidates.Add(new(FarmCandidate(FarmWorkKind.Tend, field.Position), "Tend the growing crop with a hoe.", 13));
-            else if (field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested && FarmNeedsFood(householdId))
+            else if (field.Stage is FarmFieldStage.Prepared or FarmFieldStage.Harvested && demand.MissingMeals > 0)
             {
                 if (HasOtherInhabitantClaimedPlanting(field, actor)) continue;
                 var priority = 14;
@@ -34,11 +35,9 @@ public sealed partial class PrivateWorldRuntime
                         $"Carry {FarmFieldRules.PlantingItem(crop).Replace('_', ' ')} to the field and plant {crop.Replace('_', ' ')}.", priority++));
             }
         }
-        var population = society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == householdId &&
-            person.Status == SocietyInhabitantStatus.Active);
         var expectedYield = Math.Max(1, FarmFieldRules.HarvestQuantity(FarmFieldRules.Grain, fertility.At(farmhouse.Position)));
-        var wantedFields = Math.Max(1, (int)Math.Ceiling(population * FarmFieldRules.MealsPerPersonPerDay * 2d / expectedYield));
-        if (!hasHoe || !FarmNeedsFood(householdId) || fields.Count(field => field.HouseholdId == householdId) >= wantedFields) return;
+        var wantedFields = (int)Math.Ceiling(demand.MissingMeals / (demand.FarmingHouseholds * (double)expectedYield));
+        if (!hasHoe || fields.Count(field => field.HouseholdId == householdId) >= wantedFields) return;
         var heldByOthers = HouseholdLandHeldByOthers(householdId);
         var site = NearbyFarmTiles(farmhouse.Position)
             .Where(point => !heldByOthers.Contains(point) && FarmableFreeTile(point))
@@ -75,7 +74,7 @@ public sealed partial class PrivateWorldRuntime
             var eligible = inhabitants.TryGetValue(runtime.InhabitantId, out var claimant) &&
                 AdultResident(runtime.InhabitantId) && HouseholdFor(runtime.InhabitantId) == field.HouseholdId &&
                 !NeedsUrgentFood(claimant) && !NeedsUrgentWarmth(claimant) &&
-                HasCarriedItem(runtime.InhabitantId, FarmFieldRules.Hoe) &&
+                ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, runtime.InhabitantId, ToolFamily.Hoe) is not null &&
                 (claimant.Project is not { Stage: not ("completed" or "cancelled") } project || project.RequiresFreshChoice) &&
                 FarmNeedsFood(field.HouseholdId);
             var stock = eligible ? PlantingStock(runtime.InhabitantId, field, crop) : null;
@@ -88,15 +87,29 @@ public sealed partial class PrivateWorldRuntime
     // the field and seed choice legal while they pass so the selected task can
     // retry its physical route instead of being replaced by another crop.
     private bool CanReachField(string actor, GridPoint from, GridPoint destination) =>
-        from == destination || map.IsReachableOnFoot(from, destination);
+        from == destination || CanReachByFootOrSwimming(actor, from, destination);
 
-    private bool FarmNeedsFood(string householdId)
+    private bool FarmNeedsFood(string householdId) => FarmFoodDemand(householdId).MissingMeals > 0;
+
+    private (int MissingMeals, int FarmingHouseholds) FarmFoodDemand(string householdId)
     {
-        var population = society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == householdId &&
-            person.Status == SocietyInhabitantStatus.Active);
-        var stock = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == householdId &&
-            IsEdibleFood(lot.ItemKind)).Sum(AvailableLotQuantity);
-        return stock < population * FarmFieldRules.MealsPerPersonPerDay * 2;
+        var checkpoint = society.Checkpoint;
+        var townId = FarmhouseForHousehold(householdId)?.TownId;
+        var town = towns.SingleOrDefault(item => item.Id == townId);
+        var residents = checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active &&
+            (town is null ? person.HouseholdId == householdId : town.ResidentIds.Contains(person.Id, StringComparer.Ordinal)))
+            .ToArray();
+        var foodOwners = town is null ? new HashSet<string>(StringComparer.Ordinal) { householdId }
+            : residents.Select(person => person.Id).Concat(residents.Select(person => person.HouseholdId)
+                .OfType<string>()).ToHashSet(StringComparer.Ordinal);
+        var stock = checkpoint.Inventory.Lots.Where(lot => foodOwners.Contains(lot.OwnerId) &&
+            IsEdibleFood(lot.ItemKind) && InUsableVesselOrLoose(lot)).Sum(AvailableLotQuantity);
+        // The budget changes no ownership or access: each household still works
+        // its own fields and must physically carry its own planting supplies.
+        var farmingHouseholds = town is null ? 1 : residents.Select(person => person.HouseholdId).OfType<string>()
+            .Distinct(StringComparer.Ordinal).Count(owner => FarmhouseForHousehold(owner)?.TownId == town.Id);
+        return (Math.Max(0, residents.Length * FarmFieldRules.MealsPerPersonPerDay * 2 - stock),
+            Math.Max(1, farmingHouseholds));
     }
 
     // A missing unit for existing eligible field work, not an inventory buffer.
@@ -124,7 +137,9 @@ public sealed partial class PrivateWorldRuntime
                 (item.Work?.Crop ?? item.Crop) == crop))
             .Where(crop => PlantingStock(actor, field, crop) is not null);
 
-    private InventoryLot? PlantingStock(string actor, FarmFieldState field, string crop)
+    // Orders need a usable pickup now; autonomous crop claims keep terrain eligibility
+    // while a temporary occupant passes and their existing physical route retries.
+    private InventoryLot? PlantingStock(string actor, FarmFieldState field, string crop, bool requirePickupRoute = false)
     {
         var kind = FarmFieldRules.PlantingItem(crop);
         var inventory = society.Checkpoint.Inventory;
@@ -140,7 +155,10 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(lot => lot.OwnerId == actor ? 0 : reserve?.LotId == lot.Id ? 1 : 2)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal)
             .FirstOrDefault(lot => lot.OwnerId == actor ||
-                map.IsReachableOnFoot(inhabitants[actor].Position, HouseholdStockPosition(lot)));
+                PickupCarryCapacity(actor, lot, field.Position, 1) >= 1 && (requirePickupRoute
+                    ? CanWalkToFieldOrderSite(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
+                        HouseholdStockInteractionRange(lot))
+                    : CanReachByFootOrSwimming(actor, inhabitants[actor].Position, HouseholdStockPosition(lot))));
     }
 
     private void ApplyFieldCandidate(string actor, PlaytestInhabitantState state, string candidate, string? orderInstructionId = null)
@@ -154,10 +172,11 @@ public sealed partial class PrivateWorldRuntime
         if (kind == FarmWorkKind.Plant)
         {
             var field = fields.SingleOrDefault(item => item.Position == point && item.HouseholdId == HouseholdFor(actor));
-            if (field is null || crop is null || !FarmFieldRules.IsCrop(crop) || PlantingStock(actor, field, crop) is not { } seed) return;
+            if (field is null || crop is null || !FarmFieldRules.IsCrop(crop) ||
+                PlantingStock(actor, field, crop, requirePickupRoute: orderInstructionId is not null) is not { } seed) return;
             if (seed.OwnerId != actor)
             {
-                if (FreeCarryCapacity(actor) == 0) return;
+                if (PickupCarryCapacity(actor, seed, point, 1) < 1) return;
                 var source = HouseholdStockPosition(seed);
                 var range = HouseholdStockInteractionRange(seed);
                 if (!IsWithinInteractionRange(state.Position, source, range))

@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Society;
 
@@ -113,11 +115,11 @@ internal static class PrivateWorldMemoryRetrieval
         var experiences = socialMemories
             .Where(memory => string.Equals(memory.OwnerId, ownerId, StringComparison.Ordinal) &&
                 memory.TombstonedTick is null && memory.SourceTick >= 0 && memory.SourceTick <= worldTick &&
-                IsValidId(memory.Id) && IsValidId(memory.SubjectId) && !string.IsNullOrWhiteSpace(memory.Summary))
+                IsValidId(memory.Id) && IsCanonicalId(memory.SubjectId) && !string.IsNullOrWhiteSpace(memory.Summary))
             .Select(memory => new SourceRecord(
                 memory.Id,
                 ownerId,
-                memory.SubjectId,
+                CognitionAgentId(memory.SubjectId),
                 Bounded(memory.Summary, MaximumSummaryLength),
                 memory.SourceTick,
                 "experience",
@@ -135,14 +137,14 @@ internal static class PrivateWorldMemoryRetrieval
             .Select(belief => new SourceRecord(
                 belief.Id,
                 ownerId,
-                IsValidId(belief.AboutInhabitantId) ? belief.AboutInhabitantId! : ownerId,
+                CognitionAgentId(belief.AboutInhabitantId ?? ownerId),
                 Bounded(belief.Statement, MaximumSummaryLength),
                 belief.FormedTick,
                 "belief",
                 null,
                 belief.Provenance.ToString().ToLowerInvariant(),
                 belief.ConfidenceBasisPoints,
-                belief.SourceAgentId,
+                belief.SourceAgentId is { } sourceAgentId ? CognitionAgentId(sourceAgentId) : null,
                 belief.SourceEventId,
                 belief.SupersededByBeliefId is not null));
 
@@ -167,8 +169,14 @@ internal static class PrivateWorldMemoryRetrieval
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
-    private static bool IsValidId(string? value) => value is { Length: > 0 and <= 128 } &&
+    private static bool IsValidId(string? value) => value is { Length: <= 128 } && IsCanonicalId(value);
+
+    private static bool IsCanonicalId(string? value) => value is { Length: > 0 } &&
         value == value.Trim() && !value.Any(char.IsControl);
+
+    private static string CognitionAgentId(string agentId) => agentId.Length <= 128
+        ? agentId
+        : "agent-sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(agentId)));
 
     private static string? BoundedOptional(string? value, int limit) => value is null
         ? null

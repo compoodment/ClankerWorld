@@ -6,15 +6,24 @@ public sealed partial class PrivateWorldRuntime
 {
     private sealed record PersonalCollectionEffect(string MoveId, string ItemKind, int Quantity);
 
+    private bool CanReachPersonalGoods(string actor, InventoryLot lot)
+    {
+        var position = inhabitants[actor].Position;
+        var destination = HouseholdStockPosition(lot);
+        var range = lot.GroundPosition is not null ? ResourceInteractionRange : 1;
+        return IsWithinInteractionRange(position, destination, range) ||
+            FindUnoccupiedRoute(actor, position, destination, range).Count > 0;
+    }
+
     private PersonalCollectionEffect? CollectPersonalGoods(string actor, string lotId, int maximumQuantity = int.MaxValue)
     {
         if (!AdultResident(actor) || !ReadyForBriefInteraction(actor) || maximumQuantity <= 0 || FreeCarryCapacity(actor) <= 0)
             return null;
         var lot = PersonalGoodsAwaitingCollection(actor).FirstOrDefault(item => item.Id == lotId);
-        if (lot is null) return null;
+        if (lot is null || !CanReachPersonalGoods(actor, lot)) return null;
         var destination = HouseholdStockPosition(lot);
         var range = lot.GroundPosition is not null ? ResourceInteractionRange : 1;
-        // Former members collect at the entrance; this grants no other private access.
+        // Owners collect at the entrance, including former members and heirs; this grants no other private access.
         if (!IsWithinInteractionRange(inhabitants[actor].Position, destination, range))
         {
             MoveToward(actor, inhabitants[actor], destination, "personal_goods", range);

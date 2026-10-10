@@ -11,6 +11,7 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class ModelAttemptOutcomeTests
 {
     private const string TargetId = "founder:00000000000000000000000000000001";
+    private static readonly JsonSerializerOptions ClientJson = new() { PropertyNameCaseInsensitive = true };
 
     [Theory]
     [InlineData("missing", "missing_key", 0)]
@@ -34,12 +35,23 @@ public sealed class ModelAttemptOutcomeTests
         Assert.Equal(attempts, fixture.Handler.Calls);
         Assert.Equal(attempts, fixture.Usage.Capture().Attempts - fixture.InitialAttempts);
         Assert.Equal(expectedStatus, Status(world));
+        var failureRows = ClientFailures(world);
+        var failure = Assert.Single(failureRows);
+        Assert.Equal($"{TargetId}:{expectedStatus}", failure.Detail);
+        var clientSnapshot = JsonSerializer.Deserialize<ClankerWorld.GodotClient.UI.OwnerWorldSnapshot>(
+            JsonSerializer.Serialize(new OwnerWorldObservationStore(world).GetSnapshot()),
+            ClientJson)!;
+        var description = ClankerWorld.GodotClient.UI.WorldEventText.Describe(failure, clientSnapshot);
+        Assert.Contains("could not get a model reply:", description, StringComparison.Ordinal);
+        Assert.DoesNotContain(TargetId, description, StringComparison.Ordinal);
+        Assert.DoesNotContain("sk-private-status", description, StringComparison.Ordinal);
         Assert.DoesNotContain("sk-private-status", JsonSerializer.Serialize(world.ExportState()), StringComparison.Ordinal);
         Assert.Null(world.Inhabitants.Single(item => item.InhabitantId == TargetId).LastModelAttempt!.LastAcceptedCandidateId);
         var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => fixture.Provider);
         Assert.Equal(expectedStatus, Status(restored));
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        Assert.Equal(failureRows, ClientFailures(restored));
         if (mode == "unsupported")
             Assert.Equal("unsupported_request", restored.Inhabitants.Single(item => item.InhabitantId == TargetId).LastModelAttempt!.SetupBlocker);
     }
@@ -83,8 +95,10 @@ public sealed class ModelAttemptOutcomeTests
         await fixture.Handler.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal("waiting", Status(world));
         Assert.Equal("waiting", Status(world)); // independent refreshed projection
+        Assert.Empty(ClientFailures(world));
         world.Pause();
         Assert.Equal("canceled", Status(world));
+        Assert.Empty(ClientFailures(world));
         var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         fixture.Handler.Release.TrySetResult(true);
         await fixture.Handler.Returned.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -95,6 +109,14 @@ public sealed class ModelAttemptOutcomeTests
         Assert.Null(restored.Inhabitants.Single(item => item.InhabitantId == TargetId).LastModelAttempt!.LastAcceptedCandidateId);
         Assert.Equal(1, fixture.Handler.Calls);
         Assert.Equal(1, fixture.Usage.Capture().Attempts);
+    }
+
+    private static ClankerWorld.GodotClient.UI.OwnerWorldEvent[] ClientFailures(PrivateWorldRuntime world)
+    {
+        var events = new OwnerWorldObservationStore(world).GetEventsAfter(0).Events.Select(item =>
+            new ClankerWorld.GodotClient.UI.OwnerWorldEvent(item.EventId, item.WorldTick, item.Kind, item.Detail));
+        return ClankerWorld.GodotClient.UI.GameUiText.PlayerEvents(events)
+            .Where(item => item.Kind == "model_attempt_status" && item.Detail.StartsWith(TargetId + ":", StringComparison.Ordinal)).ToArray();
     }
 
     private static string Status(PrivateWorldRuntime world) =>

@@ -68,7 +68,11 @@ which signs the world whose settings the player opened. The client checks each
 fresh challenge before signing or posting these actions.
 An absent or different format produces an update message while keeping the
 existing pairing. Older hosts without this advertisement need an update too.
-Other signed actions, including reconnect, keep their existing contracts.
+Routine helper changes require `clankerworld.owner-routine-helper.v1`, signing
+the observed world ID, helper, model and optional saved OpenAI key-slot ID. The
+host holds the world-selection gate through validation and persistence, and
+refuses a changed world or an unpaused world. Other signed actions, including
+reconnect, keep their existing contracts.
 
 The advertisement is compatibility information, not permission to weaken a
 proof. The host still reconstructs the exact action payload and verifies its
@@ -108,6 +112,18 @@ to ordinary activation and recovery of an already-active pairing. The new host
 starts at cursor zero, so a younger world can be entered without restarting the
 client. Tick/event regression and terrain identity checks still apply within the
 new observation timeline.
+
+Life-pace and Jev actions additionally bind the selected world ID into their
+version-2 signed payloads. The host advertises both formats on challenge
+issuance; the client refuses to submit them to a host without that support.
+Both endpoints check the target world under the same mutation gate used by
+world selection, before changing or saving settings. A stale target returns
+409 without changing the newly selected world, and a request without a target
+returns 400. The pairing authority and world-save schema are unchanged.
+
+Successful activation and recovery of an already-active pairing both return
+to the Main Menu. Recovery saves the matching registration without opening
+the world; Continue performs the usual signed reconnect.
 
 ## Recovering after another device loads a world
 

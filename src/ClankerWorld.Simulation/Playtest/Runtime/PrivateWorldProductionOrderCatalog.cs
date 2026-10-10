@@ -34,7 +34,8 @@ internal static class PrivateWorldProductionOrderCatalog
         ContentPackageManifest[] packages =
         [
             StarterContent.Create(), SettlementContent.Create(), HouseContent.Create(), HouseCookingContent.Create(), FarmContent.Create(),
-            BlacksmithContent.Create(), TailorContent.Create(), PotteryContent.Create(), OrnamentContent.Create(), CareContent.Create(),
+            AnimalContent.Create(), BlacksmithContent.Create(), TailorContent.Create(), PotteryContent.Create(), OrnamentContent.Create(), CareContent.Create(),
+            RestaurantContent.Create(), RestaurantVariantContent.Create(),
         ];
         var result = new Dictionary<string, Entry>(StringComparer.Ordinal);
         foreach (var package in packages)
@@ -50,6 +51,49 @@ internal static class PrivateWorldProductionOrderCatalog
 
     private static (string[] Subjects, string[] Verbs)? NamesFor(string package, string recipe)
     {
+        if (package == AnimalContent.PackageId)
+        {
+            var prefix = recipe.StartsWith("restaurant-2x2-", StringComparison.Ordinal) ? "large restaurant " :
+                recipe.StartsWith("tailor-shop-2x2-", StringComparison.Ordinal) ? "large tailor " :
+                recipe.StartsWith("restaurant-", StringComparison.Ordinal) || recipe == "rich-restaurant-meal" ? "restaurant " : "";
+            if (recipe.Contains("cook-eggs", StringComparison.Ordinal)) return ([prefix + "cooked eggs"], ["make", "cook"]);
+            if (recipe.Contains("milk-porridge", StringComparison.Ordinal)) return ([prefix + "milk porridge"], ["make", "cook"]);
+            if (recipe.Contains("rich-restaurant-meal", StringComparison.Ordinal)) return ([prefix + "rich meal", prefix + "rich meals"], ["make", "cook"]);
+            if (recipe.Contains("wool-padded-coat", StringComparison.Ordinal)) return ([prefix + "wool padded coat", prefix + "wool padded coats"], ["make", "sew"]);
+            if (recipe.Contains("process-leather", StringComparison.Ordinal)) return ([prefix + "leather"], ["make", "process"]);
+            if (recipe.EndsWith("leather-sack", StringComparison.Ordinal)) return ([prefix + "leather sack", prefix + "leather sacks"], ["make", "sew"]);
+            if (recipe.EndsWith("saddle", StringComparison.Ordinal)) return ([prefix + "saddle", prefix + "saddles"], ["make", "craft"]);
+        }
+        if (package is HouseCookingContent.PackageId or RestaurantContent.PackageId or RestaurantVariantContent.PackageId)
+        {
+            var largerRestaurant = package == RestaurantVariantContent.PackageId;
+            if (largerRestaurant) recipe = recipe["restaurant-2x2-".Length..];
+            string[]? meals = recipe switch
+            {
+                "house-meal" => ["potato meal", "potato meals"],
+                "wild-green-meal" => ["wild green meal", "wild green meals"],
+                "cultivated-green-meal" => ["cultivated green meal", "cultivated green meals"],
+                "porridge" => ["porridge"],
+                "berry-porridge" => ["berry porridge"],
+                "fruit-porridge" => ["fruit porridge"],
+                "bread" => ["bread"],
+                "vegetable-stew" => ["stew", "vegetable stew"],
+                "restaurant-meal" => ["restaurant meal", "restaurant meals"],
+                _ => null,
+            };
+            if (meals is null) return null;
+            var building = package == HouseCookingContent.PackageId ? "house" :
+                largerRestaurant ? "restaurant 2x2" : "restaurant";
+            var qualified = meals.Select(meal => building + " " + meal).ToArray();
+            // Shared meal names must choose a recipe, not whichever workstation is visited first.
+            string[] subjects;
+            if (recipe is "house-meal" or "wild-green-meal" or "cultivated-green-meal")
+                subjects = meals.Concat(qualified).ToArray();
+            else if (recipe == "restaurant-meal")
+                subjects = largerRestaurant ? ["restaurant 2x2 meal", "restaurant 2x2 meals"] : meals;
+            else subjects = qualified;
+            return (subjects, ["make", "cook", "prepare"]);
+        }
         if (package == BlacksmithContent.PackageId)
         {
             if (recipe == "refine-iron") return (["iron", "refined iron"], ["make", "refine"]);

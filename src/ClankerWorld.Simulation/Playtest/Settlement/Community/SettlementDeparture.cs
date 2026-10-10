@@ -152,10 +152,8 @@ public sealed partial class PrivateWorldRuntime
         return true;
     }
 
-    private int PhysicalUnreservedQuantity(InventoryLot lot) => Math.Max(0, lot.Quantity -
-        society.Checkpoint.Inventory.Reservations.Where(item => item.LotId == lot.Id && item.State is
-            InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed)
-            .Sum(item => item.Quantity));
+    private int PhysicalUnreservedQuantity(InventoryLot lot) =>
+        Math.Max(0, InventoryRules.UnreservedQuantity(InventoryIndex.For(society.Checkpoint.Inventory), lot));
 
     private IEnumerable<InventoryLot> PersonalGoodsAwaitingCollection(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
         // A parked handcart stays on the ground with its cargo; its owner pulls it rather than carrying it.
@@ -164,17 +162,38 @@ public sealed partial class PrivateWorldRuntime
         lot.DeliveryBuildingId is null && lot.ContainerLotId is null && PhysicalUnreservedQuantity(lot) > 0 &&
         !(InventoryContainerRules.IsContainer(lot.ItemKind) && HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)) &&
         (lot.GroundPosition is not null || lot.StorageBuildingId is { } storageId &&
-            worldSimulation.Buildings.Any(building => building.InstanceId == storageId && building.HouseholdId is { } home &&
-                (society.Checkpoint.GetInhabitant(actor).HouseholdId == home ||
-                 inhabitants[actor].Departures?.Any(departure => departure.HouseholdId == home) == true))));
+            worldSimulation.Buildings.Any(building => building.InstanceId == storageId &&
+                (building.HouseholdId is { } home && (society.Checkpoint.GetInhabitant(actor).HouseholdId == home ||
+                 inhabitants[actor].Departures?.Any(departure => departure.HouseholdId == home) == true ||
+                 HasCareGroupDepartureFrom(actor, home) ||
+                 IsStoredSettledBequest(actor, lot, storageId)) ||
+                 towns.Any(town => town.LandHearings.Cases.Any(item => item.Property?.Transfer?.PriorBuilding.InstanceId == storageId))))));
+
+    // Children leave in the caregiver's recorded care group. That saved move
+    // still authorizes their own belongings after adulthood or the caregiver's
+    // death; the surrounding collection checks grant no access to shared goods.
+    private bool HasCareGroupDepartureFrom(string actor, string householdId) => inhabitants.Values
+        .Concat(deceasedInhabitants.Values.Select(person => person.LastPhysical))
+        .Any(person => person.Departures?.Any(departure => departure.HouseholdId == householdId &&
+            departure.CareGroup.Contains(actor, StringComparer.Ordinal)) == true);
+
+    private bool IsStoredSettledBequest(string actor, InventoryLot lot, string storageId) => society.Checkpoint.Estates.Any(estate =>
+        estate.Settled && (estate.WillBequests ?? []).Any(bequest => bequest.HeirId == actor &&
+            (bequest.LotId == lot.Id || bequest.LotId == lot.ProvenanceLotId) &&
+            (estate.FrozenLots ?? []).Any(frozen => frozen.LotId == bequest.LotId && frozen.ItemKind == lot.ItemKind &&
+                frozen.StorageBuildingId == storageId)));
 
     /// <summary>A vessel moves with its contents, so it needs room for all of them and nothing reserved.</summary>
     private bool VesselFits(InventoryLot lot, int room) => !InventoryContainerRules.IsContainer(lot.ItemKind) ||
         !HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id) &&
         room >= ContainerFamilyQuantity(society.Checkpoint.Inventory, lot.Id);
 
-    private IEnumerable<InventoryLot> BorrowedGoods(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
-        lot.OwnerId != actor && lot.CarrierId == actor && lot.ContainerLotId is null && lot.Quantity > 0);
+    private IEnumerable<InventoryLot> CarriedBorrowedGoods(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
+        lot.OwnerId != actor && lot.CarrierId == actor && lot.ContainerLotId is null && lot.Quantity > 0 &&
+        !animalWorld.SupplyTrips.Any(trip => trip.ActorId == actor && trip.LotId == lot.Id));
+
+    private IEnumerable<InventoryLot> BorrowedGoods(string actor) => CarriedBorrowedGoods(actor).Where(lot =>
+        !(lot.ItemKind == InventoryContainerRules.WaterJug && IsMilkJug(lot) && MilkStockChoices(actor).Any(choice => choice.Jug.Id == lot.Id)));
 
     private IEnumerable<(string Id, string BuildingId, string Worker, long Completion, long PausedAt, IReadOnlyList<string> Reservations)> PausedHouseholdWork(string actor)
     {
@@ -304,6 +323,7 @@ public sealed partial class PrivateWorldRuntime
         if (FreeCarryCapacity(actor) > 0)
         {
             foreach (var lot in PersonalGoodsAwaitingCollection(actor).Where(lot => VesselFits(lot, FreeCarryCapacity(actor)))
+                         .Where(lot => CanReachPersonalGoods(actor, lot))
                          .OrderBy(lot => lot.Id, StringComparer.Ordinal))
             {
                 var knowledgeAtHome = KeptAtHomeByRoutine(lot.ItemKind) &&
@@ -320,14 +340,15 @@ public sealed partial class PrivateWorldRuntime
         }
         foreach (var lot in BorrowedGoods(actor).OrderBy(lot => lot.Id, StringComparer.Ordinal))
             if (lot.OwnerId != society.Checkpoint.GetInhabitant(actor).HouseholdId && HouseForHousehold(lot.OwnerId) is { } ownerHouse &&
-                VesselFits(lot, StorageRoom(ownerHouse.InstanceId)))
+                StorageRoomAfterInboundDeliveries(ownerHouse.InstanceId) > 0 &&
+                VesselFits(lot, StorageRoomAfterInboundDeliveries(ownerHouse.InstanceId)))
                 candidates.Add(new("household_return:" + lot.Id, $"Physically return borrowed {lot.ItemKind.Replace('_', ' ')} to its owning household.", 22));
             // Goods carried to or from the Market stay household property and can only be used again from the House.
             else if (lot.OwnerId == home && MarketTradeRules.IsLoose(lot) && !ProtectedMarketItem(actor, lot) &&
                      PhysicalUnreservedQuantity(lot) > 0 && HouseForHousehold(lot.OwnerId) is { } ownHouse &&
-                     StorageRoom(ownHouse.InstanceId) > 0)
+                     StorageRoomAfterInboundDeliveries(ownHouse.InstanceId) > 0)
                 candidates.Add(new("household_return:" + lot.Id, $"Carry your household's {lot.ItemKind.Replace('_', ' ')} back to its House.", 22));
-        if (home is not null && HouseForHousehold(home) is { } house && StorageRoom(house.InstanceId) > 0)
+        if (home is not null && HouseForHousehold(home) is { } house && StorageRoomAfterInboundDeliveries(house.InstanceId) > 0)
         {
             foreach (var lot in PersonalStorageLots(actor, house.InstanceId))
                 candidates.Add(new("household_store_personal:" + lot.Id, $"Store your own {lot.ItemKind.Replace('_', ' ')} in your House while keeping personal ownership.",

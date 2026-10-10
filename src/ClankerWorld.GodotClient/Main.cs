@@ -97,8 +97,9 @@ public partial class Main : Control
     private readonly NightLightsLayer nightLightsLayer = new();
     private WorldTerrainMap? terrainMap;
     private string? terrainWorldId;
-    private string? terrainManifestDigest;
-    private string? terrainLayersDigest;
+    private OwnerWorldPackedTerrain? terrainPackedTerrain;
+    private OwnerWorldPackedMapLayers? terrainPackedLayers;
+    private IReadOnlyList<OwnerWorldTile> terrainTiles = [];
     private readonly Control mapCanvas = new();
     private readonly Control mapStage = new();
     private readonly PanelContainer worldOverviewPanel = new();
@@ -160,7 +161,11 @@ public partial class Main : Control
     private readonly OptionButton clockFormatChoice = new();
     private readonly OptionButton dateFormatChoice = new();
     private readonly OptionButton lifePaceChoice = new();
-    private readonly CheckBox jevAssistanceToggle = new();
+    private readonly OptionButton routineHelperChoice = new();
+    private readonly ModelPicker routineHelperModelPicker = new();
+    private readonly OptionButton routineHelperKeyChoice = new();
+    private readonly Button applyRoutineHelperButton = new();
+    private string? observedRoutineHelperContext;
     private readonly Button applyLifePaceButton = new();
     private int? lastObservedLifePace;
     private string? lastLifePaceWorldId;
@@ -198,6 +203,11 @@ public partial class Main : Control
             refreshCancellation?.Cancel();
             observationSession.ReplaceRegistration(value);
             knownEvents.Clear();
+            usageReads++;
+            usageStatus = null;
+            usageLimitEdited = false;
+            usageAttemptLimitInput.Text = string.Empty;
+            RenderUsageStatus();
         }
     }
     private OwnerPairingStart? pendingPairing;
@@ -219,6 +229,8 @@ public partial class Main : Control
     private bool registeredEndpointInvalid;
     private bool menuPausedWorld;
     private bool menuPauseConfirmed;
+    private int pendingMenuResumes;
+    private long pendingMenuResumeGeneration;
     private OwnerWorldSnapshot? renderedMapSnapshot;
     private int currentTileSize = DefaultTileSize;
     private float cameraZoom = 1;

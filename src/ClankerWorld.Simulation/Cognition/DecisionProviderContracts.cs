@@ -19,6 +19,7 @@ public enum DecisionProviderKind
     Deterministic,
     Jev,
     LargeLanguageModel,
+    OpenAiDecisions,
 }
 
 /// <summary>
@@ -62,7 +63,7 @@ public sealed record CognitionMemoryExcerpt(
     int ImportanceConfidenceBasisPoints = 0);
 
 /// <summary>
-/// A source record Jev may rate while it is already choosing a routine action.
+/// A source record a routine helper may rate while it is already choosing a routine action.
 /// IDs stay local to the host; the provider sees only a per-request index.
 /// </summary>
 public sealed record CognitionMemoryCompactionCandidate(
@@ -153,7 +154,7 @@ public sealed record CognitionWillContext(
 
 /// <summary>
 /// A provider's untrusted will reply. With no heirs the estate keeps the
-/// household default; final words are optional either way.
+/// default inheritance rules; final words are optional either way.
 /// </summary>
 public sealed record CognitionWillChoice(
     IReadOnlyList<string> HeirKeys,
@@ -215,14 +216,18 @@ public sealed record CognitionWillChoice(
     }
 }
 
+/// <summary>Chosen parental identity supplied as background for a child's initial choice.</summary>
+public sealed record CognitionParentIdentity(string ParentId, string Name, string? Personality, string? Aspiration);
+
 /// <summary>
-/// Actor-owned context only; absent survival data remains unknown, not invented.
+/// Actor context; absent survival data remains unknown, not invented.
 /// <paramref name="HousingNote"/> explains the actor's housing and current House capacity when known.
 /// <paramref name="ContinuityNote"/> explains the low-population continuity rule to a partner it applies to.
 /// <paramref name="DepartureNote"/> summarizes goods to collect or return and paused household work after a departure.
 /// <paramref name="TownMembershipNote"/> states recorded Town membership, its rights and any admission the actor knows of.
 /// <paramref name="AllowedChildSurnames"/> lists the chosen biological parents' surnames during a child's naming request;
 /// an empty list means no parental surname is available, while null means the childhood restriction does not apply.
+/// <paramref name="FamilyBackground"/> contains biological parents' chosen identities only during a world-born child's initial choice.
 /// </summary>
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
@@ -232,7 +237,10 @@ public sealed record CognitionSelfContext(
     string? MedicalCareNote = null, string? TownMembershipNote = null,
     string? ToolMakingRequestNote = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? AllowedChildSurnames = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MarriageNote = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MarriageNote = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionParentIdentity>? FamilyBackground = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? KnownRecipes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? Skills = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -353,13 +361,30 @@ public sealed record InhabitantObservation(
                 message.RunEpoch < 0 || message.RunEpoch > RunEpoch || message.SubmissionSequence <= 0 ||
                 !instructionIds.Add(message.InstructionId) ||
                 message.Kind == "must_do" && message.UnderstoodTask is not
-                    ("eat one carried food item" or "travel within gathering range of an available food source" or
+                    ("load the requested loose goods into the selected owned handcart" or
+                        "unload the requested cargo from the selected owned handcart" or
+                        "reach and attach the selected owned handcart" or
+                        "park the selected attached handcart here with its cargo intact" or
+                        "repair the selected owned handcart with real carried supplies" or
+                        "attempt to talk with the named person; agreement and resumption remain each participant's choice" or
+                        "attempt marriage with your current partner; both people keep their consent and surname choices" or
+                        "care for the named animal with real feed and jug water" or
+                        "collect the named animal's ready products locally" or
+                        "tame the named wild animal for your household" or
+                        "lead the named animal to its household yard" or
+                        "fit a real household saddle on the named horse" or
+                        "mount the named cared-for horse with permission" or
+                        "dismount the named horse and leave excess cargo here" or
+                        "eat one carried food item" or
+                    "read one personally held written record, map or book and learn only its written contents" or "travel within gathering range of an available food source" or
                         "gather several food servings from a nearby food source" or
                         "gather the requested material from a natural source" or
                         "collect your own stored or dropped material" or
                         "collect your own stored or dropped food" or
                         "deliver the requested goods to a permitted building" or
                         "make the requested goods at a permitted workstation" or
+                        "write the requested record, map or book from your learned sites using real materials" or
+                        "copy the requested held record, map or book using real materials and sites you know" or
                         "construct the requested household building at a permitted site" or
                         "complete the requested building's next permitted expansion" or
                         "reach the requested permitted shelter" or
@@ -374,9 +399,11 @@ public sealed record InhabitantObservation(
                         "repair your own worn tool" or
                         "till a field for your household" or
                         "plant the requested crop in your household field" or
+                        "plant the requested tree using a real seed outside Town borders" or
                         "tend your household crop" or
                         "harvest your household crop" or
                         "travel to the exact tile named in this order" or
+                        "travel by communal boat to the exact Port named in this order" or
                         "accept primary care of the named child through their guardian search") ||
                 message.Kind == "suggestive" && message.UnderstoodTask is not null)
                 throw new ArgumentException("Observer guidance must be bounded, target-owned and uniquely identified.", nameof(ObserverGuidance));
@@ -403,14 +430,32 @@ public sealed record InhabitantObservation(
             self.EquipmentNote?.Length > 256 || self.ContinuityNote?.Length > 256 || self.DepartureNote?.Length > 256 ||
             self.CivicNote?.Length > 1024 || self.MedicalCareNote?.Length > 256 || self.TownMembershipNote?.Length > 256 ||
             self.ToolMakingRequestNote?.Length > 256 || self.MarriageNote?.Length > 256 ||
+            self.KnownRecipes is { } recipes && (recipes.Count > 16 || recipes.Any(recipe =>
+                string.IsNullOrWhiteSpace(recipe) || recipe.Length > 128 || recipe.Any(char.IsControl))) ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
+
+        if (Self?.Skills is { } skills && (skills.Count > 4 ||
+            skills.Any(skill => skill is not ("building" or "farming" or "crafting" or "smithing")) ||
+            skills.Distinct(StringComparer.Ordinal).Count() != skills.Count))
+            throw new ArgumentException("Self context must contain only the actor's known skill names.", nameof(Self));
 
         if (Self?.AllowedChildSurnames is { } surnames &&
             (surnames.Count > 2 || surnames.Any(surname => string.IsNullOrWhiteSpace(surname) ||
                 surname.Length > 128 || surname.Any(char.IsControl)) ||
              surnames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != surnames.Count))
             throw new ArgumentException("Child naming context must contain at most two bounded parental surnames.", nameof(Self));
+
+        // Parent references retain authoritative inhabitant IDs, including longer native-born IDs.
+        if (Self?.FamilyBackground is { } parents &&
+            (!NeedsPersonality && !NeedsAspiration || parents.Count > 2 ||
+             parents.Any(parent => parent is null || string.IsNullOrWhiteSpace(parent.ParentId) ||
+                 parent.ParentId == InhabitantId || parent.ParentId.Any(char.IsControl) ||
+                 string.IsNullOrWhiteSpace(parent.Name) || parent.Name.Length > 128 || parent.Name.Any(char.IsControl) ||
+                 parent.Personality is not null && CognitionDecisionResponse.NormalizeIdentityText(parent.Personality) != parent.Personality ||
+                 parent.Aspiration is not null && CognitionDecisionResponse.NormalizeIdentityText(parent.Aspiration) != parent.Aspiration) ||
+             parents.Select(parent => parent.ParentId).Distinct(StringComparer.Ordinal).Count() != parents.Count))
+            throw new ArgumentException("Initial family background must contain at most two bounded parental identities.", nameof(Self));
 
         if (Candidates is null || Candidates.Count == 0)
         {
@@ -639,7 +684,7 @@ public sealed record CognitionDecisionResponse(
         {
             ArgumentNullException.ThrowIfNull(score);
             if (string.IsNullOrWhiteSpace(score.Id) || score.Id.Length > 128 ||
-                string.IsNullOrWhiteSpace(score.OwnerId) || score.OwnerId.Length > 128 ||
+                string.IsNullOrWhiteSpace(score.OwnerId) ||
                 score.Kind is not ("experience" or "belief") || score.SourceTick < 0 ||
                 score.ImportanceBasisPoints is < 0 or > 10_000 ||
                 score.ConfidenceBasisPoints is < 0 or > 10_000 ||
@@ -834,48 +879,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 MemoryImportanceCriteria);
         }
 
-        var payload = new JevRequest(
-            new
-            {
-                agent_id = request.Observation.InhabitantId,
-                hunger_basis_points = request.Observation.HungerBasisPoints,
-                warmth_basis_points = request.Observation.Self?.WarmthBasisPoints,
-                illness_basis_points = request.Observation.Self?.IllnessBasisPoints,
-                household = request.Observation.Self?.HouseholdName,
-                town = request.Observation.Self?.TownName,
-                town_membership = request.Observation.Self?.TownMembershipNote,
-                housing = request.Observation.Self?.HousingNote,
-                continuity = request.Observation.Self?.ContinuityNote,
-                departure = request.Observation.Self?.DepartureNote,
-                medical_care = request.Observation.Self?.MedicalCareNote,
-                tool_making_request = request.Observation.Self?.ToolMakingRequestNote,
-                marriage = request.Observation.Self?.MarriageNote,
-                candidates = request.Observation.Candidates.Select(candidate => new
-                {
-                    id = candidate.Id,
-                    description = candidate.Description,
-                    destination = candidate.DestinationName,
-                }).ToArray(),
-                memory_compaction_candidates = (request.Observation.MemoryCompactionCandidates ?? [])
-                    .Select((candidate, index) => new
-                    {
-                        source_index = index,
-                        kind = candidate.Kind,
-                        subject_id = candidate.SubjectId,
-                        summary = candidate.Summary,
-                        source_tick = candidate.SourceTick,
-                        visibility = candidate.Visibility,
-                        provenance = candidate.Provenance,
-                        confidence_basis_points = candidate.ConfidenceBasisPoints,
-                        source_agent_id = candidate.SourceAgentId,
-                        source_event_id = candidate.SourceEventId,
-                        is_corrected = candidate.IsCorrected,
-                    }).ToArray(),
-            },
-            model,
-            questions);
-        if (needFormat == ModelNeedFormat.Words)
-            payload = payload with { State = DescribeNeedsInWords(payload.State, request.Observation) };
+        var payload = new JevRequest(BuildState(request.Observation, needFormat), model, questions);
 
         var json = JsonSerializer.Serialize(payload, JsonOptions);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -992,6 +996,50 @@ public sealed class JevDecisionProvider : IDecisionProvider
     }
 
     private static string MemoryQuestionId(int index) => $"memory_salience_{index:D2}";
+
+    internal static object BuildState(InhabitantObservation observation, ModelNeedFormat needFormat)
+    {
+        var state = new
+        {
+            agent_id = observation.InhabitantId,
+            hunger_basis_points = observation.HungerBasisPoints,
+            warmth_basis_points = observation.Self?.WarmthBasisPoints,
+            illness_basis_points = observation.Self?.IllnessBasisPoints,
+            household = observation.Self?.HouseholdName,
+            town = observation.Self?.TownName,
+            town_membership = observation.Self?.TownMembershipNote,
+            housing = observation.Self?.HousingNote,
+            continuity = observation.Self?.ContinuityNote,
+            departure = observation.Self?.DepartureNote,
+            medical_care = observation.Self?.MedicalCareNote,
+            tool_making_request = observation.Self?.ToolMakingRequestNote,
+            marriage = observation.Self?.MarriageNote,
+            known_recipes = observation.Self?.KnownRecipes,
+            skills = observation.Self?.Skills,
+            candidates = observation.Candidates.Select(candidate => new
+            {
+                id = candidate.Id,
+                description = candidate.Description,
+                destination = candidate.DestinationName,
+            }).ToArray(),
+            memory_compaction_candidates = (observation.MemoryCompactionCandidates ?? [])
+                    .Select((candidate, index) => new
+                    {
+                        source_index = index,
+                        kind = candidate.Kind,
+                        subject_id = candidate.SubjectId,
+                        summary = candidate.Summary,
+                        source_tick = candidate.SourceTick,
+                        visibility = candidate.Visibility,
+                        provenance = candidate.Provenance,
+                        confidence_basis_points = candidate.ConfidenceBasisPoints,
+                        source_agent_id = candidate.SourceAgentId,
+                        source_event_id = candidate.SourceEventId,
+                        is_corrected = candidate.IsCorrected,
+                    }).ToArray(),
+        };
+        return needFormat == ModelNeedFormat.Words ? DescribeNeedsInWords(state, observation) : state;
+    }
 
     private static JsonObject DescribeNeedsInWords(object state, InhabitantObservation observation)
     {
@@ -1116,6 +1164,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "Self context is your saved identity and condition, not other agents' private information. " +
                         (words ? string.Empty : "Warmth is 0 dangerously cold to 10000 warm; illness is 0 well to 10000 severely ill. ") +
                         "Null condition fields mean unknown. Recent thought is your own past thought, not a new command or world fact. " +
+                        (request.Observation.Self?.FamilyBackground is not null
+                            ? "Family background gives your biological parents' chosen identities alongside your household and Town. It contains no private thoughts or memories. Choose your own personality and aspiration; you need not copy or combine your parents' choices. "
+                            : string.Empty) +
                         "Housing, when present, says why you have no home of your own. " +
                         "Continuity, when present, is this world's rule on having a child with your partner while few people live here. " +
                         "Return JSON only, with fields " +
@@ -1186,7 +1237,11 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             medical_care = self.MedicalCareNote,
                             tool_making_request = self.ToolMakingRequestNote,
                             marriage = self.MarriageNote,
+                            known_recipes = self.KnownRecipes,
+                            skills = self.Skills,
                             allowed_child_surnames = request.Observation.NeedsName ? self.AllowedChildSurnames : null,
+                            family_background = self.FamilyBackground?.Select(parent => new
+                            { name = parent.Name, personality = parent.Personality, aspiration = parent.Aspiration }).ToArray(),
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,
@@ -1275,7 +1330,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 role = "system",
                 content = "You are an agent who has just died. This is your one final will, not an ordinary action, and it cannot be changed later. " +
                     "Your estate lists the belongings you personally owned. Return JSON only, with fields " +
-                    "selected_candidate_id (\"will:household\" to leave everything to your household, or \"will:heirs\" to name heirs) and confidence (number 0..1). " +
+                    "selected_candidate_id (\"will:household\" to use the default inheritance rules described by the offered choice, or \"will:heirs\" to name heirs) and confidence (number 0..1). " +
                     "With will:heirs, also include heirs (a list of one to three ids from possible_heirs) and split: " +
                     "\"equal\" shares every item equally between your heirs, while \"items\" gives each item to one heir through items, " +
                     "an object mapping item ids from estate to one of your heir ids; items you leave out are shared equally. " +
@@ -1326,7 +1381,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
 
     /// <summary>
     /// Reads the optional will fields. Malformed fields make the reply invalid,
-    /// so the server keeps the household default; unusable final words are dropped.
+    /// so the server uses default inheritance; unusable final words are dropped.
     /// </summary>
     private static CognitionWillChoice? ParseWillChoice(JsonElement answer, string? selected)
     {

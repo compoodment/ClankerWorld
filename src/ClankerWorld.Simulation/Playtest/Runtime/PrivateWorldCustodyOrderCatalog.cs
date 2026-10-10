@@ -5,8 +5,24 @@ internal static class PrivateWorldCustodyOrderCatalog
 {
     internal sealed record Goods(string ItemKind, string[] Names);
 
+    internal static IReadOnlyList<Goods> PreparedFoods { get; } =
+    [
+        new("simple_meal", ["simple meal", "simple meals"]),
+        new("porridge", ["porridge"]),
+        new("berry_porridge", ["berry porridge"]),
+        new("fruit_porridge", ["fruit porridge"]),
+        new("bread", ["bread"]),
+        new("stew", ["stew", "vegetable stew"]),
+        new("restaurant_meal", ["restaurant meal", "restaurant meals"]),
+    ];
+
     internal static IReadOnlyList<Goods> All { get; } =
     [
+        new("eggs", ["egg", "eggs"]),
+        new("wool", ["wool"]),
+        new("hide", ["hide", "hides"]),
+        new("leather", ["leather"]),
+        new("saddle", ["saddle", "saddles"]),
         new("rope", ["rope", "ropes"]),
         new("cloth", ["cloth"]),
         new("iron", ["iron", "refined iron"]),
@@ -30,7 +46,7 @@ internal static class PrivateWorldCustodyOrderCatalog
 
     internal static bool IsGoodsKind(string? kind) => kind is not null && All.Any(goods => goods.ItemKind == kind);
 
-    internal static bool IsReturnKind(string? kind) => IsGoodsKind(kind) ||
+    internal static bool IsReturnKind(string? kind) => IsGoodsKind(kind) || PreparedFoods.Any(food => food.ItemKind == kind) ||
         PrivateWorldInstructionOrderParser.IsMaterialKind(kind) ||
         PrivateWorldInstructionOrderParser.IsEquipmentKind(kind) ||
         PrivateWorldInstructionOrderParser.IsToolKind(kind);

@@ -1,0 +1,2 @@
+- On the paired world: fill an adult's carrying load and leave their only orchard seed in household storage. Planting is offered once there is room to collect the seed; the adult collects it and plants one sapling. ([#972](https://github.com/compoodment/ClankerWorld/issues/972))
+- On the paired world: fill an adult's load including an orchard seed they already carry. Let them plant it, saving and reloading while they walk to the site. One sapling appears, one seed is used and their other cargo stays intact. ([#972](https://github.com/compoodment/ClankerWorld/issues/972))

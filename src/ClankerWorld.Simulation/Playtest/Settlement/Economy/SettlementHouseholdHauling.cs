@@ -107,7 +107,8 @@ public sealed partial class PrivateWorldRuntime
         if (worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == destinationId) is { } building &&
             IsFarmStorage(building))
             room = Math.Min(room, FarmStorageFree(destinationId));
-        var capacity = Math.Min(FreeCarryCapacity(actor), room);
+        var destination = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == destinationId);
+        var capacity = destination is null ? 0 : Math.Min(PickupCarryCapacity(actor, stock, destination.Position), room);
         if (capacity == 0)
             return 0;
         return InventoryContainerRules.IsContainer(stock.ItemKind)
@@ -117,8 +118,8 @@ public sealed partial class PrivateWorldRuntime
 
     /// <summary>
     /// Loose household stock to carry to the House. With an actor and House,
-    /// only stock that actor can pick up now is returned, so a vessel load too
-    /// large to haul does not hide the stock behind it.
+    /// only stock that actor can pick up and deliver now is returned, so an
+    /// unreachable pile or oversized vessel does not hide usable stock.
     /// </summary>
     private InventoryLot? UnlocatedHouseholdStock(string householdId, string? actor = null,
         string? houseId = null, string? itemKind = null, int maximumQuantity = int.MaxValue) =>
@@ -135,7 +136,20 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(lot => lot.ItemKind == "food" ? 0 : 1)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal)
             .FirstOrDefault(lot => actor is null || houseId is null ||
-                HouseHaulPickupQuantity(actor, lot, houseId) > 0);
+                HouseHaulPickupQuantity(actor, lot, houseId) > 0 &&
+                CanReachHouseHaulStock(actor, lot, houseId));
+
+    private bool CanReachHouseHaulStock(string actor, InventoryLot stock, string houseId)
+    {
+        if (worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == houseId) is not { } house)
+            return false;
+        var source = HouseholdStockPosition(stock);
+        var range = HouseholdStockInteractionRange(stock);
+        var position = inhabitants[actor].Position;
+        return (IsWithinInteractionRange(position, source, range) ||
+                FindUnoccupiedRoute(actor, position, source, range).Count > 0) &&
+            FindUnoccupiedRoute(actor, source, house.Position, 0).Count > 0;
+    }
 
     private void AddHouseHaulCandidate(List<CognitionCandidate> candidates,
         string actor, PlaytestInhabitantState state)
@@ -315,7 +329,8 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private List<SpareCargoMove> OrdinarySpareCargo(string actor, int missing, string? protectedLotId = null,
-        params string[] additionallyProtectedLotIds)
+        IReadOnlyList<string>? additionallyProtectedLotIds = null,
+        IReadOnlyDictionary<string, int>? retainedLotQuantities = null)
     {
         if (missing <= 0) return [];
         var equipment = inhabitants[actor].Equipment;
@@ -323,7 +338,7 @@ public sealed partial class PrivateWorldRuntime
         var spare = inventory.Lots
             .Where(lot => (lot.OwnerId == actor || lot.OwnerId == HouseholdFor(actor)) &&
                 PersonalEquipmentRules.IsCarried(lot, actor) && lot.ContainerLotId is null &&
-                lot.Id != protectedLotId && !additionallyProtectedLotIds.Contains(lot.Id, StringComparer.Ordinal) &&
+                lot.Id != protectedLotId && additionallyProtectedLotIds?.Contains(lot.Id, StringComparer.Ordinal) != true &&
                 lot.DeliveryBuildingId is null &&
                 !PersonalEquipmentRules.IsSelected(equipment, lot.Id) &&
                 !AgentKnowledgeRules.IsArtifactKind(lot.ItemKind) &&
@@ -337,8 +352,10 @@ public sealed partial class PrivateWorldRuntime
         var moves = new List<SpareCargoMove>();
         foreach (var lot in spare)
         {
+            var available = Math.Max(0, lot.Quantity - (retainedLotQuantities?.GetValueOrDefault(lot.Id) ?? 0));
+            if (available == 0) continue;
             var vessel = InventoryContainerRules.IsContainer(lot.ItemKind);
-            var quantity = vessel ? 1 : Math.Min(missing, lot.Quantity);
+            var quantity = vessel ? 1 : Math.Min(missing, available);
             var physicalQuantity = vessel ? ContainerFamilyQuantity(inventory, lot.Id) : quantity;
             moves.Add(new(lot, quantity, physicalQuantity));
             missing -= physicalQuantity;

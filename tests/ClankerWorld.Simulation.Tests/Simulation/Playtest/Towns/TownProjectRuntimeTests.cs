@@ -296,7 +296,9 @@ public sealed class TownProjectRuntimeTests
         bool Overlaps(GridPoint site) => WorldContentSimulationRules.Footprint(hall, site).Append(TownHallContent.Entrance(site)).Any(taken.Contains);
         GridPoint[] OfferedSites(Func<InhabitantObservation, bool> include) => scenario.Policy.Observations.Where(include)
             .SelectMany(observation => observation.Candidates)
-            .Where(candidate => candidate.Id.Contains("|project|", StringComparison.Ordinal))
+            // Only Hall sites: street lanterns are separate projects on Road edges.
+            .Where(candidate => candidate.Id.Contains("|project|", StringComparison.Ordinal) &&
+                !candidate.Id.Split('|')[3].EndsWith("lantern", StringComparison.Ordinal))
             .Select(candidate => candidate.Id.Split('|')[4].Split(','))
             .Select(point => new GridPoint(int.Parse(point[0], CultureInfo.InvariantCulture), int.Parse(point[1], CultureInfo.InvariantCulture)))
             .Distinct().ToArray();

@@ -341,7 +341,7 @@ public partial class Main
     /// </summary>
     private void UpdateUnreadEvents(string? worldId)
     {
-        var ids = knownEvents.Values.Where(worldEvent => GameUiText.IsPlayerFacingEvent(worldEvent.Kind))
+        var ids = GameUiText.PlayerEvents(knownEvents.Values)
             .Select(worldEvent => worldEvent.EventId).ToArray();
         var newest = ids.Length == 0 ? long.MinValue : ids.Max();
         if (!string.Equals(eventsWorldId, worldId, StringComparison.Ordinal))
@@ -463,7 +463,8 @@ public partial class Main
                 : Pretty(town.FoundingState).ToLowerInvariant();
             var facts = new Label
             {
-                Text = $"{town.ResidentIds.Count} {(town.ResidentIds.Count == 1 ? "resident" : "residents")} · {founded}",
+                Text = town.IsAbandoned ? $"Abandoned · no living residents · {founded}" :
+                    $"{town.ResidentIds.Count} {(town.ResidentIds.Count == 1 ? "resident" : "residents")} · {founded}",
                 ThemeTypeVariation = "DimLabel",
             };
             text.AddChild(facts);
@@ -523,10 +524,12 @@ public partial class Main
         if (town.Governance is not { } council) return "";
         var lines = new List<string>
         {
-            council.Form == "leader" ? "Ordinary decisions: elected governing leader" :
+            town.IsAbandoned ? "No active council. An adult here may explicitly resettle the Town." :
+                council.Form == "leader" ? "Ordinary decisions: elected governing leader" :
                 council.Form == "representative" ? "Council: elected representatives" : "Council: all adult residents",
             council.MemberNames.Count == 0 ? "No adult councillors." : string.Join(", ", council.MemberNames),
         };
+        if (town.IsAbandoned) lines.Add("Unreserved communal stock may be salvaged in person. Private property and existing laws remain.");
         if (council.TermEndTick is { } termEnd) lines.Add("Term ends " + DisplayWorldClock(termEnd));
         if (council.Fallback == "candidates") lines.Add("All adults govern while the Town seeks a supported council.");
         if (council.Fallback == "demographic") lines.Add("Representation resumes at eight adult residents.");

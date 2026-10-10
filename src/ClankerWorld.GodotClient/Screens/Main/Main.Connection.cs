@@ -44,6 +44,7 @@ public partial class Main
             CloseGameMenu();
             RefreshMainMenuAvailability();
             SetStatus("This device is paired. Choose Continue to enter your world.", good: true);
+            await CheckStartupRecoveryAsync();
         }
         catch (Exception exception)
         {
@@ -58,6 +59,9 @@ public partial class Main
     private async Task PulseAsync()
     {
         ExpireStatusToast(refreshSucceeded: false);
+        if (registration is not null && !registeredEndpointInvalid)
+            _ = RefreshSaveDiskSpaceAsync();
+        else saveDiskWarningPanel.Hide();
         if (pendingPairing is not null)
         {
             await PollPairingAsync();
@@ -170,8 +174,9 @@ public partial class Main
                         pairingPanel.Hide();
                         settingsPanel.Hide();
                         CloseGameMenu();
-                        SetStatus("recovered the active device registration · requesting signed owner observation", good: true);
-                        await RefreshAsync();
+                        ShowMainMenu();
+                        SetStatus("Device paired. Choose Continue to enter your world.", good: true);
+                        await CheckStartupRecoveryAsync();
                     }
                     else
                     {
@@ -231,6 +236,7 @@ public partial class Main
             CloseGameMenu();
             ShowMainMenu();
             SetStatus("Device paired. Choose Continue to enter your world.", good: true);
+            await CheckStartupRecoveryAsync();
         }
         catch (Exception exception)
         {
@@ -338,6 +344,11 @@ public partial class Main
         catch (OperationCanceledException) when (refresh.IsCancellationRequested)
         {
             // Superseded refresh is not a connection failure.
+        }
+        catch (System.Net.Http.HttpRequestException exception)
+            when (exception.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            if (!await CheckStartupRecoveryAsync()) ShowHeldState(FriendlyFailure(exception));
         }
         catch (Exception exception)
         {

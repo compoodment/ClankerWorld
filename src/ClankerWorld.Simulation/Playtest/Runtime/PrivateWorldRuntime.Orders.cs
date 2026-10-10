@@ -11,6 +11,15 @@ public sealed partial class PrivateWorldRuntime
 {
     private sealed record FoodHarvestEffect(string LotId, string ItemKind, int Quantity, string ResourceId);
 
+    // Unpaid ordinary work may yield. Keep bound work and live paid jobs intact;
+    // completed/cancelled jobs already retain their own payment and output history.
+    private bool OrdinaryProjectCanYieldToOrder(SettlementProject project)
+    {
+        if (project.OrderInstructionId is not null || project.ToolMakingRequestId is not null) return false;
+        return project.JobId is null || worldSimulation.ProductionJobs.Concat(worldSimulation.CropBuilds ?? [])
+            .FirstOrDefault(job => job.JobId == project.JobId) is not { State: WorldProductionJobState.Running or WorldProductionJobState.Paused };
+    }
+
     private CognitionCandidate? OrderCandidateFor(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
         var order = instruction.Order;
@@ -18,6 +27,13 @@ public sealed partial class PrivateWorldRuntime
             return null;
         if (order.TargetPosition is { } requestedPosition && !map.Contains(requestedPosition))
             return null;
+        if (order.Action == "read_knowledge") return KnowledgeReadOrderCandidate(instruction);
+        if (IsConversationOrder(order.Action)) return TalkOrderCandidateFor(instruction, person);
+        if (IsCartOrder(order.Action)) return CartOrderCandidateFor(instruction, person);
+        if (IsAnimalOrder(order.Action)) return AnimalOrderCandidate(instruction);
+        if (order.Action == "travel_by_boat") return BoatOrderCandidate(instruction);
+        if (IsTreePlantingOrder(order.Action)) return TreePlantingOrderCandidate(instruction, person);
+        if (IsKnowledgeOrder(order.Action)) return KnowledgeOrderCandidateFor(instruction);
 
         if (IsShelterOrder(order.Action))
             return ShelterOrderCandidateFor(instruction, person);
@@ -57,7 +73,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.Action == "move_to" && order.TargetPosition is { } destination)
             return !MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination) &&
                 (person.Position == destination ||
-                 map.IsPassable(destination) && map.IsReachableOnFoot(person.Position, destination) &&
+                 (map.IsPassable(destination) || CanSwim(instruction.TargetInhabitantId) && SwimmingRules.IsSwimmingWater(map, destination)) &&
                  FindUnoccupiedRoute(instruction.TargetInhabitantId, person.Position, destination, 0).Count > 0)
                     ? new CognitionCandidate("move_to", $"Travel to tile ({destination.X}, {destination.Y}).", 0)
                     : null;
@@ -111,11 +127,12 @@ public sealed partial class PrivateWorldRuntime
                 !(order.RepeatUntilCancelled && order.Action == "seek_food" &&
                     order.LastEffectId?.StartsWith($"arrival:{resource.Id}:", StringComparison.Ordinal) == true) &&
                 (order.TargetFoodKind is null || FoodKnowledgeKind(resource) == order.TargetFoodKind) &&
-                knowledge.Facts.Any(fact => fact.OwnerId == instruction.TargetInhabitantId &&
+                (order.TargetPosition is null || resource.Position == order.TargetPosition.Value) &&
+                (IsWithinInteractionRange(person.Position, resource.Position, ResourceInteractionRange) ||
+                 knowledge.Facts.Any(fact => fact.OwnerId == instruction.TargetInhabitantId &&
                     fact.Position == resource.Position &&
-                    fact.ResourceKinds.Contains(FoodKnowledgeKind(resource), StringComparer.Ordinal) &&
-                    (order.TargetPosition is null || fact.Position == order.TargetPosition.Value)) &&
-                map.IsReachableOnFoot(person.Position, resource.Position))
+                    fact.ResourceKinds.Contains(FoodKnowledgeKind(resource), StringComparer.Ordinal))) &&
+                CanReachByFootOrSwimming(instruction.TargetInhabitantId, person.Position, resource.Position))
             .OrderBy(resource => map.FootDistance(person.Position, resource.Position))
             .ThenBy(resource => resource.Id, StringComparer.Ordinal)
             .FirstOrDefault(resource => IsWithinInteractionRange(person.Position, resource.Position, ResourceInteractionRange) ||
@@ -154,7 +171,7 @@ public sealed partial class PrivateWorldRuntime
         CognitionCandidate? urgentCandidate)
     {
         if (IsShelterOrder(instruction.Order!.Action))
-            return NeedsUrgentFood(person) && urgentCandidate is not null && IsFoodSurvivalCandidate(urgentCandidate.Id) ||
+            return NeedsUrgentFood(person) && urgentCandidate is not null && IsFoodSurvivalCandidate(person.InhabitantId, urgentCandidate.Id) ||
                 orderCandidate is null && urgentCandidate is not null;
         if (NeedsUrgentWarmth(person))
             return urgentCandidate is not null &&
@@ -169,25 +186,27 @@ public sealed partial class PrivateWorldRuntime
         string inhabitantId, PlaytestInhabitantState person, OwnerQueuedInstruction? instruction = null) =>
         SelectOrderSurvivalCandidate(CreateCandidates(inhabitantId, person, restrictForOrder: false), person, instruction);
 
-    private static CognitionCandidate? SelectOrderSurvivalCandidate(
+    private CognitionCandidate? SelectOrderSurvivalCandidate(
         IEnumerable<CognitionCandidate> candidates, PlaytestInhabitantState person, OwnerQueuedInstruction? instruction)
     {
-        var available = candidates.Where(candidate => IsSurvivalCandidate(candidate.Id))
+        var available = candidates.Where(candidate => IsSurvivalCandidate(person.InhabitantId, candidate.Id))
             .OrderBy(candidate => candidate.DeterministicPriority)
             .ThenBy(candidate => candidate.Id, StringComparer.Ordinal).ToArray();
         if (instruction?.Order is { } order && IsShelterOrder(order.Action) && NeedsUrgentFood(person) &&
-            available.FirstOrDefault(candidate => IsFoodSurvivalCandidate(candidate.Id)) is { } food)
+            available.FirstOrDefault(candidate => IsFoodSurvivalCandidate(person.InhabitantId, candidate.Id)) is { } food)
             return food;
         return available.FirstOrDefault();
     }
 
-    private static bool IsFoodSurvivalCandidate(string candidateId) => candidateId is
-        "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
-        "harvest_food" or "seek_food";
+    private bool IsFoodSurvivalCandidate(string actor, string candidateId) => candidateId is
+        "consume_food" or "drink_milk" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or
+        "harvest_food" or "seek_food" || candidateId.StartsWith(TownProjectReturnPrefix, StringComparison.Ordinal) ||
+        NeedsUrgentFood(inhabitants[actor]) &&
+        (IsBusinessFoodCandidate(actor, candidateId) || IsMarketFoodCandidate(actor, candidateId));
 
-    private static bool IsSurvivalCandidate(string candidateId) => candidateId is
-        "consume_food" or "collect_shared_food" or "take_food_from_pot" or "make_room_for_food" or "recover_household_delivery" or
-        "harvest_food" or "seek_food" or "wear_clothing" or "tend_fire" or "seek_warmth";
+    private bool IsSurvivalCandidate(string actor, string candidateId) =>
+        IsFoodSurvivalCandidate(actor, candidateId) || candidateId is
+        "recover_household_delivery" or "wear_clothing" or "tend_fire" or "seek_warmth";
 
     private void ExecuteOrderStep(
         OwnerQueuedInstruction instruction,
@@ -197,6 +216,8 @@ public sealed partial class PrivateWorldRuntime
         var order = instruction.Order!;
         SetOrderStatus(instruction, "doing", null, waitForDecision: false);
         var actor = instruction.TargetInhabitantId;
+        if (candidate.Id != "explore" && person.Exploration?.Goal?.OrderInstructionId == instruction.InstructionId)
+            person = CompleteExplorationGoal(actor, person);
         // An order step interrupts timed repair work, as any other chosen action does.
         if (order.Action != "repair_equipment" && inhabitants[actor].Equipment?.Repair is not null)
         {
@@ -208,8 +229,39 @@ public sealed partial class PrivateWorldRuntime
             ExecuteGuardianOrder(instruction, candidate);
             return;
         }
+        if (IsCartOrder(order.Action))
+        {
+            ExecuteCartOrderStep(instruction, person);
+            return;
+        }
+        if (IsAnimalOrder(order.Action))
+        {
+            ExecuteAnimalOrder(instruction);
+            return;
+        }
+        if (order.Action == "travel_by_boat")
+        {
+            ExecuteBoatOrder(instruction);
+            return;
+        }
+        if (IsTreePlantingOrder(order.Action))
+        {
+            ExecuteTreePlantingOrder(instruction, person);
+            return;
+        }
         switch (candidate.Id)
         {
+            case "read_knowledge":
+                ExecuteKnowledgeReadOrder(instruction);
+                return;
+            case "talk_to":
+            case "propose_marriage":
+                ExecuteTalkOrderStep(instruction, person);
+                return;
+            case "write_knowledge":
+            case "copy_knowledge":
+                ExecuteKnowledgeOrderStep(instruction, person);
+                return;
             case "seek_shelter":
             case "tend_fire":
             case "inspect_shelter_site":
@@ -280,7 +332,7 @@ public sealed partial class PrivateWorldRuntime
                 return;
             case "explore":
                 inhabitants[actor] = person;
-                Explore(actor, person);
+                Explore(actor, person, ExplorationGoalForOrder(instruction), replaceGoal: true);
                 return;
             case "seek_food":
                 {
@@ -395,6 +447,17 @@ public sealed partial class PrivateWorldRuntime
 
     private string OrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {
+        if (instruction.Order?.Action == "travel_by_boat") return BoatOrderBlockedReason(instruction);
+        if (instruction.Order?.Action == "read_knowledge")
+            return KnowledgeReadOrderBlocker(instruction) ?? "Waiting to read the written item.";
+        if (instruction.Order is { } conversationOrder && IsConversationOrder(conversationOrder.Action)) return TalkOrderBlocker(instruction, person) ?? "Waiting for the conversation outcome.";
+        if (instruction.Order is { } treeOrder && IsTreePlantingOrder(treeOrder.Action))
+            return TreePlantingOrderBlockedReason(instruction, person);
+        if (instruction.Order is { } knowledgeOrder && IsKnowledgeOrder(knowledgeOrder.Action)) return KnowledgeOrderBlockedReason(instruction);
+        if (instruction.Order is { } cartOrder && IsCartOrder(cartOrder.Action))
+            return CartOrderBlocker(instruction, person) ?? "Waiting for the selected cart action.";
+        if (instruction.Order is { } animalOrder && IsAnimalOrder(animalOrder.Action))
+            return AnimalOrderBlockedReason(instruction);
         if (instruction.Order is { } protective && IsShelterOrder(protective.Action))
             return ShelterOrderBlockedReason(instruction, person);
         if (instruction.Order?.Action == "construct_building")
@@ -425,7 +488,7 @@ public sealed partial class PrivateWorldRuntime
                 ? "The requested tile is outside this world."
                 : MovementOrderNeedsHouseInvitation(instruction.TargetInhabitantId, destination)
                     ? "Waiting for an invitation to enter another household's House."
-                : "No open walking route reaches the requested tile right now.";
+                : "No open walking or safe swimming route reaches the requested tile right now.";
         if (instruction.Order is { Action: "accept_guardianship", TargetAgentId: { } child })
             return GuardianOrderBlockedReason(instruction.TargetInhabitantId, child);
         if (instruction.Order?.Action == "consume_food")
