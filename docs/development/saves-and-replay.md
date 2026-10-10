@@ -75,6 +75,15 @@ bytes are unchanged. [How it works](how-it-works.md) owns the runtime cache boun
 [Camp reachability measurements](camp-reachability-measurements.md) records the
 matched native save/reload, rollback and continuation comparisons.
 
+Society validation builds temporary indexes over the complete retained belief
+history. An owner's source turn can belong to only one correction lineage;
+known inhabitants and both sides of correction links are still checked, and
+cyclic chains are refused. Encoding, decoding and recording or correcting a
+belief use the same integrity rules without per-belief whole-ledger scans.
+No belief, confidence, reporter, source turn or memory-compaction reference is
+removed. The indexes add no saved fields or schema change, and valid checkpoints
+retain their canonical bytes.
+
 Private-world schema 60 adds exclusive physical handcart attachments. A cart
 and its cargo are existing inventory lot relationships, with the cart's ground
 position retained while pulled or parked. Loading verifies one cart per puller,

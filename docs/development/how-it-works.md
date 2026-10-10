@@ -1070,7 +1070,13 @@ Each agent retains up to eight private thoughts and exposes up to sixteen recent
 non-forgotten social memories to owner inspection, including deceased profiles.
 A separate belief record retains firsthand/hearsay/inference evidence and
 superseded corrections. Inspection never broadcasts these records or turns
-them into public events.
+them into public events. Validation indexes the complete belief history by ID,
+owner and source turn, resolving correction roots once. Source-turn checks
+use those indexes instead of rescanning every belief for every heard turn.
+Known-owner, reporter, subject and bidirectional correction checks still run;
+unrelated duplicate turns and dangling or cyclic correction chains are
+rejected. The indexes are rebuilt for each validation, are never saved and
+discard no beliefs or provenance.
 
 Ordinary conversation is a host-controlled activity, not free-form world
 commands. The normal provider router requires an explicit personal planning
