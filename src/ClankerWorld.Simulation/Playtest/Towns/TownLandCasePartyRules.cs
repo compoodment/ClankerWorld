@@ -19,7 +19,7 @@ public static class TownLandCasePartyRules
                 .Where(party => party.HouseholdId is not null).Select(party => party.HouseholdId!))
             .Concat(filingHousehold is null ? [] : new[] { filingHousehold });
         var parties = householdIds.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
-            .Select(id => new TownLandCaseParty("household:" + id, "household", id, town.Id,
+            .Select(id => new TownLandCaseParty(HouseholdPartyId(id), "household", id, town.Id,
                 inhabitants.Where(person => IsAdult(person) && person.HouseholdId == id)
                     .Select(person => person.Id).Order(StringComparer.Ordinal).ToArray())).ToList();
         var townFiling = item?.Filings.LastOrDefault(filing => filing.AuthorityId is not null && filing.Kind != "expiry");
@@ -32,7 +32,14 @@ public static class TownLandCasePartyRules
                     office.HolderId is not null && office.TermEndTick > tick)?.HolderId;
             parties.Add(new("town:" + town.Id, "town", null, town.Id, [], representative));
         }
-        return parties.OrderBy(party => party.Id, StringComparer.Ordinal).ToArray();
+        return item?.Property is { } property ? TownPropertyRules.Parties(parties, property, town.Id, inhabitants) :
+            parties.OrderBy(party => party.Id, StringComparer.Ordinal).ToArray();
+    }
+
+    internal static string HouseholdPartyId(string household)
+    {
+        var id = "household:" + household;
+        return id.Length <= 256 ? id : "household-sha256:" + TownLandHearingRules.Digest(household);
     }
 
     public static bool TownFilingAuthority(TownRuntimeState town, string actor, string? authorityId,
