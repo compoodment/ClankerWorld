@@ -5,7 +5,7 @@ using ClankerWorld.Viewer.Control;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class ProviderConfigurationStoreTests
+public sealed partial class ProviderConfigurationStoreTests
 {
     [Fact]
     public async Task UntouchedWorldUsesTheConfiguredJevModel()

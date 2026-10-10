@@ -398,9 +398,13 @@ public sealed partial class PrivateWorldRuntime
 
     private static string? UnderstoodTaskFor(string? candidate) => candidate switch
     {
+        "load_handcart" => "load the requested loose goods into the selected owned handcart",
+        "unload_handcart" or "unload_handcart_ground" => "unload the requested cargo from the selected owned handcart",
         "talk_to" => TalkOrderTask,
+        "propose_marriage" => MarriageOrderTask,
         "attach_handcart" => "reach and attach the selected owned handcart",
         "park_handcart" => "park the selected attached handcart here with its cargo intact",
+        "repair_handcart" => "repair the selected owned handcart with real carried supplies",
         "animal_care" => "care for the named animal with real feed and jug water",
         "animal_collect" => "collect the named animal's ready products locally",
         "animal_tame" => "tame the named wild animal for your household",
@@ -444,7 +448,7 @@ public sealed partial class PrivateWorldRuntime
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
-        return ParseKnowledgeReadOrder(text) ?? ParseTalkOrder(text, actor) ?? ParseCartOrder(text, actor) ?? ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
+        return ParseMarriageOrder(text, actor) ?? ParseKnowledgeReadOrder(text) ?? ParseTalkOrder(text, actor) ?? ParseCartCargoOrder(text, actor) ?? ParseCartOrder(text, actor) ?? ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
             PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent),
             PrivateWorldBuildingOrderCatalog.Available(worldContent),
             worldSimulation.Buildings.Where(port => Port(port.InstanceId) is not null).ToArray());
@@ -493,9 +497,11 @@ public sealed partial class PrivateWorldRuntime
         ArgumentException.ThrowIfNullOrWhiteSpace(request.TargetInhabitantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OrderId);
         foreach (var value in new[] { request.IdempotencyKey, request.IssuerId, request.WorldId,
-                     request.TargetInhabitantId, request.OrderId })
+                     request.OrderId })
             if (value.Trim().Length > 128 || value.Any(char.IsControl))
                 throw new ArgumentOutOfRangeException(nameof(request), "Order cancellation identities must be bounded and contain no control characters.");
+        if (request.TargetInhabitantId.Any(char.IsControl))
+            throw new ArgumentOutOfRangeException(nameof(request), "Order cancellation target must contain no control characters.");
     }
 
     // Refuse everything a save would refuse before the request touches live

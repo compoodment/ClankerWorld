@@ -120,10 +120,9 @@ public sealed partial class PrivateWorldRuntime
                     "Carry mined iron ore into the household Blacksmith.", 22, blacksmith.InstanceId));
             return;
         }
-        if (society.Checkpoint.Inventory.Lots.Any(lot => lot.OwnerId == householdId &&
-                lot.ItemKind == "iron_ore" && !OnBorrowedMarketStall(lot) && AvailableLotQuantity(lot) > 0))
+        if (BlacksmithHasDeliverableInput(householdId, blacksmith, actor, "iron_ore"))
             return;
-        if (MaterialSource("iron_ore", actor) is not { } source ||
+        if (MaterialSource("iron_ore", actor, blacksmith.Position) is not { } source ||
             FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, "iron_ore", source) &&
                 !CanMakeRoomForBlacksmithHarvest(actor, state, "iron_ore", source) ||
             !IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange) &&
@@ -140,10 +139,10 @@ public sealed partial class PrivateWorldRuntime
             BlacksmithForHousehold(householdId) is not { } blacksmith ||
             BlacksmithOreStocked(householdId, blacksmith.InstanceId) >= BlacksmithInputTarget(blacksmith.InstanceId, "iron_ore") ||
             PersonalSmithOre(actor) is not null ||
-            MaterialSource("iron_ore", actor) is not { } source)
+            MaterialSource("iron_ore", actor, blacksmith.Position) is not { } source)
             return;
         if (!MakeRoomForBlacksmithHarvest(actor, state, householdId, "iron_ore", source))
-            GatherProjectMaterial(actor, state, "iron_ore", source);
+            GatherProjectMaterial(actor, state, "iron_ore", source, returnTo: blacksmith.Position);
     }
 
     private void DeliverBlacksmithOre(string actor, PlaytestInhabitantState state)
@@ -211,13 +210,25 @@ public sealed partial class PrivateWorldRuntime
             var range = HouseholdStockInteractionRange(lot);
             return (IsWithinInteractionRange(position, source, range) ||
                     FindUnoccupiedRoute(actor, position, source, range).Count > 0) &&
-                FindUnoccupiedRoute(actor, source, blacksmith.Position, 0).Count > 0;
+                PickupCarryCapacity(actor, lot, blacksmith.Position) > 0;
         }
+    }
+
+    private bool BlacksmithHasDeliverableInput(string householdId, PlacedBuilding blacksmith, string actor, string itemKind)
+    {
+        if (StorageRoomAfterInboundDeliveries(blacksmith.InstanceId) <= 0 ||
+            BlacksmithInputForDelivery(householdId, blacksmith, actor, itemKind) is not { } input)
+            return false;
+        if (input.OwnerId != actor) return FreeCarryCapacity(actor) > 0;
+        var position = inhabitants[actor].Position;
+        return position == blacksmith.Position || FindUnoccupiedRoute(actor, position, blacksmith.Position, 0).Count > 0;
     }
 
     private (string ItemKind, MapResource Source)? BlacksmithInputToGather(string householdId, string blacksmithId,
         string actor, string? itemKind = null)
     {
+        var blacksmith = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == blacksmithId);
+        if (blacksmith is null || StorageRoomAfterInboundDeliveries(blacksmithId) <= 0) return null;
         var inventory = society.Checkpoint.Inventory;
         foreach (var (kind, target) in BlacksmithInputTargets(blacksmithId))
         {
@@ -228,14 +239,9 @@ public sealed partial class PrivateWorldRuntime
                 .Sum(AvailableLotQuantity);
             var incoming = inventory.Lots.Where(lot => lot.DeliveryBuildingId == blacksmithId && lot.ItemKind == kind)
                 .Sum(AvailableLotQuantity);
-            if (stocked + incoming >= target || inventory.Lots.Any(lot =>
-                    (lot.OwnerId == householdId || lot.OwnerId == actor) && lot.ItemKind == kind &&
-                    !OnBorrowedMarketStall(lot) && (lot.OwnerId != actor || !OnMarketStall(lot)) &&
-                    lot.StorageBuildingId != blacksmithId && lot.DeliveryBuildingId != blacksmithId &&
-                    lot.ContainerLotId is null &&
-                    AvailableLotQuantity(lot) > 0))
+            if (stocked + incoming >= target || BlacksmithHasDeliverableInput(householdId, blacksmith, actor, kind))
                 continue;
-            if (MaterialSource(kind, actor) is { } source)
+            if (MaterialSource(kind, actor, blacksmith.Position) is { } source)
                 return (kind, source);
         }
         return null;
@@ -250,7 +256,7 @@ public sealed partial class PrivateWorldRuntime
             missing.ItemKind != itemKind)
             return;
         if (!MakeRoomForBlacksmithHarvest(actor, state, householdId, itemKind, missing.Source))
-            GatherProjectMaterial(actor, state, itemKind, missing.Source);
+            GatherProjectMaterial(actor, state, itemKind, missing.Source, returnTo: blacksmith.Position);
     }
 
     private bool MakeRoomForBlacksmithHarvest(string actor, PlaytestInhabitantState state,
@@ -277,14 +283,15 @@ public sealed partial class PrivateWorldRuntime
     private (string ItemKind, MapResource Source)? BlacksmithHarvestToPrepare(string householdId,
         string blacksmithId, string actor)
     {
+        var blacksmith = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == blacksmithId);
+        if (blacksmith is null || StorageRoomAfterInboundDeliveries(blacksmithId) <= 0) return null;
         if (BlacksmithInputToGather(householdId, blacksmithId, actor) is { } missing)
             return missing;
         if (PersonalSmithOre(actor) is not null ||
             BlacksmithOreStocked(householdId, blacksmithId) >= BlacksmithInputTarget(blacksmithId, "iron_ore") ||
-            society.Checkpoint.Inventory.Lots.Any(lot => lot.OwnerId == householdId &&
-                lot.ItemKind == "iron_ore" && !OnBorrowedMarketStall(lot) && AvailableLotQuantity(lot) > 0))
+            BlacksmithHasDeliverableInput(householdId, blacksmith, actor, "iron_ore"))
             return null;
-        return MaterialSource("iron_ore", actor) is { } source ? ("iron_ore", source) : null;
+        return MaterialSource("iron_ore", actor, blacksmith.Position) is { } source ? ("iron_ore", source) : null;
     }
 
     private void AddBlacksmithStockCandidate(List<CognitionCandidate> candidates, string actor,
@@ -378,7 +385,7 @@ public sealed partial class PrivateWorldRuntime
         var target = BlacksmithInputTarget(blacksmith.InstanceId, input.ItemKind);
         var quantity = Math.Min(HouseHaulLoadQuantity,
             Math.Min(target - stocked - incoming, AvailableLotQuantity(input)));
-        quantity = Math.Min(quantity, Math.Min(room, FreeCarryCapacity(actor)));
+        quantity = Math.Min(quantity, Math.Min(room, PickupCarryCapacity(actor, input, blacksmith.Position)));
         if (quantity <= 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
             $"smith-input-pickup:{WorldTick}:{actor}", input.OwnerId, actor, input.Id,
@@ -406,7 +413,7 @@ public sealed partial class PrivateWorldRuntime
                 direct ? SpareCarriedQuantity(actor, input) : AvailableLotQuantity(input))));
         // Personal mined ore has a dedicated native delivery without the loose-input load limit.
         if (!direct || input.ItemKind != "iron_ore") quantity = Math.Min(quantity, HouseHaulLoadQuantity);
-        if (!direct) quantity = Math.Min(quantity, FreeCarryCapacity(actor));
+        if (!direct) quantity = Math.Min(quantity, PickupCarryCapacity(actor, input, blacksmith.Position));
         return quantity <= 0 ? null : new DeliveryOrderPlan("blacksmith_input", blacksmith, householdId,
             input, input, quantity, quantity, DirectDelivery: direct);
     }

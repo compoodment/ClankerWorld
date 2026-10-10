@@ -25,8 +25,10 @@ public sealed partial class PrivateWorldRuntime
         .Where(market => market.RemovedTick is null).SelectMany(market => MarketContent.SiteTiles(market.Site));
 
     /// <summary>Household goods stay on sale while one of the household's members borrows the stall they lie on.</summary>
-    private bool OnBorrowedMarketStall(InventoryLot lot) => lot.GroundPosition is { } ground &&
-        towns.Any(town => town.Markets.Any(market => market.Occupancies.Any(occupancy =>
+    private bool OnBorrowedMarketStall(InventoryLot lot) => OnBorrowedMarketStall(lot, towns);
+
+    private static bool OnBorrowedMarketStall(InventoryLot lot, IReadOnlyList<TownRuntimeState> townStates) => lot.GroundPosition is { } ground &&
+        townStates.Any(town => town.Markets.Any(market => market.Occupancies.Any(occupancy =>
             occupancy.EndedTick is null && occupancy.SellerHouseholdId == lot.OwnerId &&
             market.Stalls.Any(stall => stall.BuildingId == occupancy.StallBuildingId &&
                 MarketContent.StallSite(market.Site, stall.SlotIndex) == new GridPoint(ground.X, ground.Y)))));

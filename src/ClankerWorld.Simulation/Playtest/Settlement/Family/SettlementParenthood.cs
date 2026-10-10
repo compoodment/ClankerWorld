@@ -49,25 +49,27 @@ public sealed partial class PrivateWorldRuntime
              IsWithinInteractionRange(caregiver.Position, person.Position, ResourceInteractionRange)));
 
     private bool FamilyResourcesReady(string actor) =>
-        FamilyFoodReady(actor) && AccessibleShelters(actor).Any();
+        FamilyFoodReady(actor) && AccessibleShelters(actor, includeStormRefuge: false).Any();
 
     private bool FamilyFoodReady(string actor) =>
         society.Checkpoint.GetInhabitant(actor).HouseholdId is not null &&
-        ParenthoodFoodReadiness(society.Checkpoint, actor).IsReady &&
+        ParenthoodFoodReadiness(society.Checkpoint, actor, towns).IsReady &&
         BirthFood(actor) is not null;
 
     /// <summary>Derives the birth food gate from one captured checkpoint, also used by owner and parent guidance.</summary>
-    public static SettlementParenthoodFood ParenthoodFoodReadiness(SocietyCheckpoint checkpoint, string caregiverId)
+    public static SettlementParenthoodFood ParenthoodFoodReadiness(SocietyCheckpoint checkpoint, string caregiverId,
+        IReadOnlyList<TownRuntimeState> townStates)
     {
         if (checkpoint.GetInhabitant(caregiverId).HouseholdId is not { } householdId) return new(0, 4);
         var required = checkpoint.Inhabitants.Count(person => person.HouseholdId == householdId &&
             person.Status == SocietyInhabitantStatus.Active) * 2 + 4;
-        return new(BirthFoodSources(checkpoint, caregiverId).Sum(lot => AvailableLotQuantity(checkpoint.Inventory, lot)), required);
+        return new(BirthFoodSources(checkpoint, caregiverId, townStates).Sum(lot => AvailableLotQuantity(checkpoint.Inventory, lot)), required);
     }
 
-    public static string ParenthoodFoodNote(SocietyCheckpoint checkpoint, string caregiverId, bool showAmounts = true)
+    public static string ParenthoodFoodNote(SocietyCheckpoint checkpoint, string caregiverId,
+        IReadOnlyList<TownRuntimeState> townStates, bool showAmounts = true)
     {
-        var food = ParenthoodFoodReadiness(checkpoint, caregiverId);
+        var food = ParenthoodFoodReadiness(checkpoint, caregiverId, townStates);
         if (!showAmounts)
             return food.IsReady ? "The caregiver's household has enough ready-to-eat food."
                 : "The caregiver's household needs more ready-to-eat food; grain and flour need cooking.";
@@ -78,14 +80,15 @@ public sealed partial class PrivateWorldRuntime
 
     // Birth reserves and consumes its food in place, which the inventory
     // allows for food in a usable storage pot as well as loose food.
-    private IEnumerable<InventoryLot> BirthFoodSources(string actor) => BirthFoodSources(society.Checkpoint, actor);
+    private IEnumerable<InventoryLot> BirthFoodSources(string actor) => BirthFoodSources(society.Checkpoint, actor, towns);
 
-    private static IEnumerable<InventoryLot> BirthFoodSources(SocietyCheckpoint checkpoint, string actor)
+    private static IEnumerable<InventoryLot> BirthFoodSources(SocietyCheckpoint checkpoint, string actor,
+        IReadOnlyList<TownRuntimeState> townStates)
     {
         var household = checkpoint.GetInhabitant(actor).HouseholdId ?? actor;
         return checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household &&
             (lot.CarrierId is null || lot.CarrierId == actor) && InUsableVesselOrLoose(checkpoint.Inventory, lot) &&
-            IsEdibleFood(lot.ItemKind) && AvailableLotQuantity(checkpoint.Inventory, lot) > 0)
+            IsEdibleFood(lot.ItemKind) && !OnBorrowedMarketStall(lot, townStates) && AvailableLotQuantity(checkpoint.Inventory, lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal);
     }
 
@@ -166,8 +169,8 @@ public sealed partial class PrivateWorldRuntime
                 if (rule is null)
                     candidates.Add(new("parent_decline:" + person.InhabitantId, "Decline the parenthood request.", 70));
                 else if (mayPostpone)
-                    candidates.Add(new("parent_postpone:" + person.InhabitantId, "Say not yet to having a child. While fewer than eight " +
-                        "non-elders are alive you may not refuse; the plan goes ahead when your two days are up.", 70));
+                    candidates.Add(new("parent_postpone:" + person.InhabitantId, $"Say not yet to having a child. While fewer than {ContinuityEligibleCoupleThreshold} eligible adult couples " +
+                        "who are not close relatives are available you may not refuse; the plan goes ahead when your two days are up.", 70));
             }
             else if (rule is null)
             {
@@ -175,8 +178,8 @@ public sealed partial class PrivateWorldRuntime
             }
             else if (mayPostpone)
             {
-                candidates.Add(new("parent_postpone:" + person.InhabitantId, "Put off the child plan for now. While fewer than eight " +
-                    "non-elders are alive you may not refuse; the plan goes ahead when your two days are up.", 110));
+                candidates.Add(new("parent_postpone:" + person.InhabitantId, $"Put off the child plan for now. While fewer than {ContinuityEligibleCoupleThreshold} eligible adult couples " +
+                    "who are not close relatives are available you may not refuse; the plan goes ahead when your two days are up.", 110));
             }
         }
         // A couple held by the continuity rule may start sooner even with an older child, as long as no infant.
@@ -199,7 +202,8 @@ public sealed partial class PrivateWorldRuntime
         {
             candidates.Add(new("parent_propose:" + partner, continuityCouple is null
                 ? "Ask your partner whether to raise a child together. If they agree, they may choose either parent as the primary caregiver and that parent's household as the intended home. Their independent consent is required."
-                : "Ask your partner to start raising a child together now. While fewer than eight non-elders are alive " +
+                : $"Ask your partner to start raising a child together now. While fewer than {ContinuityEligibleCoupleThreshold} eligible adult couples " +
+                    "who are not close relatives are available " +
                     "they may say not yet but not refuse; the plan goes ahead when your two days are up. " +
                     "They may choose either parent as the primary caregiver and that parent's household as the intended home.", 75));
         }
@@ -326,7 +330,7 @@ public sealed partial class PrivateWorldRuntime
             }
             // Losing shelter after agreement creates a housing need, not a
             // blocked birth. Keep the child near their caregiver in that case.
-            var birthPosition = AccessibleShelters(caregiverId).FirstOrDefault()?.Position ?? inhabitants[caregiverId].Position;
+            var birthPosition = AccessibleShelters(caregiverId, includeStormRefuge: false).FirstOrDefault()?.Position ?? inhabitants[caregiverId].Position;
             var site = map.Tiles.Where(tile => map.IsBuildable(tile.Position) &&
                 IsWithinInteractionRange(tile.Position, birthPosition, ResourceInteractionRange) &&
                 !inhabitants.Values.Any(resident => resident.Position == tile.Position)).Select(tile => (GridPoint?)tile.Position).FirstOrDefault();

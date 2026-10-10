@@ -303,20 +303,20 @@ public sealed partial class PrivateWorldRuntime
         foreach (var input in materialNeeds)
         {
             if (HasCarriedMaterial(actor, input.ResourceId, input.Amount)) continue;
-            if (SharedPreparationItem(input.ResourceId, actor) is not null)
+            if (SharedPreparationItem(input.ResourceId, actor, blacksmith.Position) is not null)
             {
                 if (MakeRoomForToolRepairInput(actor, state, lotId, input.Amount, null, materialNeeds, protectedToolIds))
                     return null;
-                CollectEquipment(actor, state, input.ResourceId);
+                CollectEquipment(actor, state, input.ResourceId, blacksmith.Position);
                 return null;
             }
-            if (MaterialSource(input.ResourceId, actor) is { } source)
+            if (MaterialSource(input.ResourceId, actor, blacksmith.Position) is { } source)
             {
                 if (ProjectMaterialHarvest(actor, input.ResourceId, source) is { } plan &&
                     MakeRoomForToolRepairInput(actor, state, lotId,
                         checked(plan.Quantity + plan.TreeSeedQuantity), plan.ToolLotId, materialNeeds, protectedToolIds))
                     return null;
-                GatherProjectMaterial(actor, state, input.ResourceId, source);
+                GatherProjectMaterial(actor, state, input.ResourceId, source, returnTo: blacksmith.Position);
                 return null;
             }
             return null;

@@ -270,6 +270,7 @@ public partial class Main : Control
         if (OS.GetCmdlineUserArgs().Contains("--ui-smoke-test", StringComparer.Ordinal))
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
         BuildLayout();
+        BuildKeyboardNavigation();
         UiTheme.Changed += ApplyThemeColors;
         ApplyThemeColors();
         ApplyUiScale();

@@ -22,7 +22,7 @@ public sealed partial class PrivateWorldRuntime
         if (age == SocietyAgeBand.Infant) return false;
         if (age is SocietyAgeBand.Adult or SocietyAgeBand.Elder)
             return !candidate.StartsWith("child_", StringComparison.Ordinal);
-        return candidate is "safe_idle" or "consume_food" or "collect_shared_food" or
+        return candidate is "safe_idle" or "consume_food" or "drink_milk" or "collect_shared_food" or
             "seek_food" or "harvest_food" or "talk_to" or "move_to" or "wear_clothing" or "seek_warmth" or "seek_shelter" or "inspect_shelter_site" ||
             candidate.StartsWith("guardian_accept:", StringComparison.Ordinal) ||
             candidate.StartsWith("guardian_refuse:", StringComparison.Ordinal) ||
@@ -33,7 +33,8 @@ public sealed partial class PrivateWorldRuntime
             candidate.StartsWith("talk:", StringComparison.Ordinal) ||
             candidate.StartsWith("conversation_", StringComparison.Ordinal) ||
             candidate.StartsWith(TownSalvagePrefix, StringComparison.Ordinal) ||
-            candidate == "child_help_food";
+            candidate == "child_help_food" || candidate.StartsWith("child_gather:", StringComparison.Ordinal) ||
+            candidate.StartsWith("child_carry:", StringComparison.Ordinal);
     }
 
     private bool ChildSocialAvailable(string actor, string target, string kind) =>
@@ -66,6 +67,7 @@ public sealed partial class PrivateWorldRuntime
         }
 
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
+        AddChildHelpingCandidates(candidates, actor, state);
         var house = householdId is null ? null : HouseForHousehold(householdId);
         if (state.HungerBasisPoints >= 6_000 && PersonalSpareFood(actor) is not null &&
             (house is null || StorageRoomAfterInboundDeliveries(house.InstanceId) > 0) &&
@@ -78,6 +80,12 @@ public sealed partial class PrivateWorldRuntime
     private void ApplyChildCandidate(string actor, PlaytestInhabitantState state, string candidate)
     {
         if (!ChildResident(actor) || NeedsUrgentWarmth(state)) return;
+        if (candidate.StartsWith("child_gather:", StringComparison.Ordinal) ||
+            candidate.StartsWith("child_carry:", StringComparison.Ordinal))
+        {
+            ApplyChildHelpingCandidate(actor, state, candidate);
+            return;
+        }
         if (candidate == "child_help_food")
         {
             if (state.HungerBasisPoints < 6_000 ||

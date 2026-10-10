@@ -12,10 +12,10 @@ public sealed class ExplorationBridgeFutureDeckArchiveTests(ITestOutputHelper ou
     private static readonly GridPoint FutureDeck = new(55, 5);
     private static readonly GridPoint RoadBank = new(55, 4);
     private static readonly GridPoint WorkshopSite = new(55, 8);
-    private static readonly string[] HistoricalFaults = ["position", "visited", "discovery"];
+    private static readonly string[] HistoricalFaults = ["visited", "discovery"];
 
     [Fact]
-    public async Task ABridgeBuiltAfterDeathCannotValidatePreviouslyImpossibleArchivePoints()
+    public async Task LaterBridgeCannotValidateArchivedFootMemoriesButFreshwaterAllowsAFinalPosition()
     {
         using var world = await BuildCornerBridgeAfterActualScoutingAndNaturalDeath();
         var state = world.ExportState();
@@ -31,7 +31,6 @@ public sealed class ExplorationBridgeFutureDeckArchiveTests(ITestOutputHelper ou
         {
             var physical = fault switch
             {
-                "position" => deceased.LastPhysical with { Position = FutureDeck },
                 "visited" => deceased.LastPhysical with
                 {
                     Exploration = exploration with
@@ -51,10 +50,18 @@ public sealed class ExplorationBridgeFutureDeckArchiveTests(ITestOutputHelper ou
             var encodeError = Record.Exception(() => PrivateWorldRuntimeCodec.Encode(malformed));
             var restoreError = Record.Exception(() => { using var restored = Restore(malformed); });
             output.WriteLine($"Historical {fault} on future-only deck {FutureDeck}: codec={encodeError?.GetType().Name ?? "ACCEPTED"}, direct={restoreError?.GetType().Name ?? "ACCEPTED"}.");
-            var expected = fault == "position" ? "deceased inhabitant archive" : "local exploration record";
+            const string expected = "local exploration record";
             Assert.Contains(expected, Assert.IsType<InvalidDataException>(encodeError).Message, StringComparison.Ordinal);
             Assert.Contains(expected, Assert.IsType<InvalidDataException>(restoreError).Message, StringComparison.Ordinal);
         });
+        // Wide freshwater can now hold a swimmer's final body position even
+        // without the later bridge. It still cannot manufacture foot scouting memories.
+        var waterPosition = state with
+        {
+            DeceasedInhabitants = [deceased with { LastPhysical = deceased.LastPhysical with { Position = FutureDeck } }],
+        };
+        using var savedSwimmer = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(waterPosition)));
+        Assert.Equal(FutureDeck, Assert.Single(savedSwimmer.ExportState().DeceasedInhabitants!).LastPhysical.Position);
     }
 
     private async Task<PrivateWorldRuntime> BuildCornerBridgeAfterActualScoutingAndNaturalDeath()

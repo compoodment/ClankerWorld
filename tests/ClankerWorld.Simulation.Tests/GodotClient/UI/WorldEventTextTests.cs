@@ -8,6 +8,20 @@ public sealed class WorldEventTextTests
     private const string AgentId = "agent:00000000000000000000000000000099";
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
 
+    [Fact]
+    public void ModelLogKeepsOneContinuingProblemAndUsesTheCompleteDescendantIdentity()
+    {
+        OwnerWorldEvent Status(long id, string status) => new(id, id, "model_attempt_status", $"{ChildId}:{status}");
+        var events = new[] { Status(1, "waiting"), Status(2, "waiting"), Status(3, "ready"),
+            Status(4, "waiting"), Status(5, "timed_out"), Status(6, "timed_out"), Status(7, "waiting"),
+            Status(8, "timed_out"), Status(9, "canceled"), Status(10, "ready"), Status(11, "waiting"), Status(12, "timed_out") };
+        var rows = GameUiText.PlayerEvents(events.Reverse()).ToArray();
+        Assert.Equal(new long[] { 5, 12 }, rows.Select(item => item.EventId));
+        Assert.Equal("Aster could not get a model reply: the model reply timed out.",
+            WorldEventText.Describe(rows[0], Snapshot(Person(FounderId, "Mira"), Person(ChildId, "Aster"))));
+        Assert.Equal(rows, GameUiText.PlayerEvents(events).ToArray());
+    }
+
     [Theory]
     [InlineData("{")]
     [InlineData("null")]
@@ -67,6 +81,8 @@ public sealed class WorldEventTextTests
         {
             ("food_harvested", id + ":4", "gathered food"),
             ("food_consumed", id, "ate"),
+            ("child_collected_household", id + ":wood:4", "picked up a small household load to bring home"),
+            ("child_delivered_household", id + ":food:4:first-town-house-a", "brought a small household load to their House"),
             ("tree_planted", id + ":planted-tree-12-7:broadleaf", "planted a tree"),
             ("tree_replanted", id + ":tree-8-16:conifer", "replanted a tree"),
             ("inhabitant_slept", id, "slept"),
@@ -82,6 +98,7 @@ public sealed class WorldEventTextTests
         {
             var worldEvent = new OwnerWorldEvent(1, 1, kind, detail);
             Assert.Equal($"Aster {action}.", WorldEventText.Describe(worldEvent, snapshot));
+            if (kind.StartsWith("child_", StringComparison.Ordinal)) Assert.True(GameUiText.IsPlayerFacingEvent(kind));
             var renamed = snapshot with { Inhabitants = [Person(id, "Rowan", "dead")] };
             Assert.Equal($"Rowan {action}.", WorldEventText.Describe(worldEvent, renamed));
             Assert.Equal(detail, worldEvent.Detail);
@@ -289,6 +306,50 @@ public sealed class WorldEventTextTests
     {
         Assert.StartsWith(start, WorldEventText.Describe(new(1, 0, kind, "town:first|land-transfer:town:first:5|1||done"), Snapshot()), StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("town_project_worked", "10")]
+    [InlineData("town_project_donated", "lot:wood:4:wood")]
+    [InlineData("town_project_completed", "building:hall:Communal Hall")]
+    public void HistoricalTownProjectEventsKeepTheNameWithoutTheirWorker(string kind, string payload)
+    {
+        const string projectId = "town:first:proposal:10:construction";
+        var project = EventProject(projectId, "Communal Hall");
+        var snapshot = Snapshot() with
+        {
+            Towns = [new("town:second", "Other Town", "founded", 0, [], [], [])
+                { Projects = [EventProject("town:second:proposal:1:construction", "Other Hall")] },
+                new("town:first", "Riverbend", "founded", 0, [], [], []) { Projects = [project] }],
+        };
+        var detail = $"{ChildId}:{projectId}:{payload}";
+        Assert.Contains("Communal Hall", WorldEventText.Describe(new(1, 4, kind, detail), snapshot), StringComparison.Ordinal);
+        Assert.Contains("Communal Hall", WorldEventText.Describe(new(1, 4, kind, detail),
+            snapshot with { Inhabitants = [Person(ChildId, "Aster", "dead")] }), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TownProjectEventsMatchWholeIdsBeforeLaterPayloadNames()
+    {
+        var shortProject = EventProject("town:first:proposal:1:construction", "Old Hall");
+        var project = EventProject("town:first:proposal:10:construction", "Communal Hall");
+        var snapshot = Snapshot(Person(ChildId, "Aster")) with
+        {
+            Towns = [new("town:first", "Riverbend", "founded", 0, [], [], []) { Projects = [shortProject, project] }],
+        };
+        var detail = $"{ChildId}:{project.Id}:lot:{shortProject.Id}:wood";
+        Assert.Equal("Aster donated personal materials to Communal Hall.",
+            WorldEventText.Describe(new(1, 4, "town_project_donated", detail), snapshot));
+        Assert.Contains("Communal Hall", WorldEventText.Describe(new(1, 4, "town_project_donated", detail),
+            snapshot with { Inhabitants = [] }), StringComparison.Ordinal);
+        Assert.Contains("Communal Hall", WorldEventText.Describe(new(1, 4, "town_project_approved",
+            $"town:first:{project.Id}:approved"), snapshot), StringComparison.Ordinal);
+        Assert.Contains("a Town project", WorldEventText.Describe(new(1, 4, "town_project_worked",
+            $"{ChildId}:{project.Id}0:10"), snapshot with { Inhabitants = [] }), StringComparison.Ordinal);
+    }
+
+    private static OwnerWorldTownProject EventProject(string id, string name) =>
+        new(id, "proposal", name, FounderId, "Mira", "town-hall", "Town Hall", new(4, 4), new(5, 8),
+            3, 4, [], 10, 10, "completed", null, "paid-hall", new("proposal", "town_project", name, "passed", 2, 0, 2, 0));
 
     private static OwnerWorldSnapshot Snapshot(params OwnerWorldInhabitant[] people) =>
         new("event-names", 1, "map", [], [], [], null, 1) { Inhabitants = people };

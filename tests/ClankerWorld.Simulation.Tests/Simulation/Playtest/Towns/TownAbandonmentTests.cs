@@ -324,8 +324,12 @@ public sealed partial class TownMembershipTests
         model.OtherChoices.Scripts[settler] = [Civic(Second, "resettle")];
         using var world = Reopen(Calm(At(WithInventory(state, inventory), position, visitor, settler)), model);
         var deadline = TimeSpan.FromSeconds(10);
-        for (var tick = 0; tick < 12 && (model.Pending is null ||
-                 !world.Towns.Single(town => town.Id == Second).ResidentIds.Contains(settler)); tick++)
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync().AsTask().WaitAsync(deadline)).Advanced);
+        Assert.True(world.Towns.Single(town => town.Id == Second).IsAbandoned);
+        // Capture the valid salvage request before another tick can commit the revival.
+        await model.WaitForPendingAsync().WaitAsync(deadline);
+        for (var tick = 0; tick < 12 &&
+                 !world.Towns.Single(town => town.Id == Second).ResidentIds.Contains(settler); tick++)
         {
             Assert.True((await world.AdvanceOneTickNonBlockingAsync().AsTask().WaitAsync(deadline)).Advanced);
             await Task.Delay(10);
@@ -537,6 +541,8 @@ public sealed partial class TownMembershipTests
     private sealed class DeferredTownSalvageModel(string actor) : IDecisionProvider
     {
         private readonly TaskCompletionSource<CognitionDecisionResponse> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource captured = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task WaitForPendingAsync() => captured.Task;
         public ScriptedModel OtherChoices { get; } = new();
         public CognitionDecisionRequest? Pending { get; private set; }
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
@@ -547,6 +553,7 @@ public sealed partial class TownMembershipTests
                 !request.Observation.Candidates.Any(candidate => candidate.Id.StartsWith("town_salvage:", StringComparison.Ordinal)))
                 return OtherChoices.DecideAsync(request, cancellationToken);
             Pending = request;
+            captured.TrySetResult();
             return new(completion.Task.WaitAsync(cancellationToken));
         }
         public void Resolve()
