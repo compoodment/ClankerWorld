@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-09
+updated: 2026-10-10
 ---
 
 # Saves and replay
@@ -1898,8 +1898,11 @@ manual checkpoint again. Copies without a named source remain ordinary saves.
 The world checkpoint schema and replay bytes do not change.
 
 The preview decodes each classified checkpoint, verifies its world identity and
-required history, and keeps the latest requested number of verified copies for
-each source. It additionally protects the recovery currently continued from;
+required history, and performs a full runtime restore without advancing the world
+or calling a model. Only copies that pass all these checks count toward the latest
+requested number for each source. A copy that decodes but cannot restore remains
+preserved and cannot displace a loadable predecessor. The preview additionally
+protects the recovery currently continued from;
 an older active copy may exceed the requested count. Unverifiable files, manual
 saves, autosaves and migration originals are never cleanup candidates. Earlier
 unclassified backups remain protected even if their names look like recoveries.
