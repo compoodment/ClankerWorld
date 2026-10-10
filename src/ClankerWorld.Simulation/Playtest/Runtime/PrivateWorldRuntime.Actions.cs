@@ -18,7 +18,8 @@ public sealed partial class PrivateWorldRuntime
         PlaytestInhabitantState state,
         GridPoint destination,
         string reason,
-        int interactionRange = 0)
+        int interactionRange = 0,
+        int horseMovementBudget = 100)
     {
         guardianPlacementActions.Add(inhabitantId);
         if (IsWithinInteractionRange(state.Position, destination, interactionRange))
@@ -56,7 +57,14 @@ public sealed partial class PrivateWorldRuntime
 
         var next = route[1];
         var travelCost = TravelStepCost(inhabitantId, state.Position, next);
+        var mounted = RidingAnimal(inhabitantId) is not null;
+        if (mounted)
+        {
+            travelCost = (travelCost + 1) / 2;
+            if (horseMovementBudget < 100 && travelCost > horseMovementBudget) return;
+        }
         MoveAttachedHandcart(inhabitantId, state.Position, next);
+        MoveAttachedAnimal(inhabitantId, state.Position, next);
         inhabitants[inhabitantId] = state with
         {
             Position = next,
@@ -70,18 +78,27 @@ public sealed partial class PrivateWorldRuntime
         RecordNonviolentConduct(inhabitantId, "travel", next, null, null, 1,
             $"move:{WorldTick}:{inhabitantId}:{nextEventId}");
         AppendEvent("inhabitant_moved", $"{inhabitantId}:{state.Position.X},{state.Position.Y}->{next.X},{next.Y}:{reason}");
+        if (mounted && horseMovementBudget == 100 && travelCost <= 50 && inhabitants[inhabitantId].TravelCooldownTicks == 0)
+            MoveToward(inhabitantId, inhabitants[inhabitantId], destination, reason, interactionRange, 100 - travelCost);
     }
 
     private List<GridPoint> FindUnoccupiedRoute(
         string inhabitantId,
         GridPoint origin,
         GridPoint destination,
-        int interactionRange)
+        int interactionRange,
+        bool allowSwimming = true,
+        int additionalCarriedUnits = 0)
     {
         var occupied = inhabitants.Values
             .Where(item => item.InhabitantId != inhabitantId)
             .Select(item => item.Position)
             .ToHashSet();
+        occupied.UnionWith(animalWorld.Animals.Where(animal => animal.DiedTick is null && animal.RiderId != inhabitantId &&
+            animal.LeaderId != inhabitantId && animal.Position != destination).Select(animal => animal.Position));
+        if (interactionRange == 0 && animalWorld.Animals.Any(animal => (animal.RiderId == inhabitantId || animal.LeaderId == inhabitantId)) &&
+            animalWorld.Animals.Any(animal => animal.DiedTick is null && animal.RiderId != inhabitantId && animal.LeaderId != inhabitantId && animal.Position == destination))
+            return [];
         if (interactionRange == 0 && worldSimulation.Buildings.Any(building =>
                 building.Position == destination &&
                 building.HouseholdId is not null &&
@@ -89,12 +106,16 @@ public sealed partial class PrivateWorldRuntime
                  WeatherAt(building.Position) == WeatherKind.Storm && HasHouseGuestInvitation(inhabitantId, building.InstanceId) ||
                  CanEnterGuardianPlacementHouse(inhabitantId, building))))
             occupied.Remove(destination);
-        // An occupied exact destination cannot be reached. Keep the household
-        // sharing exception above, and avoid searching an entire map for it.
+        if (interactionRange == 0 && occupied.Contains(destination) &&
+            CanShareTownDestination(inhabitantId, destination))
+            occupied.Remove(destination);
+        // Other occupied exact destinations cannot be reached. Avoid searching
+        // an entire map when neither household nor public Town sharing applies.
         if (interactionRange == 0 && origin != destination && occupied.Contains(destination))
             return [];
         if (AttachedHandcart(inhabitantId) is null)
-            return SharedUnoccupiedRoute(origin, occupied, destination, interactionRange);
+            return SharedUnoccupiedRoute(origin, occupied, destination, interactionRange,
+                allowSwimming && CanSwim(inhabitantId, origin, additionalCarriedUnits));
 
         var open = new PriorityQueue<GridPoint, (int Cost, int Y, int X, int Order)>();
         var best = new Dictionary<GridPoint, int> { [origin] = 0 };
@@ -142,6 +163,12 @@ public sealed partial class PrivateWorldRuntime
         return [];
     }
 
+    private bool CanShareTownDestination(string actor, GridPoint destination) =>
+        WarehousesAccessibleTo(actor).Any(warehouse => warehouse.Position == destination) ||
+        TownForResident(actor) is { } townId && towns.Any(town => town.Id == townId &&
+            town.Projects.Any(project => project.Stage is "supplying" or "working" &&
+                TownProjectRules.WorkSite(project.Plan) == destination));
+
     private void RecordMovementBlocked(
         string inhabitantId,
         PlaytestInhabitantState state,
@@ -163,7 +190,7 @@ public sealed partial class PrivateWorldRuntime
     private IEnumerable<MapResource> EligibleFoodSources(string actor, GridPoint position) => map.Resources
         .Where(resource => resource.Kind is "food" or "fruit" &&
             resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
-            map.IsReachableOnFoot(position, resource.Position))
+            CanReachByFootOrSwimming(actor, position, resource.Position))
         .OrderBy(resource => map.FootDistance(resource.Position, position))
         .ThenBy(resource => resource.Id, StringComparer.Ordinal)
         .Where(resource => IsWithinInteractionRange(position, resource.Position, ResourceInteractionRange) ||

@@ -43,7 +43,7 @@ public partial class Main
             inhabitantList.SetItemTooltip(row, rowText + "\n" + (IsLiving(inhabitant)
                 ? "Select to find this agent on the map and open their card."
                 : "Select to open this historical profile."));
-            if (!IsLiving(inhabitant)) inhabitantList.SetItemCustomFgColor(row, UiTheme.Current.InkFaint);
+            if (!IsLiving(inhabitant)) inhabitantList.SetItemCustomFgColor(row, UiTheme.Current.InkMuted);
             if (string.Equals(inhabitant.Id, previousSelection, StringComparison.Ordinal))
             {
                 selectionFound = true;
@@ -86,6 +86,6 @@ public partial class Main
         if (renderedMapSnapshot?.Inhabitants.FirstOrDefault(person => person.Id == inhabitantId) is not { } person ||
             person.IsDraft || !IsLiving(person))
             return;
-        CenterCameraAt(new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f));
+        CenterKeyboardCameraAt(new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f));
     }
 }

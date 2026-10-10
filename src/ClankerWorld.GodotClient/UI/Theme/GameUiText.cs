@@ -9,6 +9,29 @@ public static class GameUiText
 {
     private const int MinutesPerDay = 1_440;
 
+    /// <summary>A continuing model problem produces one row until recovery; waits and cancellations stay out of the log.</summary>
+    public static IEnumerable<OwnerWorldEvent> PlayerEvents(IEnumerable<OwnerWorldEvent> events)
+    {
+        var failures = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var item in events.OrderBy(item => item.EventId))
+        {
+            if (item.Kind != "model_attempt_status")
+            {
+                if (IsPlayerFacingEvent(item.Kind)) yield return item;
+                continue;
+            }
+            var separator = item.Detail.LastIndexOf(':');
+            if (separator <= 0) continue;
+            var agentId = item.Detail[..separator];
+            var status = item.Detail[(separator + 1)..];
+            if (status == "ready") failures.Remove(agentId);
+            if (status is not ("missing_key" or "usage_limit" or "unusable_reply" or "timed_out" or "model_unavailable")) continue;
+            if (failures.TryGetValue(agentId, out var previous) && previous == status) continue;
+            failures[agentId] = status;
+            yield return item;
+        }
+    }
+
     public static string ModelStatus(string? status) => status switch
     {
         "waiting" => "Waiting for the model",
@@ -45,6 +68,15 @@ public static class GameUiText
         return quantity.Length == 0 ? title : title + " " + quantity;
     }
 
+    public static string AnimalDescription(OwnerWorldAnimal animal) =>
+        $"{animal.Name}: {animal.Sex} {animal.Species}, {animal.LifeStage}, {animal.AgeDays} days old. " +
+        (animal.HouseholdName is null ? "Untamed. " : $"{animal.HouseholdName}. ") + animal.CareStatus + ". " +
+        (animal.ProductQuantity == 0 ? "" : $"Ready: {animal.ProductQuantity} {ItemName(animal.ProductKind!)}. ") +
+        (animal.BirthDaysRemaining is null ? "" : $"Birth in {animal.BirthDaysRemaining:0.#} cared-for days; one yard place reserved. ") +
+        (animal.RiderName is null ? "" : $"Ridden by {animal.RiderName}. ") + (animal.Saddled ? "Saddled. " : "") +
+        $"Care permission: {(animal.CarePermissions.Count == 0 ? "household adults" : string.Join(", ", animal.CarePermissions))}. " +
+        (animal.Species != "horse" ? "" : $"Riding permission: {(animal.RidingPermissions.Count == 0 ? "household adults" : string.Join(", ", animal.RidingPermissions))}.");
+
     public static string HandcartDescription(OwnerWorldHandcart cart)
     {
         var cargo = cart.Cargo.Count == 0 ? "Empty" : string.Join(", ",
@@ -53,6 +85,21 @@ public static class GameUiText
             cart.PullerName is { } puller ? "Pulled by " + puller : "Parked";
         return $"Handcart · {status}\nOwner: {cart.OwnerName} · Position: {cart.Position.X}, {cart.Position.Y}" +
             $"\nCondition: {cart.ConditionPercent}% · Cargo: {cart.Cargo.Sum(item => item.Quantity)}/{cart.Capacity} · {cargo}";
+    }
+
+    /// <summary>How far a building under construction has got, such as "Being built · 40% done".</summary>
+    public static string ConstructionDescription(OwnerWorldConstructionSite site)
+    {
+        var state = site.Stage switch
+        {
+            "working" => "Being built",
+            "blocked" => "Work stopped",
+            "paused" => "Work paused",
+            "travelling" => "Builder on the way",
+            _ => "Waiting for materials",
+        };
+        var done = site.WorkRequired <= 0 ? 0 : Math.Clamp(site.WorkDone * 100 / site.WorkRequired, 0, 100);
+        return $"{state} · {done}% done";
     }
 
     public static string BoatDescription(OwnerWorldBoat boat)
@@ -292,7 +339,7 @@ public static class GameUiText
             "expansion_order_paused" or "expansion_order_resumed" or
             "build_started" or "build_completed" or "recipe_started" or "recipe_completed" or "house_tool_made" or
             "field_work_started" or "field_prepared" or "field_planted" or "field_tended" or "field_harvested" or
-            "field_ready" or "field_work_interrupted" or "crop_weather_loss" or
+            "field_ready" or "field_work_interrupted" or "field_returned_to_grass" or "crop_weather_loss" or
             "crop_moisture_effect" or "food_harvested" or "food_consumed" or "tree_planted" or "tree_replanted" or "child_born" or
             "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or
             "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
@@ -301,12 +348,13 @@ public static class GameUiText
             "continuity_rule_on" or "continuity_rule_off" or
             "medical_care_allowed" or "medical_care_revoked" or
             "medical_treatment_started" or "medical_treatment_completed" or "medical_treatment_interrupted" or
+            "child_collected_household" or "child_delivered_household" or
             "empty_vessel_picked_up" or
             "council_policy_adopted" or "settlement_trade_completed" or
             "business_trade_offered" or "business_trade_completed" or "business_trade_cancelled" or
             "store_stock_collected" or "store_stock_delivered" or "household_delivery_recovered" or
             "owner_stock_picked_up" or "owner_stock_delivered" or
-            "agent_knowledge_artifact_created" or "agent_knowledge_artifact_read" or "agent_knowledge_shared" or
+            "agent_recipe_learned" or "agent_knowledge_artifact_created" or "agent_knowledge_artifact_read" or "agent_knowledge_shared" or
             "agent_knowledge_writing_started" or "agent_knowledge_writing_cancelled" or "agent_knowledge_material_collected" or
             "agent_knowledge_artifact_collected" or "agent_knowledge_artifact_stored" or
             "tool_request_placed" or "tool_request_accepted" or "tool_request_refused" or "tool_request_withdrawn" or
@@ -316,11 +364,12 @@ public static class GameUiText
             "town_civic_council" or "town_civic_election" or "town_civic_runoff" or "town_civic_proposal" or "town_civic_result" or "town_civic_cancelled" or
             "town_project_approved" or "town_project_blocked" or "town_project_resumed" or "town_project_cancelled" or
             "town_project_donated" or "town_project_material_picked_up" or "town_project_material_delivered" or
-            "town_project_material_returned" or "town_project_worked" or "town_project_completed" or
+            "town_project_material_recovered" or "town_project_material_returned" or "town_project_worked" or "town_project_completed" or
             "market_built" or "market_stall_built" or "market_stall_borrowed" or "market_stall_left" or
             "market_stock_loaded" or "market_stock_delivered" or "market_stock_collected" or
             "market_trade_offered" or "market_trade_completed" or "market_trade_cancelled" or
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or
+            "town_abandoned" or "town_revived" or "town_resettled" or "town_stock_salvaged" or
             "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed" or
             "land_use_requested" or "land_use_granted" or "town_building_assigned" or "town_border_expanded" or "town_land_claimed" or "town_founded" or "bridge_built" or
             "town_civic_nonviolent_hearing" or "town_civic_law_case" or "town_civic_remedy" or "law_case_opened" or "law_case_evidence" or
@@ -391,8 +440,14 @@ public static class GameUiText
     /// </summary>
     public static string ActivityPhrase(string? candidateId, string? summary)
     {
+        if (summary?.StartsWith("looking for ", StringComparison.Ordinal) == true && !summary.Contains(':', StringComparison.Ordinal))
+            return summary.Trim();
         if (candidateId is not null && KnowledgeActionPhrase(candidateId, inProgress: true) is { } knowledgeActivity)
             return knowledgeActivity;
+        if (candidateId?.StartsWith("explore_for:resource:", StringComparison.Ordinal) == true)
+            return "looking for " + candidateId["explore_for:resource:".Length..].Replace('_', ' ');
+        if (candidateId?.StartsWith("explore_for:terrain:", StringComparison.Ordinal) == true)
+            return "looking for " + candidateId["explore_for:terrain:".Length..].ToLowerInvariant() + " terrain";
         if (candidateId?.StartsWith("tool_request_", StringComparison.Ordinal) == true)
             return candidateId.Split(':', 2)[0] switch
             {
@@ -418,12 +473,28 @@ public static class GameUiText
         if (!string.IsNullOrWhiteSpace(summary) && !summary.Contains(':', StringComparison.Ordinal))
             return summary.Trim();
         if (candidateId == "produce_item") return "making goods";
+        if (candidateId == "animal_order") return "following an animal care or travel order";
+        if (candidateId == "drink_milk") return "drinking milk";
+        if (candidateId?.StartsWith("animal:", StringComparison.Ordinal) == true)
+            return candidateId.Split(':')[1] switch
+            {
+                "care" => "caring for an animal",
+                "collect" => "collecting animal products",
+                "collect_hide" => "collecting a wild animal's old-age hide",
+                "tame" => "taming an animal",
+                "lead_home" => "leading an animal home",
+                "saddle" => "fitting a horse's saddle",
+                "mount" => "mounting a horse",
+                "dismount" => "dismounting a horse",
+                "agreement" => "discussing animal permissions or a transfer",
+                _ => "carrying animal supplies",
+            };
         return string.IsNullOrWhiteSpace(candidateId) ? "taking in the surroundings" : HumanizeIdentifier(candidateId);
     }
 
     /// <summary>
     /// The historical profile's will lines: who the agent named and what each
-    /// was left, or that the household inherits, then any final words.
+    /// was left, or that default inheritance applies, then any final words.
     /// </summary>
     public static IReadOnlyList<string> FinalWillLines(string? status, OwnerWorldFinalWill? will)
     {
@@ -450,7 +521,7 @@ public static class GameUiText
                 }
                 break;
             case "default":
-                lines.Add("Personal estate follows household inheritance.");
+                lines.Add("Personal estate follows default inheritance rules.");
                 break;
             default:
                 lines.Add("No current thoughts or activity.");
@@ -568,11 +639,16 @@ public static class GameUiText
             return $"build {HumanizeIdentifier(localId)}";
         }
 
+        if (normalized.StartsWith("child_gather:food:", StringComparison.Ordinal)) return "gather nearby food for the household";
+        if (normalized.StartsWith("child_gather:wood:", StringComparison.Ordinal)) return "pick up nearby fallen wood for the household";
+        if (normalized.StartsWith("child_carry:", StringComparison.Ordinal)) return "carry a small household load home";
+
         var known = normalized switch
         {
             "safe_idle" => "take it easy",
             "seek_food" => "find food",
             "move_to" => "go to a tile",
+            "boat_order" => "travel to the requested Port by boat",
             "eat_food" => "eat",
             "consume_food" => "eat",
             "collect_shared_food" => "collect food from camp",

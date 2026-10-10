@@ -10,11 +10,13 @@ internal static class PrivateWorldBuildingOrderCatalog
     private static readonly BuildingOrderDefinition[] Entries =
     [
         new(HouseContent.House1x1(), "house"),
+        new(AnimalContent.Yard(), "animal-yard"),
         new(FarmContent.Farmhouse1x1(), "farmhouse"),
         new(BlacksmithContent.Blacksmith1x2(), "blacksmith"),
         new(TailorContent.TailorShop1x1(), "tailor"),
         new(SiloContent.Silo1x1(), "silo"),
         new(CareContent.Clinic1x2(), "clinic"),
+        new(RestaurantContent.Restaurant1x2(), "restaurant"),
         new(ContentDefinitionPayloadCodec.ApplyPackage(new([], []), BusinessContent.Create()).Buildings
             .Single(building => building.LocalId == "store-1x1"), "store"),
         new(WarehouseContent.Warehouse2x2(), "warehouse"),
@@ -28,8 +30,8 @@ internal static class PrivateWorldBuildingOrderCatalog
 
     internal static bool Supports(string action, string? kind) => action switch
     {
-        "construct_building" => kind is "house" or "farmhouse" or "blacksmith" or "tailor" or "silo" or "clinic" or "store",
-        "expand_building" => kind is "house" or "warehouse",
+        "construct_building" => kind is "house" or "farmhouse" or "blacksmith" or "tailor" or "silo" or "clinic" or "store" or "restaurant" or "animal-yard",
+        "expand_building" => kind is "house" or "warehouse" or "animal-yard",
         _ => false,
     };
 

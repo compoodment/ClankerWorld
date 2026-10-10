@@ -1,0 +1,1 @@
+- Households cook replacement meals when their finished food is trapped in a broken pot. Usable stored meals still count toward their normal reserve, and explicit cooking orders still work.

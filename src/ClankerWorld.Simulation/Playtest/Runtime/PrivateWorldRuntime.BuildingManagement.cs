@@ -174,9 +174,14 @@ public sealed partial class PrivateWorldRuntime
         finally { gate.Release(); }
     }
 
-    private string? BuildingMutationBlocker(PlacedBuilding building)
+    private string? BuildingMutationBlocker(PlacedBuilding building, bool allowStoredGoods = false)
     {
         var id = building.InstanceId;
+        if (animalWorld.MilkOffers.Any(offer => offer.BuildingId == id))
+            return "Finish or decline the held milk exchange before changing this building.";
+        if (animalWorld.Animals.Any(animal => animal.DiedTick is null && animal.YardId == id) ||
+            animalWorld.Offers.Any(offer => offer.ReceivingYardId == id) || animalWorld.SupplyTrips.Any(trip => trip.YardId == id))
+            return "Move or transfer the animals and finish their supply trips before removing or reassigning this yard.";
         if (Port(id) is not null && (boatTransport.Boats.Any(boat => boat.DockedPortId == id ||
                 boat.Journey is { } trip && (trip.OriginPortId == id || trip.DestinationPortId == id)) ||
             towns.SelectMany(town => town.Projects).Any(project => IsLiveTownProject(project) && project.Plan.BoatPortId == id)))
@@ -184,7 +189,7 @@ public sealed partial class PrivateWorldRuntime
         if (toolMakingRequests.Any(request => request.BuildingInstanceId == id && !ToolMakingRequestRules.IsTerminal(request.Status)))
             return "Finish, refuse or withdraw the active tool request before changing this Blacksmith's owner or removing it.";
         if (society.Checkpoint.Inventory.Lots.Any(lot =>
-                lot.StorageBuildingId == id || lot.DeliveryBuildingId == id))
+                !allowStoredGoods && lot.StorageBuildingId == id || lot.DeliveryBuildingId == id))
             return "Empty this building and wait for all deliveries before changing its owner or removing it.";
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         if (building.HouseholdId is { } householdId && definition.Tags.Contains("farmhouse", StringComparer.Ordinal) &&

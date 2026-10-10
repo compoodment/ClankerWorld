@@ -1,0 +1,1 @@
+- Delete Save opens its confirmation when you manage the current world's saves straight after starting the client.

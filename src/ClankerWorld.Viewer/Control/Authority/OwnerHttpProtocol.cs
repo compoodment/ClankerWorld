@@ -11,6 +11,8 @@ namespace ClankerWorld.Viewer.Control;
 /// </summary>
 public sealed record OwnerDeletionAction(string Kind, string Id, string WorldId, DateTimeOffset? ExpectedCreatedUtc = null);
 public sealed record OwnerDeletionReceipt(string Id, bool CleanupComplete);
+public sealed record OwnerRecoveryCleanupAction(string Operation, string WorldId, int KeepCount, string? ExpectedDigest = null);
+public sealed record OwnerRecoveryCleanupReceipt(IReadOnlyList<string> RemovedIds, bool CleanupComplete);
 
 public sealed record StartOwnerPairingHttpRequest(string PublicKeySpkiBase64);
 
@@ -53,8 +55,9 @@ public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int Interval
 public sealed record OwnerDeveloperEditAction(string WorldId, long ExpectedEventId, string AgentId,
     string Operation, string Value, int Amount = 0, string? OtherAgentId = null);
 
-public sealed record OwnerLifePaceAction(int Rate);
-public sealed record OwnerJevAssistanceAction(bool Enabled);
+public sealed record OwnerLifePaceAction(int Rate, string WorldId);
+public sealed record OwnerJevAssistanceAction(bool Enabled, string WorldId);
+public sealed record OwnerRoutineHelperAction(string WorldId, string Provider, string Model, string? CredentialSlotId = null);
 
 public sealed record OwnerPairingApprovalAction(string PairingId, string PairingCode);
 
@@ -254,6 +257,13 @@ public static class OwnerHttpBinding
         $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"created-utc={action.ExpectedCreatedUtc?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture) ?? "-"}");
 
+    public static string RecoveryCleanup(OwnerRecoveryCleanupAction action) => string.Join(
+        '\n', "clankerworld.owner-recovery-cleanup.v1",
+        $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"keep-count={action.KeepCount.ToString(CultureInfo.InvariantCulture)}",
+        $"expected-digest={EncodeOptional(action.ExpectedDigest)}");
+
     public static string ManualSavePayload(OwnerManualSaveAction action) => string.Join(
         '\n',
         "clankerworld.owner-manual-save.v1",
@@ -303,11 +313,25 @@ public static class OwnerHttpBinding
         $"amount={action.Amount.ToString(CultureInfo.InvariantCulture)}",
         $"other-agent-id={EncodeOptional(action.OtherAgentId)}");
 
-    public static string LifePacePayload(OwnerLifePaceAction action) =>
-        "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
+    public const string LifePacePayloadDomain = "clankerworld.owner-life-pace.v2";
+    public const string JevAssistancePayloadDomain = "clankerworld.owner-jev-assistance.v2";
 
-    public static string JevAssistancePayload(OwnerJevAssistanceAction action) =>
-        "clankerworld.owner-jev-assistance.v1\nenabled=" + action.Enabled.ToString().ToLowerInvariant();
+    public static string LifePacePayload(OwnerLifePaceAction action) => string.Join('\n',
+        LifePacePayloadDomain,
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"rate={action.Rate.ToString(CultureInfo.InvariantCulture)}");
+
+    public static string JevAssistancePayload(OwnerJevAssistanceAction action) => string.Join('\n',
+        JevAssistancePayloadDomain,
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"enabled={action.Enabled.ToString().ToLowerInvariant()}");
+
+    public static string RoutineHelperPayload(OwnerRoutineHelperAction action) => string.Join(
+        '\n', "clankerworld.owner-routine-helper.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+        $"model={EncodeOptional(action.Model)}",
+        $"credential-slot-id={EncodeOptional(action.CredentialSlotId)}");
 
     public static string PairingApprovalPayload(OwnerPairingApprovalAction action) => string.Join(
         '\n',

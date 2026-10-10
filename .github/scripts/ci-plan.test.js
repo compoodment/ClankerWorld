@@ -2,10 +2,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { test } = require('node:test');
 const {
-  PinnedShards, namePart, shardCount, testFilter, parseTrx, readTimings, planShards, planFilters, slowReport,
-  compareTimings, compiledFiles, planScope, main,
+  PinnedShards, namePart, shardCount, testFilter, parseTrx, readTimings, median, readMainTimings, planShards,
+  planFilters, slowReport, compareTimings, compiledFiles, planScope, main,
 } = require('./ci-plan.js');
 
 // The second shard names all of BigTests, but the first shard's BigTests.LongMethod stays there.
@@ -131,6 +132,59 @@ test('timings are read from every trx file under a folder', () => {
   assert.deepEqual(readTimings(undefined), {});
 });
 
+function tempDir(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-plan-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+function writeRun(dir, run, results) {
+  fs.mkdirSync(path.join(dir, run, 'test-timings-1'), { recursive: true });
+  fs.writeFileSync(path.join(dir, run, 'test-timings-1', 'timings.trx'), trx(results));
+}
+
+test("main's timings are each test's median over its runs, so one slow run doesn't skew them", t => {
+  assert.equal(median([3]), 3);
+  assert.equal(median([9, 1, 4]), 4);
+  assert.equal(median([10, 2, 4, 6]), 5);
+  const dir = tempDir(t);
+  writeRun(dir, '101', [['a', 'Ns.ATests', 'One', '00:00:10'], ['b', 'Ns.BTests', 'Two', '00:00:30']]);
+  writeRun(dir, '102', [['a', 'Ns.ATests', 'One', '00:00:12'], ['b', 'Ns.BTests', 'Two', '00:02:00']]);
+  writeRun(dir, '103', [['a', 'Ns.ATests', 'One', '00:00:50'], ['b', 'Ns.BTests', 'Two', '00:00:20'],
+    ['c', 'Ns.CTests', 'New', '00:00:07']]);
+  // A run whose download failed leaves no timings and doesn't count.
+  fs.mkdirSync(path.join(dir, '104'));
+  assert.deepEqual(readMainTimings(dir),
+    { times: { 'Ns.ATests.One': 12, 'Ns.BTests.Two': 30, 'Ns.CTests.New': 7 }, runs: 3, ids: ['101', '102', '103'] });
+  assert.deepEqual(readMainTimings(path.join(dir, 'missing')), { times: {}, runs: 0, ids: [] });
+  assert.deepEqual(readMainTimings(undefined), { times: {}, runs: 0, ids: [] });
+});
+
+test("main-timings.sh downloads main's latest green runs into a folder each and drops a failed one", t => {
+  const dir = tempDir(t);
+  const bin = path.join(dir, 'bin');
+  fs.mkdirSync(bin);
+  // A stand-in gh: three green runs, and the second run's download fails halfway.
+  fs.writeFileSync(path.join(bin, 'gh'), `#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${dir}/calls.txt"
+if [ "$1" = api ]; then printf '11\n22\n33\n'; exit 0; fi
+out="\${@: -1}"
+mkdir -p "$out/test-timings-1"
+if [ "$3" = 22 ]; then exit 1; fi
+echo trx > "$out/test-timings-1/timings.trx"
+`, { mode: 0o755 });
+  const result = spawnSync('bash', [path.join(__dirname, 'main-timings.sh'), path.join(dir, 'main'), '3'], {
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: 'owner/repo' },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'main')).sort(), ['11', '33']);
+  assert.match(result.stdout, /Could not download the timings of run 22/);
+  const calls = fs.readFileSync(path.join(dir, 'calls.txt'), 'utf8');
+  assert.match(calls, /^api repos\/owner\/repo\/actions\/workflows\/ci\.yml\/runs\?branch=main&event=push&status=success&per_page=3 /m);
+  assert.match(calls, /^run download 33 --repo owner\/repo --pattern test-timings-\* --dir .*\/main\/33$/m);
+});
+
 // A long class, a very slow method in another class and many quick classes.
 function measured() {
   const times = {
@@ -175,16 +229,17 @@ test('the split is the same every time, and filters use only the forms dotnet te
   assert.equal(planShards({ 'Bad Name.With Spaces': 5 }), null);
 });
 
-test('without timings from main the fixed split is used', () => {
+test('without timings from main the fixed split is used', t => {
   const fixed = planFilters(path.join(os.tmpdir(), 'no-such-timings-folder'));
   assert.equal(fixed.lines[0], 'source=fixed');
   assert.equal(fixed.lines[1], `filter_1=${testFilter(1)}`);
   assert.equal(fixed.lines.length, shardCount() + 1);
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ci-plan-'));
-  fs.writeFileSync(path.join(dir, 'timings.trx'), trx([['a', 'Ns.ATests', 'One', '00:01:00'], ['b', 'Ns.BTests', 'Two', '00:02:00']]));
+  const dir = tempDir(t);
+  writeRun(dir, '101', [['a', 'Ns.ATests', 'One', '00:01:00'], ['b', 'Ns.BTests', 'Two', '00:02:00']]);
+  writeRun(dir, '102', [['a', 'Ns.ATests', 'One', '00:01:10']]);
   const planned = planFilters(dir);
   assert.equal(planned.lines[0], 'source=timings');
-  assert.match(planned.note, /2 measured tests/);
+  assert.match(planned.note, /Split 2 tests measured in main's last 2 green runs/);
   assert.ok(planned.lines.slice(1).every((line, i) => line.startsWith(`filter_${i + 1}=`) && !line.includes('\n')));
 });
 
@@ -202,7 +257,8 @@ test('the comparison lists the tests that grew most, but single tests never warn
   const run = { 'Ns.ATests.Slower': 110, 'Ns.BTests.Noisy': 125, 'Ns.CTests.Tiny': 6, 'Ns.ETests.New': 400 };
   const report = compareTimings(main, run);
   // Only tests both runs have count: 131 s on main, 241 s here, which is less than two minutes more.
-  assert.match(report.summary, /The 3 tests both runs have took 241 s here and 131 s in main's latest green run \(\+84%\)/);
+  assert.match(report.summary, /The 3 tests this run shares with main took 241 s here and 131 s on main \(\+84%\), taking each test's median over main's latest green run\./);
+  assert.match(compareTimings(main, run, { runs: 3 }).summary, /median over main's last 3 green runs\./);
   assert.match(report.summary, /\| Ns\.ATests\.Slower \| 30 \| 110 \| \+267% \|/);
   assert.doesNotMatch(report.summary, /ETests|DTests/);
   // A single test nearly four times as slow is runner noise as often as not.
@@ -213,7 +269,7 @@ test('the whole suite growing a lot warns, and ordinary variation does not', () 
   const main = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`Ns.T${i}Tests.Runs`, 10]));
   const slower = compareTimings(main, Object.fromEntries(Object.keys(main).map(name => [name, 15])));
   assert.equal(slower.warnings.length, 1);
-  assert.match(slower.warnings[0], /^::warning title=Tests got slower::The tests both runs have took 600 seconds, \+50% on main's/);
+  assert.match(slower.warnings[0], /^::warning title=Tests got slower::The tests this run shares with main took 600 seconds, \+50% against main's latest green run\./);
   // A tenth slower is ordinary variation between runners.
   assert.deepEqual(compareTimings(main, Object.fromEntries(Object.keys(main).map(name => [name, 11]))).warnings, []);
   // A small suite growing by half adds too few seconds to matter.
@@ -222,7 +278,7 @@ test('the whole suite growing a lot warns, and ordinary variation does not', () 
 
 test('without main timings the comparison says so and warns about nothing', () => {
   const report = compareTimings({}, { 'Ns.ATests.One': 10 });
-  assert.match(report.summary, /No timings from main's latest green run/);
+  assert.match(report.summary, /No timings from main's recent green runs/);
   assert.deepEqual(report.warnings, []);
 });
 
@@ -232,6 +288,7 @@ test('the workflow compares test times after the test jobs, without blocking a m
   assert.match(job, /needs: tests/);
   assert.match(job, /needs\.tests\.result == 'success'/);
   assert.match(job, /pattern: test-timings-\*/);
+  assert.match(job, /main-timings\.sh "\$RUNNER_TEMP\/main" 3/);
   assert.match(job, /ci-plan\.js compare "\$RUNNER_TEMP\/main" "\$RUNNER_TEMP\/this-run"/);
   const verify = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  windows-documentation:'));
   assert.doesNotMatch(verify, /test-times/);
@@ -243,6 +300,9 @@ test('the workflow passes each job its planned filter', () => {
     assert.match(workflow, new RegExp(`filter-${shard}: \\$\\{\\{ steps\\.split\\.outputs\\.filter_${shard} \\}\\}`));
   }
   assert.match(workflow, /needs\.scope\.outputs\[format\('filter-\{0\}', matrix\.shard\)\]/);
+  const scope = workflow.slice(workflow.indexOf('\n  scope:'), workflow.indexOf('\n  checks:'));
+  assert.match(scope, /main-timings\.sh "\$RUNNER_TEMP\/timings" 3/);
+  assert.match(scope, /ci-plan\.js plan "\$RUNNER_TEMP\/timings"/);
 });
 
 test('only a change made entirely of documentation skips the code checks and the test suite', () => {
@@ -298,6 +358,17 @@ test('scope prints whether to run the code checks and the test suite', () => {
   assert.equal(main(['scope'], 'docs/playing.md\nglobal.json\n'), 'code=true\ntests=true');
   assert.equal(main(['scope'], 'src/ClankerWorld.GodotClient/Main.tscn\n'), 'code=true\ntests=false');
   assert.equal(main(['scope'], 'src/ClankerWorld.GodotClient/UI/Theme/GameUiText.cs\n'), 'code=true\ntests=true');
+});
+
+test('the workflow also runs on merge-queue batches, which run everything', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '..', 'workflows', 'ci.yml'), 'utf8');
+  const triggers = workflow.slice(workflow.indexOf('\non:'), workflow.indexOf('\npermissions:'));
+  assert.match(triggers, /\n  merge_group:/);
+  assert.match(triggers, /\n  pull_request:/);
+  // Only a pull request lists its changed files; anything else plans a full run.
+  const scope = workflow.slice(workflow.indexOf('\n  scope:'), workflow.indexOf('\n  checks:'));
+  assert.match(scope, /if \[ "\$EVENT" = pull_request \]; then/);
+  assert.deepEqual(planScope([], new Set()), { code: true, tests: true });
 });
 
 test('the workflow runs the test suite only when scope asks for it', () => {

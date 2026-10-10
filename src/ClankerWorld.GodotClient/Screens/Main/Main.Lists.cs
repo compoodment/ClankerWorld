@@ -21,23 +21,33 @@ public partial class Main
         inhabitantList.Hide();
         rosterCards.Compact = true;
         rosterCards.CustomMinimumSize = new Vector2(380, 60);
-        rosterCards.ItemSelected += index =>
+        rosterCards.ItemClicked += index => SelectRosterCard(index, keepRosterOpen: false);
+        rosterCards.ItemNavigated += index => SelectRosterCard(index, keepRosterOpen: true);
+        rosterCards.ItemActivated += index =>
         {
-            if (index < 0 || index >= rosterCardIds.Count) return;
-            for (var row = 0; row < inhabitantList.ItemCount; row++)
-                if (inhabitantList.GetItemMetadata(row).AsString() == rosterCardIds[(int)index])
-                {
-                    SelectInhabitantFromList(row);
-                    return;
-                }
+            SelectRosterCard(index, keepRosterOpen: true);
+            OpenAgentProfile(speak: false);
         };
-        rosterCards.ItemActivated += _ => OpenAgentProfile(speak: false);
         body.AddChild(rosterCards);
         inhabitantList.Hide();
     }
 
+    private void SelectRosterCard(long index, bool keepRosterOpen)
+    {
+        if (index < 0 || index >= rosterCardIds.Count) return;
+        for (var row = 0; row < inhabitantList.ItemCount; row++)
+            if (inhabitantList.GetItemMetadata(row).AsString() == rosterCardIds[(int)index])
+            {
+                SelectInhabitantFromList(row, keepRosterOpen);
+                return;
+            }
+    }
+
     private void RenderRosterCards(OwnerWorldInhabitant[] inhabitants)
     {
+        var previousSelection = rosterCards.GetSelectedItems();
+        var restoringSelection = previousSelection.Length > 0 && previousSelection[0] < rosterCardIds.Count &&
+            rosterCardIds[previousSelection[0]] == selectedInhabitantId;
         rosterCards.Clear();
         rosterCardIds.Clear();
         foreach (var person in inhabitants)
@@ -60,7 +70,7 @@ public partial class Main
             }
             rosterCards.AddItem(person.DisplayName, detail, AgentPortrait(person, living), tags, muted: !living);
             rosterCardIds.Add(person.Id);
-            if (person.Id == selectedInhabitantId) rosterCards.Select(rosterCardIds.Count - 1);
+            if (person.Id == selectedInhabitantId) rosterCards.Select(rosterCardIds.Count - 1, scrollIntoView: !restoringSelection);
         }
         rosterCards.Visible = inhabitants.Length > 0;
         var rows = Math.Max(1, inhabitants.Length);
@@ -98,6 +108,7 @@ public partial class Main
                 "town_project_approved" or "town_project_resumed"
                 => PixelIcons.Texture(PixelGlyph.Flag, ink, green, 1),
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or "town_building_assigned" or
+                "town_abandoned" or "town_revived" or "town_resettled" or
                 "town_admission_accepted" or "town_admission_approved" or "town_admission_lapsed" or
                 "market_stall_borrowed" or "market_stall_left"
                 => PixelIcons.Texture(PixelGlyph.House, ink, wood, 1),
@@ -107,6 +118,7 @@ public partial class Main
             "settlement_trade_completed" or "town_project_donated" or "town_project_material_picked_up" or
                 "town_project_material_delivered" or "town_project_material_returned" or "market_stock_loaded" or "market_stock_delivered" or
                 "market_stock_collected" or "market_trade_offered" or "market_trade_completed" or "market_trade_cancelled"
+                or "town_stock_salvaged"
                 => PixelIcons.Texture(PixelGlyph.Box, ink, wood, 1),
             _ => PixelIcons.Texture(PixelGlyph.Globe, ink, green, 1),
         };
@@ -134,6 +146,18 @@ public partial class Main
     /// </summary>
     private void RenderEventRows((long EventId, bool Located, string Clock, string Text)[] entries, bool offersNewcomer)
     {
+        const string actionKey = "keyboard_event_action";
+        var focused = GetViewport().GuiGetFocusOwner();
+        var focusedAction = focused is not null && eventRows.IsAncestorOf(focused) && focused.HasMeta(actionKey)
+            ? focused.GetMeta(actionKey).AsString() : null;
+        void RestoreActionFocus()
+        {
+            if (focusedAction is null) return;
+            var replacement = KeyboardControls(eventRows).FirstOrDefault(control =>
+                control.HasMeta(actionKey) && control.GetMeta(actionKey).AsString() == focusedAction);
+            if (replacement is not null) replacement.GrabFocus();
+            else FocusKeyboardPanel(eventsPanel);
+        }
         foreach (var child in eventRows.GetChildren())
         {
             eventRows.RemoveChild(child);
@@ -153,6 +177,7 @@ public partial class Main
                 eventRows.AddChild(new Label { Text = "Nothing notable has happened yet.", ThemeTypeVariation = "DimLabel" });
             FitHudLists();
             QueueHudListsFit();
+            RestoreActionFocus();
             return;
         }
         string? day = null;
@@ -196,15 +221,16 @@ public partial class Main
                 var find = new Button
                 {
                     TooltipText = "Show where this happened",
-                    FocusMode = Control.FocusModeEnum.None,
+                    FocusMode = Control.FocusModeEnum.All,
                     Flat = true,
                     Icon = PixelIcons.Themed(PixelGlyph.Find, UiTheme.Current.Primary, 1),
                     MouseDefaultCursorShape = Control.CursorShape.PointingHand,
                 };
-                foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "focus" })
+                foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed" })
                     find.AddThemeStyleboxOverride(state, new StyleBoxEmpty { ContentMarginLeft = 2, ContentMarginRight = 2 });
                 find.AddThemeColorOverride("icon_hover_color", UiTheme.Current.Link);
                 var id = entry.EventId.ToString(CultureInfo.InvariantCulture);
+                find.SetMeta(actionKey, id);
                 find.Pressed += () => JumpToEvent(id);
                 find.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
                 row.AddChild(find);
@@ -213,6 +239,7 @@ public partial class Main
         }
         FitHudLists();
         QueueHudListsFit();
+        RestoreActionFocus();
     }
 
     /// <summary>
@@ -237,10 +264,11 @@ public partial class Main
         {
             Text = "Add a newcomer",
             TooltipText = "Open Add Agent to place another adult.",
-            FocusMode = Control.FocusModeEnum.None,
+            FocusMode = Control.FocusModeEnum.All,
             SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
         };
         add.Pressed += () => _ = HandleEventLogActionAsync("add-newcomer");
+        add.SetMeta("keyboard_event_action", "add-newcomer");
         offer.AddChild(add);
         eventRows.AddChild(offer);
     }
@@ -305,6 +333,7 @@ public partial class Main
             (["+", "−"], "Zoom in or out"),
             (["H"], "Back to the first Town"),
             (["M"], "World Map"),
+            (["K"], "Focus a tile: arrows move, Enter selects"),
         ]),
         ("Time and agents", false, [
             (["Space"], "Pause or resume (or P)"),
@@ -316,6 +345,11 @@ public partial class Main
             (["Click"], "Select an agent or inspect a tile"),
             (["Wheel"], "Zoom toward the pointer"),
             (["Middle-drag"], "Move the map"),
+        ]),
+        ("Keyboard focus", false, [
+            (["Tab"], "Next control"),
+            (["Shift", "Tab"], "Previous control"),
+            (["Enter"], "Use the focused control"),
         ]),
         ("Panels", true, [
             (["F"], "Map filters"),

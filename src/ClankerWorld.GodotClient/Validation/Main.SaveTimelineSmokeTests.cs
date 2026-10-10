@@ -45,6 +45,12 @@ public partial class Main
         if (!lanes[1].IsLatest(harvest) || lanes[1].IsLatest(flood) || lanes[0].IsLatest(old) ||
             SaveTimelineLayout.BranchesFrom(lanes, flood) != 1)
             throw new InvalidOperationException("Only a branch's newest save may carry its banner, and only real branches count as grown from a save.");
+        if (lanes[3].Title != "From Before the flood" || lanes[4].Title != "From First camp")
+            throw new InvalidOperationException("Timeline rows must name the recorded save each branch started from.");
+        var renamedOrigin = SaveTimelineLayout.Lanes(saves.Select(save => save.Id == flood.Id
+            ? save with { Name = "After the flood" } : save).ToArray(), null).Single(lane => lane.Key == "b");
+        if (renamedOrigin.Title != "From Before the flood")
+            throw new InvalidOperationException("Changing a source save's name later must leave its branch label unchanged.");
         // Damaged records could name each other as starts; both branches still get a row.
         ManualWorldSave looped1 = new("x1", "Loop one", start, Day, false, new SaveBranch("x", 1, "y1"), BranchPosition: 1);
         ManualWorldSave looped2 = new("y1", "Loop two", start, Day, false, new SaveBranch("y", 2, "x1"), BranchPosition: 1);
@@ -54,7 +60,8 @@ public partial class Main
         // contents. That branch must not attach to the replacement checkpoint.
         var replacement = flood with { Name = "Replacement world", CreatedUtc = start.AddMinutes(20), WorldTick = 8 * Day, BranchPosition = 4 };
         var replacedOrigin = SaveTimelineLayout.Lanes([camp, replacement, winter], null).Single(lane => lane.Key == "b");
-        if (replacedOrigin.Parent is not null || replacedOrigin.ForkSave is not null || replacedOrigin.OriginTick != 2 * Day)
+        if (replacedOrigin.Parent is not null || replacedOrigin.ForkSave is not null || replacedOrigin.OriginTick != 2 * Day ||
+            replacedOrigin.Title != "From Before the flood")
             throw new InvalidOperationException("A branch must retain its original fork time without attaching to an overwritten source slot.");
         var calendar = SaveTimelineCalendar.From(new OwnerWorldCalendarPace(Day, 40, 10, 10, 10, 10));
         var olderHost = SaveTimelineCalendar.From(new OwnerWorldCalendarPace(Day, 40));
@@ -112,7 +119,7 @@ public partial class Main
                 manualSaveViewChoice.Selected != 0 || manualSaveTimeline.Lanes.Count != 5 || manualSaveTimeline.NowLane?.IsUnsaved != true)
                 throw new InvalidOperationException("Load Save must open on the timeline, with its key and a row for the new branch.");
             if (!Details().Contains("You are here", StringComparison.Ordinal) ||
-                !Details().Contains("Playing on from \"Before the flood\". Your next save starts Branch 4", StringComparison.Ordinal) ||
+                !Details().Contains("Playing on from \"Before the flood\". Your next save starts \"From Before the flood\"", StringComparison.Ordinal) ||
                 !manualSaveLoadButton.Disabled)
                 throw new InvalidOperationException($"With nothing chosen, the card must say where the world continues: {Details()}.");
             var card = manualSaveCard.GetGlobalRect();
@@ -199,7 +206,7 @@ public partial class Main
             for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!manualSaveTimeline.Visible || !manualSaveViewRow.Visible || manualSaveList.Visible ||
                 rows.PointPosition("auto") is null || manualSaveTimeline.NowLane?.Key != "c" ||
-                !Details().Contains("Your new save continues Branch 3.", StringComparison.Ordinal) ||
+                !Details().Contains("Your new save continues From First camp.", StringComparison.Ordinal) ||
                 Chosen() is not null || !manualSaveOverwriteButton.Disabled || !manualSaveDeleteButton.Disabled ||
                 manualSaveCreateButton.Disabled)
                 throw new InvalidOperationException("Save World must draw autosave-only history and offer a new named save.");
@@ -238,9 +245,9 @@ public partial class Main
 
             await OpenManualSavesAsync(false, _ => Task.FromResult(saves),
                 _ => Task.FromResult<SaveTimelinePosition?>(new("flood", "a", true, ContinuedFromTick: 2 * Day)));
-            if (!Details().Contains("Your new save starts a new branch", StringComparison.Ordinal) ||
+            if (!Details().Contains("Your new save starts \"From Before the flood\"", StringComparison.Ordinal) ||
                 Details().Contains("starts Branch", StringComparison.Ordinal))
-                throw new InvalidOperationException("Without an authoritative next number, the readout must describe a new branch without guessing its number.");
+                throw new InvalidOperationException("Without an authoritative next number, the readout must use the source name without guessing a number.");
             manualSaveOverlay.Hide();
 
             // Deleting all points from the current branch does not move the
@@ -277,7 +284,7 @@ public partial class Main
             for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var lastTag = rows.TagArea("paused-8") ?? throw new InvalidOperationException("The selected save's tag must remain drawn.");
             if (lastTag.Position.X < rows.ViewLeft - 1 || lastTag.End.X > rows.ViewLeft + rows.ViewWidth + 1)
-                throw new InvalidOperationException("Choosing a crowded save must scroll its complete name tag into view.");
+                throw new InvalidOperationException($"Choosing a crowded save must scroll its complete name tag into view: tag={lastTag}, left={rows.ViewLeft}, width={rows.ViewWidth}, focus={GetViewport().GuiGetFocusOwner()?.GetPath()}, keyboard={keyboardNavigation}.");
 
             Click("anchor");
             var hiddenPoint = rows.PointPosition("paused-8") ?? throw new InvalidOperationException("The first branch must retain its save points.");
@@ -297,6 +304,103 @@ public partial class Main
             rows.ViewTop = previousViewTop;
             rows.QueueRedraw();
             manualSaveOverlay.Hide();
+
+            // The saved name can use all eighty characters. The displayed tags
+            // stay bounded, and hovering still gives the complete branch name.
+            var longOrigin = flood with { Name = new string('W', 80) };
+            var longWinter = winter with { Branch = second with { StartedFromName = longOrigin.Name } };
+            var longLabel = "From " + longOrigin.Name;
+            await OpenManualSavesAsync(true, _ => Task.FromResult<ManualWorldSave[]>([longOrigin, harvest, longWinter]),
+                _ => Task.FromResult<SaveTimelinePosition?>(new(winter.Id, second.Id, false)));
+            for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Click(winter.Id);
+            for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var longLane = manualSaveTimeline.Lanes.Single(lane => lane.Key == second.Id);
+            var names = manualSaveTimeline.FindChildren("*", recursive: true, owned: false)
+                .OfType<SaveTimelineNames>().Single();
+            if (longLane.Title != longLabel || names.MouseFilter == MouseFilterEnum.Ignore ||
+                names._GetTooltip(new Vector2(40, SaveTimelineRows.LaneY(longLane.Index) - names.ViewTop)) != longLabel)
+                throw new InvalidOperationException("A shortened timeline branch must retain its full recorded name on hover.");
+            void CheckLongTag(Control container, string expectedLabel)
+            {
+                var tag = container.FindChildren("*", nameof(Label), true, false).OfType<Label>()
+                    .Single(label => label.TooltipText == expectedLabel);
+                if (!tag.Text.EndsWith("...", StringComparison.Ordinal) || tag.GetCombinedMinimumSize().X > 172 ||
+                    tag.MouseFilter == MouseFilterEnum.Ignore || !GetViewportRect().Grow(1).Encloses(manualSaveCard.GetGlobalRect()))
+                    throw new InvalidOperationException($"A long branch tag must fit its card and expose the complete name on hover: tag={tag.GetCombinedMinimumSize()} card={manualSaveCard.GetGlobalRect()} view={GetViewportRect()} mouse={tag.MouseFilter} text={tag.Text}.");
+                var visiblePrefix = tag.Text[..^3];
+                var complete = expectedLabel.ToUpperInvariant();
+                var boundaries = System.Globalization.StringInfo.ParseCombiningCharacters(complete);
+                if (!complete.StartsWith(visiblePrefix, StringComparison.Ordinal) ||
+                    !boundaries.Contains(visiblePrefix.Length))
+                    throw new InvalidOperationException("A shortened branch tag must end between complete visible characters.");
+            }
+            void CheckFittedNames(string origin)
+            {
+                var labels = manualSaveList.FindChildren("*", nameof(Label), true, false).OfType<FittedLabel>()
+                    .Where(label => label.FullText.Contains(origin, StringComparison.Ordinal)).ToArray();
+                if (labels.Length == 0)
+                    throw new InvalidOperationException("The real save cards must display their originating name.");
+                foreach (var label in labels)
+                {
+                    var full = label.FullText;
+                    var boundaries = System.Globalization.StringInfo.ParseCombiningCharacters(full);
+                    bool WholePrefix(string text) => text == full || text.EndsWith("...", StringComparison.Ordinal) &&
+                        full.StartsWith(text[..^3], StringComparison.Ordinal) && boundaries.Contains(text.Length - 3);
+                    var font = label.GetThemeFont("font");
+                    var size = label.GetThemeFontSize("font_size");
+                    float Measure(string text)
+                    {
+                        if (!WholePrefix(text))
+                            throw new InvalidOperationException("Card shortening must never send a partial visible character to the native font.");
+                        return font.GetStringSize(text, HorizontalAlignment.Left, -1, size).X;
+                    }
+                    if (!WholePrefix(label.Text) || Measure(label.Text) > label.Size.X + 1)
+                        throw new InvalidOperationException("The displayed card name must fit and retain complete visible characters.");
+                    // Exercise a genuinely narrow native-font width as well as
+                    // the current card layout; every measured candidate is valid.
+                    var first = System.Globalization.StringInfo.GetNextTextElement(full);
+                    var width = font.GetStringSize(first + "...", HorizontalAlignment.Left, -1, size).X;
+                    var narrow = FittedLabel.Shorten(full, width, Measure);
+                    if (!narrow.EndsWith("...", StringComparison.Ordinal) || !WholePrefix(narrow) || Measure(narrow) > width + 1)
+                        throw new InvalidOperationException("A narrow card name must keep its native-font width and whole-character boundary.");
+                }
+            }
+            CheckLongTag(manualSaveDetails, longLabel);
+            manualSaveViewChoice.Select(1);
+            manualSaveViewChoice.EmitSignal(SegmentedChoice.SignalName.ItemSelected, 1L);
+            for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            CheckLongTag(manualSaveList, longLabel);
+            CheckFittedNames(longOrigin.Name);
+            manualSaveOverlay.Hide();
+
+            // Every origin is a valid eighty-unit name. Render real cards for
+            // supplementary characters, combining marks, flags and joined emoji.
+            foreach (var unicodeName in new[]
+            {
+                string.Concat(Enumerable.Repeat("😀", 40)),
+                string.Concat(Enumerable.Repeat("e\u0301", 40)),
+                string.Concat(Enumerable.Repeat("🇬🇧", 20)),
+                string.Concat(Enumerable.Repeat("👩‍🌾", 16)),
+            })
+            {
+                manualSaveShowsList = false;
+                var unicodeOrigin = flood with { Name = unicodeName };
+                var unicodeWinter = winter with { Branch = second with { StartedFromName = unicodeOrigin.Name } };
+                var unicodeLabel = "From " + unicodeOrigin.Name;
+                await OpenManualSavesAsync(true, _ => Task.FromResult<ManualWorldSave[]>([unicodeOrigin, harvest, unicodeWinter]),
+                    _ => Task.FromResult<SaveTimelinePosition?>(new(winter.Id, second.Id, false)));
+                for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                Click(winter.Id);
+                for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                CheckLongTag(manualSaveDetails, unicodeLabel);
+                manualSaveViewChoice.Select(1);
+                manualSaveViewChoice.EmitSignal(SegmentedChoice.SignalName.ItemSelected, 1L);
+                for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                CheckLongTag(manualSaveList, unicodeLabel);
+                CheckFittedNames(unicodeOrigin.Name);
+                manualSaveOverlay.Hide();
+            }
 
             // Load Save without saves shows only the list's placeholder.
             await OpenManualSavesAsync(true, _ => Task.FromResult<ManualWorldSave[]>([]));

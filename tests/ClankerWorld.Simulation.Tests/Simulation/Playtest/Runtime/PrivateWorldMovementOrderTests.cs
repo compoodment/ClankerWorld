@@ -122,7 +122,7 @@ public sealed partial class PrivateWorldRuntimeTests
         var destination = scenario switch
         {
             "occupied" => initial.Inhabitants.First(person => person.InhabitantId != HarvestInstructionActor).Position,
-            "impassable" => initial.Map.Tiles.First(tile => !initial.Map.IsPassable(tile.Position)).Position,
+            "impassable" => initial.Map.Tiles.First(tile => tile.Terrain is TerrainKind.Ocean or TerrainKind.Peak).Position,
             _ => new GridPoint(1_000_000, 1_000_000),
         };
         using var world = RestoreMovementWorld(initial);

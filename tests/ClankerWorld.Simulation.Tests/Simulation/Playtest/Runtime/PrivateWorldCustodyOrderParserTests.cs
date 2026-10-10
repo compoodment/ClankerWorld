@@ -101,6 +101,13 @@ public sealed class PrivateWorldCustodyOrderParserTests
     [InlineData("collect iron knives", "collect_equipment", null, "iron_knife", null)]
     [InlineData("store baskets", "store_equipment", null, "basket", null)]
     [InlineData("collect cultivated greens", "collect_food", null, null, "cultivated_greens")]
+    [InlineData("collect simple meals", "collect_food", null, null, "simple_meal")]
+    [InlineData("collect porridge", "collect_food", null, null, "porridge")]
+    [InlineData("collect berry porridge", "collect_food", null, null, "berry_porridge")]
+    [InlineData("collect fruit porridge", "collect_food", null, null, "fruit_porridge")]
+    [InlineData("collect bread", "collect_food", null, null, "bread")]
+    [InlineData("collect vegetable stew", "collect_food", null, null, "stew")]
+    [InlineData("collect restaurant meals", "collect_food", null, null, "restaurant_meal")]
     public void ExistingSubjectsKeepTheirSpecializedActions(string text, string action,
         string? material, string? equipment, string? food)
     {
@@ -119,6 +126,8 @@ public sealed class PrivateWorldCustodyOrderParserTests
     [InlineData("return two borrowed diamond ornaments", "diamond_ornament")]
     [InlineData("return two borrowed iron ore", "iron_ore")]
     [InlineData("return two borrowed iron knives", "iron_knife")]
+    [InlineData("return two borrowed bread", "bread")]
+    [InlineData("return two borrowed restaurant meals", "restaurant_meal")]
     public void ReturningOverlappingSubjectsUsesTheWholeBorrowedItemName(string text, string kind)
     {
         using var world = new PrivateWorldRuntime("custody-parser-return");
@@ -144,6 +153,9 @@ public sealed class PrivateWorldCustodyOrderParserTests
     [InlineData("store cloth at (1, 2) then return borrowed cloth")]
     [InlineData("return borrowed water")]
     [InlineData("return borrowed berries")]
+    [InlineData("store bread")]
+    [InlineData("store restaurant meals")]
+    [InlineData("harvest bread")]
     [InlineData("gather cloth")]
     [InlineData("gather refined iron")]
     [InlineData("repair gold ornaments")]

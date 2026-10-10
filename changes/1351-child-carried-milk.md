@@ -1,0 +1,1 @@
+- Hungry children can drink fresh milk from their own usable carried jugs, gaining fullness and keeping the jug intact.

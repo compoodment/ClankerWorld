@@ -14,9 +14,10 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class SettlementParenthoodTests
 {
-    private const string ContinuityOnText = "The continuity rule is on because fewer than eight people who are not elders are alive. " +
+    private static string ContinuityOnText(int couples) =>
+        $"The continuity rule is on because fewer than 4 couples of adults who are not close relatives can have children ({couples} now). " +
         "Couples may put off having a child for up to two days but cannot refuse.";
-    private const string ContinuityOffText = "The continuity rule is off because eight or more people who are not elders are alive. " +
+    private const string ContinuityOffText = "The continuity rule is off because at least 4 couples of adults who are not close relatives can have children (4 now). " +
         "Couples may decide against having a child again.";
     private static readonly JsonSerializerOptions ContinuityGodotJson = new(JsonSerializerDefaults.Web);
 
@@ -39,12 +40,12 @@ public sealed partial class SettlementParenthoodTests
         var on = Assert.Single(state.Events, item => item.Kind.StartsWith("continuity_rule_", StringComparison.Ordinal));
         Assert.Equal("continuity_rule_on", on.Kind);
         Assert.True(on.EventId < state.Events.Single(item => item.Kind == "world_started").EventId);
-        Assert.Equal(ContinuityOnText, DescribeForPlayer(restored, on.Kind));
+        Assert.Equal(ContinuityOnText(0), DescribeForPlayer(restored, on.Kind));
         Assert.True(ClientSnapshot(restored).ContinuityRuleActive);
     }
 
     [Fact]
-    public async Task ContinuityRuleTurnsOffAtEightNonEldersAndBackOnBelowIt()
+    public async Task AddingUnpartneredNewcomersDoesNotTurnTheRuleOff()
     {
         using var world = NormalPathWorld.CreateGenerated("continuity-newcomers", _ => new ParentProvider("safe_idle"));
         var map = world.ExportState().Map;
@@ -70,11 +71,10 @@ public sealed partial class SettlementParenthoodTests
         Assert.Equal(4, added.Count);
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "continuity_rule_off");
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        var off = Assert.Single(world.ExportState().Events, item => item.Kind == "continuity_rule_off");
-        Assert.Equal("non_elders:8", off.Detail);
-        Assert.False(world.ExportState().Continuity!.Active);
-        Assert.False(ClientSnapshot(world).ContinuityRuleActive);
-        Assert.Equal(ContinuityOffText, DescribeForPlayer(world, off.Kind));
+        Assert.True(world.ExportState().Continuity!.Active);
+        Assert.True(ClientSnapshot(world).ContinuityRuleActive);
+        Assert.Empty(world.ExportState().Continuity!.Couples);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "continuity_rule_off");
         Assert.True(GameUiText.IsPlayerFacingEvent("continuity_rule_off"));
         Assert.True(GameUiText.IsPlayerFacingEvent("continuity_rule_on"));
         world.Pause();
@@ -82,7 +82,20 @@ public sealed partial class SettlementParenthoodTests
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new ParentProvider("safe_idle"));
         restored.Resume();
         for (var tick = 0; tick < 3; tick++) Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
-        Assert.Single(restored.ExportState().Events, item => item.Kind == "continuity_rule_off");
+        Assert.DoesNotContain(restored.ExportState().Events, item => item.Kind == "continuity_rule_off");
+    }
+
+    [Fact]
+    public async Task AFullHeadCountWithoutEnoughEligiblePartnersStillNeedsContinuity()
+    {
+        var state = WithUnpartneredNewcomers(await PreparedState());
+        using var world = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("safe_idle"));
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(8, world.Inhabitants.Count);
+        Assert.True(world.ExportState().Continuity!.Active);
+        var couple = Assert.Single(world.ExportState().Continuity!.Couples);
+        Assert.Contains(state.Inhabitants[0].InhabitantId, new[] { couple.FirstPartnerId, couple.SecondPartnerId });
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "continuity_rule_off");
     }
 
     [Fact]
@@ -163,27 +176,6 @@ public sealed partial class SettlementParenthoodTests
     }
 
     [Fact]
-    public async Task ContinuityCoupleCanPutOffPreparationButCannotWithdraw()
-    {
-        var state = await PreparedState();
-        var first = state.Inhabitants[0].InhabitantId;
-        using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "parent_accept:"));
-        await world.AdvanceOneTickAsync();
-        await world.AdvanceOneTickAsync();
-        Assert.Equal("preparing", world.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
-        using var withdrawing = PrivateWorldRuntime.Restore(world.ExportState(), _ => new ParentProvider("parent_cancel:"));
-        for (var tick = 0; tick < 40; tick++) await withdrawing.AdvanceOneTickAsync();
-        Assert.Equal("preparing", withdrawing.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
-        using var postponing = PrivateWorldRuntime.Restore(world.ExportState(), _ => new ParentProvider("parent_postpone:"));
-        for (var tick = 0; tick < 40; tick++) await postponing.AdvanceOneTickAsync();
-        Assert.Equal("postponed", postponing.Inhabitants.Single(person => person.InhabitantId == first).Parenthood!.Stage);
-        Assert.Contains(postponing.ExportState().Events, item => item.Kind == "parenthood_postponed" && item.Detail == first);
-        Assert.Contains("Parenthood put off for now.", new OwnerWorldObservationStore(postponing).GetSnapshot().Inhabitants
-            .Single(person => person.Id == first).SocialNotes);
-        Assert.Empty(postponing.Society.Births);
-    }
-
-    [Fact]
     public async Task CouplesModelRequestsStateTheContinuityRule()
     {
         var state = await PreparedState();
@@ -196,7 +188,7 @@ public sealed partial class SettlementParenthoodTests
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
 
         var asking = seen[first].First();
-        Assert.Contains("while fewer than eight non-elders are alive", asking.Self!.ContinuityNote, StringComparison.Ordinal);
+        Assert.Contains("fewer than 4 adult couples who are not close relatives can have children", asking.Self!.ContinuityNote, StringComparison.Ordinal);
         Assert.Contains("may put off having a child for up to two days but may not refuse", asking.Self.ContinuityNote, StringComparison.Ordinal);
         Assert.Contains("Your two days end in about 48 hours", asking.Self.ContinuityNote, StringComparison.Ordinal);
         Assert.Contains("may say not yet but not refuse", Assert.Single(asking.Candidates, item =>
@@ -231,15 +223,15 @@ public sealed partial class SettlementParenthoodTests
     }
 
     [Fact]
-    public async Task OrdinaryRefusalReturnsOnceEightNonEldersLive()
+    public async Task OrdinaryRefusalReturnsWithFourEligibleCouples()
     {
-        var state = WithEightNonElders(await PreparedState());
+        var state = WithFourEligibleCouples(await PreparedState());
         var first = state.Inhabitants[0].InhabitantId;
         var seen = new ConcurrentDictionary<string, ConcurrentQueue<InhabitantObservation>>(StringComparer.Ordinal);
         using var world = PrivateWorldRuntime.Restore(state, actor => new RecordingParentProvider(
             actor == first ? "parent_propose:" : "parent_decline:", seen));
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        Assert.Contains(world.ExportState().Events, item => item.Kind == "continuity_rule_off" && item.Detail == "non_elders:8");
+        Assert.Contains(world.ExportState().Events, item => item.Kind == "continuity_rule_off" && item.Detail == "eligible_couples|4|threshold|4");
         Assert.False(world.ExportState().Continuity!.Active);
         Assert.Empty(world.ExportState().Continuity!.Couples);
         // Eight agents share four decisions a tick, so the answer may take a tick or two.
@@ -252,7 +244,7 @@ public sealed partial class SettlementParenthoodTests
             observation.Self?.ContinuityNote is not null ||
             observation.Candidates.Any(item => item.Id.StartsWith("parent_postpone:", StringComparison.Ordinal)));
 
-        // Losing a newcomer drops the world below eight again, and the rule comes back for the couple.
+        // Losing one partner drops the world to three eligible couples, bringing the rule back.
         var later = world.ExportState();
         var newcomer = later.Inhabitants.First(person => person.InhabitantId.StartsWith("agent:", StringComparison.Ordinal)).InhabitantId;
         using var society = SocietyWorldRuntime.Restore(later.Society);
@@ -265,11 +257,11 @@ public sealed partial class SettlementParenthoodTests
         Assert.True((await fewer.AdvanceOneTickAsync()).Advanced);
         var transitions = fewer.ExportState().Events.Where(item => item.Kind.StartsWith("continuity_rule_", StringComparison.Ordinal)).ToArray();
         Assert.Equal(["continuity_rule_on", "continuity_rule_off", "continuity_rule_on"], transitions.Select(item => item.Kind));
-        Assert.Equal("non_elders:7", transitions[^1].Detail);
-        Assert.Equal(ContinuityOnText, WorldEventText.Describe(
+        Assert.Equal("eligible_couples|3|threshold|4", transitions[^1].Detail);
+        Assert.Equal(ContinuityOnText(3), WorldEventText.Describe(
             new GodotOwnerWorldEvent(transitions[^1].EventId, transitions[^1].WorldTick, transitions[^1].Kind, transitions[^1].Detail), null));
-        var couple = Assert.Single(fewer.ExportState().Continuity!.Couples);
-        Assert.Contains(first, new[] { couple.FirstPartnerId, couple.SecondPartnerId });
+        Assert.Equal(3, fewer.ExportState().Continuity!.Couples.Count);
+        Assert.Contains(fewer.ExportState().Continuity!.Couples, couple => couple.FirstPartnerId == first || couple.SecondPartnerId == first);
     }
 
     [Fact]
@@ -278,7 +270,7 @@ public sealed partial class SettlementParenthoodTests
         var directory = Directory.CreateTempSubdirectory("clankerworld-continuity-log-");
         try
         {
-            var state = WithEightNonElders(await PreparedState());
+            var state = WithFourEligibleCouples(await PreparedState());
             state = state with
             {
                 Society = state.Society with
@@ -342,8 +334,8 @@ public sealed partial class SettlementParenthoodTests
         JsonSerializer.Deserialize<GodotOwnerWorldSnapshot>(JsonSerializer.Serialize(
             new OwnerWorldObservationStore(world).GetSnapshot(), ContinuityGodotJson), ContinuityGodotJson)!;
 
-    /// <summary>Adds unrelated adults without a household until eight non-elders live, which turns the rule off.</summary>
-    private static PrivateWorldRuntimeState WithEightNonElders(PrivateWorldRuntimeState state)
+    /// <summary>Adds single adults to prove head count alone does not change the continuity trigger.</summary>
+    private static PrivateWorldRuntimeState WithUnpartneredNewcomers(PrivateWorldRuntimeState state)
     {
         using var society = SocietyWorldRuntime.Restore(state.Society);
         var taken = state.Inhabitants.Select(person => person.Position).ToHashSet();
@@ -357,6 +349,121 @@ public sealed partial class SettlementParenthoodTests
             added.Add(new(id, sites[index], 9_000, 0, "steady", "help where needed", Survival: new SurvivalCondition()));
         }
         return state with { Society = society.ExportState(), Inhabitants = [.. state.Inhabitants, .. added] };
+    }
+
+    /// <summary>Four real accepted adult partnerships make ordinary parenthood consent apply.</summary>
+    private static PrivateWorldRuntimeState WithFourEligibleCouples(PrivateWorldRuntimeState state)
+    {
+        state = WithUnpartneredNewcomers(state);
+        using var society = SocietyWorldRuntime.Restore(state.Society);
+        for (var index = 0; index < state.Inhabitants.Count; index += 2)
+        {
+            var first = state.Inhabitants[index].InhabitantId;
+            var second = state.Inhabitants[index + 1].InhabitantId;
+            var homeless = new[] { first, second }.Where(id => society.Checkpoint.GetInhabitant(id).HouseholdId is null).ToArray();
+            if (homeless.Length > 0)
+                society.Apply(checkpoint => SocietyFixture.CreateHousehold(checkpoint, "continuity-home-" + index,
+                    "Continuity household " + index, homeless));
+            if (society.Checkpoint.Relationships.Any(item => item.Type == SocietyRelationshipType.Partnership &&
+                item.State == SocietyRelationshipState.Accepted &&
+                (item.ProposerId == first && item.TargetId == second || item.ProposerId == second && item.TargetId == first))) continue;
+            var id = "continuity-partners-" + index;
+            society.Apply(checkpoint => SocietyFixture.ProposeRelationship(checkpoint,
+                new(id, 1, SocietyRelationshipType.Partnership, first, second, checkpoint.WorldTick)));
+            society.Apply(checkpoint => SocietyFixture.AcceptRelationship(checkpoint, id, 1, second));
+        }
+        return state with { Society = society.ExportState() };
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CloseRelativesAndEldersDoNotCountAsEligibleCouples(bool elder)
+    {
+        var state = WithFourEligibleCouples(await PreparedState());
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        if (elder) state = AsElder(state, first);
+        else
+        {
+            (state, var ancestor) = FamilyTreeFixture.WithDeadAncestor(state, "continuity-ancestor");
+            state = FamilyTreeFixture.WithRelationships(state, SocietyRelationshipType.BiologicalParentage,
+                (ancestor, first), (ancestor, second));
+        }
+        using var world = PrivateWorldRuntime.Restore(state with { Continuity = new(false, []) }, _ => new ParentProvider("safe_idle"));
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.True(world.ExportState().Continuity!.Active);
+        Assert.Equal(3, world.ExportState().Continuity!.Couples.Count);
+        Assert.DoesNotContain(world.ExportState().Continuity!.Couples, couple => couple.FirstPartnerId == first || couple.SecondPartnerId == first);
+        var on = world.ExportState().Events.Last(item => item.Kind == "continuity_rule_on");
+        Assert.Equal("eligible_couples|3|threshold|4", on.Detail);
+        Assert.Equal(ContinuityOnText(3), DescribeForPlayer(world, on.Kind));
+    }
+
+    [Fact]
+    public async Task EligibleCoupleTransitionsReplayAndRejectedTicksKeepTheFlagAndDeadlines()
+    {
+        var state = WithFourEligibleCouples(await PreparedState());
+        using var world = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("safe_idle"));
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new ParentProvider("safe_idle"));
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        for (var tick = 0; tick < 3; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        Assert.False(world.ExportState().Continuity!.Active);
+        Assert.Single(world.ExportState().Events, item => item.Kind == "continuity_rule_off");
+        Assert.Equal(ContinuityOffText, DescribeForPlayer(world, "continuity_rule_off"));
+    }
+
+    [Fact]
+    public async Task CoupleCaringForAnInfantCountsTowardThresholdButIsNotHeldForAnotherChild()
+    {
+        var state = WithFourEligibleCouples(await PreparedState());
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        var society = ChosenBirthNameTestFixture.NameParent(state.Society.Society, first);
+        var home = society.GetInhabitant(first).HouseholdId!;
+        var food = society.Inventory.Lots.First(item => item.OwnerId == home && item.ItemKind == "food" && item.Quantity >= 4);
+        var birth = SocietyFixture.CommitBirth(society, new SocietyBirthRequest(
+            "continuity-counted-infant", 1, first, second, home, [first], [first, second], food.Id, 4, society.WorldTick,
+            ChildName: ChosenBirthNameTestFixture.ChildName(society, first, "Ari"), PrimaryCaregiverId: first));
+        var child = Assert.IsType<string>(birth.CreatedId);
+        var position = state.Map.Tiles.Select(tile => tile.Position).First(point => state.Map.IsPassable(point) &&
+            !state.Inhabitants.Any(person => person.Position == point) && !state.Map.Resources.Any(item => item.Position == point));
+        state = state with
+        {
+            Society = state.Society with { Society = birth.Checkpoint },
+            Inhabitants = [.. state.Inhabitants, new(child, position, 9_000, 0, "curious", "grow with the household",
+                Survival: new SurvivalCondition(WarmthBasisPoints: 10_000))],
+        };
+        using var world = PrivateWorldRuntime.Restore(state, _ => new ParentProvider("safe_idle"));
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.False(world.ExportState().Continuity!.Active);
+        Assert.Equal("eligible_couples|4|threshold|4", world.ExportState().Events.Last(item => item.Kind == "continuity_rule_off").Detail);
+
+        var withoutOnePartner = AsElder(world.ExportState(), state.Inhabitants[6].InhabitantId);
+        using var fewer = PrivateWorldRuntime.Restore(withoutOnePartner, _ => new ParentProvider("safe_idle"));
+        Assert.True((await fewer.AdvanceOneTickAsync()).Advanced);
+        Assert.True(fewer.ExportState().Continuity!.Active);
+        Assert.Equal(2, fewer.ExportState().Continuity!.Couples.Count);
+        Assert.DoesNotContain(fewer.ExportState().Continuity!.Couples, pair => pair.FirstPartnerId == first || pair.SecondPartnerId == first);
+        Assert.Equal("eligible_couples|3|threshold|4", fewer.ExportState().Events.Last(item => item.Kind == "continuity_rule_on").Detail);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void LegacyContinuityEventsKeepTheirHistoricalReason(bool active)
+    {
+        var text = WorldEventText.Describe(new GodotOwnerWorldEvent(1, 1,
+            active ? "continuity_rule_on" : "continuity_rule_off", "non_elders:8"), null);
+        Assert.Contains("people who are not elders are alive", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("couples of adults", text, StringComparison.Ordinal);
     }
 
     private sealed class RecordingParentProvider(string prefix,

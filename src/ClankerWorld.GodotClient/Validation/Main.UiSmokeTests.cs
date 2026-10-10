@@ -8,6 +8,63 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private async Task VerifyInterruptedMapDragAsync()
+    {
+        var originalCenter = cameraCenterTiles;
+        var pointer = mapCanvas.GetGlobalRect().GetCenter();
+        void Send(InputEventMouse input)
+        {
+            input.Position = pointer;
+            input.GlobalPosition = pointer;
+            GetViewport().PushInput(input, inLocalCoords: true);
+        }
+        try
+        {
+            Send(new InputEventMouseMotion());
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = true, ButtonMask = MouseButtonMask.Middle });
+            if (!draggingMap) throw new InvalidOperationException("The interruption check must begin with a real middle-button map drag.");
+            await ToggleGameMenuAsync();
+            if (draggingMap) throw new InvalidOperationException("Opening the pause menu must end the current map drag.");
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = false });
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            CloseGameMenu();
+            var beforeHover = cameraCenterTiles;
+            Send(new InputEventMouseMotion { Relative = new Vector2(30, 0) });
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (draggingMap || cameraCenterTiles != beforeHover)
+                throw new InvalidOperationException($"Releasing a map drag in the pause menu must leave ordinary hover still: {beforeHover} -> {cameraCenterTiles}.");
+
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = true, ButtonMask = MouseButtonMask.Middle });
+            Notification((int)NotificationApplicationFocusOut);
+            Notification((int)NotificationApplicationFocusIn);
+            Send(new InputEventMouseMotion { Relative = new Vector2(30, 0), ButtonMask = MouseButtonMask.Middle });
+            if (draggingMap || cameraCenterTiles != beforeHover)
+                throw new InvalidOperationException("Losing application focus must end the drag until a fresh press, even when the button is still held on return.");
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = false });
+
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = true, ButtonMask = MouseButtonMask.Middle });
+            Send(new InputEventMouseMotion { Relative = new Vector2(30, 0) });
+            if (draggingMap || cameraCenterTiles != beforeHover)
+                throw new InvalidOperationException("A motion reporting no middle button must stop a drag even if its release event was missed.");
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = false });
+
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = true, ButtonMask = MouseButtonMask.Middle });
+            var beforeFreshDrag = cameraCenterTiles.X;
+            var stride = currentTileSize + TileGap;
+            Send(new InputEventMouseMotion { Relative = new Vector2(30, 0), ButtonMask = MouseButtonMask.Middle });
+            Send(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = false });
+            if (Math.Abs(PositiveMod(beforeFreshDrag - cameraCenterTiles.X, 256) - 30f / stride) > 0.01f || draggingMap)
+                throw new InvalidOperationException("A fresh middle-button drag must still pan across the wrapped seam and stop on release.");
+        }
+        finally
+        {
+            CloseGameMenu();
+            draggingMap = false;
+            CenterCameraAt(originalCenter);
+        }
+    }
+
     private static readonly System.Text.Json.JsonSerializerOptions CompatibilitySmokeJsonOptions = new(System.Text.Json.JsonSerializerDefaults.Web);
 
     private async Task VerifyNewWorldCompatibilityMessageAsync()
@@ -142,6 +199,7 @@ public partial class Main
                 choiceBounds.End.X > settingsViewport.End.X + 1)
                 throw new InvalidOperationException("Game Settings escaped its usable bounds at 1440p and 200%.");
             await VerifyAgentConversationReaderAt200PercentAsync();
+            VerifyResourceAppearanceReuse(smokeMap);
 
             var emptyLayer = Convert.ToBase64String(new byte[16]);
             var fieldMap = smokeMap with
@@ -485,6 +543,26 @@ public partial class Main
             fresh.Free();
             if (freshModel.Length > 0 || freshProblem != cantUseLuna)
                 throw new InvalidOperationException("A new agent must not start on another model when the key can't use the default.");
+            picker.SetModel("gpt-6-luna", isNewAgent: true);
+            picker.BeginLoading("gpt-6-luna");
+            picker.ShowList(listed, "gpt-6-luna");
+            const string cloudDefault = "glm-5.3-flash:cloud";
+            picker.SetModel(cloudDefault, isNewAgent: true);
+            picker.BeginLoading(cloudDefault);
+            OwnerProviderModelChoice[] cloudModels = [new(cloudDefault, false), new("glm-5.3:cloud", true)];
+            picker.ShowList(cloudModels, cloudDefault);
+            if (picker.Model.Length > 0 || picker.IsTyping || picker.Problem != $"This key can't use {cloudDefault}. Choose a model it can use." ||
+                picker.Choice.GetItemText(picker.Choice.Selected) != ModelPicker.ChooseText)
+                throw new InvalidOperationException($"Switching providers must not treat an unavailable automatic default as a typed model: model={picker.Model}, typing={picker.IsTyping}, problem={picker.Problem}.");
+            picker.SetModel("gpt-6-luna", isNewAgent: true);
+            picker.BeginLoading("gpt-6-luna");
+            picker.ShowList(listed, "gpt-6-luna");
+            picker.SetModel(cloudDefault, isNewAgent: true);
+            picker.BeginLoading(cloudDefault);
+            picker.ShowList([new(cloudDefault, true)], cloudDefault);
+            if (picker.Model != cloudDefault || picker.IsTyping || picker.Problem.Length > 0)
+                throw new InvalidOperationException("An available default after switching providers must remain a listed choice.");
+            picker.ShowList(listed, "gpt-6-luna");
             picker.SetModel("my-fine-tune");
             if (!picker.TypedInput.Visible || picker.TypedInput.Text != "my-fine-tune" || picker.Model != "my-fine-tune" ||
                 picker.Choice.GetItemText(picker.Choice.Selected) != ModelPicker.TypeOwnText)
@@ -499,6 +577,10 @@ public partial class Main
             picker.ShowList(listed, "gpt-6-luna");
             if (picker.Model != "my-other-model" || !picker.TypedInput.Visible)
                 throw new InvalidOperationException("A new list must not replace a typed model name.");
+            picker.BeginLoading(cloudDefault);
+            picker.ShowList(cloudModels, cloudDefault);
+            if (picker.Model != "my-other-model" || !picker.IsTyping)
+                throw new InvalidOperationException("Refreshing the model list must preserve an intentionally typed name.");
             picker.SetModel("gpt-6-luna");
             picker.ShowList(listed, "gpt-6-luna", "OpenAI refused this key.");
             if (picker.Problem != "OpenAI refused this key." || !picker.CanRetry || picker.Model != "gpt-6-luna" ||
@@ -872,8 +954,10 @@ public partial class Main
     {
         try
         {
+            await VerifyTitleKeyboardAsync();
             VerifyEventLogAgentNames();
             await VerifyNewcomerOfferAsync();
+            await VerifyAcknowledgedAgentPlacementAsync();
             VerifyOrnamentPresentation();
             await VerifyHandcartPresentationAsync();
             VerifyToolMakingPresentation();
@@ -895,7 +979,8 @@ public partial class Main
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 if (!manualSaveOverlay.GetGlobalRect().Encloses(manualSaveCard.GetGlobalRect()) ||
                     manualSaveOverlay.GetGlobalRect().GetCenter().DistanceTo(manualSaveCard.GetGlobalRect().GetCenter()) > 2)
-                    throw new InvalidOperationException($"Save/load panel escaped its centered bounds at {size}.");
+                    throw new InvalidOperationException($"Save/load panel escaped its centered bounds at {size}: " +
+                        $"overlay={manualSaveOverlay.GetGlobalRect()}, card={manualSaveCard.GetGlobalRect()}.");
                 manualSaveOverlay.Hide();
                 ResetWorldGenerationOptions();
                 if (CurrentWorldOptions().WaterPercent != 50 || CurrentWorldOptions().ForestCover != "Normal" ||
@@ -1034,30 +1119,7 @@ public partial class Main
             if (Math.Abs(clockFormatChoice.GetGlobalRect().Position.X - themeChoice.GetGlobalRect().Position.X) > 1 ||
                 Math.Abs(dateFormatChoice.GetGlobalRect().Position.X - windowSizeChoice.GetGlobalRect().Position.X) > 1)
                 throw new InvalidOperationException("Game Settings choices must share one aligned caption column.");
-            // Both themes keep text readable on every surface it sits on.
-            foreach (var palette in new[] { UiTheme.Light, UiTheme.Dark })
-            {
-                (string Pair, Color Text, Color Surface, float Minimum)[] readable =
-                [
-                    ("ink on parchment", palette.Ink, palette.Paper, 7f),
-                    ("muted ink on parchment", palette.InkMuted, palette.Paper, 4.5f),
-                    ("section headings", palette.Section, palette.Paper, 4.5f),
-                    ("links", palette.Link, palette.Paper, 4.5f),
-                    ("warnings", palette.Warning, palette.Paper, 4.5f),
-                    ("good status", palette.Good, palette.Paper, 4.5f),
-                    ("bad status", palette.Bad, palette.Paper, 4.5f),
-                    ("button text", palette.Ink, palette.Button, 4.5f),
-                    ("primary button text", palette.PrimaryInk, palette.Primary, 4.5f),
-                    ("paused button text", palette.EmberInk, palette.Ember, 4.5f),
-                    ("text on the wooden bar", palette.OnWood, palette.Wood, 4.5f),
-                    ("soft text on the wooden bar", palette.OnWoodSoft, palette.Wood, 4.5f),
-                    ("field text", palette.Ink, palette.Field, 4.5f),
-                    ("disabled text", palette.InkFaint, palette.FieldDisabled, 3f),
-                ];
-                foreach (var (pair, text, surface, minimum) in readable)
-                    if (UiTheme.Contrast(text, surface) < minimum)
-                        throw new InvalidOperationException($"{palette.Name} theme {pair} is too faint: {UiTheme.Contrast(text, surface):0.00}.");
-            }
+            CheckThemeTextContrast();
             var themeBefore = displayPreferences.Theme;
             var frameBefore = settingsPanel.GetThemeStylebox("panel");
             var (switchTo, expected) = UiTheme.Current == UiTheme.Dark
@@ -1122,15 +1184,23 @@ public partial class Main
             {
                 await VerifyFirstWorldListAsync();
                 await VerifyWorldActionSelectionAsync();
+                await VerifyUsageSettingsRepliesAsync();
+                await VerifyPairingRecoveryMenuAsync();
                 await VerifyFreshHostEntryAsync();
+                await VerifyPauseMenuResumeAsync();
+                await VerifyContinueSettingsNavigationAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyWorldPreviewRerollAsync();
+                await VerifyPreviewAfterPendingSettingsAsync();
                 await VerifyAutosaveSettingsOwnershipAsync();
                 await VerifyUiScaleAt1440pAsync(displayWindow);
                 await VerifyManualSaveListOwnershipAsync();
+                await VerifyRecoveryCleanupAsync();
                 await VerifySameWorldTimelineUiRecoveryAsync();
                 VerifySaveBranchList();
                 await VerifySaveTimelineAsync();
+                await VerifySaveDiskSpaceWarningAsync();
+                await VerifyStartupRecoveryAsync();
                 windowSizeChoice.Select(1);
                 SetWindowSize(1);
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
@@ -1203,6 +1273,33 @@ public partial class Main
                 cognitionSettingsPanel.GetParent() != worldSettingsContent ||
                 cognitionSettingsPanel.GetIndex() != worldSettingsContent.GetChildCount() - 1)
                 throw new InvalidOperationException($"World Settings must open at the top, keep the Game page's width, end with Agent model and leave Model calls to Game Settings: {gameMenuPanel.Size.X} vs {gamePageWidth}.");
+            // Values come from the observed world's saved choices, never the New World form.
+            var generationSample = new OwnerWorldSnapshot("generation-world", 0, "generation-map",
+                [new(0, 0, "meadow")], [], [], null, 0)
+            {
+                Generation = new OwnerWorldGeneration("settings-seed", "Small", "Uniform", "Dry", false, true),
+            };
+            Render(generationSample, []);
+            if (!generationSettingsRows.IsVisibleInTree() || generationSize.Text != "Small" ||
+                generationClimate.Text != "Uniform · Dry · Latitude cooling off" ||
+                generationWrapping.Text != "East/west only" || generationSeed.Text != "settings-seed" ||
+                generationSettingsRows.FindChildren("*", "", recursive: true, owned: false)
+                    .Any(control => control is BaseButton or LineEdit or TextEdit or Godot.Range))
+                throw new InvalidOperationException("World generation must display saved choices as read-only text.");
+            Render(generationSample with
+            {
+                WorldId = "other-generation-world",
+                Generation = new OwnerWorldGeneration(new string('s', 120), "Medium", "Balanced", "Temperate", true, false),
+            }, []);
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (generationSize.Text != "Medium" || generationSeed.Text != new string('s', 120) ||
+                generationClimate.Text != "Balanced · Colder toward the poles" || generationWrapping.Text != "Off" ||
+                !Mathf.IsEqualApprox(gameMenuPanel.Size.X, gamePageWidth))
+                throw new InvalidOperationException("Loading another world must replace its generation choices and wrap long seeds within the Settings width.");
+            Render(generationSample with { Generation = null }, []);
+            if (generationSettingsRows.Visible || generationSeed.Text.Length != 0 ||
+                !generationSettingsHint.Text.Contains("not available", StringComparison.Ordinal))
+                throw new InvalidOperationException("A host without generation choices must clear the previous world's values and explain their absence.");
             ShowPauseMenuButtons();
             menuQuitToMainButton.EmitSignal(BaseButton.SignalName.Pressed);
             if (!quitToMenuConfirmation.Visible)
@@ -1401,6 +1498,26 @@ public partial class Main
                 if (!TownListText().Contains(phrase, StringComparison.Ordinal))
                     throw new InvalidOperationException("The Town page must show actual law scope, government handovers and separate office authority: " + phrase);
             await RunNonviolentTownUiChecks(sample, governmentTown);
+            var abandonedTown = governmentTown with
+            {
+                ResidentIds = [],
+                Governance = new OwnerTownGovernance("all_adult", "none", [], null, 0, [], [], null),
+                Government = governmentTown.Government! with { Offices = [], Changes = [], Election = null },
+            };
+            Render(sample with { Towns = [abandonedTown] }, []);
+            foreach (var phrase in new[] { "Abandoned", "no living residents", "No active council", "resettle", "salvaged in person", "Private property", "Law: Grove" })
+                if (!TownListText().Contains(phrase, StringComparison.Ordinal))
+                    throw new InvalidOperationException("An abandoned Town must retain its laws and explain physical salvage and explicit resettlement: " + phrase);
+            var resettledTown = abandonedTown with
+            {
+                ResidentIds = civicTown.ResidentIds,
+                Governance = abandonedTown.Governance! with { MemberNames = ["Mira Vale"] },
+            };
+            Render(sample with { Towns = [resettledTown] }, []);
+            if (TownListText().Contains("Abandoned", StringComparison.Ordinal) ||
+                !TownListText().Contains("Council: all adult residents", StringComparison.Ordinal) ||
+                !TownListText().Contains("Law: Grove", StringComparison.Ordinal))
+                throw new InvalidOperationException("A revived Town must refresh its status and council while keeping its laws.");
             var revisedCivicTown = civicTown with
             {
                 Governance = civicTown.Governance! with
@@ -1520,12 +1637,20 @@ public partial class Main
             VerifyChildModelStatus();
             VerifyModelSetupCheckControls();
             VerifyModelSettingsLayout();
-            Render(sample with { JevEnabled = true }, []);
-            if (!jevAssistanceToggle.ButtonPressed)
-                throw new InvalidOperationException("World Settings must reflect this world's saved Jev assistance choice.");
-            Render(sample with { JevEnabled = false }, []);
-            if (jevAssistanceToggle.ButtonPressed)
-                throw new InvalidOperationException("World Settings must show when Jev assistance is off.");
+            Render(sample with { JevEnabled = true, RoutineHelperProvider = "jev", RoutineHelperModel = "jev-1.13.0" }, []);
+            if (SelectedRoutineHelper() != "jev" || routineHelperModelPicker.Model != "jev-1.13.0")
+                throw new InvalidOperationException("World Settings must reflect the saved helper and model.");
+            Render(sample with { JevEnabled = false, RoutineHelperProvider = "off", RoutineHelperModel = "" }, []);
+            if (SelectedRoutineHelper() != "off" || routineHelperModelPicker.Visible)
+                throw new InvalidOperationException("Off must hide the helper model picker.");
+            var decisionsSample = sample with { JevEnabled = true, RoutineHelperProvider = "decisions", RoutineHelperModel = "gpt-6-luna" };
+            Render(decisionsSample, []);
+            if (SelectedRoutineHelper() != "decisions" || routineHelperModelPicker.Model != "gpt-6-luna")
+                throw new InvalidOperationException("World Settings must show OpenAI Decisions and its saved model.");
+            routineHelperModelPicker.SetModel("future-decisions-model");
+            Render(decisionsSample, []);
+            if (routineHelperModelPicker.Model != "future-decisions-model")
+                throw new InvalidOperationException("Refreshing the world must preserve an unapplied helper model.");
             usageStatus = new OwnerUsageStatus(2, 1, 0, 1, 10, 3, 2, true,
                 [new OwnerUsageRow("openai", "test-model", "planning", 2, 1, 0, 1, 10, 3)]);
             RenderUsageStatus();
@@ -1564,6 +1689,8 @@ public partial class Main
                 throw new InvalidOperationException("The Town panel must not show operator diagnostics such as revisions or digests.");
             RenderTownExtras(sample);
             await VerifyWorldInfoPagesAsync();
+            VerifyAgentCardStyleRetention();
+            VerifySeasonalLandscape(sample);
             // Top-bar panels hug their contents, and short text leaves no empty space below it.
             foreach (var panel in new PanelContainer[] { rosterPanel, eventsPanel, worldInfoPanel, filtersPanel, worldOverviewPanel })
             {
@@ -2178,7 +2305,7 @@ public partial class Main
                      {
                          ("broadleaf", new[] { "seed", "sapling", "mature", "stump" }),
                          ("conifer", new[] { "seed", "sapling", "mature", "stump" }),
-                         ("orchard", new[] { "growing", "fruiting", "picked" }),
+                         ("orchard", new[] { "sapling", "growing", "fruiting", "picked" }),
                      })
                 foreach (var stage in stages)
                     if (TreeArtManifest.For(species, stage) is not { } art || string.IsNullOrWhiteSpace(art.AssetId) ||
@@ -2293,11 +2420,14 @@ public partial class Main
             if (ItemIcons.Has("never-an-item") || Convert.ToBase64String(ItemIcons.Render("never-an-item", 32).GetData()) !=
                     Convert.ToBase64String(ItemIcons.Render("crate", 32).GetData()) || !ItemIcons.Has("wood"))
                 throw new InvalidOperationException("An item without its own icon must show the crate.");
-            foreach (var meal in new[] { "porridge", "berry_porridge", "fruit_porridge", "stew", "restaurant_meal" })
-                if (!ItemIcons.Has(meal) || !ItemIcons.FitsGrid(meal) || (!ItemIcons.Kinds.Contains(meal) &&
-                    Convert.ToBase64String(ItemIcons.Render(meal, 32).GetData()) !=
-                        Convert.ToBase64String(ItemIcons.Render("food", 32).GetData())))
-                    throw new InvalidOperationException("A concrete meal without distinct art must use the food icon.");
+            // Items drawn in the October 7 art review have their own icons; the crude wooden tools keep the wooden ones.
+            foreach (var kind in new[] { "porridge", "berry_porridge", "fruit_porridge", "milk_porridge", "stew", "restaurant_meal",
+                         "rich_meal", "cooked_eggs", "saddle", "leather_sack", "iron_fittings", "gold", "gold_ore", "gold_ornament" })
+                if (!ItemIcons.Kinds.Contains(kind) || !ItemIcons.FitsGrid(kind))
+                    throw new InvalidOperationException($"The {kind} item must have its own approved icon.");
+            foreach (var (crude, wooden) in new[] { ("crude_wooden_axe", "wooden_axe"), ("crude_wooden_pickaxe", "wooden_pickaxe") })
+                if (Convert.ToBase64String(ItemIcons.Render(crude, 32).GetData()) != Convert.ToBase64String(ItemIcons.Render(wooden, 32).GetData()))
+                    throw new InvalidOperationException($"The {crude} must keep the approved {wooden} icon.");
             if (GameUiText.ItemName("storage_pot") != "Storage pot" ||
                 GameUiText.ItemName("water_jug") != "Water jug" ||
                 GameUiText.ItemName("fresh_water") != "Fresh water")
@@ -2646,6 +2776,10 @@ public partial class Main
                 throw new InvalidOperationException("Keeping the active task visible must preserve the newest unread suggestion and the four-message history limit.");
             foreach (var (productionOrder, expectedSummary) in new (OwnerWorldInstructionOrder Order, string Summary)[]
             {
+                (new("write_knowledge", "doing", 3, 1, "artifacts", false, TargetKnowledgeKind: "field_map"),
+                    "Doing · Writing field map · 1/3 items written"),
+                (new("copy_knowledge", "doing", 3, 1, "copies", false, TargetKnowledgeKind: "book"),
+                    "Doing · Copying book · 1/3 copies made"),
                 (new("produce_item", "doing", 4, 2, "output_items", false, TargetOutputKind: "cloth"),
                     "Doing · Making cloth · 2/4 items made"),
                 (new("produce_item", "doing", 2, 1, "production_batches", false, TargetOutputKind: "gold"),
@@ -2942,7 +3076,9 @@ public partial class Main
             if (mapObjectVisuals.ContainsKey("building:test-hall")) throw new InvalidOperationException("Removed building marker was retained.");
             await VerifyAgentPosesAsync(sample, founder);
             await VerifyMountainReliefAsync();
+            await VerifyTerrainCacheRefreshAsync();
             await VerifyDesertAndSnowArtAsync();
+            VerifyOrchardSaplingAppearance(sample);
             var crowded = sample with
             {
                 WorldId = "ui-marker-bounds",
@@ -3019,7 +3155,7 @@ public partial class Main
                 throw new InvalidOperationException("Dragging the overview did not move the world camera.");
             var beforeMiddleDrag = mapStage.Position;
             HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = true });
-            HandleMapInput(new InputEventMouseMotion { Relative = new Vector2(0, 60) });
+            HandleMapInput(new InputEventMouseMotion { Relative = new Vector2(0, 60), ButtonMask = MouseButtonMask.Middle });
             HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = false });
             if (mapStage.Position.DistanceTo(beforeMiddleDrag) < 1)
                 throw new InvalidOperationException("Middle-drag did not pan the world camera.");
@@ -3334,6 +3470,7 @@ public partial class Main
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             if (!seamEntered)
                 throw new InvalidOperationException("A resource across the wrapped seam must remain hoverable.");
+            await VerifyInterruptedMapDragAsync();
             PanCamera(new Vector2(-5, 0));
             if (cameraCenterTiles.X < 250 || worldOverview.VisibleTiles.End.X <= 256 ||
                 !mapCanvas.GetGlobalRect().HasPoint(seamMarker.GetGlobalRect().GetCenter()))
@@ -3460,6 +3597,7 @@ public partial class Main
                 HandleMapInput(new InputEventMouseMotion
                 {
                     Relative = new Vector2(-dragStride * (256 + 37), 0),
+                    ButtonMask = MouseButtonMask.Middle,
                 });
                 if (Math.Abs(PositiveMod(cameraCenterTiles.X - beforeEastDrag, 256) - 37) > 0.01f)
                     throw new InvalidOperationException("Repeated eastward main-map drags must cross full wrapped laps.");
@@ -3470,6 +3608,7 @@ public partial class Main
                 HandleMapInput(new InputEventMouseMotion
                 {
                     Relative = new Vector2(dragStride * (256 + 37), 0),
+                    ButtonMask = MouseButtonMask.Middle,
                 });
                 if (Math.Abs(PositiveMod(beforeWestDrag - cameraCenterTiles.X, 256) - 37) > 0.01f)
                     throw new InvalidOperationException("Repeated westward main-map drags must cross full wrapped laps.");
@@ -3653,6 +3792,7 @@ public partial class Main
                     "I hid the garden tools where Rowan cannot see them.", "private")],
                 RecentKnowledgeFacts = [new OwnerWorldKnowledgeFact(2, 7, 9, "Forest", ["wood"],
                     "Mira", "firsthand", null)],
+                KnownRecipes = [new OwnerWorldRecipe(3, "Mill grain", "read", "Rowan")],
                 KnowledgeArtifacts =
                 [
                     new OwnerWorldKnowledgeArtifact("knowledge-artifact-000001", "field_map",
@@ -3661,7 +3801,7 @@ public partial class Main
                          new OwnerWorldKnowledgeSite(8, 9, "River", [], "Mira")]),
                     new OwnerWorldKnowledgeArtifact("knowledge-artifact-000002", "book",
                         "Book · 1 site", 3, "Mira",
-                        [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira")]),
+                        [new OwnerWorldKnowledgeSite(7, 9, "Forest", ["wood"], "Mira")]) { RecipeNames = ["Mill grain"] },
                 ],
             };
             var historicalSnapshot = sample with
@@ -3709,6 +3849,8 @@ public partial class Main
                 !MemoryCardsText().Contains("I hid the garden tools", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Field map", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Book written by Mira", StringComparison.Ordinal) ||
+                !MemoryCardsText().Contains("Recipe: Mill grain", StringComparison.Ordinal) ||
+                !MemoryCardsText().Contains("Read from Rowan", StringComparison.Ordinal) ||
                 !MemoryCardsText().Contains("Forest at 7, 9", StringComparison.Ordinal) ||
                 ProfilePeopleText().Contains("I hid the garden tools", StringComparison.Ordinal))
                 throw new InvalidOperationException("Historical memories and bounded agent-owned map records must be inspectable separately from public social notes.");
@@ -3731,9 +3873,9 @@ public partial class Main
                     .Any(label => label.Text.Contains("event pop-ups", StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidOperationException("Deaths must remain in the Event Log without an event pop-up setting.");
             if (!eventLog.GetParsedText().Contains("finished writing a book.", StringComparison.Ordinal) ||
-                !eventLog.GetParsedText().Contains("learned about places from a written work.", StringComparison.Ordinal) ||
+                !eventLog.GetParsedText().Contains("learned from a written work.", StringComparison.Ordinal) ||
                 DescribeWorldEvent(knownEvents[102], historicalSnapshot) != "Mira finished writing a book." ||
-                DescribeWorldEvent(knownEvents[103], historicalSnapshot) != "Mira learned about places from a written work." ||
+                DescribeWorldEvent(knownEvents[103], historicalSnapshot) != "Mira learned from a written work." ||
                 eventLog.GetParsedText().Contains("knowledge-artifact-", StringComparison.Ordinal))
                 throw new InvalidOperationException("Written-knowledge events must name the writer or actual reader without displaying artifact identifiers.");
             ToggleEvents();
@@ -3767,6 +3909,7 @@ public partial class Main
             };
             var child = deceased with
             {
+                DisplayName = "Alexandria Montgomery Historical Relative Name",
                 Relationships = [new OwnerWorldInhabitantRelationship("birth:test", parent.Id,
                     "biological_parentage", "accepted", "family", 1, "child")],
             };
@@ -3791,6 +3934,14 @@ public partial class Main
                 !familyTreeView.VisiblePersonIds.Contains(partner.Id) ||
                 family.Any(person => !familyTreeView.VisiblePersonIds.Contains(person.Id)))
                 throw new InvalidOperationException("Family tree must show ancestry, partnerships and deceased profiles.");
+            var deceasedFamilyButtons = familyTreeView.GetChildren().OfType<Button>()
+                .Where(button => button.Text.EndsWith(" · died", StringComparison.Ordinal)).ToArray();
+            if (deceasedFamilyButtons.Length == 0 || deceasedFamilyButtons.Any(button => button.Modulate.A < 1 || button.SelfModulate.A < 1 ||
+                !button.TooltipText.Contains("died", StringComparison.Ordinal)))
+                throw new InvalidOperationException("Deceased family profiles must keep readable text and say died in their tooltip when their name is clipped.");
+            if (!deceasedFamilyButtons.Any(button => button.ClipText &&
+                button.GetThemeFont("font").GetStringSize(button.Text, fontSize: button.GetThemeFontSize("font_size")).X > button.Size.X))
+                throw new InvalidOperationException("The deceased family tooltip check must exercise a name wider than its button.");
             var familyWindow = GetWindow();
             var originalFamilySize = familyWindow.Size;
             var originalFamilyRenderSize = familyWindow.ContentScaleSize;
@@ -3842,6 +3993,9 @@ public partial class Main
                 throw new InvalidOperationException("Household membership must not create a family link.");
             familyTreePanel.Hide();
             await VerifyAgentPanelsAsync();
+            await VerifyRosterRefreshScrollAsync();
+            await VerifyRosterKeyboardAsync();
+            await VerifyWorldKeyboardAsync();
             await VerifyOrderListAsync();
             eventsPanel.Show();
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
@@ -3891,6 +4045,7 @@ public partial class Main
             if (controlsPanel.Visible)
                 throw new InvalidOperationException("Escape must close the controls list.");
             await VerifyDeveloperToolsAsync(occupied, founder);
+            await VerifyAuthoringCoordinatesAsync(occupied);
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Minus, Pressed = true });
             var zoomedOutTile = currentTileSize;
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Equal, Pressed = true });
@@ -3945,6 +4100,7 @@ public partial class Main
                 longDialog.X != DialogTextWidth + (int)dialogMargins.X || deletionConfirmation.GetLabel().GetLineCount() < 2 ||
                 longDialog.Y <= shortDialog.Y)
                 throw new InvalidOperationException($"Confirmations must fit their message: short {shortDialog}, long {longDialog}.");
+            await VerifyLongProfileNamesAsync();
             await VerifyRefusedAgentRenameAsync();
             VerifyAgentTextEllipses();
             VerifyPlainEllipses("after every panel has been shown");

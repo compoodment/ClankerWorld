@@ -8,7 +8,7 @@ using ClankerWorld.Simulation.Society;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class RestaurantBusinessPipelineTests
+public sealed partial class RestaurantBusinessPipelineTests
 {
     private const string Alpha = "household:camp-alpha";
     private const string Beta = "household:camp-beta";
@@ -355,8 +355,8 @@ public sealed class RestaurantBusinessPipelineTests
     [InlineData("empty-shelf", true)]
     [InlineData("household-payment", false)]
     [InlineData("full", false)]
-    [InlineData("foreign-town", false)]
-    public async Task RestaurantMealVisitUsesOnlyTownMenuAndPersonalAppetiteAndPayment(string control, bool mayVisit)
+    [InlineData("foreign-town", true)]
+    public async Task RestaurantMealVisitUsesPublicMenuAndPersonalAppetiteAndPaymentInAnyTown(string control, bool mayVisit)
     {
         var fixture = WithNearbyRemoteCustomer(CreateFixture("porridge", kitchenReady: true, customerNear: false));
         var initial = fixture.State;
@@ -374,18 +374,7 @@ public sealed class RestaurantBusinessPipelineTests
                     ? person with { HungerBasisPoints = 9_000 } : person).ToArray(),
             };
         if (control == "foreign-town")
-        {
-            var first = initial.Towns!.Single();
-            var remaining = first.ResidentIds.Where(id => id != fixture.Customer).ToArray();
-            var secondSite = initial.Map.Tiles.Select(tile => tile.Position)
-                .First(point => initial.Map.IsBuildable(point) && !first.BorderTiles.Contains(point));
-            initial = initial with
-            {
-                Towns = [first with { ResidentIds = remaining, Governance = TownGovernanceState.Create(remaining) },
-                    new("town:meal-customer", "Customer Town", "founded", 0, [fixture.Customer], [], [secondSite], secondSite,
-                        TownGovernanceState.Create([fixture.Customer]), TownGovernmentState.Create())],
-            };
-        }
+            initial = WithForeignTownResident(initial, fixture.Customer);
         fixture = fixture with { State = initial };
         var customerProvider = new PipelineProvider("business_continue:", "business_shop:" + fixture.Restaurant.InstanceId, "consume_food");
         using var world = PrivateWorldRuntime.Restore(initial, id => id == fixture.Customer ? customerProvider :
@@ -419,7 +408,7 @@ public sealed class RestaurantBusinessPipelineTests
         }
         else Assert.Equal(start, finish);
         var sales = world.BusinessTrades.Where(trade => trade.BuyerId == fixture.Customer).ToArray();
-        if (control == "ordinary")
+        if (control is "ordinary" or "foreign-town")
         {
             var sale = Assert.Single(sales);
             Assert.True(sale.ProposedTick >= arrivedTick!.Value);
@@ -449,6 +438,22 @@ public sealed class RestaurantBusinessPipelineTests
             Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.ItemKind == "porridge");
         }
         await AssertStrictReplayAndDiscard(world, fixture);
+        if (control == "foreign-town")
+        {
+            var eatingState = world.ExportState() with
+            {
+                Inhabitants = world.ExportState().Inhabitants.Select(person => person.InhabitantId == fixture.Customer
+                    ? person with { HungerBasisPoints = 3_000 } : person).ToArray(),
+            };
+            using var eating = PrivateWorldRuntime.Restore(eatingState,
+                id => id == fixture.Customer ? new PipelineProvider("consume_food") : new PipelineProvider("safe_idle"));
+            await AdvanceUntil(eating, () => eating.Inhabitants.Single(person => person.InhabitantId == fixture.Customer)
+                .Survival?.LastMealKind == "porridge", 20);
+            Assert.Equal("town:visiting-resident", eating.Towns.Single(town => town.ResidentIds.Contains(fixture.Customer)).Id);
+            Assert.Equal(Alpha, eating.Society.GetInhabitant(fixture.Customer).HouseholdId);
+            Assert.False(eating.StartProduction(fixture.Recipe.CanonicalId, fixture.Restaurant.InstanceId, fixture.Customer).Applied);
+            eating.Validate();
+        }
     }
 
     private static void AssertNoRemoteMealQuote(PrivateWorldRuntime world, Fixture fixture)
@@ -483,12 +488,13 @@ public sealed class RestaurantBusinessPipelineTests
     }
 
     [Theory]
-    [InlineData(false, 4, true, 2)]
-    [InlineData(false, 4, false, 0)]
-    [InlineData(true, 4, true, 0)]
-    [InlineData(false, 2, true, 0)]
+    [InlineData(false, 4, true, 2, false)]
+    [InlineData(false, 4, false, 0, false)]
+    [InlineData(true, 4, true, 0, false)]
+    [InlineData(false, 2, true, 0, false)]
+    [InlineData(false, 4, true, 2, true)]
     public async Task RestaurantIngredientVisitWalksBeforeQuotingAndRequiresItsOwnSpendablePayment(
-        bool householdOwnsPayment, int paymentQuantity, bool millHasGrain, int expectedPurchases)
+        bool householdOwnsPayment, int paymentQuantity, bool millHasGrain, int expectedPurchases, bool visitorFromAnotherTown)
     {
         var fixture = CreateFixture(purchaseOnly: true, householdOwnsPayment: householdOwnsPayment);
         var initial = fixture.State;
@@ -511,6 +517,8 @@ public sealed class RestaurantBusinessPipelineTests
                     ? person with { Position = start } : person).ToArray(),
             }, inventory),
         };
+        if (visitorFromAnotherTown)
+            fixture = fixture with { State = WithForeignTownResident(fixture.State, fixture.Cook) };
         using var world = Restore(fixture);
         var mayVisit = !householdOwnsPayment && paymentQuantity > 2;
         for (var tick = 0; tick < 200; tick++)
@@ -723,8 +731,8 @@ public sealed class RestaurantBusinessPipelineTests
     {
         foreach (var input in inputs)
         {
-            var water = input.ResourceId == InventoryContainerRules.FreshWater;
-            var jugId = prefix + "-jug";
+            var water = input.ResourceId is InventoryContainerRules.FreshWater or "milk";
+            var jugId = prefix + "-jug-" + input.ResourceId;
             if (water)
                 inventory = InventoryFixture.AddLot(inventory, jugId, InventoryContainerRules.WaterJug, site.HouseholdId!, 1,
                     storageBuildingId: site.InstanceId);

@@ -2,7 +2,7 @@
 title: The interface, art and audio
 type: game-design
 status: active
-updated: 2026-10-02
+updated: 2026-10-09
 ---
 
 # The interface, art and audio
@@ -45,11 +45,14 @@ everything that is available in the current build. See [what works today](../wha
   Keep terrain kind separate from generated climate, elevation, water layout,
   surface and vegetation cover; show present objects, resources, buildings,
   regional weather and soil moisture from their own observations. Omit absent
-  or unprojected facts such as fertility and exact temperature from the panel;
-  never infer them from terrain color or fill the panel with `none` and
-  `unavailable` labels. Player inspection does not teach an
-  agent those facts. The exact final layout and future biome/fertility fields
-  remain open as those systems become real.
+  or unprojected facts, such as exact temperature or a fertility the game does
+  not know, from the panel; never infer them from terrain color or fill the
+  panel with `none` and `unavailable` labels. Player inspection does not teach
+  an agent those facts. **Agreed on October 8
+  ([#1276](https://github.com/compoodment/ClankerWorld/issues/1276)):** the
+  tile card shows **Fertility** when the game knows it and has no separate
+  biome field. Its layout is the one chosen in the October 2 panel review
+  below.
 - One continuous pixel-art world view supports mouse-wheel zoom and WASD
   panning. On an east/west-wrapped world, the camera should pan continuously
   across the seam in either direction. There is **no separate simplified
@@ -57,8 +60,8 @@ everything that is available in the current build. See [what works today](../wha
   readability/performance limit. After the September 29 playtest, the cap must
   also keep black space beyond the north/south map edges out of view on Small
   maps, and maximum zoom-in should feel consistent across render resolutions.
-  How far the zoom-out limit should go, and when it is tuned, is under
-  [Leaning toward](#leaning-toward) below.
+  The numbers agreed for that limit on October 8, and when they are tuned,
+  are under [Leaning toward](#leaning-toward) below.
 - Hovering a ground tile shows a square tile highlight. When an agent overlaps
   that pointer location, **agent hover/selection takes priority** over the
   ground tile. This is pointer hit-testing priority, distinct from making the
@@ -88,10 +91,16 @@ everything that is available in the current build. See [what works today](../wha
   clicking a located event moves the camera to where it happened. Opening the
   log does not pause the world. This supersedes the earlier configurable
   notification proposal; an agent's inspectable info panel is not an event
-  notice.
+  notice. **Agreed on October 8
+  ([#1276](https://github.com/compoodment/ClankerWorld/issues/1276)):** the
+  log has an icon for each kind of event and a heading for each day, shows the
+  newest first and has no filters. Only an event with a place has a **Find**
+  button. The game keeps the newest 1,024 events in each of its event records
+  and archives older ones; that number is provisional.
 - World Info should let the player inspect discovered capabilities and other
   world information. Separate map filters show Town title, household land use,
-  disputed land, household property and Town borders. The UI must not invent
+  disputed land, household property and Town borders; these are the first set
+  of overview and filter layers. The UI must not invent
   ownership or borders that agents have not established.
 - **Agreed on September 30:** World Info lists discovered capabilities from
   recorded discoveries only. When nothing has been discovered it says
@@ -115,26 +124,30 @@ everything that is available in the current build. See [what works today](../wha
   Main Menu Settings still exposes Game only. **Remove the current player-facing
   `Create` building-design workbench entirely**; computment considers it a
   prototype from before the revised agent-driven invention vision. This does
-  not remove agents' ability to invent or settle any future way to inspect
-  their designs.
-- Game Settings should offer **Window Size** and **Render Resolution** as
-  separate controls. Changing only the window dimensions must not be presented
-  as changing the game's render resolution. Exact presets, scaling behavior,
-  pixel-art/UI layout rules remain open. Start in fullscreen by default, while
-  respecting a saved player choice to use a window. UI Scale must enlarge the
-  usable controls and panels, not only their fonts, especially at higher
-  render resolutions. Main Menu Settings needs one compact back chevron in
-  the close-button position; omit duplicate large back navigation and basic
-  explanatory paragraphs beneath Render Resolution and UI Scale. Load World
-  does not need the pause/save helper sentence. Player-facing wording should
-  be short and ordinary; `Agent model` is preferred over `Inhabitant cognition`,
+  not remove agents' ability to invent. **Agreed on October 8
+  ([#1268](https://github.com/compoodment/ClankerWorld/issues/1268)):**
+  agents' designs show in the Mod Library.
+- Game Settings offers **Fullscreen** and a **Window Size** choice of fixed
+  sizes. The October 1 playtest below removed the earlier **Render
+  Resolution** and **UI Scale** controls, and the interface's whole-step
+  growth there sets the scaling and pixel-art rules. Start in fullscreen by
+  default, while respecting a saved player choice to use a window. Main Menu
+  Settings needs one compact back chevron in the close-button position; omit
+  duplicate large back navigation. Load World does not need the pause/save
+  helper sentence. Player-facing wording should be short and ordinary; `Agent model` is preferred over `Inhabitant cognition`,
   and the optional model-call limit needs a clear unit and consequence.
 - **Agreed after the September 29 style review:** the interface uses the
   **Timber & Parchment** look chosen from three mockup directions: wooden
   frames around parchment panels, ink text, bevelled pixel buttons and a green
   main action. Game Settings offers a **Theme** of **Light**, **Dark** (dark
-  wood with cream text) or **Match system**. The exact icon set and remaining
-  accessibility treatment stay open.
+  wood with cream text) or **Match system**. The rest of the interface icon set
+  is drawn and chosen in the ordinary art reviews.
+- **Accessibility, agreed on October 8
+  ([#1253](https://github.com/compoodment/ClankerWorld/issues/1253)):** every
+  screen meets one baseline. It never relies on colour alone, it can be used
+  fully from the keyboard, any flashing can be switched off, and its text
+  contrast is checked in both the Light and Dark themes. Separate
+  high-contrast and colour-blind modes are not part of the baseline.
 - **Agreed after the September 29 background review:** the Main Menu
   background is a side-view pixel-art valley chosen from three mockup
   directions: mountains, patchwork fields, a river and small Towns built from
@@ -175,7 +188,7 @@ everything that is available in the current build. See [what works today](../wha
   too small and anything above 200% unnecessary at 1440p. **Render
   Resolution is removed**: the game always draws at the screen's own
   resolution. Settings is titled simply **Settings**, with its sections in
-  their own boxes.
+  their own boxes. On a narrow layout the top bar still shows icons only.
 - **Agreed on October 1:** agents inside a building are not drawn shrunk onto
   its tile. They are hidden from the map while inside, the building shows a
   small badge with how many people are in it, and its card names them.
@@ -207,6 +220,10 @@ everything that is available in the current build. See [what works today](../wha
     Its Towns page shows residents' portraits, stores as item slots and
     projects with progress bars, without the note about Town borders.
   - Memories has tabs and a card per entry with a five-step sureness meter.
+    **Agreed on October 8
+    ([#1276](https://github.com/compoodment/ClankerWorld/issues/1276)):** the
+    tabs are **All**, **Memories**, **Beliefs** and **Maps**, and the reader
+    has no search.
     The Family Tree uses small portrait boxes and opens beside the Profile.
   - The Profile's model line names the model's provider plainly instead of
     "chosen by". Model choices are labelled **Provider**, **API key** and
@@ -269,6 +286,16 @@ everything that is available in the current build. See [what works today](../wha
   no activity symbol. Buildings show no names on the map; hovering a building
   still names it. computment chose the outlined-text look (option C) with the
   only-when-needed rule (option E) from the nameplate mockups.
+- **Agreed on October 8
+  ([#1247](https://github.com/compoodment/ClankerWorld/issues/1247)):** an
+  agent waiting for a slow model shows a small marker on the map, so a slow
+  provider doesn't make it look frozen. The Event Log adds one line only when
+  the provider actually fails. What the agent may do while it waits is in
+  [The world](world.md#world-time-pausing-and-slow-models).
+  The owner selected **C · Circling spark** from the October 8 marker review
+  on [#1315](https://github.com/compoodment/ClankerWorld/issues/1315), recorded
+  in its discussion. The proposed short delay is two seconds; it remains
+  provisional for playtesting.
 - **Agreed after the September 30 building panel review:** selecting a
   building opens a small **quick card** beside it, like an agent's: its roof,
   name and owner (household or Town), one line on what is happening there (who
@@ -277,11 +304,13 @@ everything that is available in the current build. See [what works today](../wha
   button. **Details** docks a larger panel on the left, like an agent's
   Profile: owner, who may use it, when it was built and which side its door
   faces; storage as a larger icon grid with each item's name; work in progress
-  with what it uses; and who lives there or is inside. A list of recent
-  storage changes and what a workstation can make are wanted later. A
-  storage-space bar waits until buildings record a storage limit. When the
-  owner is paired, Details also offers signed building removal and owner-change
-  actions. A confirmation explains that removal keeps the Town border and
+  with what it uses; and who lives there or is inside. Details shows recent
+  recorded storage additions and removals. Workstation recipes show their material
+  quantities without granting agent knowledge or production access. A
+  storage-space bar shows recorded occupancy whenever a building records a
+  storage limit. When the owner is paired, Details also offers signed building
+  removal and owner-change actions. A confirmation explains that removal keeps
+  the Town border and
   Roads; the host refuses a change while stock, deliveries or active work
   remain. Moving a private building between households keeps its Town title and
   assignment; moving a Warehouse changes its recorded Town assignment but not
@@ -319,8 +348,12 @@ everything that is available in the current build. See [what works today](../wha
   those who have died; a different surname or middle name does not make a taken
   first name available. Temporary unnamed placeholders do not reserve a first
   name. Player renaming follows the same first-name check, as recorded in
-  [Player guidance and orders](#player-guidance-and-orders). Cultural naming
-  context remains open.
+  [Player guidance and orders](#player-guidance-and-orders). **Agreed on
+  October 8 ([#1273](https://github.com/compoodment/ClankerWorld/issues/1273)):**
+  the naming request gives no cultural context. It carries only the naming
+  rules, the suggested first letter
+  ([#496](https://github.com/compoodment/ClankerWorld/issues/496)) and, for a
+  child, its parents' surnames.
 - **Agreed on September 30:** before the player confirms, Add Agent shows which
   household and which Town the new agent will belong to. One shared rule
   decides this, checked in this order: household property first, then
@@ -333,14 +366,21 @@ everything that is available in the current build. See [what works today](../wha
   [Town land and household use rights](towns.md#town-land-and-household-use-rights).
 - Selecting an agent opens an **interactive info popup near that agent**. The
   player can change that agent's provider and model there, including choosing
-  an appropriate stored/new credential when needed. Agent inspection does not
-  pause the simulation. This is a selected-agent panel, not a fleeting
-  mouse-hover tooltip that disappears when reaching for its controls. Its core
+  an appropriate stored/new credential when needed. **Agreed on October 8
+  ([#1275](https://github.com/compoodment/ClankerWorld/issues/1275)):** after
+  such a change, the game refuses any reply to a model request sent before
+  it ([other requests in flight](world.md#world-time-pausing-and-slow-models)).
+  Agent inspection does not pause the simulation. This is a selected-agent
+  panel, not a fleeting mouse-hover tooltip that disappears when reaching for
+  its controls. Its core
   view shows name, age/life stage, household, current activity, needs, and the
   agent's latest **private** thought or intention. A **small scrollable history
-  of recent private thoughts** is available there too. The player can inspect
-  them, but other agents do not automatically know them. A separate
-  **Memories** section lets the player inspect what this agent remembers or
+  of recent private thoughts** is available there too. **Agreed on October 8
+  ([#1273](https://github.com/compoodment/ClankerWorld/issues/1273)):** each
+  ordinary decision carries a short in-character thought of up to 160
+  characters, and the eight newest are kept with the world save; both numbers
+  are provisional. The player can inspect them, but other agents do not
+  automatically know them. A separate **Memories** section lets the player inspect what this agent remembers or
   believes happened, including mistaken beliefs; it is different from the game's
   record of actual world events. Inventory, relationships, and model settings can expand
   from the same popup. A **Family Tree** action opens a larger interactive
@@ -348,7 +388,10 @@ everything that is available in the current build. See [what works today](../wha
   info popup, including for deceased relatives. The tree distinguishes
   parent-child ancestry and partnerships; household membership is displayed
   separately, never as proof of biological family. Unrelated starter
-  housemates must not be drawn as relatives.
+  housemates must not be drawn as relatives. **Agreed on October 8
+  ([#1273](https://github.com/compoodment/ClankerWorld/issues/1273)):** the
+  tree shows only ancestry and partners; guardianship shows on the Profile
+  and in the Event Log instead.
 
 ### Player guidance and orders
 
@@ -436,6 +479,11 @@ everything that is available in the current build. See [what works today](../wha
   updates both spouses together, keeping the other spouse's first and middle
   names. The name check happens before either change; refusal leaves both
   names unchanged. The original marriage surname conversation stays as it was.
+  **Agreed on October 8
+  ([#1273](https://github.com/compoodment/ClankerWorld/issues/1273)):** the
+  renamed agent is told. Its model gets a permanent memory of the change, such
+  as "I was renamed on day 22 to Mira Hale", rather than just seeing a new
+  name.
 
 **Existing agreed handling, from September 30:** an order the game cannot act
 on is accepted and closed at once as not understood, without a model request.
@@ -452,7 +500,11 @@ Provisionally, the zoom-out floor stays as it is until Large worlds have been
 measured, and is then tuned. Computment suggested Small/Medium zoom-out around
 70% of map-fit scale and a shared performance cap for Large/Huge/Mega; that
 exact percentage and visible-tile budget remain preferred starting points for
-tuning, not fixed finished-game numbers.
+tuning, not fixed finished-game numbers. **Agreed on October 8
+([#1276](https://github.com/compoodment/ClankerWorld/issues/1276)):** Small and
+Medium maps zoom out until the view spans 70% of the map, and Large, Huge and
+Mega maps share a floor of 8 pixels per tile. Both numbers are provisional and
+are tuned once Large worlds have been measured.
 
 Game Settings apply across worlds/on this installation: UI date and time
 display formats, graphics/display preferences, and stored provider credentials.
@@ -465,15 +517,25 @@ and rotation, and Jev's per-world configuration. Selecting either category
 within Pause Menu Settings keeps the world paused. World generation choices
 such as size, climate and wrapping are chosen before creation and should be
 inspectable afterward, not silently mutable settings. Jev's on/off switch for
-an existing world is accepted; the exact settings categories and transition
-behavior for an in-flight Jev task remain open. World Settings must be absent
+an existing world is accepted; the transition behavior for other in-flight
+tasks remains open. **Agreed on October 8
+([#1276](https://github.com/compoodment/ClankerWorld/issues/1276)):** Game
+Settings holds the window, theme, weather effects, date and time, the AI-usage
+limit and keys; World Settings holds autosaves, the routine helper and agents'
+models. Settings also gets a read-only view of the world's generation choices:
+size, climate, wrapping and seed. World Settings must be absent
 from Main Menu Settings while no world is loaded; opening Main Menu settings
 must never enter a world.
+The routine helper choice is Off, Jev or OpenAI Decisions, each with its own
+model list; the owner approved Decisions details on October 6
+(see [Thinking, memories and social life](agents-and-families.md#thinking-memories-and-social-life)).
+
 
 **Agreed (confirmed 30 September):** placing an agent with Add Agent on a
 household's property joins that household without its consent, as recorded in
-[Towns](towns.md#buildings-land-towns-and-animals). The rest of this paragraph
-stays provisional.
+[Towns](towns.md#buildings-land-towns-and-animals). **Agreed on October 8
+([#1274](https://github.com/compoodment/ClankerWorld/issues/1274)):** the
+rest of this paragraph is agreed too, including the refusals it lists.
 
 In the **Add Agent** placement view, show exclusive household use areas and
 Town borders so computment can see the new agent's initial affiliation.
@@ -485,10 +547,12 @@ Town joins the Town but no household; placement on unclaimed land
 outside both starts an independent agent. Location establishes **starting
 social membership**, not biological ancestry or permanent membership based on
 where the agent later walks. A player-added adult could be a new unrelated
-family line even when placed inside an existing household. Other
-invalid-placement rules remain open. A later voluntary move by an adult who
-has no household into a household's House needs every adult member's
-agreement, as agreed in [Towns](towns.md#buildings-land-towns-and-animals).
+family line even when placed inside an existing household. Add Agent is
+refused on an unbuildable, occupied or disputed tile, on a tile where another
+agent stands unless it is a House, and into a full House. A later voluntary
+move by an adult who has no household into a household's House needs every
+adult member's agreement, as agreed in
+[Towns](towns.md#buildings-land-towns-and-animals).
 This forced Add Agent membership is distinct from inviting a nonmember to
 visit a House. The agreed first-Town household setup in
 [Agents and social life](agents-and-families.md#agreed-starter-town-and-remaining-choices)
@@ -496,24 +560,10 @@ is separate from this later Add Agent placement rule.
 
 ### Still to decide
 
-Exact top-bar layout on small screens; the final zoom-out/visible-tile cap,
-which waits for measurements of Large worlds; which overview and filter layers
-ship first; display of disputed or overlapping claims; the precise event
-categories, filter UI, event retention, and handling of events without a
-single map location. The player's role, direct edits,
-suggestions and order rules are agreed in
+The family tree's line styles and navigation are still open. The player's
+role, direct edits, suggestions and order rules are agreed in
 [Player guidance and orders](#player-guidance-and-orders). Computment may
 provide a UI drawing.
-
-The agent info popup's exact layout, pin/expand behavior, thought-history
-retention count, how memories are grouped/searched/labeled, family-tree
-line styles/navigation and any future guardianship/adoption links, and what
-happens to a pending model call when its provider/model is changed are open.
-A proposed low-cost implementation is to show a short, timestamped,
-in-character thought/intent supplied alongside an agent's ordinary decision,
-rather than generating a continuous stream or
-presenting inaccessible model-internal reasoning as the agent's thoughts.
-The recent history should persist with the world save but remain bounded.
 
 ## Pixel art and generated images
 
@@ -538,15 +588,56 @@ The recent history should persist with the world save but remain bounded.
   decorative world objects. Functional transitions/edges are separate.
 - The September 29 prototype grain, striped transition texture, and large
   circular rain/storm overlays are rejected. Keep terrain visually calm and
-  weather readable without opaque repeating circles; final replacement art
-  remains open.
+  weather readable without opaque repeating circles. **Agreed on October 8
+  ([#1254](https://github.com/compoodment/ClankerWorld/issues/1254)):** the
+  map's weather overlay goes through the next art review round, with options
+  to choose from, like every other picture. **Agreed on October 8
+  ([#1325](https://github.com/compoodment/ClankerWorld/issues/1325)):**
+  computment chose look B, crisp pixel streaks: straight one-pixel rain that
+  lands as a small burst, sharp storm streaks in gusts, and small snowflake
+  crosses blown by the wind. No cloud shadows.
+- **Agreed on October 9 (direct owner request,
+  [visual polish review](../../tools/ArtPreview/Proposed/Polish.md)):** the
+  map gets touches that only show, more clearly, what the world already
+  records:
+  - agents and animals glide between tiles, with a small bob on each step,
+    instead of jumping;
+  - Houses with someone inside and a working forge send up a column of
+    smoke that leans with the wind;
+  - after snowfall the open ground turns white, with grass tips and trodden
+    Roads showing, and anyone crossing it leaves footprints that fade; in
+    autumn a few leaves lie under broadleaf and orchard trees;
+  - dawn has a rose glow and dusk a gold one;
+  - stores show piles of logs, crates and sacks beside the door that grow
+    with what they hold;
+  - the camera eases when **Find** moves it or the view zooms;
+  - a finished building gets a ring of dust and a few twinkles;
+  - after snowfall roofs keep snow on their shaded side and a dusting on
+    their sunny side, following each roof's shape;
+  - where someone died, a grave marked by a wooden cross or a headstone
+    stays for a year of game time, then fades;
+  - weather fades in and out instead of switching at once.
+
+  Puddles after rain are postponed: none of the three rounds of drawings
+  matched what computment has in mind, and whether puddles belong in the
+  game at all is left open for later.
 - Ground remains square-tiled, but permanent **black tile-border grid lines**
   are not part of the intended presentation; they would clash with textures.
-- Most production textures will likely be created with AI help, including work
-  with Clanker, then adapted to a coherent game style. Aseprite is an optional
-  editor/source format, not a requirement for computment or for playing the game.
-- Agent inventions can include generated art. An exported mod carries its
+- **Agreed on October 8
+  ([#1271](https://github.com/compoodment/ClankerWorld/issues/1271)):**
+  built-in art stays drawn in code only. The image rules (file format,
+  metadata and size limits) apply only to images a mod carries; they are in
+  [Inventions and mods](inventions-and-mods.md#inventions-mods-and-technology).
+  Aseprite is an optional editor/source format, not a requirement for
+  computment or for playing the game.
+- Agent inventions can include their own pictures. An exported mod carries its
   approved assets with it; art must not become executable authority.
+- **Invention pictures, agreed on October 8
+  ([#1270](https://github.com/compoodment/ClankerWorld/issues/1270)):** an
+  invention's picture is built only from approved code-drawn parts and
+  recolouring, chosen by the agent's model. When that fails, the invention
+  shows a plain code-drawn placeholder, so a working invention is never
+  blocked by its art. Invention pictures are never AI-generated images.
 - Visual/content variety must be **bounded and supportable** across the game,
   not only for buildings. Do not imply that every theoretical combination of
   shape, material, style, state, and invention needs bespoke art or a bespoke
@@ -558,6 +649,9 @@ The recent history should persist with the world save but remain bounded.
   visual variants across buildings and other categories are optional work for
   after that complete game, not part of its required art workload. Agents are
   the exception: a few appearance variants are wanted for their population.
+  The approved art settles the counts: one design for each building, object
+  and item, two texture variants for each ground surface and six agent
+  appearance variants ([style guide](../development/art-style.md)).
 - Agent inventions may introduce **genuinely new designs** rather than being
   permanently limited to the original art catalogue. Each new design still
   needs a valid visual/gameplay representation; this does not authorize every
@@ -596,7 +690,8 @@ The recent history should persist with the world save but remain bounded.
   rowing boat; chickens, sheep and cows; the remaining tree, plant, outcrop
   and crop states; 43 more item icons; and part of the interface icon set.
   Animals, handcarts and boats face all eight directions, like agents. How
-  mountains generate stays open in [#628](https://github.com/compoodment/ClankerWorld/issues/628).
+  mountains generate was then decided in [#628](https://github.com/compoodment/ClankerWorld/issues/628)
+  and is recorded in [The world](world.md#river-crossings-and-visible-forests-and-mountains).
 - **Agreed after the third round of the art review (October 1):** computment
   approved 99 pictures; the others were the icon options not chosen, the old
   snow edge shown for comparison, and the Market plaza. Approved: the Market
@@ -623,7 +718,8 @@ The recent history should persist with the world save but remain bounded.
     it works. A **Warehouse has no windows**: only a lantern by its loading
     doors, lit while someone fetches or stores goods. A Silo and Market
     stalls stay dark. A Port's lantern on the end of its pier burns every
-    night.
+    night, except in an abandoned Town, where it stays dark until the Town
+    is resettled (agreed October 7).
   - Light must **not look circular** and must plainly **come from
     something**: a window, a door, a fire or a lantern fitting that is drawn,
     never a bare bright dot. Each pool has a ragged edge that **moves
@@ -638,9 +734,49 @@ The recent history should persist with the world save but remain bounded.
   beside Roads; they need **no fuel** and light themselves at dusk. Two
   designs: **B, a round stone lamp with an open flame**, and **C, a lantern
   hung from an arm over the Road** ([Towns](towns.md#shared-town-projects)).
+  **Agreed on October 7:** in an abandoned Town they stay dark until the
+  Town is resettled.
+- **Agreed after the fourth round of the art review (October 7):**
+  - **Animals.** computment approved:
+    - a chick, lamb, calf and foal in all eight facings, with no adult gear
+      (the calf has no horns, the chick no comb, the foal no saddle);
+    - a horse with a bare back for wild and unsaddled horses. A ridden horse
+      always shows its saddle.
+    - A sheep in a household looks **shorn for the first half of each wool
+      cycle** and woolly after that; wild sheep stay woolly.
+  - **Animal yard.** Option A: a split-rail pen on trampled earth, with an
+    open gate on the door side, a water trough by the gate and hay in the far
+    corner.
+  - **Item icons.** Ten new icons: iron fittings, refined gold, a plain gold
+    ornament, saddle, cooked eggs, and milk, berry and fruit porridge, rich
+    meal and leather sack. The crude wooden axe and pickaxe keep the wooden
+    axe and pickaxe icons.
+  - **Construction sites.** A building under construction shows three
+    stages before its finished picture:
+    1. a cleared, staked-out site with materials piled beside it;
+    2. a footing, sill and posts with the floor half laid;
+    3. the walls up and the roof half on from the back, with a ladder.
+
+    Fences, piers, bridges and lanterns follow the same order with their own
+    parts.
+  - **Abandoned Towns.** Buildings in an abandoned Town look **neglected**:
+    faded, mossy, weedy, with the door boarded. Once the Town has stayed
+    abandoned for a **full season** they look **falling apart**, with a hole
+    in the roof, fallen planks and a sapling. Fences, piers and bridges lose
+    rails or planks instead. A revived Town looks lived in again.
+
+  The pictures and notes are in `tools/ArtPreview/Proposed/Round4.md`.
+- **Agreed on October 7: animals step as they walk.** computment chose
+  option **B**: each time an animal moves to a new tile, a front hoof shows
+  just ahead of its chest on one side and the hind hoof just behind its rump
+  on the other, then the pair swaps on the next step, and the tail swings.
+  Hens and chicks show one foot behind them at a time and bob their heads. An
+  animal that stops stands in its approved standing drawing; legs show only
+  while it walks. The rejected option A was a legless head nod and sway. The
+  pictures and notes are in `tools/ArtPreview/Proposed/AnimalWalk.md`.
 - Art is drawn in code, not stored as image files. computment prefers this.
-  Approved art for content that is not built yet waits in
-  `tools/ArtPreview/Proposed/` until its feature lands.
+  Approved art waits in `tools/ArtPreview/Proposed/` until the feature that
+  uses it lands.
 - Worn everyday, cold or wet clothing **does not change an agent's map sprite
   appearance**. Clothing has item icons and gameplay effects. Armor imagery
   may be prompted as new art later; whether worn armor is shown on agents and
@@ -648,31 +784,24 @@ The recent history should persist with the world save but remain bounded.
 
 ### Suggestion
 
-Use editable `.aseprite` or layered PNG sources where useful; export PNG
-spritesheets/atlases plus metadata for asset ID, footprint, anchor, layer,
-collision, frames/timing, style/biome, creator, rights, and version. Build a small
-visual reference scene before locking a palette or mass-producing textures.
-For autonomous inventions, first try approved component assembly/recoloring;
-optionally request new AI imagery under player-controlled cost limits. Normalize
-it to the pixel grid, check format, source and performance rules, preview it,
-and use a legible fallback sprite if generation fails. Aesthetically odd art
-should not automatically erase a mechanically valid invention.
-
 Use a small set of supported visual families for built-in content, then add a
 new family when an invention truly needs a new silhouette. Reusing an image
-need not mean two creations behave identically. The exact reuse/generation
-method remains Clanker's proposal, not an accepted implementation rule.
+need not mean two creations behave identically.
+
+The earlier suggestions here are settled: built-in art is drawn in code
+rather than exported as spritesheets
+([#1271](https://github.com/compoodment/ClankerWorld/issues/1271)), the
+[style guide](../development/art-style.md) and its art reviews are the
+reference instead of a separate reference scene, and invention pictures use
+approved code-drawn parts with no AI images
+([#1270](https://github.com/compoodment/ClankerWorld/issues/1270)).
 
 ### Still to decide
 
-How mountains, peaks and hills generate ([#628](https://github.com/compoodment/ClankerWorld/issues/628)); animation timing;
-AI-generation provider and spending controls; how much visual cleanup can be
-automated; quality criteria; asset size budgets; and the final art/content
-metadata contract. Also open: the minimum distinct designs each category
-needs, and how an agent invention technically expands the supported visual
-vocabulary. The first complete game does **not** require extra cosmetic
-variants just for variety. Existing code has partial PNG validation, **not**
-the full finished-game autonomous art pipeline.
+Still open: quality criteria for the images a mod carries, beyond their
+format, metadata and size limits. Animation timing is an implementation detail checked in the
+art reviews. The first complete game does **not** require extra cosmetic
+variants just for variety.
 
 ## Audio and dialogue presentation
 

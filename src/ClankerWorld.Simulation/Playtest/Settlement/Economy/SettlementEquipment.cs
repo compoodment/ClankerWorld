@@ -8,8 +8,9 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed partial class PrivateWorldRuntime
 {
-    private int FreeCarryCapacity(string actor) => Math.Max(0, PersonalEquipmentRules.FreeCapacity(
-        society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment) - ReservedBusinessCarrySpace(actor));
+    private int FreeCarryCapacity(string actor) => Math.Max(0, PersonalEquipmentRules.Capacity(
+        society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment) + HorseCargoCapacity(actor) -
+        PersonalEquipmentRules.CarriedQuantity(society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment) - ReservedBusinessCarrySpace(actor));
 
     private string EquipmentNote(string actor)
     {
@@ -19,7 +20,7 @@ public sealed partial class PrivateWorldRuntime
         var aid = PersonalEquipmentRules.EquippedUnit(inventory, actor, equipment?.CarryAidLotId);
         var ornament = PersonalEquipmentRules.EquippedUnit(inventory, actor, equipment?.OrnamentLotId);
         return $"Carrying {PersonalEquipmentRules.CarriedQuantity(inventory, actor, equipment)} of " +
-            $"{PersonalEquipmentRules.Capacity(inventory, actor, equipment)} units. Wearing " +
+            $"{PersonalEquipmentRules.Capacity(inventory, actor, equipment) + HorseCargoCapacity(actor)} units. Wearing " +
             $"{clothing?.ItemKind.Replace('_', ' ') ?? "no garment"}. Carry aid: {aid?.ItemKind ?? "none"}." +
             (ornament is null ? string.Empty : $" Ornament: {ornament.ItemKind.Replace('_', ' ')}.");
     }
@@ -42,10 +43,10 @@ public sealed partial class PrivateWorldRuntime
         // The new unit fills the slot; a displaced unit stays real cargo.
         var after = before + (previous is null ? 0 : 1) -
             (PersonalEquipmentRules.IsCarried(item, actor) ? 1 : 0);
-        var capacity = carryAid ? item.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity
+        var capacity = carryAid ? item.ItemKind == "leather_sack" ? 32 : item.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity
             : PersonalEquipmentRules.BasketCapacity : PersonalEquipmentRules.Capacity(inventory, actor, equipment);
         return after <= before && capacity >= PersonalEquipmentRules.Capacity(inventory, actor, equipment) ||
-            after + ReservedBusinessCarrySpace(actor) <= capacity;
+            after + ReservedBusinessCarrySpace(actor) <= capacity + HorseCargoCapacity(actor);
     }
 
     private int MissingRepairInputUnits(string actor, InventoryLot item) =>
@@ -57,7 +58,8 @@ public sealed partial class PrivateWorldRuntime
         // Borrowed goods, carried by this agent or by another member, are not theirs to take.
         .Where(lot => AvailableLotQuantity(lot) > 0 && lot.DeliveryBuildingId is null &&
             (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) ||
-                lot.OwnerId == HouseholdFor(actor) && lot.CarrierId is null && CanReachSharedItem(actor, lot)))
+                lot.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId &&
+                lot.CarrierId is null && CanReachSharedItem(actor, lot)))
         .Concat(AvailableWarehouseStock(actor)).DistinctBy(lot => lot.Id);
 
     private InventoryLot? BetterGarment(string actor)
@@ -77,8 +79,8 @@ public sealed partial class PrivateWorldRuntime
         var capacity = PersonalEquipmentRules.Capacity(society.Checkpoint.Inventory, actor, inhabitants[actor].Equipment);
         return PrivateEquipmentSources(actor).Where(lot => PersonalEquipmentRules.IsCarryAid(lot.ItemKind) &&
                 CanEquipPrivateItem(actor, lot, true) &&
-                (lot.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity : PersonalEquipmentRules.BasketCapacity) > capacity)
-            .OrderByDescending(lot => lot.ItemKind == "sack")
+                (lot.ItemKind == "leather_sack" ? 32 : lot.ItemKind == "sack" ? PersonalEquipmentRules.SackCapacity : PersonalEquipmentRules.BasketCapacity) > capacity)
+            .OrderByDescending(lot => lot.ItemKind == "leather_sack" ? 2 : lot.ItemKind == "sack" ? 1 : 0)
             .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
     }
 
@@ -231,7 +233,7 @@ public sealed partial class PrivateWorldRuntime
         }
         if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, person.Survival?.IllnessBasisPoints ?? 0)) return null;
         var progress = repair.WorkDone + 1;
-        if (progress < PersonalEquipmentRules.RepairWorkTicks)
+        if (progress < SkilledWorkTicks(actor, SettlementSkillKind.Crafting, PersonalEquipmentRules.RepairWorkTicks))
         {
             inhabitants[actor] = person with { Equipment = person.Equipment with { Repair = repair with { WorkDone = progress } } };
             return null;

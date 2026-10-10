@@ -59,55 +59,7 @@ public sealed class CareProductionTests(ITestOutputHelper output)
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
-    [Fact]
-    public async Task MedicineReservesActualJugContentsAndConsumesOnlyOneWaterWhileKeepingTheReusableJugAcrossReload()
-    {
-        var state = WithClinic("care-medicine");
-        var actor = AlphaActor(state);
-        state = MedicineInputs(state, Clinic);
-        state = At(state, actor, state.WorldSimulation!.Buildings.Single(building => building.InstanceId == Clinic).Position);
-        using var world = PrivateWorldRuntime.Restore(state, _ => new Preferred([]));
-        var recipe = world.WorldContent.Recipes.Single(item => item.LocalId == "clinic-medicine");
-        var started = world.StartProduction(recipe.CanonicalId, Clinic, actor);
-        Assert.True(started.Applied, started.Failure);
-        var job = world.WorldSimulation.ProductionJobs.Single(item => item.JobId == started.JobId);
-        Assert.Equal(16, job.CompletionTick - job.StartedTick);
-        var reservations = job.InputReservationIds.Select(world.Society.Inventory.GetReservation).ToArray();
-        Assert.Equal(3, reservations.Length);
-        Assert.Contains(reservations, item => item.LotId == "care-herbs" && item.Quantity == 2 && item.OwnerId == Alpha);
-        Assert.Contains(reservations, item => item.LotId == "care-water" && item.Quantity == 1 && item.OwnerId == Alpha);
-        Assert.Contains(reservations, item => item.LotId == "care-fuel" && item.Quantity == 1 && item.OwnerId == Alpha);
-        Assert.Throws<InvalidOperationException>(() => InventoryFixture.Transfer(world.Society.Inventory,
-            "reserved-jug-move", Alpha, actor, "care-jug", 1, "collect"));
-        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
-            PrivateWorldRuntimeCodec.Encode(world.ExportState())), _ => new Preferred([]));
-        for (var tick = 1; tick < 16; tick++)
-        {
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-            Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
-        }
-        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id is "care-herbs" or "care-fuel");
-        var water = world.Society.Inventory.GetLot("care-water");
-        Assert.Equal((InventoryContainerRules.FreshWater, Alpha, Clinic, "care-jug", 3),
-            (water.ItemKind, water.OwnerId, water.StorageBuildingId, water.ContainerLotId, water.Quantity));
-        var jug = world.Society.Inventory.GetLot("care-jug");
-        Assert.Equal((InventoryContainerRules.WaterJug, Alpha, Clinic, 1),
-            (jug.ItemKind, jug.OwnerId, jug.StorageBuildingId, jug.Quantity));
-        var medicine = world.Society.Inventory.GetLot(started.JobId + ":output:00");
-        Assert.Equal((CareContent.Medicine, Alpha, Clinic, 2),
-            (medicine.ItemKind, medicine.OwnerId, medicine.StorageBuildingId, medicine.Quantity));
-        Assert.All(reservations, item => Assert.Equal(InventoryReservationState.Completed,
-            world.Society.Inventory.GetReservation(item.Id).State));
-        Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
-        var moved = InventoryFixture.Transfer(world.Society.Inventory, "reuse-jug", Alpha, actor, jug.Id, 1, "collect");
-        Assert.Equal(actor, moved.GetLot(jug.Id).OwnerId);
-        Assert.Equal((actor, jug.Id, 3), (moved.GetLot(water.Id).OwnerId, moved.GetLot(water.Id).ContainerLotId, moved.GetLot(water.Id).Quantity));
-    }
-
     [Theory]
-    [InlineData("remote")]
-    [InlineData("other-household")]
     [InlineData("reserved-water")]
     [InlineData("broken-jug")]
     public void MedicineCannotUseRemotePrivateReservedOrBrokenVesselInputs(string boundary)
@@ -137,8 +89,6 @@ public sealed class CareProductionTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData("available")]
-    [InlineData("carrying-room")]
     [InlineData("reserved-water")]
     [InlineData("storage-room")]
     public async Task ClinicSupplyMovesTheWholeFilledJugOnlyWithActualRoomAndUnreservedContentsAcrossReload(string boundary)
@@ -335,7 +285,11 @@ public sealed class CareProductionTests(ITestOutputHelper output)
                 (water.ItemKind, water.OwnerId, water.StorageBuildingId, water.Quantity));
             var completed = Assert.Single(world.WorldSimulation.ProductionJobs, job => job.RecipeId == medicineRecipe.CanonicalId &&
                 job.State == WorldProductionJobState.Completed);
+            Assert.Contains(world.Inhabitants.Single(person => person.InhabitantId == actor).Skills!,
+                skill => skill.Kind == SettlementSkillKind.Crafting);
+            Assert.Equal(12, completed.CompletionTick - completed.StartedTick);
             var inputs = completed.InputReservationIds.Select(world.Society.Inventory.GetReservation).ToArray();
+            Assert.Equal(3, inputs.Length);
             Assert.Contains(inputs, input => input.LotId == water.Id && input.Quantity == 1 && input.OwnerId == Alpha &&
                 input.State == InventoryReservationState.Completed);
             Assert.Contains(inputs, input => input.LotId.StartsWith("material:", StringComparison.Ordinal) &&

@@ -371,18 +371,31 @@ public partial class Main
                 var receipt = await AwaitCurrentWorldResultAsync(ownerApi.PlaceAgentAsync(ResolveWorldUri(), authority, deviceId,
                     new OwnerAgentPlacementAction(agentId, tile.X, tile.Y, cognition,
                         membership.HouseholdIdFor(agentId), membership.TownId), signer, CancellationToken.None));
-                providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.GetProviderStatusAsync(
-                    ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None));
                 placingAddedAgent = false;
                 founderSetupPanel.Hide();
+                string detail;
                 if (receipt.HouseholdId is null)
                 {
                     var townName = snapshot.Towns.FirstOrDefault(item => item.Id == receipt.TownId)?.Name ?? "a Town";
-                    return $"Agent joined {townName} without a household";
+                    detail = $"Agent joined {townName} without a household";
                 }
-                var newHousehold = receipt.HouseholdId == "household:" + agentId;
-                return newHousehold ? "Agent placed in a new independent household"
-                    : $"Agent joined {GameUiText.PartyName(snapshot, receipt.HouseholdId)}";
+                else
+                {
+                    var newHousehold = receipt.HouseholdId == "household:" + agentId;
+                    detail = newHousehold ? "Agent placed in a new independent household"
+                        : $"Agent joined {GameUiText.PartyName(snapshot, receipt.HouseholdId)}";
+                }
+                try
+                {
+                    providerConfiguration = await AwaitCurrentWorldResultAsync(ownerApi.GetProviderStatusAsync(
+                        ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None));
+                }
+                catch (Exception exception) when (exception is not OutOfMemoryException &&
+                    exception is not ObsoleteWorldRequestException)
+                {
+                    return $"{detail} · Model settings could not be refreshed. Reopen Game Settings to refresh them.";
+                }
+                return detail;
             }, conflictMessage: "The placement changed. Check the tile and try again.");
         }
         finally

@@ -105,6 +105,53 @@ public sealed partial class PrivateWorldDeliveryOrderTests
         if (silo) Assert.Equal(0, Stored(world, Farmhouse, "grain"));
     }
 
+    [Theory]
+    [InlineData(95, 0, false, Farmhouse)]
+    [InlineData(96, 0, false, Farmhouse)]
+    [InlineData(95, 0, true, Farmhouse)]
+    [InlineData(95, 95, false, null)]
+    [InlineData(93, 0, false, Silo)]
+    public async Task RoutineFarmHaulFindsStorageForTheWholePot(int siloStock, int farmhouseStock, bool ordered, string? expectedDestination)
+    {
+        var state = Prepared(SiloBaseline.Value);
+        var actor = Actor(state);
+        var source = SourceNear(state, Home(state, Farmhouse).Position);
+        state = At(state, actor, source);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "routine-silo-stock", "potato_seed", Alpha,
+            siloStock, storageBuildingId: Silo);
+        if (farmhouseStock > 0)
+            inventory = InventoryFixture.AddLot(inventory, "routine-farmhouse-stock", "potato_seed", Alpha,
+                farmhouseStock, storageBuildingId: Farmhouse);
+        inventory = InventoryFixture.AddLot(inventory, "routine-pot", "storage_pot", Alpha, 1, groundPosition: new(source.X, source.Y));
+        inventory = InventoryFixture.AddLot(inventory, "routine-potatoes", "potatoes", Alpha, 2, containerLotId: "routine-pot");
+        var choices = new DeliveryChoices(farmHaulActor: actor);
+        using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory), _ => choices);
+        OwnerInstructionReceipt? receipt = ordered ? Submit(world, actor, "routine-pot-order", "haul two potatoes to my Farmhouse") : null;
+        await Tick(world);
+        var canFit = expectedDestination is not null;
+        var observation = Assert.Single(choices.Requests, request => request.InhabitantId == actor);
+        if (!ordered)
+        {
+            Assert.Equal(canFit, observation.Candidates.Any(candidate => candidate.Id == "haul_farm_grain"));
+            if (canFit) Assert.Equal(expectedDestination, world.Society.Inventory.GetLot("routine-pot").DeliveryBuildingId);
+        }
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new DeliveryChoices(farmHaulActor: actor));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        for (var tick = 0; tick < 24 && canFit && world.Society.Inventory.GetLot("routine-pot").StorageBuildingId != expectedDestination; tick++)
+            await TickTogether(world, replay);
+        if (!canFit) await TickTogether(world, replay);
+        var pot = world.Society.Inventory.GetLot("routine-pot");
+        var potatoes = world.Society.Inventory.GetLot("routine-potatoes");
+        Assert.Equal((Alpha, 1, expectedDestination), (pot.OwnerId, pot.Quantity, pot.StorageBuildingId));
+        Assert.Equal((Alpha, 2, "routine-pot"), (potatoes.OwnerId, potatoes.Quantity, potatoes.ContainerLotId));
+        Assert.Null(pot.DeliveryBuildingId);
+        if (!canFit) Assert.Equal(new InventoryGroundPosition(source.X, source.Y), pot.GroundPosition);
+        if (receipt is not null) Assert.Equal(("finished", 2), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.Equal(siloStock, world.Society.Inventory.GetLot("routine-silo-stock").Quantity);
+        world.Validate();
+    }
+
     [Fact]
     public async Task FlourTravelsFromTheFarmhouseToTheHouseWithoutMovingOtherFarmStock()
     {
@@ -232,18 +279,21 @@ public sealed partial class PrivateWorldDeliveryOrderTests
         Assert.Empty(world.WorldSimulation.ProductionJobs);
     }
 
-    [Fact]
-    public async Task DeliveringPersonalFoodLeavesOneMealAndDoesNotTakeAnotherOwnersFood()
+    [Theory]
+    [InlineData("berries")]
+    [InlineData("bread")]
+    [InlineData("restaurant_meal")]
+    public async Task DeliveringPersonalFoodLeavesOneMealAndDoesNotTakeAnotherOwnersFood(string kind)
     {
         var state = Prepared();
         var actor = Actor(state);
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "spare-berries", "berries", actor, 3);
-        inventory = InventoryFixture.AddLot(inventory, "foreign-berries", "berries", Beta, 5, groundPosition: new(Home(state, House).Position.X, Home(state, House).Position.Y));
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "spare-berries", kind, actor, 3);
+        inventory = InventoryFixture.AddLot(inventory, "foreign-berries", kind, Beta, 5, groundPosition: new(Home(state, House).Position.X, Home(state, House).Position.Y));
         using var world = Restore(WithInventory(state, inventory));
-        var receipt = Submit(world, actor, "food-delivery", "deliver three berries to my House");
+        var receipt = Submit(world, actor, "food-delivery", "deliver three " + kind.Replace('_', ' ') + " to my House");
         await Tick(world);
         Assert.Equal(2, Order(world, receipt).CompletedUnits);
-        Assert.Equal(2, Stored(world, House, "berries"));
+        Assert.Equal(2, Stored(world, House, kind));
         Assert.Equal((actor, 1), (world.Society.Inventory.GetLot("spare-berries").OwnerId, world.Society.Inventory.GetLot("spare-berries").Quantity));
         await Tick(world);
         Assert.Equal(("blocked", 2), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
@@ -328,8 +378,10 @@ public sealed partial class PrivateWorldDeliveryOrderTests
         for (var tick = 0; tick < 48 && Order(world, receipt).Status != "finished"; tick++) await TickTogether(world, replay);
         Assert.Equal("finished", Order(world, receipt).Status);
     }
-    private sealed class DeliveryChoices(DecisionProviderKind kind = DecisionProviderKind.Deterministic, bool hold = false) : IDecisionProvider
+    private sealed class DeliveryChoices(DecisionProviderKind kind = DecisionProviderKind.Deterministic, bool hold = false,
+        string? farmHaulActor = null) : IDecisionProvider
     {
+        private static readonly string[] FarmHaulChoices = ["haul_farm_grain", "haul_household_stock", "safe_idle"];
         public DecisionProviderKind Kind => kind;
         public long ProviderEpoch => 0;
         public ConcurrentQueue<InhabitantObservation> Requests { get; } = new();
@@ -348,7 +400,10 @@ public sealed partial class PrivateWorldDeliveryOrderTests
                 Returned.TrySetResult(true);
             }
             var selected = observation.OperativeOrderInstructionId is not null && observation.Candidates.Any(candidate => candidate.Id == "deliver_stock")
-                ? "deliver_stock" : "safe_idle";
+                ? "deliver_stock" : observation.InhabitantId == farmHaulActor
+                ? FarmHaulChoices.First(id => observation.Candidates.Any(candidate => candidate.Id == id &&
+                    (id != "haul_household_stock" || candidate.DestinationId is Farmhouse or Silo)))
+                : "safe_idle";
             return new(request.RequestId, observation.InhabitantId, Kind, request.ProviderEpoch, observation.RunEpoch,
                 observation.DecisionGeneration, observation.ObservationDigest, selected, 1, new Dictionary<string, double> { [selected] = 1 });
         }

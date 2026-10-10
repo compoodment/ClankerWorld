@@ -1,0 +1,1 @@
+- Farm hauling can use another permitted store when the preferred Farmhouse or Silo cannot accept the actual load, including a filled pot that needs more room than the Silo has left.

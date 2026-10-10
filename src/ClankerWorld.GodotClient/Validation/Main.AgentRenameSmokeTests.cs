@@ -7,11 +7,10 @@ namespace ClankerWorld.GodotClient;
 public partial class Main
 {
     /// <summary>
-    /// A rename the host refuses because another agent holds the first name
-    /// keeps the player's attempt in the Profile field through an ordinary
-    /// signed refresh with the field unfocused, including one that lands while
-    /// the host is still deciding, while the Profile keeps showing the host's
-    /// name. Another agent or another world drops it.
+    /// Unsubmitted and refused renames stay in the open Profile field through
+    /// signed refreshes with or without focus, including while the host is
+    /// deciding. Labels keep showing the host's name. Closing the editor,
+    /// choosing another agent or world, and successful renames drop the draft.
     /// </summary>
     private async Task VerifyRefusedAgentRenameAsync()
     {
@@ -102,6 +101,32 @@ public partial class Main
             if (!agentProfilePanel.Visible || !renameRow.Visible || renameAgentInput.Text != "Rowan Lake" || !renameAgentInput.Editable)
                 throw new InvalidOperationException("The Profile's rename field must open with the agent's current name.");
 
+            const string draftName = "Willow Lake";
+            renameAgentInput.Text = draftName;
+            renameAgentInput.EmitSignal(LineEdit.SignalName.TextChanged, draftName);
+            renameAgentInput.GrabFocus();
+            await RefreshFromHostAsync(World("rename-ui-smoke", 1));
+            if (!renameRow.Visible || renameAgentInput.Text != draftName || !host.RenameRequests.IsEmpty)
+                throw new InvalidOperationException("A focused refresh must preserve an unsubmitted rename without sending it to the host.");
+            renameAgentInput.ReleaseFocus();
+            await RefreshFromHostAsync(World("rename-ui-smoke", 1));
+            if (!renameRow.Visible || renameAgentInput.Text != draftName || !host.RenameRequests.IsEmpty)
+                throw new InvalidOperationException($"An unfocused refresh must preserve an unsubmitted rename without sending it to the host: field={renameAgentInput.Text}.");
+
+            renameToggleButton.EmitSignal(BaseButton.SignalName.Pressed);
+            await RefreshFromHostAsync(World("rename-ui-smoke", 1));
+            renameToggleButton.EmitSignal(BaseButton.SignalName.Pressed);
+            if (renameAgentInput.Text != "Rowan Lake" || !host.RenameRequests.IsEmpty)
+                throw new InvalidOperationException("Closing the rename editor must discard the draft without sending it to the host.");
+            renameAgentInput.Text = draftName;
+            renameAgentInput.EmitSignal(LineEdit.SignalName.TextChanged, draftName);
+            SelectInhabitant(asterId);
+            SelectInhabitant(rowanId);
+            OpenAgentProfile(speak: false);
+            if (!renameRow.Visible || renameAgentInput.Text != "Rowan Lake" || !host.RenameRequests.IsEmpty)
+                throw new InvalidOperationException("Choosing another agent must discard the unsubmitted draft without sending it to the host.");
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
             await RefuseTakenNameAsync(refreshWhileDeciding: World("rename-ui-smoke", 2));
             await RefreshFromHostAsync(World("rename-ui-smoke", 3));
             if (!renameRow.Visible || renameAgentInput.Text != refusedName || selectedActorNameLabel.Text != "Rowan Lake" ||
@@ -135,6 +160,19 @@ public partial class Main
                 renameRow.Visible || selectedActorNameLabel.Text != "Rowan Hill" ||
                 observationSession.Current?.Baseline.Snapshot.WorldTick != 6)
                 throw new InvalidOperationException("Keeping an agent's own first name must allow a new surname, close the field and show the host's new name.");
+
+            renameToggleButton.EmitSignal(BaseButton.SignalName.Pressed);
+            renameAgentInput.Text = draftName;
+            renameAgentInput.EmitSignal(LineEdit.SignalName.TextChanged, draftName);
+            observationSession.ResetAfterLoad();
+            await RefreshFromHostAsync(World("rename-ui-final", 7, rowanName: "Rowan Vale"));
+            if (selectedInhabitantId is not null || renameRow.Visible || !host.RenameRequests.IsEmpty)
+                throw new InvalidOperationException("Another world must discard the unsubmitted draft without sending it to either host.");
+            SelectInhabitant(rowanId);
+            OpenAgentProfile(speak: false);
+            renameToggleButton.EmitSignal(BaseButton.SignalName.Pressed);
+            if (renameAgentInput.Text != "Rowan Vale")
+                throw new InvalidOperationException("The same agent ID in another world must open with that world's saved name.");
         }
         finally
         {

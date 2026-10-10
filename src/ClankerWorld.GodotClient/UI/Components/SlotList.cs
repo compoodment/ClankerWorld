@@ -4,7 +4,7 @@ namespace ClankerWorld.GodotClient.UI;
 
 /// <summary>A small label on a world or save card, such as Current or Autosave.</summary>
 /// <param name="Note">Drawn outlined and muted rather than filled, for notes such as "Can't open".</param>
-public readonly record struct SlotTag(string Text, bool Note = false);
+public readonly record struct SlotTag(string Text, bool Note = false, string? Tooltip = null);
 
 /// <summary>
 /// A scrolling list of worlds or saves drawn as cards: a pixel icon, the name
@@ -16,6 +16,12 @@ public partial class SlotList : ScrollContainer
 {
     [Signal]
     public delegate void ItemSelectedEventHandler(long index);
+
+    [Signal]
+    public delegate void ItemClickedEventHandler(long index);
+
+    [Signal]
+    public delegate void ItemNavigatedEventHandler(long index);
 
     [Signal]
     public delegate void ItemActivatedEventHandler(long index);
@@ -126,9 +132,10 @@ public partial class SlotList : ScrollContainer
             row.AddChild(new Label
             {
                 Text = tag.Text.ToUpperInvariant(),
+                TooltipText = tag.Tooltip ?? string.Empty,
                 ThemeTypeVariation = tag.Note ? "TagNoteLabel" : "TagLabel",
                 SizeFlagsVertical = SizeFlags.ShrinkCenter,
-                MouseFilter = MouseFilterEnum.Ignore,
+                MouseFilter = tag.Tooltip is null ? MouseFilterEnum.Ignore : MouseFilterEnum.Pass,
             });
         if (muted) row.Modulate = new Color(1, 1, 1, 0.55f);
         card.AddChild(row);
@@ -143,11 +150,12 @@ public partial class SlotList : ScrollContainer
     }
 
     /// <summary>Chooses a card without reporting it, like <see cref="ItemList.Select"/>.</summary>
-    public void Select(int index)
+    /// <param name="scrollIntoView">False when restoring the same selection during a list refresh.</param>
+    public void Select(int index, bool scrollIntoView = true)
     {
         selected = index >= 0 && index < items.Count ? index : -1;
         Restyle();
-        if (selected < 0) return;
+        if (selected < 0 || !scrollIntoView) return;
         // Scroll once the card is laid out; the list may have been refilled by then.
         var card = items[selected];
         Callable.From(() =>
@@ -164,7 +172,9 @@ public partial class SlotList : ScrollContainer
         if (@event.IsActionPressed("ui_down") || @event.IsActionPressed("ui_up"))
         {
             var step = @event.IsActionPressed("ui_down") ? 1 : -1;
-            Choose(Math.Clamp(selected < 0 ? 0 : selected + step, 0, items.Count - 1));
+            var next = Math.Clamp(selected < 0 ? 0 : selected + step, 0, items.Count - 1);
+            Choose(next);
+            EmitSignal(SignalName.ItemNavigated, next);
             AcceptEvent();
         }
         else if (@event.IsActionPressed("ui_accept") && selected >= 0)
@@ -179,6 +189,7 @@ public partial class SlotList : ScrollContainer
         if (input is not InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } click) return;
         GrabFocus();
         Choose(index);
+        EmitSignal(SignalName.ItemClicked, index);
         if (click.DoubleClick) EmitSignal(SignalName.ItemActivated, index);
         AcceptEvent();
     }
