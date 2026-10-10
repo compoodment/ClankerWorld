@@ -2785,6 +2785,9 @@ agent card and People section distinguish accepted care, a blocked home and
 travel through existing observation notes. `guardian_placement_pending`,
 `guardian_placement_completed` and `guardian_placement_cancelled` record the
 placement lifecycle separately from `guardian_assigned` and `guardian_needed`.
+The guardian's model housing note keeps the accepted task and current blocker
+within a 256-unit text budget without splitting Unicode characters. The complete
+child name and accepted care and House references stay saved.
 
 **Continuity rule** (`SettlementContinuity`). The owner's answer on
 [#1266](https://github.com/compoodment/ClankerWorld/issues/1266) replaces the
