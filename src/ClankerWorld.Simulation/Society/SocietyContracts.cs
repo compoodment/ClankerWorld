@@ -260,7 +260,8 @@ public sealed record SocietySocialMemory(
     string Summary,
     string Visibility,
     long SourceTick,
-    long? TombstonedTick = null)
+    long? TombstonedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Permanent = false)
 {
     [JsonRequired]
     public SocietyMemoryKind Kind { get; init; } = SocietyMemoryKind.Experience;

@@ -15,6 +15,7 @@ public partial class Main
 
     private void ResetDisplayedWorldContext()
     {
+        keyboardMapTile = null;
         knownEvents.Clear();
         eventsWorldId = null;
         lastSeenEventId = long.MinValue;

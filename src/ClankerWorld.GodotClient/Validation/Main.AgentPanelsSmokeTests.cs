@@ -63,7 +63,11 @@ public partial class Main
                 new OwnerWorldPrivateThought(2, "The river bank has good clay. If I carry some back before dusk, Ash can fire the kiln " +
                     "tomorrow and we will finally have pots to store the harvest in before the first frost arrives."),
             ],
-            RecentMemories = [new OwnerWorldAgentMemory(2, rowan.Id, "Rowan", "Rowan shared the last of the bread with me.", "private")],
+            RecentMemories =
+            [
+                new OwnerWorldAgentMemory(2, rowan.Id, "Rowan", "Rowan shared the last of the bread with me.", "private"),
+                new OwnerWorldAgentMemory(1, "agent-panels-mira", "Mira", "I was renamed on day 1 to Mira Hale.", "private", Permanent: true),
+            ],
             RecentBeliefs = [new OwnerWorldAgentBelief(3, "Wren is saving seed for spring.", "hearsay", 6_000, "ash", "Ash", null, null, false, null)],
             RecentKnowledgeFacts = [new OwnerWorldKnowledgeFact(1, 0, 0, "meadow", ["clay"], "Mira", "firsthand", null)],
         };
@@ -205,8 +209,9 @@ public partial class Main
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var tabs = memoryTabs.FindChildren("*", nameof(Button), recursive: true, owned: false).OfType<Button>().Select(button => button.Text).ToArray();
             var memories = MemoryCardsText();
-            if (!tabs.SequenceEqual(["All", "Memories 1", "Beliefs 1", "Maps 1"]) || memoryCards.GetChildCount() != 3 ||
-                !memories.Contains("PRIVATE", StringComparison.Ordinal) || !memories.Contains("Heard from Ash", StringComparison.Ordinal) ||
+            if (!tabs.SequenceEqual(["All", "Memories 2", "Beliefs 1", "Maps 1"]) || memoryCards.GetChildCount() != 4 ||
+                !memories.Contains("PRIVATE", StringComparison.Ordinal) || !memories.Contains("PERMANENT", StringComparison.Ordinal) ||
+                !memories.Contains("I was renamed on day 1 to Mira Hale.", StringComparison.Ordinal) || !memories.Contains("Heard from Ash", StringComparison.Ordinal) ||
                 !memories.Contains("60% sure", StringComparison.Ordinal) || !memories.Contains("Clay near the meadow", StringComparison.Ordinal) ||
                 !memories.Contains("Meadow at 0, 0", StringComparison.Ordinal))
                 throw new InvalidOperationException($"Memories must be tabbed cards with sureness, a Private tag and map places: tabs={string.Join(",", tabs)} text={memories.ReplaceLineEndings(" / ")}");

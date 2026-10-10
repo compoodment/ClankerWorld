@@ -284,7 +284,7 @@ public partial class Main
             for (var frame = 0; frame < 4; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var lastTag = rows.TagArea("paused-8") ?? throw new InvalidOperationException("The selected save's tag must remain drawn.");
             if (lastTag.Position.X < rows.ViewLeft - 1 || lastTag.End.X > rows.ViewLeft + rows.ViewWidth + 1)
-                throw new InvalidOperationException("Choosing a crowded save must scroll its complete name tag into view.");
+                throw new InvalidOperationException($"Choosing a crowded save must scroll its complete name tag into view: tag={lastTag}, left={rows.ViewLeft}, width={rows.ViewWidth}, focus={GetViewport().GuiGetFocusOwner()?.GetPath()}, keyboard={keyboardNavigation}.");
 
             Click("anchor");
             var hiddenPoint = rows.PointPosition("paused-8") ?? throw new InvalidOperationException("The first branch must retain its save points.");

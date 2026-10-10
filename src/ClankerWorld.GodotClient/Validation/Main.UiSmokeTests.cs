@@ -918,6 +918,7 @@ public partial class Main
     {
         try
         {
+            await VerifyTitleKeyboardAsync();
             VerifyEventLogAgentNames();
             await VerifyNewcomerOfferAsync();
             await VerifyAcknowledgedAgentPlacementAsync();
@@ -3958,6 +3959,7 @@ public partial class Main
             await VerifyAgentPanelsAsync();
             await VerifyRosterRefreshScrollAsync();
             await VerifyRosterKeyboardAsync();
+            await VerifyWorldKeyboardAsync();
             await VerifyOrderListAsync();
             eventsPanel.Show();
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });

@@ -97,7 +97,12 @@ name. A child's chosen surname must come from a biological parent. Temporary
 names do not reserve first names, and renaming leaves past conversations as
 spoken. Changing a married agent's surname updates both spouses together,
 keeping the other spouse's first and middle names. A taken first name leaves
-both names unchanged. An unfinished rename stays in the open editor through
+both names unchanged. A successful rename gives each person whose name changed
+a private, permanent memory such as "I was renamed on day 22 to Mira Hale".
+Their model receives it in later decisions, and Memories marks it **Permanent**.
+Earlier rename memories keep their original date and name through save/load;
+other agents are not told. Retrying an unchanged name adds no memory.
+An unfinished rename stays in the open editor through
 world refreshes, even when the name field loses focus. Closing the editor or
 choosing another agent or world discards it.
 
@@ -225,7 +230,9 @@ around other people where possible; if it stays blocked, the Event Log records
 that the trip ended without reaching its start.
 
 **Memories** shows what the agent remembers, believes and has mapped as cards,
-newest first, with a tab for each kind. A belief shows how sure they are and
+newest first, with a tab for each kind. Permanent rename memories stay in the
+bounded list even when later ordinary experiences would fill it.
+A belief shows how sure they are and
 whether they saw it or heard it from someone; a map record shows each place
 with a picture of its ground. **Family** opens their family tree beside the
 Profile, with a portrait for each person and a heart between partners. Click
@@ -774,10 +781,20 @@ and receiving households must learn the published terms and personally accept;
 proposing, reading and silence supply no acceptance. A new adult joining while
 it is pending must accept too. This ordinary transfer needs no Council or mayor
 approval. It preserves the original grant date and any agreed end date, and
-moves only use permission. Town title, membership, buildings, crops, goods and
-private-building access stay unchanged. Expired, disputed or under-review land
+moves use permission and any agreed goods payment. Town title, membership,
+buildings, crops, other goods and private-building access stay unchanged. Expired, disputed or under-review land
 cannot use this route. Town, plot and property details show the exact terms,
 names, dates and each household's acceptance progress.
+
+A household can also offer that exact use permission for a named quantity of
+goods. Every affected adult accepts the published price as well as the plot.
+Permission waits until a buyer adult brings their own usable, unreserved loose
+goods to meet a seller adult at the Town's notice place. The payment becomes
+seller household stock there as the permission moves; no money price is used.
+Household work tools stay borrowed, and reserved goods, vessel contents, full
+hands or a blocked route cannot supply payment. Town and plot details show the
+price, whether payment is still needed, and who completed it. A decline or
+withdrawal leaves permissions and unpaid goods with their owners.
 
 An affected household can ask for a land hearing, and the Town can file through
 its legitimate government. A permission with an agreed end date enters review
@@ -845,9 +862,15 @@ If they gather new wood or stone, those goods stay personal until their own mode
 freshly chooses to donate them. **Speak → Suggest** may ask an adult to consider
 helping or donating; an Order cannot give away their goods. After completion,
 select the Hall for its project and payment details. Agents read civic notices
-there, with the same nearby learning and relay rules as before. A blocked project
+there, with the same nearby learning and relay rules as before. If you remove a
+finished Hall, the Towns page keeps its paid construction history and labels it
+**Built, later removed**, without offering it for selection on the map. Older
+Event Log lines keep the project name even when its worker is no longer present.
+A blocked project
 keeps its materials as Town property and releases unused claims rather than
-building for free. If its site can no longer be used, the Town stops the
+building for free. Its waiting message explains that work retries when the
+approved site is usable and reachable and the required materials are available.
+If its site can no longer be used, the Town stops the
 project and the Towns page says why; its leftover materials stay Town
 property where they are. See [What works today](what-works.md#life-work-and-society)
 for this first version's limits and provisional amounts. Its
@@ -927,6 +950,21 @@ and grouped by what they do. With no menu or text field
 active, **Space** or **P** pauses, **N** selects the next agent, **Shift+N** the
 previous one, **C** centers the selected agent and **H** returns to the opening
 Town view. **Escape** closes the newest panel or mode, then opens the Pause Menu.
+
+Use **Tab** and **Shift+Tab** to move between controls in the open panel, with a
+visible focus outline. **Enter** activates the focused control; arrow keys
+browse lists and choices. Focus stays in menus and returns to the control that
+opened a panel when you close it. Numeric fields and scrollable readers are
+also reachable with Tab. In a text field, Escape leaves the field first;
+press it again to close the panel. The Agents list keeps focus while you browse with
+arrows; Enter opens the selected Profile.
+
+Press **K** to focus a tile on the world map. Arrows move one tile, or ten with
+**Shift**; the camera follows when the tile leaves the view. **Enter** selects
+an agent, building or ground tile there. During founder, first Town or new-agent
+placement, Enter uses the same placement action as clicking that tile. Move
+the pointer to return to mouse browsing. In **World Map**, Tab to the atlas and
+use arrows to move the camera. Key remapping is not available.
 
 Press **F12** in a world to open **Developer tools** at the right edge of the
 screen, and again to close them; **Escape** closes them once nothing newer is
@@ -1106,6 +1144,11 @@ use those supplies directly. The adult walks and brings actual available
 supplies; an order waits when permission, supplies, product, space or a route
 is missing. Care without safe feed or jug water shows a blocker and can resume
 when supplies become available.
+Care keeps two usable ready-to-eat portions per living household member, plus
+the existing extra allowance for an active family plan. Food trapped in a broken
+pot or on an actively borrowed Market stall cannot cover that reserve. Once
+stall borrowing ends, its food can count again. Grain can feed animals without
+spending the family's ready-to-eat meals.
 Taming needs two grain/greens and one jug water. Chickens need one feed and one
 water daily; sheep, cows and horses need two each. Jugs remain reusable.
 

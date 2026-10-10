@@ -168,6 +168,12 @@ its saved world systems. It does not generate a disposable initial ecology,
 chunk set or weather state. New worlds still generate those systems normally;
 ordinary loads still validate saved data and check deterministic map identity.
 
+New worlds start with no currency definitions, accounts or transfers. The
+legacy faction-law list is empty too: genesis creates no `camp-no-theft` rule
+or money fine. Physical goods, ownership/access checks and actual Town laws
+use their existing systems. The generic currency and faction contracts remain
+available to the kernel, but native world creation supplies no money or fines.
+
 The current host aims for one tick per real second. New worlds save 360 ticks
 per day and a 40-day year with four ten-day seasons; lifecycle thresholds are
 3/15/45/60 days. Newly created playable worlds start at 06:00 on Spring 1,
@@ -999,6 +1005,18 @@ it a chosen name and reserves its first token. No name check rewrites saved
 dialogue or identity references, and player choices still supersede late model
 naming replies.
 
+A changed player rename and its permanent memory publish in the same Society
+operation. `RenameFromPlayer` records the accepted normalized name and current
+world day as a private self-subject experience. A stable, bounded ID combines
+the saved world-event ordinal and an actor hash, distinguishing several renames at
+one tick and preserving their order across reload. Married surname changes
+record a memory only for each actually changed spouse, inside the existing
+all-or-nothing operation. Long descendant IDs keep their full saved ownership
+while the model excerpt uses the existing bounded subject alias. Automatic naming and marriage surname choices do not
+create player-rename memories. A refused or unchanged-name request creates no
+memory. Deceased rename history remains inspectable. Undoing a founder before
+the world starts removes that person and their setup history.
+
 Native births omit a chosen name and retain a placeholder with `NeedsName`.
 Infants remain excluded from personal-model dispatch. Once ordinary eligibility
 allows a naming request, bounded `self.allowed_child_surnames` lists only the
@@ -1052,7 +1070,13 @@ Each agent retains up to eight private thoughts and exposes up to sixteen recent
 non-forgotten social memories to owner inspection, including deceased profiles.
 A separate belief record retains firsthand/hearsay/inference evidence and
 superseded corrections. Inspection never broadcasts these records or turns
-them into public events.
+them into public events. Validation indexes the complete belief history by ID,
+owner and source turn, resolving correction roots once. Source-turn checks
+use those indexes instead of rescanning every belief for every heard turn.
+Known-owner, reporter, subject and bidirectional correction checks still run;
+unrelated duplicate turns and dangling or cyclic correction chains are
+rejected. The indexes are rebuilt for each validation, are never saved and
+discard no beliefs or provenance.
 
 Ordinary conversation is a host-controlled activity, not free-form world
 commands. The normal provider router requires an explicit personal planning
@@ -1077,9 +1101,10 @@ validating each indexed source against that owner's existing records.
 Helper score replies retain these owner IDs too; admission requires the exact
 requesting agent and one of its offered source records.
 Private thoughts, provider payloads
-and unaccepted replies never enter that history. Prose has no world effect; the
-only ordinary-dialogue effect is mutual trust, offered during wrap-up and
-applied only after both participants accept the same proposal.
+and unaccepted replies never enter that history. Prose has no world effect.
+Ordinary dialogue can propose mutual trust or, for eligible partners, marriage
+during wrap-up. Either structured effect requires both participants to accept
+the same proposal.
 
 The saved revision, status and next-speaker fields are the conversation cursor.
 The checkpoint keeps the complete admitted history (up to six public turns and
@@ -1118,9 +1143,15 @@ the same public wrap-up and proposed effect before accepting. Lessons wait while
 either participant is talking. Conversation logs record only purpose, bounded
 turn count, latency and usage totals, including reported usage for rejected speech.
 
-Personal requests retrieve at most four relevant own-memory/belief excerpts and
-sixteen recent own-map facts. An existing Jev routine call may score up to twelve
-previously unassessed records; only linked salience/confidence values are saved.
+Personal requests retrieve at most four own-memory/belief excerpts and sixteen
+recent own-map facts. Permanent rename experiences take precedence, newest first,
+including before the 256-source scan limit; ordinary sources retain their
+relevance and salience ranking. The owner's bounded 16-entry Memories projection
+also keeps permanent entries first and marks them Permanent. All rename source
+records remain saved; bounded lists do not archive or delete them.
+An existing Jev routine call may score up to twelve previously unassessed
+ordinary records; permanent entries are excluded from scoring and cannot fade
+through a low assessment. Only linked salience/confidence values are saved.
 It adds no separate paid request or generated prose. Local retrieval works with
 Jev off. On an unpaused world-day boundary, `SocietyMemoryArchiveRules` moves
 ordinary experiences and beliefs at least three world days old and below 2,500
@@ -1128,7 +1159,7 @@ importance basis points out of the active ledger into required owner-private
 archive lists. Unscored records count as zero. These constants are provisional.
 Archive entries retain the complete original record and archive tick; ordinary
 recall and memory-scoring candidates read only the active ledger. Typed life,
-relationship, skill and commitment records, durable cooperation/final-word
+relationship, skill and commitment records, records marked `Permanent`, durable cooperation/final-word
 receipts and world-event-backed beliefs stay active. Active orders, projects,
 lessons (including their teachers), requested or preparing parenthood plans,
 relationship proposals, barter,
@@ -2860,6 +2891,8 @@ and stores two named servings, leaving water jugs intact. A runnable named meal
 has priority over input replenishment, so one shared jug cannot shuttle between
 House and Restaurant indefinitely before anyone cooks. The trial cooked-food
 reserve is two servings per living household resident across prepared kinds.
+Only loose meals and contents in usable vessels count toward that target;
+finished meals trapped in a broken pot do not suppress replacement cooking.
 A recipe that improves already prepared food, such as Restaurant meals from
 bread, checks its own finished dish so an existing bread reserve cannot hide
 that choice. Meals give 40% fullness, stew and fruit/berry porridge 50%, and
@@ -3757,7 +3790,12 @@ ordinary revalidated choices. Native orders bind an exact animal name or ID.
 Order progress follows the completed animal action, including when fetching a
 supply at the animal completes that action in the same tick.
 Care spends actual unreserved grain/greens and jug water at the animal or yard;
-food, planting and workstation reserves stay protected. For care away from the
+food, planting and workstation reserves stay protected. Its ready-to-eat reserve
+counts only usable vessels or loose food, excludes household stock on actively
+borrowed Market stalls, and still subtracts freshness, condition and reservations.
+Ending stall borrowing makes that stock eligible again. The existing two portions
+per active household member and four extra for active parenthood are unchanged;
+non-edible grain does not spend the food reserve. For care away from the
 actor's tile, input selection accepts only physically carried supplies. This
 keeps the existing supply path collecting feed and enough usable jug water before
 approaching the animal, including after a partial pickup. Water may be split
@@ -3781,6 +3819,10 @@ milk enters a reusable household jug. Jug pickup and collection require cargo
 space for the jug's existing contents and the pending milk batch; an unsuitable
 first jug does not hide a fitting alternative. Products then use ordinary stock hauling,
 recipes and trade.
+`drink_milk` uses the same carried-milk selector for its offered choice and
+execution. It excludes milk or a jug assigned to a building delivery, keeping
+the promised contents available for their destination. Unassigned carried
+milk remains drinkable and leaves its reusable jug intact.
 
 When care is due, its native order candidate requires complete safe inputs, a current care
 supply trip or an obtainable supply. Missing inputs use the existing blocked

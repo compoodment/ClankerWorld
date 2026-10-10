@@ -206,7 +206,12 @@ public sealed partial class OwnerWorldObservationStore
                         TownLandTransferRules.AcceptedAdults(request, party, receipts, asOf).ToArray(), party.AdultIds.Where(aware.Contains).ToArray())).ToArray(),
                     request.NoticeId, request.ProposedTick, request.Responses.Select(response => new ViewerLandTransferResponse(response.HouseholdId,
                         HouseholdName(response.HouseholdId), response.AgentId, AgentName(response.AgentId), response.Kind, response.Tick,
-                        response.PartyAdults.ToArray())).ToArray(), request.Status, request.SettledTick, request.Reason, request.Receipt?.AdjustmentId);
+                        response.PartyAdults.ToArray())).ToArray(), request.Status, request.SettledTick, request.Reason, request.Receipt?.AdjustmentId)
+                {
+                    Price = request.Price is { } price ? new(price.SellerHouseholdId, HouseholdName(price.SellerHouseholdId), price.ItemKind, price.Quantity) : null,
+                    Payment = request.Receipt?.Payment is { } payment ? new(payment.BuyerAgentId, AgentName(payment.BuyerAgentId),
+                        payment.SellerAgentId, AgentName(payment.SellerAgentId), ToPosition(payment.Position), request.Receipt.Tick) : null
+                };
             }).ToArray();
     }
 
@@ -538,6 +543,7 @@ public sealed partial class OwnerWorldObservationStore
             {
                 Tags = plan.Tags,
                 CompletedBoatId = project.CompletedBoatId,
+                RemovedTick = project.RemovedTick,
             };
         }
         string MarketOwnerName(string id) => inhabitantsById.GetValueOrDefault(id)?.Name ??
@@ -1575,7 +1581,9 @@ public sealed partial class OwnerWorldObservationStore
         (state.Society.Society.GetInhabitant(ownerId).Status == SocietyInhabitantStatus.Dead
             ? state.Society.Society.AllMemories() : state.Society.Society.Memories)
             .Where(memory => memory.OwnerId == ownerId && memory.TombstonedTick is null)
-            .OrderByDescending(memory => memory.SourceTick)
+            .OrderByDescending(memory => memory.Permanent)
+            .ThenByDescending(memory => memory.SourceTick)
+            .ThenByDescending(memory => memory.Permanent ? memory.Id : string.Empty, StringComparer.Ordinal)
             .ThenBy(memory => memory.Id, StringComparer.Ordinal)
             .Take(16)
             .Select(memory => new ViewerAgentMemory(
@@ -1583,7 +1591,8 @@ public sealed partial class OwnerWorldObservationStore
                 memory.SubjectId,
                 state.Society.Society.Inhabitants.FirstOrDefault(person => person.Id == memory.SubjectId)?.Name ?? memory.SubjectId,
                 memory.Summary,
-                memory.Visibility))
+                memory.Visibility,
+                memory.Permanent))
             .ToArray();
 
     private static ViewerAgentBelief[] BeliefsFor(PrivateWorldRuntimeState state, string ownerId) =>
