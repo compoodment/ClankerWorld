@@ -12,6 +12,33 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class ViewerHttpTests
 {
     [Theory]
+    [InlineData(null, false)]
+    [InlineData("wrong", false)]
+    [InlineData("ssssssssssssssssssssssssssssssss", true)]
+    public async Task CompanionDiscoveryRequiresTheSecretAndDoesNotChangeTheWorld(string? secret, bool accepted)
+    {
+        using var baseHost = new ViewerWebApplicationFactory(null, privateWorld: true);
+        using var host = baseHost.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            services.AddSingleton(new OwnerPairingHostOptions(5189, new string('s', 32)))));
+        using var client = host.CreateClient();
+        var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+        var file = host.Services.GetRequiredService<PrivateWorldStateFile>();
+        var before = File.ReadAllBytes(file.Path);
+        var response = await host.Server.SendAsync(context =>
+        {
+            CompanionShutdownRequest(context);
+            context.Request.Method = "GET";
+            context.Request.Path = "/api/v1/local/companion";
+            context.Request.Headers.Remove(OwnerPairingHostOptions.CompanionSecretHeader);
+            if (secret is not null) context.Request.Headers[OwnerPairingHostOptions.CompanionSecretHeader] = secret;
+        });
+        Assert.Equal(accepted ? StatusCodes.Status200OK : StatusCodes.Status404NotFound, response.Response.StatusCode);
+        Assert.False(runtime.Society.IsPaused);
+        Assert.Equal(before, File.ReadAllBytes(file.Path));
+        Assert.False(host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping.IsCancellationRequested);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task CompanionShutdownSavesPausedWorldBeforeRequestingExitAndCanRetryFailedWrite(bool failWrite)
