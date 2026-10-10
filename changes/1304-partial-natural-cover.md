@@ -1,0 +1,1 @@
+- Forests and trees now give only partial storm protection. Cooling agents prefer a permitted building over natural cover and keep its cover while looking for usable heat.

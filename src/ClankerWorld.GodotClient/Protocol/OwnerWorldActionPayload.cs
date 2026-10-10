@@ -38,6 +38,13 @@ public static class OwnerWorldActionPayload
         $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"created-utc={action.ExpectedCreatedUtc?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture) ?? "-"}");
 
+    public static string RecoveryCleanup(OwnerRecoveryCleanupAction action) => string.Join(
+        '\n', "clankerworld.owner-recovery-cleanup.v1",
+        $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"keep-count={action.KeepCount.ToString(CultureInfo.InvariantCulture)}",
+        $"expected-digest={EncodeOptional(action.ExpectedDigest)}");
+
     public static string ManualSave(OwnerManualSaveAction action) => string.Join(
         '\n',
         "clankerworld.owner-manual-save.v1",

@@ -30,11 +30,14 @@ public sealed partial class PrivateWorldRuntime
         }
         if (animal.WildWaterUntilTick <= tick)
         {
+            var occupied = WildAnimalRouteOccupants(animal);
             var shore = FreshWaterShorePositions().Where(point => !animalWorld.Animals.Any(other => other.Id != animal.Id &&
                     other.DiedTick is null && other.Position == point) && !inhabitants.Values.Any(person => person.Position == point) &&
                     map.FootDistance(animal.Position, point) <= 12 &&
                     map.IsReachableOnFoot(animal.Position, point)).OrderBy(point => map.FootDistance(animal.Position, point))
-                .ThenBy(point => point.Y).ThenBy(point => point.X).Cast<GridPoint?>().FirstOrDefault();
+                .ThenBy(point => point.Y).ThenBy(point => point.X)
+                .Where(point => SharedUnoccupiedRoute(animal.Position, occupied, point, 0).Count > 0)
+                .Cast<GridPoint?>().FirstOrDefault();
             if (shore is null) return animal;
             if (animal.Position != shore.Value) return MoveWildAnimalToward(animal, shore.Value, tick, 0);
             SetAnimal(animal = animal with { WildWaterUntilTick = tick + AnimalDayTicks });

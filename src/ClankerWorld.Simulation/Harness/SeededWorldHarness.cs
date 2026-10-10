@@ -687,8 +687,28 @@ public static class GeneratedCampMapGenerator
             width, height, objects, placed.Concat(distributed).Concat(geology).ToArray());
         List<MapResource> orchards = GenerateOrchards(options, geography, surfaceKinds, vegetationKinds, width, height, objects,
             placed.Concat(distributed).Concat(geology).Concat(trees).ToArray());
-        var withoutDigest = new SeededMap(width, height, 0, tiles, objects,
-            placed.Concat(distributed).Concat(geology).Concat(trees).Concat(orchards).ToArray(), string.Empty)
+        // Pass 5: the north and south edge rows become polar sea last
+        // (#1249), so every other tile and object stays where it was.
+        var seaLevel = hydrologyKinds.Select((water, index) => (water, index))
+            .Where(item => item.water != (byte)WaterKind.Land).Select(item => elevationLevels[item.index]).DefaultIfEmpty((byte)0).Max();
+        for (var y = 0; y < height; y++)
+        {
+            if (!GeographyGenerator.IsPolarEdgeRow(y, height)) continue;
+            for (var x = 0; x < width; x++)
+            {
+                var index = y * width + x;
+                kinds[index] = TerrainKind.Ocean;
+                tiles[index] = new TerrainTile(new GridPoint(x, y), TerrainKind.Ocean);
+                climateZones[index] = (byte)ClimateZone.Polar;
+                elevationLevels[index] = Math.Min(elevationLevels[index], seaLevel);
+                hydrologyKinds[index] = (byte)WaterKind.Ocean;
+                surfaceKinds[index] = (byte)SurfaceKind.Water;
+                vegetationKinds[index] = (byte)VegetationCover.None;
+            }
+        }
+        var allResources = placed.Concat(distributed).Concat(geology).Concat(trees).Concat(orchards)
+            .Where(resource => !GeographyGenerator.IsPolarEdgeRow(resource.Position.Y, height)).ToArray();
+        var withoutDigest = new SeededMap(width, height, 0, tiles, objects, allResources, string.Empty)
         {
             ClimateZones = climateZones,
             ElevationLevels = elevationLevels,

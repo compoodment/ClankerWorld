@@ -15,6 +15,11 @@ public partial class Main
 
     private void ResetDisplayedWorldContext()
     {
+        goldenHourLayer.Reset();
+        terrainLayer.ResetGroundSnow();
+        smokeLayer.SetBuildings([]);
+        keyboardMapTile = null;
+        storedStockLayer.SetPiles([]);
         knownEvents.Clear();
         eventsWorldId = null;
         lastSeenEventId = long.MinValue;
@@ -67,6 +72,7 @@ public partial class Main
         usagePauseWorldId = null;
         lastLifePaceWorldId = null;
         renderedTownList = null;
+        renderedRosterPresentation = null;
         foreach (var marker in inhabitantVisuals.Values) marker.QueueFree();
         inhabitantVisuals.Clear();
         inhabitantCanonicalXs.Clear();
@@ -76,6 +82,7 @@ public partial class Main
         occupancyBadges.Clear();
         occupancyCanonicalXs.Clear();
         mapObjectCanonicalXs.Clear();
+        markerMotions.Clear();
         handcartFacings.Clear();
         animalFacings.Clear();
         boatFacings.Clear();
@@ -169,7 +176,10 @@ public partial class Main
             handcartFacings.Clear();
             animalFacings.Clear();
             boatFacings.Clear();
+            terrainLayer.ResetGroundSnow();
         }
+        if (renderedMapSnapshot?.WorldId != snapshot.WorldId || renderedMapSnapshot.WorldTick > snapshot.WorldTick)
+            markerMotions.Clear();
         renderedMapSnapshot = snapshot;
         var objectIds = snapshot.Resources.Where(resource => resource.TreeKind is null)
             .Select(resource => "resource:" + resource.Id)
@@ -183,6 +193,7 @@ public partial class Main
             mapObjectVisuals[id].QueueFree();
             mapObjectVisuals.Remove(id);
             mapObjectCanonicalXs.Remove(id);
+            markerMotions.Remove(id);
         }
         foreach (var id in handcartFacings.Keys.Where(id => !objectIds.Contains("handcart:" + id)).ToArray())
             handcartFacings.Remove(id);
@@ -193,12 +204,17 @@ public partial class Main
 
         if (!HasMap(snapshot))
         {
+            goldenHourLayer.Reset();
+            terrainLayer.ResetGroundSnow();
+            smokeLayer.SetBuildings([]);
+            storedStockLayer.SetPiles([]);
             handcartFacings.Clear();
             animalFacings.Clear();
             boatFacings.Clear();
             foreach (var visual in inhabitantVisuals.Values) visual.QueueFree();
             inhabitantVisuals.Clear();
             inhabitantCanonicalXs.Clear();
+            markerMotions.Clear();
             terrainLayer.SetHoveredTile(null);
             UpdateTownSiteGuidance(null);
             return;
@@ -217,7 +233,9 @@ public partial class Main
             terrainLayer.SetWorld(terrainMap);
             worldOverview.SetWorld(terrainMap);
         }
-        terrainLayer.SetSeason(snapshot.Authoring?.Season ?? snapshot.WorldSystems?.Season);
+        var observedSeason = snapshot.Authoring?.Season ?? snapshot.WorldSystems?.Season;
+        terrainLayer.SetSeason(observedSeason);
+        terrainLayer.SetAutumnLeaves(observedSeason);
         terrainLayer.SetTrees(snapshot.Resources);
         terrainLayer.SetNaturalObjects(snapshot.Resources);
         terrainLayer.SetWeatherRegions(snapshot.WeatherRegionSize, snapshot.WeatherRegions);
@@ -227,9 +245,21 @@ public partial class Main
         worldOverview.SetFields(snapshot.Fields);
         terrainLayer.SetMarkets(snapshot.Towns);
         terrainLayer.SetBuildings(snapshot.PlacedBuildings, snapshot.Objects, snapshot.Towns);
-        nightLightsLayer.SetBuildings(BuildingLights(snapshot));
+        var buildingLights = BuildingLights(snapshot);
+        nightLightsLayer.SetBuildings(buildingLights);
+        smokeLayer.SetBuildings(buildingLights);
+        storedStockLayer.SetPiles(StoredStockPiles(snapshot, terrainMap!));
         nightLightsLayer.SetLanterns(StreetLanterns(snapshot), snapshot.WrapsEastWest);
         terrainLayer.SetConstructionSites(snapshot.ConstructionSites);
+        var peopleInside = PeopleInside(snapshot);
+        var indoors = peopleInside.Values.SelectMany(people => people).Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
+        var riders = snapshot.Animals.Where(animal => animal.RiderId is not null).Select(animal => animal.RiderId).ToHashSet(StringComparer.Ordinal);
+        terrainLayer.ObserveGroundSnow(snapshot.WorldTick, snapshot.CalendarPace?.TicksPerDay ?? 1440,
+            snapshot.Inhabitants.Where(person => !person.IsDraft && IsLiving(person) && !indoors.Contains(person.Id) && !riders.Contains(person.Id))
+                .Select(person => ("agent:" + person.Id, new Vector2I(person.Position.X, person.Position.Y)))
+                .Concat(snapshot.Animals.Where(animal => animal.LifeStage != "dead")
+                    .Select(animal => ("animal:" + animal.Id, new Vector2I(animal.Position.X, animal.Position.Y)))).ToArray(),
+            snapshot.Authoring?.IsPaused == true);
         nightLightsLayer.SetLanternSites(StreetLanternSites(snapshot));
         worldOverview.SetRoads([.. snapshot.RoadTiles, .. snapshot.Bridges.SelectMany(bridge => bridge.Span)]);
         ApplyMapFilters(snapshot);
@@ -243,6 +273,8 @@ public partial class Main
             snapshot.Inhabitants.Where(person => !person.IsDraft && IsLiving(person))
                 .Select(person => new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f)));
         nightLayer.Darkness = NightLayer.FromBasisPoints(snapshot.DarknessBasisPoints);
+        goldenHourLayer.Observe(snapshot.WorldId, snapshot.WorldTick, snapshot.CalendarPace?.TicksPerDay ?? 1440,
+            snapshot.CalendarPace?.CalendarOffsetTicks ?? 0, snapshot.DarknessBasisPoints, snapshot.Authoring?.IsPaused == true);
         if (!string.Equals(cameraWorldId, snapshot.WorldId, StringComparison.Ordinal))
         {
             cameraWorldId = snapshot.WorldId;
@@ -291,6 +323,7 @@ public partial class Main
             sprite.Size = new(size, size);
             sprite.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
             sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
+            PresentMovingMarker(id, marker, boat.Position, new(4, 4), snapshot, agent: false, bob: false);
         }
 
         foreach (var animal in snapshot.Animals)
@@ -328,6 +361,8 @@ public partial class Main
             sprite.Size = new(size, size);
             sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
             sprite.Modulate = animal.LifeStage == "deceased" ? new Color("A89279") : Colors.White;
+            PresentMovingMarker(id, marker, animal.Position, new(4, 4), snapshot, agent: false, bob: true,
+                snap: animal.LifeStage == "deceased");
         }
 
         foreach (var cart in snapshot.Handcarts)
@@ -355,6 +390,7 @@ public partial class Main
                 : ItemIcons.Texture("handcart", 16);
             sprite.Size = new(size, size);
             sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
+            PresentMovingMarker(id, marker, cart.Position, new(4, 4), snapshot, agent: false, bob: false);
             sprite.Modulate = cart.ConditionPercent == 0 ? new Color("A89279") : Colors.White;
         }
 
@@ -397,7 +433,6 @@ public partial class Main
         }
 
         // People inside a building are hidden; the building shows how many instead.
-        var peopleInside = PeopleInside(snapshot);
         var hiddenInside = peopleInside.Values.SelectMany(people => people).Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var group in snapshot.Inhabitants
             .Where(inhabitant => !inhabitant.IsDraft && string.Equals(inhabitant.Lifecycle, "active", StringComparison.OrdinalIgnoreCase))
@@ -452,8 +487,13 @@ public partial class Main
                 actorMarker.ObserveTile(snapshot.WorldId, new Vector2I(inhabitant.Position.X, inhabitant.Position.Y),
                     mapWidth, snapshot.WrapsEastWest);
                 actorMarker.Activity = AgentMarker.ActivityFor(inhabitant);
+                actorMarker.Swimming = inhabitant.Route.Status == "swim";
+                actorMarker.ObserveModelWait(snapshot.WorldId,
+                    inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "model-status")?.Detail == "waiting",
+                    snapshot.Authoring?.IsPaused == true);
                 var actorTooltip = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)} · " +
                     (inhabitant.PublicIntention?.Summary ?? "taking in the world");
+                if (actorMarker.Swimming) actorTooltip += "\nSwimming";
                 var conversation = LatestConversationFor(snapshot, inhabitant.Id);
                 actorMarker.ConversationBadgeVisible = conversation is not null;
                 actorMarker.ConversationUnread = conversation is not null &&
@@ -462,11 +502,9 @@ public partial class Main
                     actorTooltip += "\n" + ConversationTooltipSummary(inhabitant.Id, conversation);
                 if (actorMarker.TooltipText != actorTooltip) actorMarker.TooltipText = actorTooltip;
                 actorMarker.Selected = string.Equals(inhabitant.Id, selectedInhabitantId, StringComparison.Ordinal);
-                inhabitantCanonicalXs[inhabitant.Id] = targetPosition.X;
-                actorMarker.Position = new Vector2(
-                    WrappedMarkerX(targetPosition.X, mapWidth, stride, snapshot.WrapsEastWest),
-                    targetPosition.Y);
                 actorMarker.Size = markerSize;
+                PresentMovingMarker("agent:" + inhabitant.Id, actorMarker, inhabitant.Position,
+                    new(offsetX, offsetY), snapshot, agent: true, bob: true, snap: !actorMarker.Visible);
 
             }
         }
@@ -480,6 +518,7 @@ public partial class Main
             inhabitantVisuals[removedId].QueueFree();
             inhabitantVisuals.Remove(removedId);
             inhabitantCanonicalXs.Remove(removedId);
+            markerMotions.Remove("agent:" + removedId);
         }
 
         RenderOccupancyBadges(snapshot, peopleInside);
