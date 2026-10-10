@@ -197,6 +197,12 @@ The retained client cancellation has the same pairing, origin, world and
 observer-timeline boundaries as an instruction. A fresh challenge and signature
 are required for each retry.
 
+Pending cancellations preserve the complete native target ID, including the
+longer IDs of adults born in the world. The client retains the 128-character
+bounds for the caller's idempotency key, order ID and world ID, and refuses
+blank or control-character identities. Persistence, reload and retry keep the
+same target; they never shorten or replace it.
+
 The user can explicitly retry that one record. The retry obtains a new one-use
 challenge and signature, then submits the same logical request so the server
 returns the original receipt rather than creating a duplicate. Private-world
