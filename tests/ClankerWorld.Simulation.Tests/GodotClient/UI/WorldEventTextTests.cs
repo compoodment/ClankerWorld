@@ -405,6 +405,50 @@ public sealed class WorldEventTextTests
         Assert.StartsWith(start, WorldEventText.Describe(new(1, 0, kind, "town:first|land-transfer:town:first:5|1||done"), Snapshot()), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("town_project_worked", "10")]
+    [InlineData("town_project_donated", "lot:wood:4:wood")]
+    [InlineData("town_project_completed", "building:hall:Communal Hall")]
+    public void HistoricalTownProjectEventsKeepTheNameWithoutTheirWorker(string kind, string payload)
+    {
+        const string projectId = "town:first:proposal:10:construction";
+        var project = EventProject(projectId, "Communal Hall");
+        var snapshot = Snapshot() with
+        {
+            Towns = [new("town:second", "Other Town", "founded", 0, [], [], [])
+                { Projects = [EventProject("town:second:proposal:1:construction", "Other Hall")] },
+                new("town:first", "Riverbend", "founded", 0, [], [], []) { Projects = [project] }],
+        };
+        var detail = $"{ChildId}:{projectId}:{payload}";
+        Assert.Contains("Communal Hall", WorldEventText.Describe(new(1, 4, kind, detail), snapshot), StringComparison.Ordinal);
+        Assert.Contains("Communal Hall", WorldEventText.Describe(new(1, 4, kind, detail),
+            snapshot with { Inhabitants = [Person(ChildId, "Aster", "dead")] }), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TownProjectEventsMatchWholeIdsBeforeLaterPayloadNames()
+    {
+        var shortProject = EventProject("town:first:proposal:1:construction", "Old Hall");
+        var project = EventProject("town:first:proposal:10:construction", "Communal Hall");
+        var snapshot = Snapshot(Person(ChildId, "Aster")) with
+        {
+            Towns = [new("town:first", "Riverbend", "founded", 0, [], [], []) { Projects = [shortProject, project] }],
+        };
+        var detail = $"{ChildId}:{project.Id}:lot:{shortProject.Id}:wood";
+        Assert.Equal("Aster donated personal materials to Communal Hall.",
+            WorldEventText.Describe(new(1, 4, "town_project_donated", detail), snapshot));
+        Assert.Contains("Communal Hall", WorldEventText.Describe(new(1, 4, "town_project_donated", detail),
+            snapshot with { Inhabitants = [] }), StringComparison.Ordinal);
+        Assert.Contains("Communal Hall", WorldEventText.Describe(new(1, 4, "town_project_approved",
+            $"town:first:{project.Id}:approved"), snapshot), StringComparison.Ordinal);
+        Assert.Contains("a Town project", WorldEventText.Describe(new(1, 4, "town_project_worked",
+            $"{ChildId}:{project.Id}0:10"), snapshot with { Inhabitants = [] }), StringComparison.Ordinal);
+    }
+
+    private static OwnerWorldTownProject EventProject(string id, string name) =>
+        new(id, "proposal", name, FounderId, "Mira", "town-hall", "Town Hall", new(4, 4), new(5, 8),
+            3, 4, [], 10, 10, "completed", null, "paid-hall", new("proposal", "town_project", name, "passed", 2, 0, 2, 0));
+
     private static OwnerWorldSnapshot Snapshot(params OwnerWorldInhabitant[] people) =>
         new("event-names", 1, "map", [], [], [], null, 1) { Inhabitants = people };
 

@@ -42,6 +42,7 @@ test alone does not make it available in the game.
 | Pause, inspect agents, view family trees and read events | Available in the game | The Agents list keeps its browsing position through information refreshes; selecting another agent still brings that card into view. Deceased profiles retain recorded thoughts and memories, and show any final will and final words; old deaths without an archive cannot be reconstructed. |
 | Developer tools | Available in the game | **F12** opens them in a world without pausing it: the tile's coordinates and facts, frame time, how long the server takes per step of world time, the agent count, jumping to an agent and drawing their planned path, plus the aging override, lost-reply recovery, paused world editing and paired-device management. While paused, **Edit selected agent** sets fullness, warmth, illness or nutrition, gives/removes carried goods, adds/removes skills, and starts/ends partnerships; each accepted change is saved and marked **Developer edit** in the Event Log. There are no time tools such as stepping one tick. The Windows playtest is pending. |
 | Display and interface settings | Available in the game | Light and Dark text contrast is checked at 4.5:1 or better, including button states, fields, menus and badges. Themes, window size, weather switches, a 24-hour or 12-hour clock, and dates by season (the default, such as Autumn 2, Year 1) or as DD-MM-YYYY, MM-DD-YYYY or YYYY-MM-DD. A server too old to report season lengths shows numeric dates. The interface grows with the screen in whole steps (100%, 200% at 1080p and 1440p, 300% at 4K) with no setting, and the game always draws at the screen's own resolution. Windows visual and keyboard acceptance is still being checked. |
+| Keyboard controls | Available in the game | Tab/Shift+Tab traverse the open menu or panel, Enter uses a control, and arrows browse lists. K focuses world tiles for arrow movement and Enter selection or placement; World Map arrows move the camera. Numeric editors and scrollable readers have visible focus. Key remapping is outside the baseline. [Windows keyboard acceptance](../playtest/1324-keyboard-access.md) is pending. |
 
 Building Details shows up to ten recent recorded storage changes, newest first,
 with the exact additions or removals and when they happened. Moving a filled
@@ -153,7 +154,14 @@ Player renames follow the same rule. An agent may keep their own first name
 while changing the rest of their name. The Profile explains that the name is taken and
 keeps the name field open with your attempt in it until you change it, close
 it or choose another agent. This makes no model request. Renaming keeps the
-same person and leaves past spoken lines as they were.
+same person and leaves past spoken lines as they were. Each actual player rename
+adds a private, permanent memory with the world day and accepted name. A
+married surname change records it for both spouses whose names change; other
+agents are not told. Memories marks it Permanent. The model and Memories list
+keep the latest permanent records as ordinary experiences accumulate, and earlier
+rename history remains saved. Refusal and an unchanged-name retry add nothing.
+This has automated runtime, signed HTTP, save/replay and native UI checks;
+three [Windows checks](../playtest/1330-permanent-rename-memory.md) remain pending.
 
 A newborn starts with a temporary name. A chosen child's name must use one
 biological parent's surname and an unused first name. The player can name the
@@ -737,7 +745,10 @@ grain keeps its owner and location. Water jugs travel with their contents.
 Yard stock is picked up before approaching an animal on another
 tile; care at the stock tile can use it directly. Care uses grain before
 ready-to-eat greens when available, and may combine grain with spare greens
-across lots. An incomplete safe feed or water load spends nothing. Care orders
+across lots. An incomplete safe feed or water load spends nothing. Care can
+protect usable family meals: broken-pot contents and food on an actively borrowed
+Market stall do not count toward the reserve. Released stall stock can count
+again; grain remains usable feed without spending ready-to-eat meals. Care orders
 explain missing safe feed and jug water, while valid supply fetching stays
 active. They resume when physical supplies become available. Building Details lists animals standing within its footprint,
 with their names, care, ready products and permissions; animals on open ground
@@ -983,11 +994,23 @@ learn the published terms and personally accept. A proposal, a read or silence
 supplies no consent, and a new adult joining before completion must accept too.
 This ordinary route needs no mayor or Council approval and preserves the original
 grant date and any agreed end date. It changes no Town title, household membership,
-building, crop, goods or private-building access. A decline or the proposer's
+building, crop, other goods or private-building access. An agreed goods price
+moves only through actual payment. A decline or the proposer's
 withdrawal closes it without moving permission. Expiry, disputed claims, an open
 hearing or changed source permission stop it. Town, plot and property details
 show exact terms, named adults and acceptance counts; Towns retains all pending
 transfers and eight recent closed ones, with full history in the save.
+
+Households can sell existing use permission for an exact goods quantity through
+that same adult consent process. Acceptance alone leaves a sale pending. A buyer
+collects permitted household stock within their carrying space, or uses their own
+carried goods, and physically meets a seller adult at the notice place. Usable,
+unreserved loose goods become seller household stock there in the same accepted
+step that transfers permission. Borrowed tools, delivery promises, containers,
+reserved goods and needed food cannot be spent. The saved receipt binds payment
+to the exact accepted price; reload retains unpaid consent and completed sales.
+Town and plot details show the goods price and distinguish awaiting acceptance
+from awaiting payment. Money prices remain future work.
 
 A House that needs more room can request the exact extra tiles for an expansion.
 Construction waits for recorded permission, and rechecks it before completion.
