@@ -1,0 +1,1 @@
+- On the paired world: ask a resident to propose an amendment containing an emoji near the end of a long law. Pause, make a named save, load it, and resume; the proposal should keep its full draft and the world should continue. Repeat with a repeal of that law. ([#1597](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1597))

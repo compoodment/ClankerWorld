@@ -4,6 +4,7 @@ using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
+using ClankerWorld.Viewer.Observation;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -577,11 +578,109 @@ public sealed class ToolMakingRequestTests
         _ = Roundtrip(placing);
     }
 
-    private static ContentPackageManifest CustomToolRecipe(string packageId, string workstation)
+    [Theory]
+    [InlineData(128)]
+    [InlineData(129)]
+    [InlineData(300)]
+    public async Task AdmittedRecipeIdentitySurvivesToolRequestCheckpointsAndWithdrawal(int canonicalIdLength)
+    {
+        var (state, buyer, seller, shop) = Prepared();
+        using var setup = Restore(state, buyer, seller, new RequestChoices(), new RequestChoices());
+        var package = CustomToolRecipe("test-long-commission-" + canonicalIdLength, shop.DefinitionId, canonicalIdLength);
+        setup.ProposeContent(package);
+        var resolution = setup.ResolveContent(package.PackageId);
+        Assert.True(resolution.IsSuccess, resolution.Diagnostic);
+        setup.ValidateContent(package.PackageId, resolution);
+        setup.ApproveContent(package.PackageId);
+        setup.StageContent(package.PackageId);
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var recipe = Assert.Single(setup.WorldContent.Recipes, item => item.PackageDigest == package.PackageDigest);
+        Assert.Equal(canonicalIdLength, recipe.CanonicalId.Length);
+        state = Roundtrip(setup);
+        var choice = "tool_request_place:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
+            JsonSerializer.Serialize(new[] { shop.InstanceId, recipe.CanonicalId }))));
+        var choices = new RequestChoices(choice);
+        using var world = Restore(state, buyer, seller, choices, new RequestChoices());
+        world.SubmitInstruction(new OwnerInstructionRequest("long-commission", "owner:test", buyer,
+            OwnerInstructionKind.Suggestive, "Consider a new tool."));
+        using var host = new ToolRequestCheckpointHost(world);
+        // The host schedules personal choices without blocking. Wait for the
+        // actual offered choice before asking a later tick to admit its reply.
+        await host.Advance();
+        await choices.Chosen.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        for (var step = 0; step < 8 && world.ToolMakingRequests.Count == 0; step++) await host.Advance();
+        var request = Assert.Single(world.ToolMakingRequests);
+        Assert.Equal((recipe.CanonicalId, buyer, shop.HouseholdId, shop.InstanceId),
+            (request.RecipeId, request.RequesterId, request.SellerHouseholdId, request.BuildingInstanceId));
+        Assert.Equal(ToolMakingRequestStatus.Requested, request.Status);
+        Assert.Contains(choices.Offered, item => item.Id == choice && item.DestinationId == shop.InstanceId);
+        state = PrivateWorldRuntimeCodec.Decode(host.Saved());
+        Assert.Equal(request, Assert.Single(state.ToolMakingRequests!));
+        using var reloaded = Restore(state, buyer, seller, new RequestChoices(), new RequestChoices());
+        using var replayHost = new ToolRequestCheckpointHost(reloaded);
+        world.Pause();
+        reloaded.Pause();
+        world.Resume();
+        reloaded.Resume();
+        for (var step = 0; step < 3; step++)
+        {
+            await host.Advance();
+            await replayHost.Advance();
+            Assert.Equal(host.Saved(), replayHost.Saved());
+        }
+        state = Roundtrip(reloaded);
+        using var withdrawing = Restore(state, buyer, seller, new RequestChoices("tool_request_withdraw:"), new RequestChoices());
+        withdrawing.SubmitInstruction(new OwnerInstructionRequest("withdraw-long-commission", "owner:test", buyer,
+            OwnerInstructionKind.Suggestive, "Reconsider the tool request."));
+        await Until(withdrawing, active => Assert.Single(active.ToolMakingRequests).Status == ToolMakingRequestStatus.Withdrawn, 8);
+        Assert.Equal(ContentPackageLifecycle.Quarantined, withdrawing.RollbackContent(package.PackageId, "withdrawn no-job recipe").Lifecycle);
+        Assert.DoesNotContain(withdrawing.WorldContent.Recipes, item => item.CanonicalId == recipe.CanonicalId);
+        Assert.Equal(recipe.CanonicalId, Assert.Single(Roundtrip(withdrawing).ToolMakingRequests!).RecipeId);
+    }
+
+    private sealed class ToolRequestCheckpointHost : IDisposable
+    {
+        private readonly DirectoryInfo directory = Directory.CreateTempSubdirectory("clanker-tool-request-");
+        private readonly PrivateWorldRuntime world;
+        private readonly PrivateWorldStateFile file;
+        private readonly PrivateWorldRuntimeService service;
+        private readonly RecordingLogger<PrivateWorldRuntimeService> logger = new();
+
+        public ToolRequestCheckpointHost(PrivateWorldRuntime world)
+        {
+            this.world = world;
+            file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"));
+            file.Save(world);
+            var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(5));
+            presence.RecordAuthenticatedReconnect("test-owner");
+            service = new PrivateWorldRuntimeService(world, file, presence, logger);
+        }
+
+        public byte[] Saved() => File.ReadAllBytes(file.Path);
+
+        public async Task Advance()
+        {
+            Assert.True(await service.TryAdvanceOnceAsync(), string.Join("\n", logger.Messages));
+            Assert.False(world.Society.IsPaused);
+            Assert.Equal(world.WorldTick, PrivateWorldRuntimeCodec.Decode(Saved()).Society.Society.WorldTick);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), Saved());
+        }
+
+        public void Dispose()
+        {
+            service.Dispose();
+            directory.Delete(recursive: true);
+        }
+    }
+
+    private static ContentPackageManifest CustomToolRecipe(string packageId, string workstation, int? canonicalIdLength = null)
     {
         var version = ContentVersion.Parse("1.0.0");
         var digest = "sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(packageId + ":1.0.0:wooden-axe")));
-        var recipe = new RecipeDefinition(digest, "wooden-axe-request", version, "Make requested wooden axe",
+        var localId = canonicalIdLength is { } length
+            ? new string('a', length - ContentPackageRules.CanonicalDefinitionId(digest, RecipeDefinition.SchemaKind, "a", version).Length + 1)
+            : "wooden-axe-request";
+        var recipe = new RecipeDefinition(digest, localId, version, "Make requested wooden axe",
             [new("wood", 3)], [new("wooden_axe", 1)], 20, workstation, ["tool", "woodcutting"]);
         var definition = new ContentDefinition(RecipeDefinition.SchemaKind, recipe.LocalId, version, recipe.DisplayName,
             recipe.PayloadDigest, JsonSerializer.Serialize(new
@@ -681,6 +780,7 @@ public sealed class ToolMakingRequestTests
         public DecisionProviderKind Kind { get; }
         public long ProviderEpoch => 0;
         public List<CognitionCandidate> Offered { get; } = [];
+        public TaskCompletionSource Chosen { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
             Offered.AddRange(request.Observation.Candidates);
@@ -688,6 +788,7 @@ public sealed class ToolMakingRequestTests
                 candidate.Id.StartsWith(prefix, StringComparison.Ordinal) &&
                 (!prefix.EndsWith("place:", StringComparison.Ordinal) || candidate.Description.Contains("wooden axe", StringComparison.Ordinal))))
                 .FirstOrDefault(candidate => candidate is not null) ?? request.Observation.Candidates.Single(candidate => candidate.Id == "safe_idle");
+            if (prefixes.Any(prefix => choice.Id.StartsWith(prefix, StringComparison.Ordinal))) Chosen.TrySetResult();
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId, Kind,
                 request.ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest, choice.Id, 1, new Dictionary<string, double> { [choice.Id] = 1 }));

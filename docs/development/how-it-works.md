@@ -2416,6 +2416,10 @@ mayoral consent and contests, and separate land, ordinary and non-land mandate t
 `TownGovernmentRules` coordinates them with the existing Council engine. Law
 adoption consumes passed structured Council proposals once; amendment and repeal
 bind their base version, so a stale passed proposal cannot overwrite a later law.
+Amendment and repeal labels shorten the display to 256 UTF-16 units, reserving
+one for an ellipsis and omitting a whole surrogate pair when it crosses the
+boundary. The structured draft retains the full wording; saved validation
+reconstructs the label with the same rule.
 Territorial applicability uses formal title records, including a saved site
 subset, rather than the drawn Town border. Law text grants no physical powers.
 

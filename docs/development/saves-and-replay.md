@@ -1228,8 +1228,12 @@ current alpha cutoff.
 Saved tool requests keep their requester, selling household, actual Blacksmith,
 existing recipe, status, worker and real production/offer links. Active and
 terminal lists remain bounded; selected production plans retain the exact
-request identity. Loading checks these links against the canonical production
-and barter records. Every linked job must retain its exact input reservations,
+request identity. Recipe identities retain the full canonical content ID,
+including IDs longer than 128 characters; request validation adds
+no separate recipe-name limit. Withdrawn no-job history keeps that identity even
+after its package is rolled back. Loading checks these links against the
+canonical production and barter records. Every linked job must retain its exact
+input reservations,
 matching the whole recipe and selling household; completed work requires
 completed consumption receipts. Ready work must bind a completed job, and an
 offer must name that job's actual output and the same customer and shop.
@@ -1714,6 +1718,14 @@ Named manual checkpoints use a private `.manual` directory and reference the
 same history archive. Overwriting a selected checkpoint retains a recovery copy;
 new copies have explicit recovery provenance and an opt-in count-based cleanup
 preview, described under [permanent deletion](#explicit-permanent-deletion).
+
+Creation, autosaving and overwrite decode and validate the exact serialized
+checkpoint before writing save files, publishing metadata or advancing the
+timeline. A rejected checkpoint leaves the previous saves and timeline intact.
+Law amendment and repeal labels preserve complete surrogate pairs when shortened;
+the full structured draft remains unchanged. This adds no schema fields or
+migration for previously damaged alpha saves.
+
 Rotating autosaves are a separate
 mechanism and must not delete another world's checkpoints, or another branch's.
 Updating autosave configuration trims only that configured world, including
@@ -1905,8 +1917,11 @@ manual checkpoint again. Copies without a named source remain ordinary saves.
 The world checkpoint schema and replay bytes do not change.
 
 The preview decodes each classified checkpoint, verifies its world identity and
-required history, and keeps the latest requested number of verified copies for
-each source. It additionally protects the recovery currently continued from;
+required history, and performs a full runtime restore without advancing the world
+or calling a model. Only copies that pass all these checks count toward the latest
+requested number for each source. A copy that decodes but cannot restore remains
+preserved and cannot displace a loadable predecessor. The preview additionally
+protects the recovery currently continued from;
 an older active copy may exceed the requested count. Unverifiable files, manual
 saves, autosaves and migration originals are never cleanup candidates. Earlier
 unclassified backups remain protected even if their names look like recoveries.
