@@ -1,0 +1,1 @@
+- Developer tools' host tick time now includes applying completed conversation replies and committing the world. Waiting for runtime gates, model replies between ticks and checkpoint saves remain outside the readout.

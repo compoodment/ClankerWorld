@@ -21,6 +21,8 @@ public sealed class WorldSelectionCoordinator(
     Func<string, IDecisionProvider> providerFactory)
 {
     private readonly object gate = providers.WorldMutationGate;
+    // Bound read-only generation without blocking the current world's transactions.
+    private readonly object previewGate = new();
     private readonly Func<GeographyOptions, GeographyCandidateSelection> selectGeographyCandidates =
         GeographyCandidateSelector.Select;
     // Concurrent because WarmUp adds results without the world-mutation gate.
@@ -252,7 +254,7 @@ public sealed class WorldSelectionCoordinator(
         ArgumentNullException.ThrowIfNull(geography);
         if (geography.Size is not (WorldSizePreset.Small or WorldSizePreset.Medium))
             throw new ArgumentException("Only Small and Medium are playable yet.", nameof(geography));
-        lock (gate)
+        lock (previewGate)
         {
             // Preview is read-only. The title screen can preview a new map while
             // the currently selected world is running or waiting for a client;

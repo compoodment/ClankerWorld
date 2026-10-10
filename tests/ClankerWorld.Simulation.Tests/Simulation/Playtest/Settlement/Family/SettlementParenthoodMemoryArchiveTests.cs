@@ -45,7 +45,7 @@ public sealed partial class SettlementParenthoodTests
         for (var attempt = 0; attempt < 10 && family.Inhabitants.Single(person => person.InhabitantId == owner).Parenthood is null; attempt++)
             Assert.True((await family.AdvanceOneTickAsync()).Advanced);
         Assert.True(family.Inhabitants.Single(person => person.InhabitantId == owner).Parenthood is not null,
-            $"Age={family.Society.GetInhabitant(owner).AgeBand}; food={PrivateWorldRuntime.ParenthoodFoodReadiness(family.Society, owner)}; " +
+            $"Age={family.Society.GetInhabitant(owner).AgeBand}; food={PrivateWorldRuntime.ParenthoodFoodReadiness(family.Society, owner, family.Towns)}; " +
             string.Join(";", proposing.SeenCandidates.Select(candidate => candidate.Id)));
         Assert.Equal("requested", family.Inhabitants.Single(person => person.InhabitantId == owner).Parenthood!.Stage);
         if (stage != "requested")

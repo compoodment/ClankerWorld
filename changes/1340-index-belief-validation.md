@@ -1,0 +1,1 @@
+- Conversation belief history is validated without repeated full-ledger scans, while retaining every private belief and its correction history.

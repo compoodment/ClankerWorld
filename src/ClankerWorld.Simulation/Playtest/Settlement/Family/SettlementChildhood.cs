@@ -20,9 +20,10 @@ public sealed partial class PrivateWorldRuntime
     {
         var age = society.Checkpoint.GetInhabitant(actor).AgeBand;
         if (age == SocietyAgeBand.Infant) return false;
+        if (candidate == "make_room_for_food" && ChildResident(actor)) return true;
         if (age is SocietyAgeBand.Adult or SocietyAgeBand.Elder)
             return !candidate.StartsWith("child_", StringComparison.Ordinal);
-        return candidate is "safe_idle" or "consume_food" or "collect_shared_food" or
+        return candidate is "safe_idle" or "consume_food" or "drink_milk" or "collect_shared_food" or
             "seek_food" or "harvest_food" or "talk_to" or "move_to" or "wear_clothing" or "seek_warmth" or "seek_shelter" or "inspect_shelter_site" ||
             candidate.StartsWith("guardian_accept:", StringComparison.Ordinal) ||
             candidate.StartsWith("guardian_refuse:", StringComparison.Ordinal) ||

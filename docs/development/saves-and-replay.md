@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Saves and replay
@@ -51,6 +51,12 @@ creating a backup or changing its timeline, runtime or settings.
 Installation state includes device authority, provider credentials and usage
 accounting. Saves store slot IDs and model choices, never API-key bytes.
 
+New-world genesis no longer seeds Copper, a 100-unit household wallet or the
+legacy `camp-no-theft` fine. Currency and faction-law collections start empty.
+This changes initial world state without adding checkpoint fields or changing
+the schema. Restore uses saved world systems through the existing path; no
+migration or extra compatibility logic is added.
+
 The October 1 terrain tuning changes deterministic generation for new worlds.
 Loading retains the saved map and current weather episode; it does not replace
 either with a freshly generated map or a new weather roll. Earlier alpha maps
@@ -68,6 +74,15 @@ No cache state or new fields are saved; the checkpoint schema and canonical
 bytes are unchanged. [How it works](how-it-works.md) owns the runtime cache boundary, and
 [Camp reachability measurements](camp-reachability-measurements.md) records the
 matched native save/reload, rollback and continuation comparisons.
+
+Society validation builds temporary indexes over the complete retained belief
+history. An owner's source turn can belong to only one correction lineage;
+known inhabitants and both sides of correction links are still checked, and
+cyclic chains are refused. Encoding, decoding and recording or correcting a
+belief use the same integrity rules without per-belief whole-ledger scans.
+No belief, confidence, reporter, source turn or memory-compaction reference is
+removed. The indexes add no saved fields or schema change, and valid checkpoints
+retain their canonical bytes.
 
 Private-world schema 60 adds exclusive physical handcart attachments. A cart
 and its cargo are existing inventory lot relationships, with the cart's ground
@@ -146,6 +161,14 @@ partner IDs, duplicate couples, and a deadline more than two world days after
 the saved clock. Current-format roundtrips keep the flag and deadlines, and a
 replay from a postponed plan reaches the same plan and checkpoint. Older
 schemas are refused. No migration is added.
+
+The current continuity trigger counts eligible adult couples rather than
+non-elders, without changing the saved flag or deadline shape or the private
+schema version. A loaded world applies the current trigger on its next tick,
+records a transition only if the flag changes, and preserves deadlines for
+couples still held by the procedure. Historical headcount events keep their
+original explanation. Eligible-couple transitions, rejected ticks and replay
+are checked with the current save format.
 
 Private-world schema 48 adds independent saved Town governance. It records the
 current council and fallback cause, term/retry schedules, personal full-term or
@@ -234,7 +257,13 @@ default beneficiaries and adds, for an accepted will, the named heirs in order,
 the split, the exact quantity of each frozen lot each heir receives, and any
 final words. Frozen lots retain their original building storage when present,
 so escrow and communal inheritance cannot claim an unrelated House as storage.
-The deceased archive records the Town the agent lived in. Loading
+The deceased archive records the Town the agent lived in. It also retains the
+committed death tick and final physical position. The owner observation exposes
+that position and the `death-tick` decision factor; the client derives map grave
+markers from them. Marker selection uses SHA-256 parity of the saved person ID,
+placement uses current legal open ground, and expiry uses the reported calendar.
+No grave placement, fade state or removal event is saved. Reloading recomputes
+the display from the same death records without changing checkpoints or replay. Loading
 checks that only an accepted will has heirs and a division, that the division
 covers every frozen lot exactly with no other lots, that a held vessel's
 contents go to the vessel's heir, that person heirs are known agents and Town
@@ -327,7 +356,9 @@ every required adult's informed acceptance and the unchanged original grant term
 declined, withdrawn or invalidated transfers cannot carry a completed adjustment.
 Pending consent requirements are derived from living adults, so a new adult must
 personally accept before completion. These records preserve original Council
-grant receipts without transferring title or physical property.
+grant receipts and Town title. A goods sale also retains its immutable price
+and actual payment receipt; only the agreed goods payment changes physical
+property ownership.
 
 These records share prepared-tick rollback with permissions, requests, civic
 receipts and events. Current-format reload and continuation retain pending
@@ -625,6 +656,17 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
+Private-world schema 120 adds optional goods prices to voluntary permission
+transfers and actual goods payment to their settlement receipts. The notice and
+consent token include the immutable price. A paid request stays pending after
+all current adults accept until physical payment and permission settle together.
+Receipts retain the buyer, seller adult, meeting place and exact inventory
+transfer event IDs and quantities; retained events must match the accepted terms.
+Current-format checks cover pending and completed reload, declined sales,
+refused-step rollback and paired byte-identical continuation. Older alpha saves
+are refused and preserved without migration. This number is provisional until
+merge.
+
 Private-world schema 106 adds `talk_to` order bindings: stable `TargetAgentId`,
 optional `TalkConversationId` and the completed `TalkOutcome`. Validation binds
 an active task to one actual ordinary invitation from its actor to its target;
@@ -651,6 +693,43 @@ Tests cover native paid artifacts and ownership, paired replay/reload, urgent
 food, cancellation/replacement, exact targeting, full/partial knowledge limits,
 malformed progress and rejected read ticks. This number is provisional until
 merge. Older alpha checkpoints are refused and preserved without migration.
+
+Private-world schema 117 adds `propose_marriage` orders using the existing
+`TargetAgentId`, `TalkConversationId` and `TalkOutcome` fields. A selected partner
+stays bound; an order without a partner must have neither a conversation nor
+progress. Linked orders identify one actual ordinary invitation between their
+actor and target. Completion requires a deterministic `marriage-order:` receipt
+and the actual closed outcome: `refused`, `proposal_declined`, `not_proposed` or
+another native unsuccessful outcome. `married` additionally requires completed
+native marriage and surname records. Retained marriage consent also verifies
+closed order outcomes after ordinary history is trimmed. Accepted consent without a finished surname
+leaves progress at zero. Existing marriage validation protects both consent and
+surname receipts. Reload stops accepted ordinary or surname conversations,
+clears one-sided resume choices and requires both personal models again.
+Cancellation and replay preserve actual consent without duplicating task or
+marriage effects; rejected ticks admit neither. The number is provisional until
+merge. Older alpha saves are refused and preserved without migration.
+
+Private-world schema 118 adds typed default estate laws to Town law drafts
+and version history. The bounded Town share, exact prospective wording,
+Resident-duty scope, Council proposal and historical version must agree;
+missing shares, mismatched effects and overlapping rules are refused.
+At settlement, the deceased resident's saved Town and the law history at their
+death derive the default division. No extra mutable estate-policy snapshot is
+saved. A valid will wins, and adoption, later amendment or repeal cannot change
+an earlier death's division. The number is provisional until merge; schema 117
+and older alpha saves are refused and preserved without migration.
+
+Private-world schema 119 adds the `Permanent` flag to private self-subject
+experience records for player renames. Each keeps the accepted name, original
+world tick and world-day wording. Same-tick rename IDs include a saved world-event ordinal,
+so repeated changes and retries remain distinct and deterministic after reload.
+Loading refuses a rename record whose permanent marker is missing or false,
+that is tombstoned, public, cross-owned or dated in the future. The source
+history remains saved independently of bounded model/UI lists and compaction
+scores. Name and memory publish together, including both changed spouses;
+refusal and retry preserve checkpoint bytes. This number is provisional until
+merge. Earlier alpha schemas are refused and preserved without migration.
 
 Private-world schema 84 adds required marriage records and conversation kinds.
 Each marriage retains its accepted partnership snapshot and the ordinary
@@ -902,6 +981,14 @@ does not change. An older build refuses, and keeps, a save that places an
 agent, a map memory, an exploration path or traffic evidence in a two-tile
 river.
 
+Swimming uses existing physical position, warmth and travel-cooldown fields;
+there is no new save field or schema version. Live and archived positions may
+lie in a wide river or lake. A sea position still requires the saved boat
+passenger evidence. Loading does not apply the starting warmth, illness or load
+gate to someone already in swimming water: they must be able to reach shore.
+Refused ticks commit no movement or warmth loss. Older builds refuse and keep
+a checkpoint that places an agent in swimming water.
+
 Scouting waypoints record already walked steps, rather than permission to
 repeat those steps now. Loading checks each ordered edge against the current
 bridge map or against the same terrain with only bridges built strictly before
@@ -956,7 +1043,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 116. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 120. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
@@ -1107,6 +1194,7 @@ current alpha cutoff.
 | Schema 114 | Required person-owned recipe accounts and recipe lists on written goods and writing projects retain completed-production evidence, actual read/shared sources and copied provenance. Reading grants no skill. Owner read completions retain sorted actual learned site and recipe identities, bound to their source and effect. Earlier alpha saves are refused and preserved without migration. |
 | Schema 108 | Owner Port-travel orders bind the exact destination Port and latest native boat request. Requests retain their originating instruction; sequential retry and actual destination-arrival receipts are validated. Cancellation preserves underway recovery, and return to departure supplies no completion. Earlier alpha saves are refused and preserved without migration. |
 | Schema 115 | Scouting requires an explicit nullable bounded resource or terrain purpose and optional gathering-order link. Loading checks supported targets and the instruction's owner, action and requested kind. Native discovery hands back only to a usable task without awarding harvest credit; return, abort and cancellation retain their existing rules. Purpose, knowledge, orders and actual movement continue across strict reload and replay. Earlier alpha saves are refused and preserved without migration. |
+| Schema 119 | Player renames retain dated private permanent experiences. Model retrieval and the Memories panel prioritize them without discarding source history; compaction cannot fade them. Missing permanence, tombstoning, public or cross-owned records and future dates are refused. Name and memory commit together; older alpha checkpoints are refused and preserved without migration. |
 | Schema 105 | Attach/pull and park orders retain optional stable cart identities and native completion receipts. Strict validation checks cart references, task shape and receipt identity; owner/Godot projections retain the target. Queue, cancellation/replacement, urgent food, ownership changes, refused-tick rollback and paired replay/reload preserve actual cart and cargo state. Earlier alpha saves are refused and preserved without migration. |
 | Schema 104 | Scouting can continue beyond eight steps and explicitly return. Loop-free outward paths are bounded by map tile count; visited tiles and recent discoveries retain their 256-entry limits. Current-format saves retain longer outward and returning paths, original origins, actual knowledge and historical bridge validation. Replay includes chosen return, occupied-corner detours, interruption and refused-tick rollback. Earlier alpha saves are refused and preserved without migration. |
 | Schema 103 | Boat transport requires compact retired-request sequence ranges. Checkpoint compaction durably archives full older closed requests before retaining all active requests and the latest 40 closed requests. Ranges and live requests cover each issued sequence exactly once, including gaps around older active travelers. Loading verifies that the reachable archive contains exactly those retired closed requests. Earlier alpha saves are refused and preserved without migration. |
@@ -1207,6 +1295,10 @@ returned by a counter. Only a pending household land request keeps a project
 blocked; any other site failure saves it as `cancelled` with its reason and
 released claims, and a cancelled project no longer protects its site. A
 completed Hall remains bound to its original paid receipt history.
+The owner observation projects the retained `RemovedTick` to the client without
+changing the saved stage or receipts. Towns displays a removed asset as retained
+construction history, and historical project event names resolve from complete
+retained project IDs even when their actor is absent from the observation.
 
 Current-format restore and replay must keep partial multi-load supply, consumed
 receipts, shared work and civic knowledge without duplicating approval, stock,
@@ -1343,7 +1435,9 @@ The once-per-world-day native rule moves eligible old, low-importance ordinary
 sources into `ArchivedMemories` and `ArchivedBeliefs`, retaining their complete
 record and `ArchivedTick`. Each live or archived source ID appears exactly once.
 The source's required `Kind` protects life events, relationships, skills and
-commitments. Validation also protects durable cooperation/final-word receipts
+commitments. The `Permanent` marker also keeps player-rename experiences active.
+Loading refuses archived rename records, including records whose marker was
+changed to false. Validation also protects durable cooperation/final-word receipts
 and world-event-backed beliefs. Salience entries and correction chains may
 reference archived records and are validated against the same owner's complete
 ledger. Correcting an archived belief keeps the old record archived and adds
@@ -1467,18 +1561,30 @@ Death cancels only open barter offers through the ordinary cancellation
 transition, releasing both parties' reservations. Completed trades and unrelated
 surviving reservations remain.
 A persisted pending will is not reissued on restore; interrupted work resolves
-to the household default on the next active tick. Failure/deadline does likewise.
+to the default on the next active tick. Failure/deadline does likewise; a
+supported Town inheritance law effective at the death can change this default.
 Estate settlement waits for the pending will and commits once. An accepted will
 may divide lots between up to three heirs, including children or the deceased
 person's Town. Positive personal recipients alone receive its final words.
-Inheritance changes ownership while retaining ground, House storage or a living
-carrier's custody; goods carried by the deceased are dropped at their last tile.
-Town shares use the Town's current Warehouse while it can accept them.
+Personal inheritance changes ownership while retaining ground, House storage or
+a living carrier's custody; goods carried by the deceased are dropped at their
+last tile. Eligible Town shares move into the Town's current Warehouse, clearing
+their earlier location and carrier, while it can accept them.
 Warehouse validation and estate refusal share the inventory food classifier:
 eggs, milk and their meals follow the household default, with vessels and
 contents kept together. Current-format checkpoints that place food in a
 Town Warehouse are invalid; refusal preserves the saved file without migration.
-Debts and Town-law conflicts remain separate work. Inheritance does not decide guardianship.
+Without a valid will, a typed law can allocate a bounded Town share before
+the living household heirs' equal split. Whole units round down per lot; a
+vessel family goes to the Town only at 100% and with room for all of it.
+If no household beneficiary survives, fallback ownership uses the deceased
+resident's recorded Town. In a default estate, eligible goods enter its Warehouse
+while space remains. Undeliverable shares from an accepted will, overflow and
+refused kinds retain their physical location as Town stock. Warehouse and ground portions stay separate, preventing overflow from
+being merged into stored stock. Quantity-one artifacts keep their IDs and
+provenance. Settlement remains once-only across reload and refused ticks.
+Debts and contested estates in hearings remain separate work.
+Inheritance does not decide guardianship.
 
 A quantity-one physical map, field record or book retains its lot ID when inherited.
 Ownership and location change; its creator, discovery facts and artifact link

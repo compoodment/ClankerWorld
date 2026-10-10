@@ -256,6 +256,12 @@ public sealed class PostDeathWillTests
         Assert.Null(CognitionWillChoice.NormalizeFinalWords(" \n "));
         Assert.Null(CognitionWillChoice.NormalizeFinalWords(new string('a', CognitionWillChoice.MaximumFinalWordsLength + 1)));
         Assert.NotNull(CognitionWillChoice.NormalizeFinalWords(new string('a', CognitionWillChoice.MaximumFinalWordsLength)));
+        Assert.Equal("Remember 𠀀 and 😀.", CognitionWillChoice.NormalizeFinalWords("Remember 𠀀 and 😀."));
+        var atLimit = new string('a', CognitionWillChoice.MaximumFinalWordsLength - 2) + "😀";
+        Assert.Equal(atLimit, CognitionWillChoice.NormalizeFinalWords(atLimit));
+        Assert.Null(CognitionWillChoice.NormalizeFinalWords(atLimit + "a"));
+        Assert.Equal("a b c", CognitionWillChoice.NormalizeFinalWords("a\uD800b\uDC00c"));
+        Assert.Equal("a b c", CognitionWillChoice.NormalizeFinalWords("a\U000E0001b\U000F0000c"));
         var lines = GameUiText.FinalWillLines("accepted", new OwnerWorldFinalWill("accepted", "equal",
             [new("founder-mira", "Mira", false, [new("seed", 2)]), new("town:first", "First Town", true, [])], Words));
         Assert.Equal(
@@ -265,7 +271,7 @@ public sealed class PostDeathWillTests
             "To First Town: nothing listed",
             "Final words: “Keep the orchard going.”",
         ], lines);
-        Assert.Equal(["Personal estate follows household inheritance.", "Final words: “Be kind.”"],
+        Assert.Equal(["Personal estate follows default inheritance rules.", "Final words: “Be kind.”"],
             GameUiText.FinalWillLines("default", new OwnerWorldFinalWill("default", null, [], "Be kind.")));
     }
 

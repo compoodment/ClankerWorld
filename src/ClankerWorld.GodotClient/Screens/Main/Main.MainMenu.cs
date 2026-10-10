@@ -235,6 +235,8 @@ public partial class Main
 
     private void OpenMainMenuSettings()
     {
+        // Hiding the title card clears Godot focus before VisibilityChanged.
+        var keyboardOpener = GetViewport().GuiGetFocusOwner();
         mainMenuNavigationRevision++;
         returnToMainMenu = true;
         mainMenuOverlay.Show();
@@ -253,6 +255,8 @@ public partial class Main
         SetWorldMenuActionsVisible(false);
         menuResumeButton.Hide();
         gameMenuPanel.Show();
+        var panelIndex = keyboardPanels.FindLastIndex(item => item.Panel == gameMenuPanel);
+        if (panelIndex >= 0) keyboardPanels[panelIndex] = (gameMenuPanel, keyboardOpener);
         menuShade.Show();
         ShowSettingsSection(worldSpecific: false);
         ApplyResponsiveLayout();

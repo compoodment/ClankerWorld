@@ -401,6 +401,7 @@ public sealed partial class PrivateWorldRuntime
         "load_handcart" => "load the requested loose goods into the selected owned handcart",
         "unload_handcart" or "unload_handcart_ground" => "unload the requested cargo from the selected owned handcart",
         "talk_to" => TalkOrderTask,
+        "propose_marriage" => MarriageOrderTask,
         "attach_handcart" => "reach and attach the selected owned handcart",
         "park_handcart" => "park the selected attached handcart here with its cargo intact",
         "repair_handcart" => "repair the selected owned handcart with real carried supplies",
@@ -447,7 +448,7 @@ public sealed partial class PrivateWorldRuntime
 
     private OwnerInstructionOrder? ParseInstructionOrder(string text, string actor)
     {
-        return ParseKnowledgeReadOrder(text) ?? ParseTalkOrder(text, actor) ?? ParseCartCargoOrder(text, actor) ?? ParseCartOrder(text, actor) ?? ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
+        return ParseMarriageOrder(text, actor) ?? ParseKnowledgeReadOrder(text) ?? ParseTalkOrder(text, actor) ?? ParseCartCargoOrder(text, actor) ?? ParseCartOrder(text, actor) ?? ParseAnimalOrder(text, actor) ?? ParseGuardianOrder(text, actor) ?? PrivateWorldInstructionOrderParser.Parse(text, map.Resources, FoodKnowledgeKind,
             PrivateWorldProductionOrderCatalog.Available(worldContent), PrivateWorldDeliveryOrderCatalog.AvailableInputs(worldContent),
             PrivateWorldBuildingOrderCatalog.Available(worldContent),
             worldSimulation.Buildings.Where(port => Port(port.InstanceId) is not null).ToArray());

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net;
 using System.Collections.ObjectModel;
 using System.Net.Http.Headers;
@@ -154,7 +155,7 @@ public sealed record CognitionWillContext(
 
 /// <summary>
 /// A provider's untrusted will reply. With no heirs the estate keeps the
-/// household default; final words are optional either way.
+/// default inheritance rules; final words are optional either way.
 /// </summary>
 public sealed record CognitionWillChoice(
     IReadOnlyList<string> HeirKeys,
@@ -177,10 +178,12 @@ public sealed record CognitionWillChoice(
         if (value is null) return null;
         var builder = new StringBuilder(Math.Min(value.Length, 512));
         var pendingSpace = false;
-        foreach (var character in value)
+        for (var offset = 0; offset < value.Length;)
         {
-            if (char.IsWhiteSpace(character) || char.IsControl(character) ||
-                char.GetUnicodeCategory(character) is System.Globalization.UnicodeCategory.Format or
+            var status = Rune.DecodeFromUtf16(value.AsSpan(offset), out var character, out var consumed);
+            offset += consumed;
+            if (status != OperationStatus.Done || Rune.IsWhiteSpace(character) || Rune.IsControl(character) ||
+                Rune.GetUnicodeCategory(character) is System.Globalization.UnicodeCategory.Format or
                     System.Globalization.UnicodeCategory.LineSeparator or System.Globalization.UnicodeCategory.ParagraphSeparator or
                     System.Globalization.UnicodeCategory.Surrogate or System.Globalization.UnicodeCategory.PrivateUse or
                     System.Globalization.UnicodeCategory.OtherNotAssigned)
@@ -188,10 +191,10 @@ public sealed record CognitionWillChoice(
                 pendingSpace = builder.Length > 0;
                 continue;
             }
-            if (character is '<' or '>' or '[' or ']' or '{' or '}' or '`') return null;
+            if (character.Value is '<' or '>' or '[' or ']' or '{' or '}' or '`') return null;
             if (pendingSpace) builder.Append(' ');
             pendingSpace = false;
-            builder.Append(character);
+            builder.Append(value.AsSpan(offset - consumed, consumed));
             if (builder.Length > MaximumFinalWordsLength) return null;
         }
         return builder.Length == 0 ? null : builder.ToString();
@@ -367,6 +370,7 @@ public sealed record InhabitantObservation(
                         "park the selected attached handcart here with its cargo intact" or
                         "repair the selected owned handcart with real carried supplies" or
                         "attempt to talk with the named person; agreement and resumption remain each participant's choice" or
+                        "attempt marriage with your current partner; both people keep their consent and surname choices" or
                         "care for the named animal with real feed and jug water" or
                         "collect the named animal's ready products locally" or
                         "tame the named wild animal for your household" or
@@ -1178,6 +1182,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "For civic ballot actions include civic_ballot, an array of up to the stated number of distinct eligible candidate IDs, or an empty array to abstain. " +
                         "For hearing actions, civic_land_hearing may contain statement (testimony or reasons, at most 256 characters), household_id, agreed_end_tick (an integer), evidence_ids and law_ids (up to 16 distinct exact offered references each), grounds (a reopening claim, at most 256 characters), and requested_outcome (confirm, renew, amend, end or reject when filing). hearing_file also supplies civic_land_tiles. The selected hearing candidate fixes a ruling or reopening assessment; your submission supplies no authority, household consent or verified fact. Only cite case evidence you actually inspected or received. " +
                         "For land_transfer_propose, supply exact civic_land_tiles within existing permissions and the offered receiving household_id in civic_land_hearing. A voluntary transfer retains permission terms and moves no private buildings, crops or goods. Each current affected adult must separately read the actual transfer notice and choose their own offered land_transfer_accept or land_transfer_decline action; filing supplies no consent. " +
+                        "For land_transfer_sell, supply the same exact plot and receiving household plus civic_land_hearing.payment_item_kind and positive integer payment_quantity. All affected adults separately accept that exact goods price. Consent alone moves no permission: the buyer must collect or carry their own usable unreserved loose goods, then use land_transfer_pay to meet a seller adult at the public notice place; the payment and permission move together. Seller adults may land_transfer_meet there. Money prices are not supported. " +
                         "For law_case and remedy actions, civic_nonviolent may contain statement and uncertainty (at most 256 characters each), evidence_ids (up to 16 exact inspected references), grounds, terms (up to eight objects with kind return_goods, repair_equipment or public_service_goods, contributor_id, optional beneficiary_id/item_kind/target_id, and positive quantity), and positive completion_ticks. Terms propose voluntary named feasible goods or work only; no transfer, authority, consent or completion is created by prose. The selected candidate fixes the case, response, finding or offer revision. Silence and rumor alone do not establish a violation. " +
                         "Civic candidates come only from notices you actually read or heard; registration records your own willingness. " +
                         "When needs_name is true, also include chosen_name (your own full name, " +
@@ -1329,7 +1334,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 role = "system",
                 content = "You are an agent who has just died. This is your one final will, not an ordinary action, and it cannot be changed later. " +
                     "Your estate lists the belongings you personally owned. Return JSON only, with fields " +
-                    "selected_candidate_id (\"will:household\" to leave everything to your household, or \"will:heirs\" to name heirs) and confidence (number 0..1). " +
+                    "selected_candidate_id (\"will:household\" to use the default inheritance rules described by the offered choice, or \"will:heirs\" to name heirs) and confidence (number 0..1). " +
                     "With will:heirs, also include heirs (a list of one to three ids from possible_heirs) and split: " +
                     "\"equal\" shares every item equally between your heirs, while \"items\" gives each item to one heir through items, " +
                     "an object mapping item ids from estate to one of your heir ids; items you leave out are shared equally. " +
@@ -1380,7 +1385,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
 
     /// <summary>
     /// Reads the optional will fields. Malformed fields make the reply invalid,
-    /// so the server keeps the household default; unusable final words are dropped.
+    /// so the server uses default inheritance; unusable final words are dropped.
     /// </summary>
     private static CognitionWillChoice? ParseWillChoice(JsonElement answer, string? selected)
     {
