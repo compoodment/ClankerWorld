@@ -23,10 +23,14 @@ public sealed partial class PrivateWorldRuntime
         return Math.Max(0, available - reserve);
     }
 
-    private InventoryLot? LandSaleStock(string actor, TownLandSalePrice price) => SharedItem(price.ItemKind, actor) is { } lot &&
+    private InventoryLot? LandSaleStock(string actor, TownRuntimeState town, TownLandSalePrice price) =>
+        CivicBoard(town) is { } board && SharedItem(price.ItemKind, actor, board, ResourceInteractionRange) is { } lot &&
         lot.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId && lot.DeliveryBuildingId is null &&
         lot.ItemKind != "tool" && ToolProgressionRules.Find(lot.ItemKind) is null && MarketSurplus(actor, lot) > 0 &&
         (lot.ItemKind != "food" || MayCollectSharedFood(actor)) ? lot : null;
+
+    private int LandSalePickupCapacity(string actor, TownRuntimeState town, InventoryLot stock) =>
+        CivicBoard(town) is { } board ? PickupCarryCapacity(actor, stock, board, ResourceInteractionRange) : 0;
 
     private void AddTownLandSaleCandidates(List<CognitionCandidate> candidates, string actor, TownRuntimeState town,
         TownLandTransferRequest request, IReadOnlyList<TownLandTransferParty> parties, string token)
@@ -37,7 +41,7 @@ public sealed partial class PrivateWorldRuntime
         if (household == request.TargetHouseholdId)
         {
             var carried = LandSaleCarriedQuantity(actor, price);
-            if (carried < price.Quantity && FreeCarryCapacity(actor) > 0 && LandSaleStock(actor, price) is not null)
+            if (carried < price.Quantity && LandSaleStock(actor, town, price) is { } stock && LandSalePickupCapacity(actor, town, stock) > 0)
                 candidates.Add(new(CivicAction(town.Id, "land_transfer_collect_payment", token),
                     "Collect available household goods you may carry for this accepted land-use sale. " + LandTransferTerms(request), 175));
             if (carried >= price.Quantity && CanWalkToCivicBoard(actor, town))
@@ -60,18 +64,18 @@ public sealed partial class PrivateWorldRuntime
         AddTownLandTransferCandidates(candidates, actor, town);
         if (!candidates.Any(item => item.Id == candidate)) return;
         var request = town.LandHearings.Transfers.Single(item => item.Status == "pending" && LandTransferActionToken(item) == parts[3]);
-        var lot = parts[2] == "land_transfer_collect_payment" ? LandSaleStock(actor, request.Price!) : null;
+        var lot = parts[2] == "land_transfer_collect_payment" ? LandSaleStock(actor, town, request.Price!) : null;
         var destination = lot is not null ? HouseholdStockPosition(lot) : CivicBoard(town);
         var range = lot is not null ? HouseholdStockInteractionRange(lot) : ResourceInteractionRange;
         if (destination is { } position && !IsWithinInteractionRange(inhabitants[actor].Position, position, range))
             MoveToward(actor, inhabitants[actor], position, "land_sale", range);
     }
 
-    private void CollectLandSalePayment(string actor, TownLandTransferRequest request)
+    private void CollectLandSalePayment(string actor, TownRuntimeState town, TownLandTransferRequest request)
     {
         var price = request.Price!;
         var missing = price.Quantity - LandSaleCarriedQuantity(actor, price);
-        if (missing <= 0 || LandSaleStock(actor, price) is not { } lot) return;
+        if (missing <= 0 || LandSaleStock(actor, town, price) is not { } lot) return;
         var position = HouseholdStockPosition(lot);
         var range = HouseholdStockInteractionRange(lot);
         if (!IsWithinInteractionRange(inhabitants[actor].Position, position, range))
@@ -79,7 +83,7 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, inhabitants[actor], position, "land_sale_payment", range);
             return;
         }
-        var quantity = Math.Min(missing, Math.Min(FreeCarryCapacity(actor), MarketSurplus(actor, lot)));
+        var quantity = Math.Min(missing, Math.Min(LandSalePickupCapacity(actor, town, lot), MarketSurplus(actor, lot)));
         if (lot.ItemKind == "food") quantity = Math.Min(quantity, SharedFoodCollectionAllowance(actor));
         if (quantity <= 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"land-sale-collect:{WorldTick}:{actor}:{request.Id}",

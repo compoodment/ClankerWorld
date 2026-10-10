@@ -56,7 +56,7 @@ public sealed partial class PrivateWorldRuntime
         switch (action)
         {
             case "land_transfer_collect_payment":
-                CollectLandSalePayment(actor, request);
+                CollectLandSalePayment(actor, currentTown, request);
                 break;
             case "land_transfer_meet":
                 MoveToward(actor, inhabitants[actor], CivicBoard(currentTown)!.Value, "land_sale", ResourceInteractionRange);

@@ -334,9 +334,9 @@ public sealed partial class TownLandTransferRuntimeTests
             .OrderBy(right => right.Id, StringComparer.Ordinal).First().Tiles.ToArray();
     }
 
-    private static PrivateWorldRuntime NewWorld(TransferProvider provider, bool generatedClock = false)
+    private static PrivateWorldRuntime NewWorld(TransferProvider provider, bool generatedClock = false, string seed = "government-personal-path")
     {
-        using var generated = NormalPathWorld.CreateGenerated("government-personal-path", _ => provider);
+        using var generated = NormalPathWorld.CreateGenerated(seed, _ => provider);
         var state = generated.ExportState();
         var society = state.Society.Society;
         var oldDay = society.Config.TicksPerWorldDay;
@@ -410,6 +410,7 @@ public sealed partial class TownLandTransferRuntimeTests
         public string SaleItemKind { get; set; } = "wood";
         public int SaleQuantity { get; set; } = 2;
         public bool CollectSalePayment { get; set; } = true;
+        public string? PaymentActor { get; set; }
         public bool PaySales { get; set; } = true;
         public bool HoldSellerMeeting { get; set; }
         public bool Proposed { get; set; }
@@ -430,6 +431,7 @@ public sealed partial class TownLandTransferRuntimeTests
             SaleItemKind = SaleItemKind,
             SaleQuantity = SaleQuantity,
             CollectSalePayment = CollectSalePayment,
+            PaymentActor = PaymentActor,
             PaySales = PaySales,
             HoldSellerMeeting = HoldSellerMeeting,
             Proposed = Proposed,
@@ -451,7 +453,8 @@ public sealed partial class TownLandTransferRuntimeTests
                 ? Pick(Sell ? "land_transfer_sell" : "land_transfer_propose") : null;
             var choice = Kind == DecisionProviderKind.Jev ? proposal : null;
             choice ??= Pick("read") ?? Pick("land_transfer_read") ??
-                (Sell && PaySales && Mode is null ? (CollectSalePayment ? Pick("land_transfer_collect_payment") : null) ?? Pick("land_transfer_pay") ?? Pick("land_transfer_meet") : null) ?? Pick("visit");
+                (Sell && PaySales && Mode is null ? (PaymentActor is null || observation.InhabitantId == PaymentActor
+                    ? (CollectSalePayment ? Pick("land_transfer_collect_payment") : null) ?? Pick("land_transfer_pay") : null) ?? Pick("land_transfer_meet") : null) ?? Pick("visit");
             if (choice is null && AcceptGrants)
                 choice = Pick("yes") ?? (observation.InhabitantId is Filer or SourcePartner ? Pick("accept_land_use") : null);
             if (choice is null && Mode == "withdraw" && observation.InhabitantId == Filer) choice = Pick("land_transfer_withdraw");
