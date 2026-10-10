@@ -169,7 +169,7 @@ public partial class Main
             }
 
             throw new InvalidOperationException("The retained owner request has no supported payload.");
-        });
+        }, retainedSubmission: pending);
 
         if (completed)
         {
@@ -182,7 +182,7 @@ public partial class Main
         if (!CanRetryPendingSubmission(completed)) return;
         if (!pendingSubmissionStore.TryClear(completed))
         {
-            SetStatus("server confirmed the request, but its local retry record could not be cleared; retry remains safe or forget it after checking the world", good: false);
+            SetStatus("The host answered, but the local retry record could not be cleared. Check the world, then retry or forget the request.", good: false);
             return;
         }
 
@@ -241,7 +241,7 @@ public partial class Main
     }
 
     private async Task RunOwnerActionAsync(Func<Task<string>> action, bool waitForTurn = false,
-        string? conflictMessage = null)
+        string? conflictMessage = null, OwnerPendingSubmission? retainedSubmission = null)
     {
         var generation = observationSession.RequestGeneration;
         if (!IsCurrentWorldRequest(generation)) return;
@@ -269,8 +269,12 @@ public partial class Main
             }
             catch (System.Net.Http.HttpRequestException exception) when (exception.StatusCode is not null)
             {
-                // The host answered and refused this one action; the connection
-                // and the displayed world remain current.
+                // A client refusal ends this request. A timeout or server error
+                // can follow a commit, so its exact retry must remain on disk.
+                if (retainedSubmission is not null && IsCurrentWorldRequest(generation) &&
+                    (int)exception.StatusCode is >= 400 and < 500 &&
+                    exception.StatusCode != System.Net.HttpStatusCode.RequestTimeout)
+                    CompletePendingSubmission(retainedSubmission);
                 SetStatus($"The world host did not accept that request · {FriendlyFailure(exception)}", good: false);
             }
             catch (System.Net.Http.HttpRequestException exception)
