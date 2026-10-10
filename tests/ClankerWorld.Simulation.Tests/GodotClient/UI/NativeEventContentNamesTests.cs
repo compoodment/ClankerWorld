@@ -47,8 +47,8 @@ public sealed class NativeEventContentNamesTests
         var worldEvent = ClientEvent(world.ExportState().Events.Last(item => item.Kind == "building_placed"));
         Assert.Contains(definition.CanonicalId, worldEvent.Detail, StringComparison.Ordinal);
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
-        Assert.Equal("Clinic was built.", WorldEventText.Describe(worldEvent, snapshot));
-        Assert.Equal("Clinic was built.", WorldEventText.Describe(worldEvent, null));
+        Assert.Equal("A new Clinic was built.", WorldEventText.Describe(worldEvent, snapshot));
+        Assert.Equal("A new Clinic was built.", WorldEventText.Describe(worldEvent, null));
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         CheckReload(world);
     }
@@ -98,9 +98,10 @@ public sealed class NativeEventContentNamesTests
         var snapshot = Snapshot(world);
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         Assert.Equal("Make wooden axe", recipe.DisplayName);
-        Assert.Equal("Work began on Make wooden axe.", WorldEventText.Describe(events[0], snapshot));
-        Assert.Equal("Make wooden axe was finished.", WorldEventText.Describe(events[1], snapshot));
-        Assert.Equal("Wooden axe was finished.", WorldEventText.Describe(events[1], null));
+        Assert.Equal(ownerOrder ? "Work began on a new Make wooden axe." : "Work began on make wooden axe.",
+            WorldEventText.Describe(events[0], snapshot));
+        Assert.Equal("A batch of make wooden axe was made.", WorldEventText.Describe(events[1], snapshot));
+        Assert.Equal("A batch of wooden axe was made.", WorldEventText.Describe(events[1], null));
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         CheckReload(world);
     }

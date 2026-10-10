@@ -12,7 +12,7 @@ job just as [CONTRIBUTING](../CONTRIBUTING.md) does:
 | --- | --- |
 | [find-bugs](find-bugs/SKILL.md) | Find problems, confirm each on current main and file it as its own Bug issue, or report a security problem privately |
 | [fix-issue](fix-issue/SKILL.md) | Pick up, claim, build and hand over an issue, up to a pull request that is ready for review |
-| [review-merge](review-merge/SKILL.md) | Review and merge pull requests as fast as the rules allow, keeping two moving so the merging turn is never idle |
+| [review-merge](review-merge/SKILL.md) | Review and merge pull requests as fast as the rules allow, keeping reviewed ones flowing into the merge queue |
 | [design-decisions](design-decisions/SKILL.md) | Bring open design questions to the owner, record the answers on every page and open the Implementation issues they unblock |
 
 **Guides** help with a task inside any job:
