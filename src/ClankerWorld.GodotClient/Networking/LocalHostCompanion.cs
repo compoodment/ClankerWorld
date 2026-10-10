@@ -22,6 +22,9 @@ public sealed record LocalHostLayout(
 
     public string SecretPath => Path.Combine(DataDirectory, "host", "companion.secret");
     public string LogPath => Path.Combine(DataDirectory, "logs", "host.log");
+    /// <summary>The log of the launch before this one, kept so a crash can still be reported.</summary>
+    public string PreviousLogPath => Path.Combine(DataDirectory, "logs", "host.previous.log");
+    public string ReportDirectory => Path.Combine(DataDirectory, "reports");
     public string SaveDirectory => Path.Combine(DataDirectory, "saves");
     public string SettingsDirectory => Path.Combine(DataDirectory, "settings");
 
@@ -86,7 +89,7 @@ public sealed record LocalHostStart(LocalHostOutcome Outcome, string? Detail = n
         LocalHostOutcome.PortInUse =>
             $"Another program is using the port the world server needs ({Detail}). Close it, or another copy of ClankerWorld, then try again. Your saves are safe.",
         LocalHostOutcome.Exited =>
-            "The world server closed while starting. Your saves are safe. Try again, and if it keeps happening, send the host log from your ClankerWorld folder.",
+            "The world server closed while starting. Your saves are safe. Try again, and if it keeps happening, choose Report a problem and send the report.",
         LocalHostOutcome.TimedOut =>
             "The world server is taking too long to start. Your saves are safe. Try again.",
         _ => "The world server could not be started. Check that the game folder is complete, then try again.",
@@ -133,6 +136,11 @@ public sealed class LocalHostCompanion : IAsyncDisposable
     private Uri ApprovalOrigin => new($"http://127.0.0.1:{approvalPort}/");
 
     public bool StartedHost => process is not null;
+
+    public LocalHostLayout Layout => layout;
+
+    /// <summary>Exact values a problem report must blank, should a log ever carry one.</summary>
+    public IReadOnlyCollection<string> SecretsToHide() => secret is null ? [] : [secret];
 
     public async Task<LocalHostStart> StartAsync(string expectedVersion, string expectedRevision,
         CancellationToken cancellationToken)
@@ -305,6 +313,14 @@ public sealed class LocalHostCompanion : IAsyncDisposable
         Directory.CreateDirectory(layout.SaveDirectory);
         Directory.CreateDirectory(layout.SettingsDirectory);
         Directory.CreateDirectory(Path.GetDirectoryName(layout.LogPath)!);
+        try
+        {
+            File.Move(layout.LogPath, layout.PreviousLogPath, overwrite: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // No earlier log, or it is still open somewhere: start a fresh one anyway.
+        }
         log = new StreamWriter(new FileStream(layout.LogPath, FileMode.Create, FileAccess.Write, FileShare.Read))
         {
             AutoFlush = true,

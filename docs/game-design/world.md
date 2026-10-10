@@ -64,6 +64,14 @@ everything that is available in the current build. See [what works today](../wha
   the game process.
 - **The first local package is an unsigned portable zip.** An installer and code
   signing (a publisher signature on the files) come later.
+- **Agreed on October 10
+  ([#1260](https://github.com/compoodment/ClankerWorld/issues/1260)):**
+  **Report a problem** saves a zip for a bug report with the game's and its
+  world server's latest logs and a short summary of the build, computer and
+  open world. Keys, pairing codes, device credentials, saves, prompts and
+  model replies never go in, and anything in a log that looks like a key is
+  blanked. The player sends the zip themselves; nothing is uploaded. The game
+  offers it, and the launcher will reuse it.
 - **Private-server deployment starts with a written checklist.** A staged
   deployment command for the private server waits until the local package
   works.
@@ -81,9 +89,7 @@ distribution goal, the companion-process host or the first package.
 
 **Parked until ClankerWorld becomes a public, versioned alpha (October 8):**
 how a player's copy of the game gets updated
-([#1259](https://github.com/compoodment/ClankerWorld/issues/1259)), exporting
-diagnostics for a bug report
-([#1260](https://github.com/compoodment/ClankerWorld/issues/1260)) and moving
+([#1259](https://github.com/compoodment/ClankerWorld/issues/1259)) and moving
 a world between the private server and a player's PC
 ([#1262](https://github.com/compoodment/ClankerWorld/issues/1262)). The owner
 is the only player for now, so these wait until then.

@@ -35,9 +35,21 @@ instead. Starting `ClankerWorld.exe` then starts that world server, pairs with
 it without a code and opens the Main Menu. Quitting saves the world and stops
 the server. Your saves, keys and model-call count are kept in
 `%LOCALAPPDATA%\ClankerWorld`, outside the game folder, and the server's log is
-`logs\host.log` there. If the server cannot start, the game says why and offers
-**Try Again**. The downloadable package with this folder is not published yet
+`logs\host.log` there, with the launch before it in `logs\host.previous.log`.
+If the server cannot start, the game says why and offers **Try Again** and
+**Report a problem**. The downloadable package with this folder is not published yet
 ([#468](https://github.com/ClankerWorldOrg/ClankerWorld/issues/468)).
+
+### Report a problem
+
+**Settings > Build > Report a problem** saves a zip to send with a bug report
+and shows it in your file manager. It holds the game's latest logs, the world
+server's logs when the server runs on your PC, and a summary of the game
+version, Windows version, graphics card, screen and open world. It never
+includes keys, pairing codes, saves, prompts or model replies, and anything in
+a log that looks like a key is blanked. Reports go in a `reports` folder (in
+`%LOCALAPPDATA%\ClankerWorld` when the game runs its own server), and only the
+five newest are kept. Nothing is uploaded; you choose where to send the file.
 
 If the server changes, forget the old registration and pair again.
 [Device pairing](development/device-pairing.md) has the operator instructions.

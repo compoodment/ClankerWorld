@@ -94,11 +94,15 @@ public sealed class LocalHostCompanionTests
         try
         {
             var layout = new LocalHostLayout(Path.Combine(data, "missing-host"), [], data, data);
+            Directory.CreateDirectory(Path.GetDirectoryName(layout.LogPath)!);
+            File.WriteAllText(layout.LogPath, "the launch that crashed");
             using var http = new HttpClient();
             var game = new LocalHostCompanion(layout, http, FreePort(), FreePort());
             var start = await game.StartAsync("0", "0", CancellationToken.None);
             Assert.Equal(LocalHostOutcome.CouldNotStart, start.Outcome);
             Assert.Contains("try again", start.PlayerMessage, StringComparison.OrdinalIgnoreCase);
+            // A new launch keeps the last one's log, so a crash can still be reported.
+            Assert.Equal("the launch that crashed", File.ReadAllText(layout.PreviousLogPath));
         }
         finally
         {

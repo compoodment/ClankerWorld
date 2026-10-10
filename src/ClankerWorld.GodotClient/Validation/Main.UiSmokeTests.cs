@@ -1152,6 +1152,7 @@ public partial class Main
                 await VerifyPairingRecoveryMenuAsync();
                 await VerifyFreshHostEntryAsync();
                 await VerifyPauseMenuResumeAsync();
+                VerifyProblemReport();
                 await VerifyContinueSettingsNavigationAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyWorldPreviewRerollAsync();
