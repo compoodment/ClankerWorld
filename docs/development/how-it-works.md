@@ -3781,7 +3781,12 @@ ordinary revalidated choices. Native orders bind an exact animal name or ID.
 Order progress follows the completed animal action, including when fetching a
 supply at the animal completes that action in the same tick.
 Care spends actual unreserved grain/greens and jug water at the animal or yard;
-food, planting and workstation reserves stay protected. For care away from the
+food, planting and workstation reserves stay protected. Its ready-to-eat reserve
+counts only usable vessels or loose food, excludes household stock on actively
+borrowed Market stalls, and still subtracts freshness, condition and reservations.
+Ending stall borrowing makes that stock eligible again. The existing two portions
+per active household member and four extra for active parenthood are unchanged;
+non-edible grain does not spend the food reserve. For care away from the
 actor's tile, input selection accepts only physically carried supplies. This
 keeps the existing supply path collecting feed and enough usable jug water before
 approaching the animal, including after a partial pickup. Water may be split
