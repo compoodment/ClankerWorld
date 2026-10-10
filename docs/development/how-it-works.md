@@ -3301,7 +3301,9 @@ pending-will restore behavior.
 ## Fertility and household fields
 
 `LandFertility` derives each land tile's fertility from the world seed,
-rainfall, climate, surface and nearby rivers or lakes. It is derived data,
+rainfall, climate, surface and nearby rivers or lakes. Generated maps reuse
+the selected candidate's rainfall seed, including its east/west wrapping.
+Legacy fixture maps keep their original world-seed rainfall. It is derived data,
 not a saved object or a resource lot. Grass and meadow commonly support
 farming; dry scrub is poor, and sand, rock, snow, mountains and water cannot
 be farmed. Inspection uses Poor, Fair, Good and Rich rather than a score.
