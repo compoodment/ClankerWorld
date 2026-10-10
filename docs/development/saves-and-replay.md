@@ -1976,7 +1976,11 @@ leaders. Products and fitted saddles reference real inventory lots and exclusive
 reservations. Trade offers retain the exact animal, adults, receiving yard and
 payment lot; native animal orders retain the exact bound animal ID. Milk-sale
 offers retain both parties, the held milk, receiving jug, payment and physical
-Store or Market stall. Whole-jug stock deliveries retain household ownership.
+Store or Market stall. Receiving-jug and payment references preserve complete
+inventory lot identities, including IDs derived by repeated partial stock
+moves. Reload binds them to the exact existing lots, owners and carried custody
+and checks the held milk reservation and physical site. Whole-jug stock
+deliveries retain household ownership.
 
 Current-format replay and rollback cover arrival, paid care, collection, birth,
 production jobs and attachments. Reload validates required animal fields,
