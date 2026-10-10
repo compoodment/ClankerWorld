@@ -134,7 +134,7 @@ public static class MarketTradeValidation
                             receipt.Quantity, receipt.DepositedTick, receipt.Sequence, receipt.TradeOfferId) ||
                         receipt.SellerAgentId != occupancy.SellerAgentId ||
                         receipt.OwnerId != occupancy.SellerAgentId && receipt.OwnerId != occupancy.SellerHouseholdId ||
-                        !Bounded(receipt.SourceLotId, 2048) || !Bounded(receipt.LotId, 2048) || !Bounded(receipt.ItemKind, 128) ||
+                        !Bounded(receipt.SourceLotId, 2048) || !Bounded(receipt.LotId, 2048) || !ResourceKind(receipt.ItemKind) ||
                         receipt.Quantity is <= 0 or > MarketTradeRules.LoadQuantity ||
                         receipt.DepositedTick < occupancy.StartedTick || receipt.DepositedTick > worldTick ||
                         occupancy.EndedTick is { } endedAt && receipt.DepositedTick > endedAt ||
@@ -179,7 +179,7 @@ public static class MarketTradeValidation
                         trade.Position != MarketContent.StallSite(market.Site, stall.SlotIndex) ||
                         trade.ProposedTick < occupancy.StartedTick || trade.ProposedTick > worldTick ||
                         occupancy.EndedTick is { } end && trade.ProposedTick > end ||
-                        !Bounded(trade.GoodsKind, 128) || !Bounded(trade.PaymentKind, 128) || trade.GoodsKind == trade.PaymentKind ||
+                        !ResourceKind(trade.GoodsKind) || !ResourceKind(trade.PaymentKind) || trade.GoodsKind == trade.PaymentKind ||
                         trade.StockReceiptSequence < 0 || trade.StockReceiptSequence >= market.NextStockReceiptSequence ||
                         offer.Revision != 1 || offer.FirstPartyId != trade.GoodsOwnerId || offer.SecondPartyId != trade.BuyerId ||
                         offer.FirstQuantity != 1 || offer.SecondQuantity != 1 ||
@@ -233,6 +233,10 @@ public static class MarketTradeValidation
             !trades.Contains(offer.Id)))
             throw Invalid("A Market offer is missing its named physical stall binding.");
     }
+
+    // Match accepted inventory/content identities without shortening them in trade history.
+    private static bool ResourceKind(string? value) => value is { Length: > 0 } &&
+        value == value.Trim() && !value.Any(char.IsControl);
 
     private static bool Bounded(string? value, int maximum) => value is { Length: > 0 } &&
         value.Length <= maximum && value == value.Trim() && !value.Any(char.IsControl);

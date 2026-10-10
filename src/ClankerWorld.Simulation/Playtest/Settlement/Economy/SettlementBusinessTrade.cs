@@ -493,7 +493,7 @@ public sealed partial class PrivateWorldRuntime
                 !BoundedBusinessText(trade.BuildingInstanceId, 256) ||
                 !societyState.Households.Any(household => household.Id == trade.SellerHouseholdId) ||
                 !societyState.Inhabitants.Any(person => person.Id == trade.BuyerId) ||
-                !BoundedBusinessText(trade.GoodsKind, 128) || !BoundedBusinessText(trade.PaymentKind, 128) ||
+                !BusinessResourceKind(trade.GoodsKind) || !BusinessResourceKind(trade.PaymentKind) ||
                 trade.Position.X < 0 || trade.Position.X >= map.Width || trade.Position.Y < 0 || trade.Position.Y >= map.Height ||
                 inventory.Lots.Any(lot => lot.Id == offer.FirstLotId && lot.ItemKind != trade.GoodsKind) ||
                 inventory.Lots.Any(lot => lot.Id == offer.SecondLotId && lot.ItemKind != trade.PaymentKind) ||
@@ -515,6 +515,10 @@ public sealed partial class PrivateWorldRuntime
                 !trades.Any(trade => trade.OfferId == offer.Id)))
             throw new InvalidDataException("An inventory business offer has no physical shop binding.");
     }
+
+    // Content quantities and inventory resource kinds have no separate trade-record length limit.
+    private static bool BusinessResourceKind(string? text) => text is { Length: > 0 } &&
+        text == text.Trim() && !text.Any(char.IsControl);
 
     private static bool BoundedBusinessText(string? text, int limit) => text is { Length: > 0 } &&
         text.Length <= limit && text == text.Trim() && !text.Any(char.IsControl);

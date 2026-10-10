@@ -1513,6 +1513,13 @@ receipt suffix above the retirement boundary must be complete. An open offer
 always retains its exact source receipt. A closed outcome may refer below the
 explicit retired boundary; that historical reference grants no new selling right.
 
+Business exchanges, Market exchanges and Market stock receipts retain the exact
+resource kind accepted by inventory and content quantities. Resource kinds have
+no separate trade-record length limit and are never truncated. Loading still
+rejects empty, untrimmed or control-character names, mismatched lot kinds and
+forged offer or receipt bindings. This validation correction keeps the current
+schema and does not change saved fields or transfer goods during reload.
+
 Each Market keeps the most recent 32 receipts, 32 closed trades and 32 ended
 borrowing records, plus exact live dependencies. Current borrowers keep the
 latest matching deposit for each actual on-site lot and historical owner; repeated
