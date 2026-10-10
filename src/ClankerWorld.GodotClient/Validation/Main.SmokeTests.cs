@@ -54,6 +54,8 @@ public partial class Main
         if (BuildingSprites.AtlasTileSize(terrainLayer.TileSize) != 16 || Frame().Length == 0)
             throw new InvalidOperationException("Chimney smoke must also draw at mid zoom with its 16px atlas.");
         cameraZoom = maximumCameraZoom;
+        // Mid zoom clamps the camera away from these chimneys; bring them back into view.
+        cameraCenterTiles = new(17, 10);
         RenderMap(occupied with { Inhabitants = [], ProductionJobs = [occupied.ProductionJobs[1]] });
         await Settle();
         if (Frame().Length != 0) throw new InvalidOperationException("An empty House must not smoke even with a running job; the idle forge must also stop.");
