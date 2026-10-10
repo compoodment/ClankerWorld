@@ -33,7 +33,7 @@ public sealed partial class PrivateWorldRuntime
                     HouseholdBuildingKind(definition) is not null));
             if (source is not null &&
                 (person.Position == source.Position || FindUnoccupiedRoute(actor, person.Position, source.Position, 0).Count > 0) &&
-                FindUnoccupiedRoute(actor, source.Position, house.Position, 0).Count > 0)
+                PickupCarryCapacity(actor, vessel, house.Position) >= ContainerFamilyQuantity(inventory, vessel.Id))
                 return vessel;
         }
         return null;

@@ -33,7 +33,8 @@ public sealed class ProjectHouseholdDeliveryTests
                 ? person with { Position = fixture.Destination.Position, LastDecisionContext = null }
                 : person.InhabitantId == fixture.Actor ? person with { Project = null } : person).ToArray(),
         };
-        var allowed = new[] { "", "" };
+        // The collector waits until the test asks it to collect food, so it never arrives already loaded.
+        var allowed = new[] { "safe_idle", "safe_idle" };
         IDecisionProvider Provider(string actor) => actor == collector
             ? new FoodCapacityTestFixture.Choices(allowed) : actor == fixture.Actor
                 ? new FoodCapacityTestFixture.Choices(fixture.ProjectCandidate) : new Idle();
@@ -70,8 +71,10 @@ public sealed class ProjectHouseholdDeliveryTests
             Assert.True((await restored.AdvanceOneTickAsync()).Advanced);
         Assert.True(StoredUnits() <= capacity - 2, $"House stock={StoredUnits()}; collector load={Load(restored, collector)}");
         var map = restored.ExportState().Map;
+        // Step aside, but not onto the workshop's work site.
+        var workshop = restored.WorldSimulation.Buildings.Single(building => building.InstanceId == Workshop);
         var clear = map.Tiles.Select(tile => tile.Position).Where(point => map.IsBuildable(point) &&
-                !restored.Inhabitants.Any(person => person.Position == point))
+                !restored.Inhabitants.Any(person => person.Position == point) && map.FootDistance(workshop.Position, point) > 3)
             .OrderBy(point => map.FootDistance(fixture.Destination.Position, point)).First();
         restored.SubmitInstruction(new("clear-house", "owner:test", collector, OwnerInstructionKind.MustDo,
             $"move to {clear.X},{clear.Y}"));

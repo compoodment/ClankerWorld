@@ -113,7 +113,7 @@ public partial class Main
             !knownEvents.TryGetValue(id, out var worldEvent) ||
             worldEvent.Position is not { } position)
             return;
-        CenterCameraAt(new Vector2(position.X + 0.5f, position.Y + 0.5f));
+        CenterKeyboardCameraAt(new Vector2(position.X + 0.5f, position.Y + 0.5f));
         eventsPanel.Hide();
     }
 

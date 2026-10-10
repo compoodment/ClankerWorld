@@ -1,0 +1,1 @@
+- Show removed Town Halls as “Built, later removed” while keeping their paid construction history, retain project names in older Event Log lines, and explain when blocked Town work can retry.

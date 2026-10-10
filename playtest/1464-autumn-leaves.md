@@ -1,0 +1,3 @@
+- [ ] On Windows, view mature broadleaf and fruiting/picked orchard trees in autumn at close and mid zoom. Compare their sparse warm leaves with the approved `leaves-a` review; conifers, saplings, Roads and water have none, and leaves stay beneath sprites.
+- [ ] Watch autumn change to winter and then spring, or load observations in those seasons. Leaves disappear outside autumn and do not return until the next autumn; pause/reconnect adds no gameplay resource.
+- [ ] Pan and zoom through a large wooded autumn area and across an east/west wrapped seam. Leaves stay anchored beneath their trees with no visible camera slowdown; overview zoom stays clear.

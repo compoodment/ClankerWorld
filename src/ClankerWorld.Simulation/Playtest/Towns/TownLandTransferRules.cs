@@ -1,5 +1,6 @@
 using System.Globalization;
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Kernel;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -7,7 +8,10 @@ namespace ClankerWorld.Simulation.Playtest;
 public static class TownLandTransferRules
 {
     public static string TermsToken(TownLandTransferRequest request) => request.Id + ":" + TownLandHearingRules.RecordVersion(new
-    { request.TownId, request.TargetHouseholdId, request.Tiles, request.RightVersions });
+    { request.TownId, request.TargetHouseholdId, request.Tiles, request.RightVersions, request.Price });
+
+    public static string PaymentTransferId(TownLandTransferRequest request, string buyer, int index) =>
+        "land-sale-payment:" + TermsToken(request) + ":" + buyer + ":" + index;
 
     public static IReadOnlyList<TownLandTransferParty> PartiesFor(IEnumerable<HouseholdLandUseRight> rights,
         IReadOnlyList<GridPoint> tiles, string targetHouseholdId, IReadOnlyDictionary<string, string?> adultHouseholds) =>
@@ -32,16 +36,22 @@ public static class TownLandTransferRules
     public static TownLandHearingState Propose(TownLandHearingState state, SeededMap map, string townId, string filer,
         IReadOnlyList<GridPoint> tiles, string targetHouseholdId, IReadOnlyList<HouseholdLandUseRight> currentRights,
         IReadOnlyList<TownLandTransferParty> currentParties, IReadOnlyList<HouseholdLandUseRequest> pendingRequests,
-        long tick, string noticeId)
+        long tick, string noticeId, TownLandSalePrice? price = null)
     {
         if (!CanPropose(state, map, townId, filer, tiles, targetHouseholdId, currentRights, currentParties, pendingRequests, tick) ||
             !TownLandHearingRules.ValidText(noticeId, 128))
             throw new InvalidOperationException("A voluntary transfer needs one undisputed, unexpired existing plot, affected adults and a known beneficiary household.");
         var rights = CurrentSources(townId, tiles, currentRights).Select(TownLandHearingRules.Snapshot).ToArray();
+        if (price is not null && (price.Quantity <= 0 || !TownLandHearingRules.ValidText(price.ItemKind, 128) ||
+            price.ItemKind.Any(char.IsWhiteSpace) || InventoryContainerRules.IsContainer(price.ItemKind) || price.ItemKind == "handcart" ||
+            rights.Any(version => version.Right.HouseholdId != price.SellerHouseholdId) ||
+            !currentParties.Any(party => party.HouseholdId == price.SellerHouseholdId && party.AdultIds.Contains(filer))))
+            throw new InvalidOperationException("A goods sale needs one actual source household and an exact positive goods price.");
         if (state.Transfers.Any(existing => existing.Status == "pending" && existing.TownId == townId && existing.TargetHouseholdId == targetHouseholdId &&
-                existing.Tiles.SequenceEqual(tiles) && SameSources(existing.RightVersions, rights))) return state;
+                existing.Tiles.SequenceEqual(tiles) && SameSources(existing.RightVersions, rights) && existing.Price == price)) return state;
         var request = new TownLandTransferRequest("land-transfer:" + townId + ":" + (state.Sequence + 1).ToString(CultureInfo.InvariantCulture),
-            townId, filer, targetHouseholdId, tiles.ToArray(), rights, CopyParties(currentParties), noticeId, tick, []);
+            townId, filer, targetHouseholdId, tiles.ToArray(), rights, CopyParties(currentParties), noticeId, tick, [])
+        { Price = price };
         return state with { Sequence = state.Sequence + 1, Transfers = state.Transfers.Append(request).ToArray() };
     }
 
@@ -84,7 +94,8 @@ public static class TownLandTransferRules
     public static (TownLandHearingState State, IReadOnlyList<HouseholdLandUseRight> Rights) Advance(TownLandHearingState state,
         SeededMap map, IReadOnlyList<HouseholdLandUseRight> currentRights,
         IReadOnlyDictionary<string, IReadOnlyList<TownLandTransferParty>> partiesByRequest,
-        IReadOnlyList<HouseholdLandUseRequest> pendingRequests, IReadOnlyList<TownCivicReceipt> receipts, long tick)
+        IReadOnlyList<HouseholdLandUseRequest> pendingRequests, IReadOnlyList<TownCivicReceipt> receipts, long tick,
+        IReadOnlyDictionary<string, TownLandSalePayment>? payments = null)
     {
         var rights = currentRights;
         foreach (var request in state.Transfers.Where(item => item.Status == "pending").ToArray())
@@ -96,6 +107,8 @@ public static class TownLandTransferRules
                 continue;
             }
             if (!partiesByRequest.TryGetValue(request.Id, out var parties) || !HasAllConsents(request, parties, receipts, tick)) continue;
+            TownLandSalePayment? payment = null;
+            if (request.Price is not null && (payments is null || !payments.TryGetValue(request.Id, out payment))) continue;
             var after = TownLandRightsRules.ReassignFootprintRights(map, rights, request.Tiles.ToHashSet(), request.TargetHouseholdId, tick);
             var prior = CurrentSources(request.TownId, request.Tiles, rights);
             var affectedTiles = prior.SelectMany(right => right.Tiles).ToHashSet();
@@ -112,7 +125,7 @@ public static class TownLandTransferRules
                 Status = "transferred",
                 SettledTick = tick,
                 Reason = null,
-                Receipt = new(adjustment.Id, tick, CopyParties(parties))
+                Receipt = new(adjustment.Id, tick, CopyParties(parties)) { Payment = payment }
             });
             rights = after;
         }
