@@ -635,7 +635,7 @@ Conversation records use private-world schema 35, following schema 34's fields
 and ground harvest lots. No migration for older alpha saves is added solely to preserve
 compatibility.
 
-Private-world schema 119 adds optional goods prices to voluntary permission
+Private-world schema 120 adds optional goods prices to voluntary permission
 transfers and actual goods payment to their settlement receipts. The notice and
 consent token include the immutable price. A paid request stays pending after
 all current adults accept until physical payment and permission settle together.
@@ -1011,7 +1011,7 @@ on load. Earlier society envelopes and private schemas are refused and their
 files preserved; there is no name inference, migration or silent renaming.
 
 The alpha accepts only the current private-world checkpoint schema, currently
-`PrivateWorldRuntime.StateSchemaVersion` 119. The minimum supported schema is
+`PrivateWorldRuntime.StateSchemaVersion` 120. The minimum supported schema is
 the same value, so older alpha checkpoints are refused with a reason and left
 unchanged; no private-world migration runs. The current schema also includes
 a bounded model-attempt status and exact last accepted model choice per agent, plus
