@@ -146,11 +146,16 @@ in the Windows game yet. Night effects on weather are not built.
 
 Each starting agent has a provider, model and key assignment. Stored keys can
 be shared or selected independently. An agent's Profile lets you change these
-choices and rename the person. For OpenAI and Ollama Cloud, the model is picked
-from the game's own short list, newest at the top, or typed by name. The host checks
-the chosen key with the provider and greys out listed models it can't use. That
-check and the listed model names have been tested against recorded sample
-replies, not yet against live provider accounts. A paused world's routine
+choices and rename the person. For OpenAI, Ollama Cloud and Anthropic, the model
+is picked from the game's own short list, newest at the top, or typed by name.
+Anthropic offers Claude Opus 5.5, Claude Sonnet 5.5 and Claude Haiku 5.5, and a
+new Anthropic agent starts on Claude Haiku 5.5. Each of these agents also has a
+**Thinking** setting, chosen with its model: **Model default**, **Low**,
+**Medium** or **High**. A model that refuses the setting fails its calls until
+it is set back to Model default. The host checks the chosen key with the
+provider and greys out listed models it can't use. That check, the listed model
+names, the Claude requests and the thinking setting have been tested against
+recorded sample replies, not yet against live provider accounts. A paused world's routine
 helper can be Off, Jev or OpenAI Decisions, with its own model picker. Decisions
 uses a saved OpenAI key and handles the same routine choices and owner-private
 memory scoring as Jev. Both helpers serve adults and elders, including people

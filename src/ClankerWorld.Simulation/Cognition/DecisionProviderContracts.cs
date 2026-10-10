@@ -1079,10 +1079,12 @@ public sealed class JevDecisionProvider : IDecisionProvider
 }
 
 /// <summary>
-/// Adapter for providers that expose an OpenAI-compatible chat-completions
-/// endpoint. OpenAI and Ollama Cloud use this same boundary. Endpoint, model,
-/// and credential are supplied by the server-side provider registry and never
-/// become world state.
+/// Adapter for hosted language models. OpenAI and Ollama Cloud are sent as
+/// OpenAI-compatible chat completions; a provider with its own wire format,
+/// such as Anthropic, is sent through an <see cref="IHostedModelClient"/> the
+/// host supplies. Both share these prompts and this reply validation. Endpoint,
+/// model, thinking level and credential are supplied by the server-side
+/// provider registry and never become world state.
 ///
 /// The model is asked for one small JSON object containing a legal candidate
 /// choice. The cognition runtime still validates the selected ID and executes
@@ -1091,10 +1093,12 @@ public sealed class JevDecisionProvider : IDecisionProvider
 public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
 {
     private const string CommonNameInitials = "ABCDEFGHJKLMNPRSTVW";
-    private readonly HttpClient httpClient;
+    private readonly HttpClient? httpClient;
     private readonly Func<string?> apiKeyAccessor;
-    private readonly Uri endpoint;
+    private readonly Uri? endpoint;
+    private readonly IHostedModelClient? modelClient;
     private readonly string model;
+    private readonly string? thinking;
     private readonly TimeSpan requestTimeout;
     private readonly ModelNeedFormat needFormat;
 
@@ -1105,7 +1109,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         string model,
         TimeSpan? requestTimeout = null,
         long providerEpoch = 2,
-        ModelNeedFormat needFormat = ModelNeedWords.DefaultFormat)
+        ModelNeedFormat needFormat = ModelNeedWords.DefaultFormat,
+        string? thinking = null)
+        : this(model, thinking, requestTimeout, providerEpoch, needFormat)
     {
         this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         this.apiKeyAccessor = apiKeyAccessor ?? throw new ArgumentNullException(nameof(apiKeyAccessor));
@@ -1117,8 +1123,31 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 "The OpenAI-compatible endpoint must be HTTPS, or HTTP on loopback for local development.",
                 nameof(endpoint));
         }
+    }
 
+    /// <summary>Sends the same prompts through a host-supplied client, such as Anthropic's Messages API.</summary>
+    public OpenAiCompatibleDecisionProvider(
+        IHostedModelClient modelClient,
+        string model,
+        string? thinking = null,
+        TimeSpan? requestTimeout = null,
+        long providerEpoch = 2,
+        ModelNeedFormat needFormat = ModelNeedWords.DefaultFormat)
+        : this(model, thinking, requestTimeout, providerEpoch, needFormat)
+    {
+        this.modelClient = modelClient ?? throw new ArgumentNullException(nameof(modelClient));
+    }
+
+    private OpenAiCompatibleDecisionProvider(
+        string model,
+        string? thinking,
+        TimeSpan? requestTimeout,
+        long providerEpoch,
+        ModelNeedFormat needFormat)
+    {
+        apiKeyAccessor = static () => null;
         this.model = NormalizeRequiredText(model, nameof(model));
+        this.thinking = ModelThinking.Normalize(thinking);
         this.requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(45);
         if (this.requestTimeout <= TimeSpan.Zero || this.requestTimeout > TimeSpan.FromMinutes(5))
         {
@@ -1144,16 +1173,8 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
 
         var apiKey = apiKeyAccessor()?.Trim();
         var words = needFormat == ModelNeedFormat.Words;
-        object payload = request.Observation.Will is { } will ? CreateWillPayload(request, will) : new
-        {
-            model,
-            response_format = new { type = "json_object" },
-            messages = new object[]
-            {
-                new
-                {
-                    role = "system",
-                    content = request.Observation.IdentityMoment is not null
+        var prompt = request.Observation.Will is { } will ? CreateWillPrompt(request, will) : new HostedModelPrompt(
+                    Instructions: request.Observation.IdentityMoment is not null
                         ? "You are one agent reflecting on the named life moment in identity_moment. " +
                             "Self contains your current saved personality and aspiration. You may keep both or change either, in character. " +
                             "Return JSON only: selected_candidate_id must be identity_optional, confidence a number from 0 to 1. " +
@@ -1212,11 +1233,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             ? "Messages in observer_guidance come from the outside observer, not from your own thoughts or another agent's speech. Their wording is quoted exactly. Suggestions are advice you may accept, adapt or reject. A must_do message with an understood_task is a recognized order: it has priority over your preferences, so do not refuse it; choose its matching legal candidate when available. The game still decides whether the action is physically possible and actually succeeds. Claims about places or resources are unverified until you discover them through your own actions; this message does not add map knowledge. You may include observer_replies as a short spoken reply to exact instruction_id values with reply_allowed=true. Each reply must be at most 160 characters. This reply is not a private thought or a conversation turn. Do not reply to an ID absent from observer_guidance. "
                             : string.Empty) +
                         "This is dialogue-like fiction, not an explanation of your reasoning. Do not include reasoning.",
-                },
-                new
-                {
-                    role = "user",
-                    content = SerializeInput(new
+                    Input: SerializeInput(new
                     {
                         agent_id = request.Observation.InhabitantId,
                         world_id = request.Observation.WorldId,
@@ -1228,8 +1245,10 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         identity_moment = request.Observation.IdentityMoment,
                         self = request.Observation.Self is { } self ? new
                         {
-                            name = self.Name, life_stage = self.LifeStage,
-                            personality = self.Personality, aspiration = self.Aspiration,
+                            name = self.Name,
+                            life_stage = self.LifeStage,
+                            personality = self.Personality,
+                            aspiration = self.Aspiration,
                             household = self.HouseholdName,
                             town = self.TownName,
                             town_membership = self.TownMembershipNote,
@@ -1288,15 +1307,31 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             understood_task = message.UnderstoodTask,
                             reply_allowed = message.ReplyAllowed,
                         }).ToArray(),
-                    }, request.Observation),
-                },
-            },
-        };
+                    }, request.Observation));
 
-        var json = JsonSerializer.Serialize(payload, JsonOptions);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(requestTimeout);
-        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        if (modelClient is not null)
+        {
+            var reply = await modelClient.CompleteAsync(
+                new HostedModelCall(model, prompt.Instructions, prompt.Input, thinking, requestTimeout),
+                timeout.Token).ConfigureAwait(false);
+            return ParseAnswer(request, reply.Text, () => new CognitionUsage(reply.Model ?? model, reply.InputTokens, reply.OutputTokens));
+        }
+
+        // Chat completions: OpenAI and Ollama Cloud read reasoning_effort, and
+        // the field is left out entirely when the agent keeps the model default.
+        var payload = new JsonObject
+        {
+            ["model"] = model,
+            ["response_format"] = new JsonObject { ["type"] = "json_object" },
+            ["messages"] = new JsonArray(
+                new JsonObject { ["role"] = "system", ["content"] = prompt.Instructions },
+                new JsonObject { ["role"] = "user", ["content"] = prompt.Input }),
+        };
+        if (thinking is not null) payload["reasoning_effort"] = thinking;
+        var json = payload.ToJsonString(JsonOptions);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint!)
         {
             Content = new StringContent(json, Encoding.UTF8, "application/json"),
         };
@@ -1305,7 +1340,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
             httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         }
 
-        using var response = await httpClient.SendAsync(
+        using var response = await httpClient!.SendAsync(
             httpRequest,
             HttpCompletionOption.ResponseHeadersRead,
             timeout.Token).ConfigureAwait(false);
@@ -1323,16 +1358,8 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
     /// The one post-death will request. Heir and item keys are server-minted;
     /// the server rejects any key, heir or item it did not offer.
     /// </summary>
-    private object CreateWillPayload(CognitionDecisionRequest request, CognitionWillContext will) => new
-    {
-        model,
-        response_format = new { type = "json_object" },
-        messages = new object[]
-        {
-            new
-            {
-                role = "system",
-                content = "You are an agent who has just died. This is your one final will, not an ordinary action, and it cannot be changed later. " +
+    private static HostedModelPrompt CreateWillPrompt(CognitionDecisionRequest request, CognitionWillContext will) => new(
+                Instructions: "You are an agent who has just died. This is your one final will, not an ordinary action, and it cannot be changed later. " +
                     "Your estate lists the belongings you personally owned. Return JSON only, with fields " +
                     "selected_candidate_id (\"will:household\" to use the default inheritance rules described by the offered choice, or \"will:heirs\" to name heirs) and confidence (number 0..1). " +
                     "With will:heirs, also include heirs (a list of one to three ids from possible_heirs) and split: " +
@@ -1344,17 +1371,15 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                     "Preserve memory provenance and confidence as labels; confidence is in basis points out of 10000, " +
                     "and a corrected belief is superseded history, not the current account. " +
                     "This is dialogue-like fiction, not an explanation of your reasoning. Do not include reasoning.",
-            },
-            new
-            {
-                role = "user",
-                content = JsonSerializer.Serialize(new
+                Input: JsonSerializer.Serialize(new
                 {
                     agent_id = request.Observation.InhabitantId,
                     self = request.Observation.Self is { } self ? new
                     {
-                        name = self.Name, life_stage = self.LifeStage,
-                        personality = self.Personality, aspiration = self.Aspiration,
+                        name = self.Name,
+                        life_stage = self.LifeStage,
+                        personality = self.Personality,
+                        aspiration = self.Aspiration,
                         household = self.HouseholdName,
                         town = self.TownName,
                     } : null,
@@ -1378,10 +1403,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         source_event_id = memory.SourceEventId,
                         is_corrected = memory.IsCorrected,
                     }).ToArray(),
-                }, JsonOptions),
-            },
-        },
-    };
+                }, JsonOptions));
 
     /// <summary>
     /// Reads the optional will fields. Malformed fields make the reply invalid,
@@ -1432,6 +1454,31 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 .GetProperty("message")
                 .GetProperty("content")
                 .GetString();
+            // Usage is still read after the answer, so a malformed answer is the reported failure.
+            return ParseAnswer(request, content, () => TryParseUsage(root, modelId));
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException("The OpenAI-compatible provider returned malformed JSON.", exception);
+        }
+        catch (KeyNotFoundException exception)
+        {
+            throw new InvalidDataException("The OpenAI-compatible provider returned an incomplete choice response.", exception);
+        }
+        catch (IndexOutOfRangeException exception)
+        {
+            throw new InvalidDataException("The OpenAI-compatible provider returned no choices.", exception);
+        }
+    }
+
+    /// <summary>Validates the model's JSON answer, whichever wire format carried it.</summary>
+    private static CognitionDecisionResponse ParseAnswer(
+        CognitionDecisionRequest request,
+        string? content,
+        Func<CognitionUsage?> readUsage)
+    {
+        try
+        {
             using var answer = JsonDocument.Parse(NormalizeJsonContent(content));
             var answerRoot = answer.RootElement;
             var selected = CompleteOfferedCivicCandidate(
@@ -1495,7 +1542,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
             var civicProposal = answerRoot.TryGetProperty("civic_proposal", out var civicText) && civicText.ValueKind == JsonValueKind.String
                 ? CognitionDecisionResponse.NormalizeIdentityText(civicText.GetString()) : null;
             var civicBallot = ParseCivicBallot(answerRoot);
-            var usage = TryParseUsage(root, modelId);
+            var usage = readUsage();
             return new CognitionDecisionResponse(
                 request.RequestId,
                 request.Observation.InhabitantId,
@@ -1633,4 +1680,6 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
+
+    private sealed record HostedModelPrompt(string Instructions, string Input);
 }
