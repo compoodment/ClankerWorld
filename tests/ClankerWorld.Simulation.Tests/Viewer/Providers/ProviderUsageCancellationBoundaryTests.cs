@@ -162,7 +162,7 @@ public sealed class ProviderUsageCancellationBoundaryTests
             Interlocked.Increment(ref requestCount);
             cancellation = cancellationToken.Register(() => response.TrySetCanceled(cancellationToken));
             Started.TrySetResult(true);
-            if (!AllowReturn.Wait(TimeSpan.FromSeconds(10)))
+            if (!AllowReturn.Wait(TimeSpan.FromSeconds(10), cancellationToken))
                 throw new TimeoutException("The fixture did not release the early HTTP start signal.");
             return response.Task;
         }
