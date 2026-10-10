@@ -69,6 +69,24 @@ public sealed class HostedModelThinkingTests
         await Assert.ThrowsAsync<InvalidDataException>(async () => await unoffered.DecideAsync(Request()));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task MalformedChatAnswersKeepOnlyReportedUsage(bool reportsUsage)
+    {
+        var body = System.Text.Json.Nodes.JsonNode.Parse(
+            """{"model":"gpt-6-luna","choices":[{"message":{"content":"not-json"}}],"usage":{"prompt_tokens":120,"completion_tokens":30}}""")!.AsObject();
+        if (!reportsUsage) body.Remove("usage");
+        var handler = new ChatHandler(body.ToJsonString());
+        using var http = new HttpClient(handler);
+        var provider = new OpenAiCompatibleDecisionProvider(http, () => "test-key",
+            new Uri("https://api.openai.com/v1/chat/completions"), "gpt-6-luna");
+        var failure = await Assert.ThrowsAsync<InvalidDataException>(() => provider.DecideAsync(Request()).AsTask());
+        Assert.True(HostedModelUnusableReply.TryGetTokens(failure, out var input, out var output));
+        Assert.Equal(reportsUsage ? (120, 30) : (0, 0), (input, output));
+        Assert.Single(handler.Bodies);
+    }
+
     private static CognitionDecisionRequest Request() => new(
         "request-thinking",
         2,
@@ -92,7 +110,7 @@ public sealed class HostedModelThinkingTests
         }
     }
 
-    private sealed class ChatHandler : HttpMessageHandler
+    private sealed class ChatHandler(string? reply = null) : HttpMessageHandler
     {
         public List<string> Bodies { get; } = [];
 
@@ -102,7 +120,7 @@ public sealed class HostedModelThinkingTests
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(
-                    """{"model":"gpt-6-luna","choices":[{"message":{"content":"{\"selected_candidate_id\":\"safe_idle\",\"confidence\":1.0}"}}]}"""),
+                    reply ?? """{"model":"gpt-6-luna","choices":[{"message":{"content":"{\"selected_candidate_id\":\"safe_idle\",\"confidence\":1.0}"}}]}"""),
             };
         }
     }

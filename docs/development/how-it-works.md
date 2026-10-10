@@ -1222,8 +1222,9 @@ Markdown code fence is removed before the game reads the text.
 - The client never retries, because a retry is another paid call. It sends
   only the owner's key: it never falls back to the host's own Anthropic token
   or login profile.
-- A refused or cut-off conversation turn still records its token counts as a
-  failed call.
+- A refused or cut-off reply still records its reported token counts as a
+  failed call, for decisions, conversations and Test model checks. Decision
+  parsing failures also retain the usage from the completed provider reply.
 - Usage counts every input token the model read, cached ones included, and the
   output tokens, which include thinking.
 - The short list is `claude-opus-5-5`, `claude-sonnet-5-5` and the default
@@ -1566,6 +1567,10 @@ not include provider error text or response bodies.
 An installation-local usage file reserves every hosted attempt before HTTP work.
 Concurrent requests share its optional lifetime attempt cap. Failure, retry and
 abandonment keep their spent allowance; only known token counts are added.
+Claude and chat-completions decisions and model checks keep reported counts
+even when the game answer's JSON cannot be read. Missing usage adds no estimated
+tokens. Invalid negative counts are discarded so an unusable reply still finishes
+as a failed attempt.
 Deterministic choices consume no attempt. Reaching the cap persists a pause;
 changing allowance and resuming are separate owner actions.
 

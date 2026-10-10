@@ -1,0 +1,1 @@
+- If a Claude agent decision or Test model check returns a refusal, runs out of output room or returns an unusable answer, check that it remains a failed call and that the token totals include the usage reported by the provider. Restart the host and check that those totals remain. [#1600](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1600)

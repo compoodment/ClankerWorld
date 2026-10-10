@@ -215,6 +215,92 @@ public sealed class AnthropicProviderTests
         finally { directory.Delete(recursive: true); }
     }
 
+    [Theory]
+    [InlineData("end_turn", Answer, true)]
+    [InlineData("refusal", Answer, true)]
+    [InlineData("max_tokens", Answer, true)]
+    [InlineData("end_turn", "not-json", true)]
+    [InlineData("end_turn", "{}", true)]
+    [InlineData("end_turn", "[]", true)]
+    [InlineData("end_turn", "not-json", false)]
+    public async Task DecisionsAndSetupKeepReportedUsageForUnusableReplies(string stopReason, string answer, bool reportsUsage)
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-anthropic-failed-usage-");
+        try
+        {
+            var store = Store(directory);
+            _ = store.Configure(new OwnerProviderConfigurationAction("personal", "anthropic", null,
+                "sk-ant-test-key", false, "inhabitant-test", Guid.NewGuid().ToString("N"), "Test key"));
+            var usagePath = Path.Combine(directory.FullName, "usage.json");
+            var usage = new ProviderUsageStore(usagePath);
+            var body = System.Text.Json.Nodes.JsonNode.Parse(MessageReply(answer, stopReason: stopReason))!.AsObject();
+            if (!reportsUsage) body.Remove("usage");
+            var handler = new AnthropicHandler(body.ToJsonString());
+            var factory = new FixedHttpClientFactory(handler);
+            var router = new ConfigurableDecisionProvider(store, factory, usageStore: usage);
+            var request = new CognitionDecisionRequest("request-failed-usage", router.ProviderEpoch, Observation(strategic: true));
+            var succeeds = reportsUsage && stopReason == "end_turn" && answer == Answer;
+            if (succeeds)
+                Assert.Equal("safe_idle", (await router.DecideAsync(request)).SelectedCandidateId);
+            else
+                Assert.NotNull(await Record.ExceptionAsync(() => router.DecideAsync(request).AsTask()));
+            Assert.Single(handler.Requests);
+            var check = await new ProviderSetupCheckService(store, usage, factory).CheckAsync(
+                new OwnerProviderSetupCheckAction("anthropic", "claude-haiku-5-5", ApiKey: "sk-ant-test-key"), CancellationToken.None);
+            Assert.Equal(succeeds, check.IsReady);
+            Assert.Equal(2, handler.Requests.Count);
+            var savedRows = new ProviderUsageStore(usagePath).Capture().Rows;
+            Assert.Equal(usage.Capture().Rows, savedRows);
+            Assert.Collection(savedRows.OrderBy(row => row.Role, StringComparer.Ordinal),
+                row => Assert.Equal("planning", row.Role), row => Assert.Equal("setup", row.Role));
+            Assert.All(savedRows, row => Assert.Equal(
+                (1L, succeeds ? 1L : 0L, succeeds ? 0L : 1L, 0L, reportsUsage ? 1_007L : 0L, reportsUsage ? 42L : 0L),
+                (row.Attempts, row.Completed, row.Failed, row.Abandoned, row.InputTokens, row.OutputTokens)));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Theory]
+    [InlineData(-1, 30, true)]
+    [InlineData(120, -1, true)]
+    [InlineData(-1, 30, false)]
+    [InlineData(120, -1, false)]
+    public async Task ChatAnswersWithInvalidUsageStillFinishDecisionAndSetupAttempts(int input, int output, bool malformed)
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-invalid-failed-usage-");
+        try
+        {
+            var store = Store(directory);
+            _ = store.Configure(new OwnerProviderConfigurationAction("personal", "openai", "gpt-6-luna",
+                "test-key", false, "inhabitant-test", Guid.NewGuid().ToString("N"), "Test key"));
+            var usagePath = Path.Combine(directory.FullName, "usage.json");
+            var usage = new ProviderUsageStore(usagePath);
+            var body = JsonSerializer.Serialize(new
+            {
+                model = "gpt-6-luna",
+                choices = new[] { new { message = new { content = malformed ? "not-json" : Answer } } },
+                usage = new { prompt_tokens = input, completion_tokens = output },
+            });
+            var handler = new ChatHandler(body);
+            var factory = new FixedHttpClientFactory(handler);
+            var router = new ConfigurableDecisionProvider(store, factory, usageStore: usage);
+            Task Decide() => router.DecideAsync(
+                new CognitionDecisionRequest("invalid-usage", router.ProviderEpoch, Observation(true))).AsTask();
+            if (malformed) await Assert.ThrowsAsync<InvalidDataException>(Decide);
+            else await Assert.ThrowsAsync<ArgumentOutOfRangeException>(Decide);
+            var check = await new ProviderSetupCheckService(store, usage, factory).CheckAsync(
+                new OwnerProviderSetupCheckAction("openai", "gpt-6-luna", ApiKey: "test-key"), CancellationToken.None);
+            Assert.Equal("unusable", check.Outcome);
+            Assert.Equal(2, handler.Bodies.Count);
+            var saved = new ProviderUsageStore(usagePath).Capture();
+            Assert.Equal(usage.Capture().Rows, saved.Rows);
+            Assert.Equal(2, saved.Rows.Count);
+            Assert.All(saved.Rows, row => Assert.Equal((1L, 0L, 1L, 0L, 0L, 0L),
+                (row.Attempts, row.Completed, row.Failed, row.Abandoned, row.InputTokens, row.OutputTokens)));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [Fact]
     public async Task OpenAiAndOllamaAgentsSendReasoningEffortOnlyWhenTheyHaveAThinkingLevel()
     {
@@ -478,7 +564,7 @@ public sealed class AnthropicProviderTests
         public override bool CanSeek => false;
     }
 
-    private sealed class ChatHandler : HttpMessageHandler
+    private sealed class ChatHandler(string? reply = null) : HttpMessageHandler
     {
         public List<string> Bodies { get; } = [];
 
@@ -488,7 +574,7 @@ public sealed class AnthropicProviderTests
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(
-                    """{"model":"hosted-test","choices":[{"message":{"content":"{\"selected_candidate_id\":\"safe_idle\",\"confidence\":1.0}"}}]}"""),
+                    reply ?? """{"model":"hosted-test","choices":[{"message":{"content":"{\"selected_candidate_id\":\"safe_idle\",\"confidence\":1.0}"}}]}"""),
             };
         }
     }
