@@ -113,6 +113,7 @@ public partial class Main
             Check(buildingCompletionLayer.ActiveCount == 0, "Reload and timeline reset must immediately clear the active completion clock.");
             Show();
             Check(buildingCompletionLayer.ActiveCount == 0, "Reload and timeline reset must establish a quiet baseline.");
+            cameraZoom = 32 / 12f; cameraCenterTiles = new(0, 60);
             map = map with { WorldTick = 203, ConstructionSites = [Site(255, 62)], PlacedBuildings = [] }; Show();
             map = map with { WorldTick = 204, ConstructionSites = [], PlacedBuildings = [Finished("world-reset", 255, 62, 204)] }; Show();
             Check(buildingCompletionLayer.ActiveCount == 1, "World switch must start with an actual active completion moment.");
