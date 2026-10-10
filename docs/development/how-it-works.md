@@ -2445,23 +2445,27 @@ travel through existing observation notes. `guardian_placement_pending`,
 placement lifecycle separately from `guardian_assigned` and `guardian_needed`.
 
 **Continuity rule** (`SettlementContinuity`). The owner's answer on
-[#654](https://github.com/compoodment/ClankerWorld/issues/654) sets provisional
-numbers: the rule is on while fewer than eight active agents are not
-elders, and a couple may say "not yet" for two world days
+[#1266](https://github.com/compoodment/ClankerWorld/issues/1266) replaces the
+original headcount trigger with eligible couples. The provisional threshold
+is four couples, retaining the original scale of eight adult partners for
+playtesting. A couple may still say "not yet" for two world days
 (`2 × TicksPerDay`). The checkpoint saves whether the rule was on at the last
 check and, per eligible couple, the tick at which their "not yet" ends. A new
 world appends `continuity_rule_on` when it is created; each tick
-`MaintainContinuity`, after `MaintainParenthood`, compares the live count with
-the saved flag and appends `continuity_rule_on` or `continuity_rule_off`
-(detail `non_elders:{count}`) only when it changes, so reloading never repeats
-one.
+`MaintainContinuity`, after `MaintainParenthood`, counts distinct accepted
+partnerships whose living, physically present adult partners each have a
+household and are not close relatives. It compares whether that count is
+below four with the saved flag and appends `continuity_rule_on` or
+`continuity_rule_off` (detail `eligible_couples|{count}|threshold|4`) only when
+it changes. Having an infant does not remove a couple from this risk count.
+The Event Log displays the count and reason; historical `non_elders:{count}`
+events retain their original headcount explanation.
 
-While the rule is on, an eligible couple is an accepted partnership that
-also passes the ordinary parenthood checks (both adults, since elders cannot
-have children; both with a household; not close kin) where neither partner is
-a parent or caregiver of a living infant. A couple first gets a deadline when
-it becomes eligible, and loses it when it stops being eligible or the rule
-turns off. Until the
+While the rule is on, the two-day procedure holds only eligible couples where
+neither partner is a parent or caregiver of a living infant. This infant check
+is separate from the risk count. A couple first gets a deadline when the
+procedure holds it, and loses that deadline when it stops meeting these checks
+or the rule turns off. Until the
 deadline, `parent_postpone:{owner}` replaces both `parent_decline` and
 `parent_cancel`, and moves the plan to the inactive `postponed` stage; refusal
 candidates are neither offered nor applied. A couple held by the rule may
@@ -3525,7 +3529,10 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   refusal returns a `TreePlantingRefusal` and a one-line reason and changes
   nothing. Success consumes exactly one seed and adds a `planted-tree-{x}-{y}`
   map resource with a sapling growth record, in the same tick.
-- **Agents** are offered `plant_tree` while they hold a tree seed. The built-in
+- **Agents** are offered `plant_tree` while they hold a tree seed, or can collect
+  one from accessible household stock with free carrying space. A carried seed
+  remains usable with full cargo; the same collection guard covers `replant_tree`.
+  The built-in
   site is the nearest reachable open tile outside every Town border, so trees
   do not block building sites. The species follows the nearest wood tree.
   `replant_tree` also uses a tree seed.
