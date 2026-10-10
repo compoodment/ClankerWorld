@@ -53,15 +53,23 @@ public sealed partial class PrivateWorldRuntime
         var (hearings, rights) = TownLandTransferRules.Advance(before, map, householdLandUseRights,
             parties, householdLandUseRequests, council.Knowledge, WorldTick);
         householdLandUseRights = rights.ToList();
-        foreach (var request in hearings.Transfers.Where(request => request.Status != "pending" &&
+        return (PublishLandTransferResults(town, before, hearings, council), hearings);
+    }
+
+    private TownGovernanceState PublishLandTransferResults(TownRuntimeState town, TownLandHearingState before,
+        TownLandHearingState after, TownGovernanceState council, string? paidRequestId = null, string? buyer = null)
+    {
+        foreach (var request in after.Transfers.Where(request => request.Status != "pending" &&
                      before.Transfers.Any(old => old.Id == request.Id && old.Status == "pending")))
         {
-            var text = request.Status == "transferred" ? "Voluntary household permission transfer completed. " :
+            var paid = request.Id == paidRequestId;
+            var text = paid ? "Goods paid and voluntary household permission transfer completed. " :
+                request.Status == "transferred" ? "Voluntary household permission transfer completed. " :
                 "Voluntary household permission transfer stopped: " + LandTransferFailureText(request.Reason) + ". ";
             council = TownGovernanceRules.PostNotice(council, "result", request.Id, text + LandTransferTerms(request), WorldTick);
-            LandTransferEvent(request.Status == "transferred" ? "settled" : "blocked", town, request, null, request.Status);
+            LandTransferEvent(request.Status == "transferred" ? "settled" : "blocked", town, request, paid ? buyer : null, request.Status);
         }
-        return (council, hearings);
+        return council;
     }
 
     private static string LandTransferFailureText(string? reason) => reason switch

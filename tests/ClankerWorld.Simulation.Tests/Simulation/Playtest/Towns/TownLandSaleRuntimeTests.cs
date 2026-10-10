@@ -358,6 +358,57 @@ public sealed partial class TownLandTransferRuntimeTests
         restored.Validate();
     }
 
+    [Fact]
+    public async Task PayingASalePublishesTheResultOfAnOverlappingOfferItInvalidates()
+    {
+        var provider = new TransferProvider
+        { Sell = true, AllowPropose = true, PaySales = false, PaymentActor = Beneficiary };
+        using var source = NewWorld(provider);
+        Configure(provider, source);
+        await UntilAsync(source, () => source.Towns[0].LandHearings.Transfers.Count == 1 &&
+            source.Towns[0].LandHearings.Transfers[0].Responses.Count == 4, 40, provider);
+        var state = source.ExportState();
+        var town = state.Towns![0];
+        var sale = Assert.Single(town.LandHearings.Transfers);
+        var noticeId = "notice:" + (town.Governance!.Notices.Count + 1);
+        var hearings = TownLandTransferRules.Propose(town.LandHearings, state.Map, town.Id, Filer,
+            sale.Tiles, sale.TargetHouseholdId, state.HouseholdLandUseRights!, sale.Parties,
+            state.HouseholdLandUseRequests!, source.WorldTick, noticeId,
+            sale.Price! with { Quantity = sale.Price.Quantity + 1 });
+        var competing = hearings.Transfers[^1];
+        var council = TownGovernanceRules.PostNotice(town.Governance, "land_transfer",
+            TownLandTransferRules.TermsToken(competing), "Another exact goods price for the same plot.", source.WorldTick);
+        var stock = state.Society.Society.Inventory.Lots.First(lot => lot.OwnerId == provider.TargetHouseholdId &&
+            lot.ItemKind == "wood" && lot.Quantity >= 2);
+        var inventory = InventoryFixture.Transfer(state.Society.Society.Inventory, "competing-sale-carried-price",
+            stock.OwnerId, Beneficiary, stock.Id, 2, "household_goods_collected");
+        provider.PaySales = true;
+        provider.CollectSalePayment = false;
+        using var world = PrivateWorldRuntime.Restore(state with
+        {
+            Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } },
+            Inhabitants = state.Inhabitants.Select(person => person with
+            { Position = town.OriginSite!.Value, HungerBasisPoints = 10_000 }).ToArray(),
+            Towns = state.Towns.Select(item => item.Id == town.Id ? item with
+            { Governance = council, LandHearings = hearings } : item).ToArray()
+        }, _ => provider);
+        world.SubmitInstruction(new("competing-sale-payment", "owner:test", Beneficiary, OwnerInstructionKind.Suggestive,
+            "Consider paying the agreed original offer at the notice place."));
+        await UntilAsync(world, () => world.Towns[0].LandHearings.Transfers[0].Status == "transferred", 40, provider);
+        var result = world.Towns[0].LandHearings.Transfers.Single(item => item.Id == competing.Id);
+        Assert.Equal("invalidated", result.Status);
+        Assert.Equal("rights_changed", result.Reason);
+        Assert.Null(result.Receipt);
+        Assert.Single(world.Towns[0].Governance!.Notices, notice => notice.Kind == "result" && notice.SubjectId == competing.Id);
+        Assert.Single(world.ExportState().Events, item => item.Kind == "land_transfer_blocked" &&
+            item.Detail.StartsWith(town.Id + "|" + competing.Id + "|", StringComparison.Ordinal));
+        Assert.Single(world.Towns[0].Governance!.Notices, notice => notice.Kind == "result" && notice.SubjectId == sale.Id);
+        world.Validate();
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => provider.ReplayPolicy());
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
     private static OwnerLandTransfer SaleClient(PrivateWorldRuntime world)
     {
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);

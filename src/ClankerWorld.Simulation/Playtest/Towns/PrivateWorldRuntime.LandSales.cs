@@ -129,9 +129,7 @@ public sealed partial class PrivateWorldRuntime
         // Both immutable plans are complete before publishing either side of the exchange.
         ApplyInventoryTransition(_ => inventory);
         householdLandUseRights = rights.ToList();
-        council = TownGovernanceRules.PostNotice(council, "result", request.Id,
-            "Goods paid and voluntary household permission transfer completed. " + LandTransferTerms(request), WorldTick);
-        LandTransferEvent("settled", town, request, buyer, "transferred");
+        council = PublishLandTransferResults(town, town.LandHearings, hearings, council, request.Id, buyer);
         return (council, hearings);
     }
 }
