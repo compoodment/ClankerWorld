@@ -1,0 +1,1 @@
+- Agents and animals now glide between reported tiles with smooth walking frames and a small bob; boats and handcarts glide too. Clicking follows the moving figure, pausing freezes it, and long moves or reloads snap into place.

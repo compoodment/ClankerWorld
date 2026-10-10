@@ -74,6 +74,7 @@ public partial class Main
                     var trees = NatureSprites.Atlas(size, season);
                     PanCamera(new Vector2(0.25f, 0));
                     ZoomAt(mapCanvas.Size / 2, zoomIn: cameraZoom <= minimumCameraZoom);
+                    AdvanceCameraMotion(CameraEasing.ZoomSeconds);
                     RenderMap(renderedMapSnapshot!);
                     if (TerrainTextures.Atlas(size, season).GetInstanceId() != atlas.GetInstanceId() ||
                         NatureSprites.Atlas(size, season).GetInstanceId() != trees.GetInstanceId())
@@ -89,7 +90,7 @@ public partial class Main
             RenderMap(original);
             cameraZoom = zoom;
             UpdateMapGeometry(original);
-            CenterCameraAt(center);
+            SetCameraAtImmediately(center);
         }
     }
 }

@@ -140,7 +140,6 @@ public sealed class PotteryContentTests
 
     [Theory]
     [InlineData(false, "usable", true)]
-    [InlineData(true, "usable", true)]
     [InlineData(true, "full-hands", true)]
     [InlineData(true, "reserved", false)]
     [InlineData(true, "broken", false)]

@@ -1,0 +1,1 @@
+- A handcart that is nearly worn out but can still be pulled now shows as pulled or parked, with at least 1% condition, instead of as broken. Only a cart at zero condition is shown as broken.

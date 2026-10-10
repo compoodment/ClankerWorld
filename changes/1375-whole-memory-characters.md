@@ -1,0 +1,1 @@
+- Memory excerpts supplied to an agent's model or Jev now keep complete emoji at the length limit, while the original saved memory stays unchanged.

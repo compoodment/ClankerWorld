@@ -56,13 +56,23 @@ The families are `movement`, `smoke`, `weathermarks`, `goldenhour`, `stock`,
 An agent walks four tiles along the main street and a cow four tiles along
 the meadow, one tile per world update, as the host reports them.
 
-- **A · Today:** each figure jumps a tile at every update.
+- **A · Previous look:** each figure jumps a tile at every update.
 - **B · Glide:** each figure slides steadily to the tile the latest update
   reports, with the walk frames changing every quarter second. A jump longer
   than three tiles, such as after a reload, still snaps.
-- **C · Glide and bob:** as B, with a one-pixel bob on each step.
+- **C · Glide and bob:** approved and implemented by #1461. The client's
+  `WalkingMotion` supplies the same quarter-second frames and one-pixel bob;
+  `tools/ArtPreview/Implemented/Movement.cs` renders its reference frames with
+  `dotnet run -- movement out`. C has left the proposal list; A and B remain
+  the review record. Native markers glide to reported tiles over one second,
+  freeze while paused, and snap for long jumps or checkpoint rewinds. Boats
+  and handcarts also glide, without the agent/animal bob.
 
 ## 3 · Chimney smoke (`smoke`)
+
+Approved B now draws in the client through `SmokeArt` and `SmokeLayer`. The
+original review drawings remain in `tools/ArtPreview/Approved/Smoke.cs`;
+`smoke-client` renders the live drawing and `check` compares all 72 frames.
 
 Smoke rises only from buildings in use: here two Houses with someone inside
 and the Blacksmith's forge. The empty Houses stay smokeless, following the
@@ -74,29 +84,47 @@ night-lights rule for when a building is lit.
 
 ## 7 · Weather that leaves a mark (`weathermarks`)
 
-The snow mockups compare cover after snowfall with permanent snow terrain.
-These marks would follow the
-weather the world records for each region, and fade after it passes.
+Ground snow A and footprints are implemented in `Implemented/Snow.cs`, using
+the client's `GroundSnowSprites` pixel rules. `dotnet run -- snow out` writes
+the approved stills and loops; the still's roof dusting is retained as review
+context. Roof snow A2 is now implemented in [Implemented/RoofSnow.cs](../Implemented/RoofSnow.cs),
+sharing the live slope/tint rules; `dotnet run -- roof-snow out` writes its
+approved 32/16px references. The client applies it to actual roof geometry
+with the same region history, leaving flues, outlines, shadows and yards clear. Ground cover follows
+observed snowfall in each region and melts afterwards; footprints fade within
+a game hour. The other comparisons remain below.
 
-- **Ground snow A:** open ground covered, grass tips and trodden Roads
-  showing. **Ground snow B:** patchy cover that thins and melts unevenly.
+- **Ground snow A, implemented:** open ground covered, grass tips and trodden
+  Roads showing. **Ground snow B:** patchy cover that thins and melts unevenly.
 - **Roof snow A:** snow on the north half of each roof. **B:** roofs covered,
   edges and chimneys still dark.
 - **Puddles A:** small puddles on Roads and bare ground. **B:** puddles and
   darker, wet-looking ground.
 - **Leaves A:** a few fallen leaves under each broadleaf and orchard tree in
-  autumn. **B:** a carpet of leaves around them.
-- **Footprints:** an agent crossing snow leaves prints that fade.
+  autumn. Its approved drawing is now in the client and the completed
+  [autumn leaf review](../AutumnLeavesReview.md). **B:** a carpet of leaves
+  around them, retained here as an unchosen comparison.
+- **Footprints, implemented:** agents and animals crossing snow leave prints
+  that fade.
 
 ## 8 · Golden hour (`goldenhour`)
 
 A day loop: day, dusk glow, the approved night tint, dawn glow, day.
+Approved C is implemented in `Implemented/GoldenHour.cs`, sharing the client’s
+`GoldenHourTint` colours and maximum amount. `dotnet run -- goldenhour out`
+writes its reviewed stills and loop. The reference retains the review’s night
+context; the client keeps its existing night wash and uses host seasonal
+twilight for the warm glow. The eight-second loop is a review picture.
 
 - **A · Amber:** an amber wash of up to 22% at dawn and dusk.
 - **B · Amber and glow:** A, plus warm light catching bright roofs and Roads.
-- **C · Rose and gold:** rose at dawn, gold at dusk.
+- **C · Rose and gold, implemented:** rose at dawn, gold at dusk.
 
 ## 9 · Stock you can see (`stock`)
+
+Approved A now uses `StoredStockArt` in the client. The original review drawings
+remain independently in `tools/ArtPreview/Approved/StoredStock.cs`; baseline
+stock and `stock-client` show the live painter. `check` compares all six scenes.
 
 Log, crate and sack piles that grow with what a building actually stores:
 empty, some and full, beside the Warehouse and between the Farmhouse and
@@ -110,14 +138,25 @@ the Silo.
 **Find** moves the view from the Farmhouse to the east Houses, then the view
 zooms in one step.
 
-- **A · Today:** the view jumps.
+- **A · Previous view:** the view jumps.
 - **B · Ease:** the view glides there in about 0.7 s, slowing as it arrives.
+  Its approved drawing is now in the client and the completed
+  [camera review](../CameraReview.md).
 - **C · Ease and settle:** a gentler start and a soft settle.
 
 ## 12 · Moments (`moments`)
 
+The approved second-round cross and headstone are integrated by #1476.
+The independent sprites are archived in `../Approved/Graves.cs`; the `graves`
+baseline renders the live client art. The earlier sketches remain review
+history below. Approved building completion is described below.
+Approved building-finish C is implemented in the client's
+`BuildingCompletionArt` and `Implemented/BuildingCompletion.cs`. Run
+`dotnet run -- completion out` for its unchanged stills and loops. It has
+left the proposal list; A and B below remain review alternatives.
+
 - **Building finished A:** a ring of dust settling. **B:** dust, then a small
-  flag on the roof for a moment. **C:** dust and a few twinkles.
+  flag on the roof for a moment.
 - **Grave A:** a small wooden cross. **B:** a rounded headstone. **C:** an
   earth mound with flowers. The original review offered two lifetimes:
   until something is built there, or fading after a year. The chosen
@@ -125,7 +164,9 @@ zooms in one step.
 
 ## 13 · Weather fading in and out (`weatherfade`)
 
-Clear, then rain in the approved look B arrives and leaves.
+Clear, then rain in the approved look B arrives and leaves. Option B is integrated
+by #1469; the independent review drawing is kept in
+`../Approved/WeatherFade.cs`, and the baseline uses the client fade envelope.
 
 - **A · Today:** the weather switches on and off at once.
 - **B · Fade:** the rain fades in and out over about a second.
