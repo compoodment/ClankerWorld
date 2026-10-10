@@ -666,7 +666,9 @@ then scrolls. It adjusts when the window changes size. Opening the log
 marks its new entries read; the ones that were new keep a small dot while it
 stays open. While the continuity rule
 is on, the top of the log offers **Add a newcomer**, which opens Add Agent.
-Opening the offer adds nobody and makes no paid model call. **Agents** lists
+The rule counts eligible adult partnerships, so adding an unpartnered newcomer
+does not itself turn it off. Opening the offer adds nobody and makes no paid
+model call. **Agents** lists
 everyone with their portrait and what they are doing, and tags anyone
 **Hungry**, **Cold** or **Ill**. Click a row to find that agent, or
 double-click it to open their Profile. With the list focused, use **Up** and

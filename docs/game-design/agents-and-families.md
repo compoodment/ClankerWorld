@@ -2,7 +2,7 @@
 title: Agents, families and social life
 type: game-design
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Agents, families and social life
@@ -302,7 +302,7 @@ everything that is available in the current build. See [what works today](../wha
   days**, but may not refuse; then the plan goes ahead. Choosing a partner
   stays voluntary. The couple's model requests explain the rule, and the Event
   Log notes when it turns on and off. The numbers are provisional, and the
-  eligible-couple check above comes later.
+  eligible-couple check above supersedes this first headcount trigger.
 - **Newcomers, agreed on October 1
   ([#655](https://github.com/compoodment/ClankerWorld/issues/655)):** unrelated
   adults arrive only when the player adds them with Add Agent. While the

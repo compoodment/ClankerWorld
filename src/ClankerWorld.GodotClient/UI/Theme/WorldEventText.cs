@@ -8,6 +8,25 @@ public static class WorldEventText
 {
     public const string ContinuityRisk = "The world is at risk of dying out.";
 
+    private static string DescribeContinuity(bool active, string detail)
+    {
+        var fields = detail.Split('|');
+        if (fields.Length == 4 && fields[0] == "eligible_couples" && fields[2] == "threshold" &&
+            int.TryParse(fields[1], NumberStyles.None, CultureInfo.InvariantCulture, out var couples) &&
+            int.TryParse(fields[3], NumberStyles.None, CultureInfo.InvariantCulture, out var threshold) && threshold > 0)
+            return active
+                ? $"The continuity rule is on because fewer than {threshold} couples of adults who are not close relatives can have children ({couples} now). " +
+                    "Couples may put off having a child for up to two days but cannot refuse."
+                : $"The continuity rule is off because at least {threshold} couples of adults who are not close relatives can have children ({couples} now). " +
+                    "Couples may decide against having a child again.";
+        // Older saved events retain the reason recorded by their head-count rule.
+        return active
+            ? "The continuity rule is on because fewer than eight people who are not elders are alive. " +
+                "Couples may put off having a child for up to two days but cannot refuse."
+            : "The continuity rule is off because eight or more people who are not elders are alive. " +
+                "Couples may decide against having a child again.";
+    }
+
     private static string DescribeDeveloperEdit(string detail, OwnerWorldSnapshot? snapshot)
     {
         try
@@ -129,10 +148,8 @@ public static class WorldEventText
             "estate_will_default" => "Their belongings went to their household.",
             "partnership_accepted" => "Two agents formed a partnership.",
             "partnership_ended" => "A partnership ended.",
-            "continuity_rule_on" => "The continuity rule is on because fewer than eight people who are not elders are alive. " +
-                "Couples may put off having a child for up to two days but cannot refuse.",
-            "continuity_rule_off" => "The continuity rule is off because eight or more people who are not elders are alive. " +
-                "Couples may decide against having a child again.",
+            "continuity_rule_on" => DescribeContinuity(true, worldEvent.Detail),
+            "continuity_rule_off" => DescribeContinuity(false, worldEvent.Detail),
             "caregiver_assigned" => "A child has a new caregiver.",
             "guardian_needed" => "Needs a guardian. No adult has accepted care yet.",
             "guardian_assigned" => "An adult accepted care for a child.",
