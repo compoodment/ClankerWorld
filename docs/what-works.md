@@ -883,7 +883,7 @@ guidance without the caregiver household's private quantities. Ordinary food
 acquisition and cooking priorities still apply.
 
 When an agent with a personal model dies owning something, their model is
-asked once for a final will. It can leave everything to the household or name
+asked once for a final will. It can choose the default inheritance rules or name
 up to three heirs: living people of any age, including children, or the Town
 the agent lived in when that Town has a Warehouse. The will either shares every
 item equally or gives each item to one heir, and anything it leaves out is
@@ -897,12 +897,30 @@ holds. A Town keeps its share in its Warehouse while there is room. All food,
 including eggs, milk and their meals, follows the household path. So do
 handcarts, goods that do not fit, and shares for heirs who have died since, plus
 interrupted, unknown or invalid choices, so no goods are created or lost.
+The offered default choice describes the supported Town law effective at death,
+when there is one, rather than promising that the household receives everything.
+
+Through ordinary Council proposals and votes, residents can set a supported
+default estate law giving the Town 0%, 25%, 50%, 75% or 100% of each eligible
+lot when there is no valid will. Only deaths after adoption use that law;
+later changes or repeal do not change an estate already created. A valid will
+always wins. The Town share rounds down to whole units, and living household
+heirs share the rest, including anything its Warehouse cannot accept. A vessel
+and its contents go to the Town only with a 100% rule and room for the whole
+family; otherwise they stay together on the household path.
+
+When no household heir survives, the deceased resident's recorded Town owns
+the remaining goods. In a default estate, eligible non-food goods enter its
+Warehouse while there is room. Undeliverable shares from an accepted will and
+other goods keep their physical location. Goods owned by an abandoned
+Town can use its ordinary public salvage flow. Books, maps and field records
+keep their identity and recorded knowledge through inheritance.
 
 The will may also leave short final words. When the estate is divided, each
 person who inherits keeps them as a private memory, such as "Rowan Hale's final
 words were: 'Keep the orchard going.'" Nobody else learns them. The dead
 agent's profile shows the will, what it leaves each heir and the final words.
-Debts, conflicts with Town law and other guardianship cases remain unfinished.
+Debts, contested estates in hearings and other guardianship cases remain unfinished.
 Memories do not automatically pass to children.
 
 A Town becomes abandoned only when no recorded living residents remain. Children,
