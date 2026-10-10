@@ -228,13 +228,17 @@ public sealed partial class PrivateWorldRuntime
         var need = animalWorld.Animals.Where(item => item.HouseholdId == animal.HouseholdId && item.DiedTick is null)
             .Sum(item => AnimalRules.Definition(item.Species).DailyFeed * ((AnimalRules.HasCare(item, tick) ? 0 : 1) + (item.Pregnancy is null ? 0 : 1))) +
             AnimalRules.Definition(animal.Species).DailyFeed;
-        var stock = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == animal.HouseholdId &&
-            lot.StorageBuildingId == yard.InstanceId && AnimalRules.IsFeed(lot.ItemKind)).Sum(AvailableLotQuantity);
+        var inventory = society.Checkpoint.Inventory;
+        var index = InventoryIndex.For(inventory);
+        var stock = inventory.Lots.Where(lot => lot.OwnerId == animal.HouseholdId &&
+            lot.StorageBuildingId == yard.InstanceId && AnimalRules.IsFeed(lot.ItemKind) &&
+            InventoryRules.HasUsableContainer(index, lot)).Sum(AvailableLotQuantity);
         var waterNeed = animalWorld.Animals.Where(item => item.HouseholdId == animal.HouseholdId && item.DiedTick is null)
             .Sum(item => AnimalRules.Definition(item.Species).DailyWater * ((AnimalRules.HasCare(item, tick) ? 0 : 1) + (item.Pregnancy is null ? 0 : 1))) +
             AnimalRules.Definition(animal.Species).DailyWater;
-        return stock >= need && society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == animal.HouseholdId &&
-            lot.StorageBuildingId == yard.InstanceId && lot.ItemKind == InventoryContainerRules.FreshWater).Sum(AvailableLotQuantity) >= waterNeed;
+        return stock >= need && inventory.Lots.Where(lot => lot.OwnerId == animal.HouseholdId &&
+            lot.StorageBuildingId == yard.InstanceId && lot.ItemKind == InventoryContainerRules.FreshWater &&
+            InventoryRules.HasUsableContainer(index, lot)).Sum(AvailableLotQuantity) >= waterNeed;
     }
 
     private void ClearAnimalProduct(AnimalState animal, bool discard)

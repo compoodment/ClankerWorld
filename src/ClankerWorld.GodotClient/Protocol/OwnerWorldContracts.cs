@@ -844,7 +844,7 @@ public sealed record OwnerProviderModelListAction(
     string Provider, string? CredentialSlotId = null, string? ApiKey = null, bool CheckKey = true);
 
 public sealed record OwnerProviderSetupCheckAction(
-    string Provider, string Model, string? CredentialSlotId = null, string? ApiKey = null);
+    string Provider, string Model, string? CredentialSlotId = null, string? ApiKey = null, string? Thinking = null);
 
 public sealed record OwnerProviderSetupCheckResult(string Outcome, string Message, bool IsReady);
 
@@ -868,15 +868,21 @@ public sealed record OwnerProviderConfigurationAction(
     bool ForgetCredential,
     string? InhabitantId = null,
     string? CredentialSlotId = null,
-    string? NewCredentialLabel = null);
+    string? NewCredentialLabel = null,
+    string? Thinking = null);
 
+/// <summary>
+/// One agent's model for one role. <see cref="Thinking"/> is low, medium or
+/// high, or <see langword="null"/> for the model's own default.
+/// </summary>
 public sealed record InhabitantProviderAssignment(
     string InhabitantId,
     string Role,
     string Provider,
     string? Model = null,
     string? CredentialSlotId = null,
-    string? SelectionReason = null);
+    string? SelectionReason = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Thinking = null);
 
 public sealed record OwnerProviderCredentialStatus(string Id, string Provider, string Label);
 

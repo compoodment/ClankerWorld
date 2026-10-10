@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -108,10 +109,12 @@ public sealed partial class ManualWorldSaveStore
                 throw new InvalidDataException("The selected checkpoint does not match its metadata.");
 
             var backupName = "Before overwriting: " + previousMetadata.Save.Name;
+            if (backupName.Length > 80)
+                backupName = backupName[..StringInfo.ParseCombiningCharacters(backupName).Last(start => start <= 80)];
             var backup = previousMetadata.Save with
             {
                 Id = Guid.NewGuid().ToString("N"),
-                Name = backupName[..Math.Min(80, backupName.Length)],
+                Name = backupName,
                 CreatedUtc = DateTimeOffset.UtcNow
             };
             WriteAtomic(StatePath(backup.Id), previousBytes);

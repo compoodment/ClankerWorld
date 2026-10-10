@@ -68,7 +68,7 @@ internal static partial class OwnerEndpoints
             if (!authorization.IsSuccess)
                 return OwnerFailures.ToHttpResult(authorization.Failure);
             if (cognition.InhabitantId != action.FounderId || cognition.Role != PlayerDecisionProviders.PersonalRole ||
-                cognition.ForgetCredential || cognition.Provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+                cognition.ForgetCredential || !PlayerDecisionProviders.IsHosted(cognition.Provider))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["cognition"] = ["Choose one personal hosted model for this founder."] });
 
             lock (founderSetupGate)
@@ -219,7 +219,7 @@ internal static partial class OwnerEndpoints
             if (!authorization.IsSuccess)
                 return OwnerFailures.ToHttpResult(authorization.Failure);
             if (cognition.InhabitantId != action.AgentId || cognition.Role != PlayerDecisionProviders.PersonalRole ||
-                cognition.ForgetCredential || cognition.Provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+                cognition.ForgetCredential || !PlayerDecisionProviders.IsHosted(cognition.Provider))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["cognition"] = ["Choose one personal hosted model for this agent."] });
 
             lock (founderSetupGate)
@@ -323,7 +323,7 @@ internal static partial class OwnerEndpoints
                     var personal = assignments.Where(item => item.InhabitantId == founderId).ToArray();
                     if (personal.Length != 2 || !personal.Any(item => item.Role == PlayerDecisionProviders.RoutineRole) ||
                         !personal.Any(item => item.Role == PlayerDecisionProviders.PlanningRole) ||
-                        personal.Any(item => item.Provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud)) ||
+                        personal.Any(item => !PlayerDecisionProviders.IsHosted(item.Provider)) ||
                         personal.Select(item => (item.Provider, item.Model, item.CredentialSlotId)).Distinct().Count() != 1 ||
                         personal.Any(item => item.CredentialSlotId is { } slot
                             ? !(providerStatus.CredentialSlots ?? []).Any(saved => saved.Id == slot && saved.Provider == item.Provider)

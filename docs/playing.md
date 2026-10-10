@@ -135,12 +135,16 @@ still open normally.
    site before placing the founders, including after removing an empty starter
    Farmhouse or Blacksmith. **Redo Town site** replaces the starter layout and
    its Roads together.
-4. Configure and place **four starting agents**. Choose each agent's provider,
-   key and model. A saved key can be reused, or you can add another for the same
-   provider. Then pick the model from the game's short list for that
-   provider, newest at the top. Models your key can't use are greyed out; if
+4. Configure and place **four starting agents**. Choose each agent's provider
+   (OpenAI, Ollama Cloud or Anthropic), key and model. A saved key can be
+   reused, or you can add another for the same provider. Then pick the model
+   from the game's short list for that provider, newest at the top; Anthropic
+   starts on Claude Haiku 5.5. Models your key can't use are greyed out; if
    it can't use the model shown, the picker asks you to choose another.
-   **Type a model name...** covers any other model. The agents start in two
+   **Type a model name...** covers any other model. **Thinking** sets how much
+   the model thinks before it answers: **Model default** leaves the provider's
+   own setting, and **Low**, **Medium** or **High** asks for that much. More
+   thinking takes longer and uses more paid tokens. The agents start in two
    households, not two forced couples or biological families.
 5. Press **Start World** when all four are ready. Placing the fourth agent does
    not start time automatically. Before starting, placements can be moved or
@@ -157,15 +161,15 @@ and wills still use each person's own model. Decisions currently offers `gpt-6-l
 model name...** also remains available.
 
 To save keys before placing any agents, open **Settings → Game → API keys**.
-Choose OpenAI or Ollama Cloud, name the key, paste it and press **Save API key**.
-You can save both providers' keys from Main Menu Settings once this device is
+Choose OpenAI, Ollama Cloud or Anthropic, name the key, paste it and press
+**Save API key**. You can save each provider's keys from Main Menu Settings once this device is
 connected and paired. Saving a key does not run a model or place an agent.
 Choose the saved key later in **Add Agent** or an agent's **Model** panel.
 **Open model settings** in that panel opens the agent's model in World
 Settings, where you can also delete a saved key.
 
 To check a selected model, press **Test model · 1 paid call** in Add Agent or
-an agent's Model panel. This sends one real request and counts toward the
+an agent's Model panel. It uses the chosen **Thinking** setting too. This sends one real request and counts toward the
 model-call limit, even if the provider times out or rejects it.
 A key pasted for this check is not saved. The result tells you whether the
 provider returned a reply the game can use; it does not show provider error
@@ -173,7 +177,17 @@ details.
 
 ## Look around
 
-Use the mouse wheel to zoom, hold the middle mouse button to drag the camera,
+A death leaves a wooden cross or rounded headstone on a fresh earth mound at
+close and mid zoom. The marker stays for one game year, then fades over the
+following game day. Water, Roads, buildings and occupied ground move it to the
+nearest clear tile; building over a marker relocates it rather than destroying
+it. Graves are decoration and do not block movement.
+
+Use the mouse wheel to zoom in an eased step lasting about a third of a second.
+**Find** and agent or building jumps glide there in about 0.7 seconds, slowing
+as they arrive. Another Find starts from the view already shown; wrapped
+maps take the short way round. Open quick cards stay in place during the
+glide. Hold the middle mouse button to drag the camera,
 or use movement keys to pan. Opening the pause menu or switching to another
 application ends a drag; press the middle button again to start another. **Map** opens the World
 Map, which marks each Town and agent; click it or drag its view rectangle to
@@ -184,11 +198,35 @@ title, household use right, pending use request or dispute, the household that
 owns it, and anything on it, such as a tree, a field or goods left on the
 ground.
 
+When a building finishes on screen at close or mid zoom, a ring of dust
+settles around it and a few twinkles appear over the roof. The moment plays
+once, freezes while paused, and does not replay when you reopen the world.
+
+Snowfall gradually covers open ground in the regions you watch, with grass
+tips and greyer, trodden Roads still showing. Walking agents and animals leave
+prints that fade within a game hour. Cover melts after snow stops, and pausing
+holds it still. Reopening a world starts this local weather history again;
+permanent snowy ground keeps its usual picture. Roofs share that snow history:
+shaded north/east slopes stay covered, while sunny south/west slopes keep snow
+near the ridge and a thin dusting below. Outlines, flues and open yards stay clear.
+Roof snow shows at close and mid zoom and melts with the ground cover.
+
 **Filters** turns map overlays on and off: Town borders, household property,
 Town land title, household land use and disputed land. Each one says what it
 draws, and all start off. Town borders show as a pale dashed line. While you
 place a founder or an added agent, the map shows all of them without turning
 Filters on.
+
+Hover or select an agent on land to show their given name below their figure. Names
+keep accented letters, flags and joined emoji together; longer given names
+use an initial.
+
+Agents and animals glide to each reported position, changing walking frames
+with a small bob. Boats and handcarts glide too. Pausing holds their drawing
+in place; resuming continues it. Longer jumps and loaded checkpoints snap to
+the reported position. Click the moving figure to select it; its name and
+quick card follow the drawing. This does not change how fast anyone travels
+in the world.
 
 Click an agent to open a small card beside them: what they are doing and bars
 for fullness, warmth and illness. **Profile** opens everything else on the left
@@ -240,8 +278,8 @@ someone to open their Profile.
 
 Handcarts show their empty or loaded bed at close zoom and face the way they
 last moved. A loaded cart pulled east or south-east lifts its shafts; other
-directions use the parked picture. At smaller zooms, carts use a small wheeled
-icon. Hover over one or inspect its tile to see its owner, parked or pulled
+directions use the parked picture. At medium zoom, carts use a smaller
+version of the same drawing. Hover over one or inspect its tile to see its owner, parked or pulled
 state, condition and actual cargo.
 The owner's agent card also lists their carts. A broken cart keeps its goods;
 its owner can unload here or repair it with carried wood, iron fittings and rope.
@@ -256,14 +294,18 @@ incoming boats. **World Info → Towns** shows boats and active trip requests.
 Agents may propose paid Ports and boats through the Council, then request
 travel between completed Ports. Visitors need Council permission. A blocked
 arrival waits one world day before returning to a usable departure Port.
+The Towns trip row follows the boat’s current arrival Port during recovery and
+shows when it is returning or waiting for a safe arrival. A queued request
+still names its requested destination.
 Passengers can eat their carried food or drink fresh milk from a usable carried
 jug during travel and while waiting to land. Drinking uses one portion and
 leaves the jug intact.
 
 When agents talk, a chat bubble appears above each participant and nearby
 listeners. Click a bubble to see who spoke and whether the conversation is
-finished or interrupted. **Show history** opens the bounded public history
-that this agent could hear. Reading it does not pause the world, and private
+finished or interrupted. Previews end between whole characters, including
+accented letters and joined emoji. **Show history** opens the bounded public
+history that this agent could hear. Reading it does not pause the world, and private
 thoughts never appear in the conversation. An interrupted conversation stays
 stopped until both participants choose to resume; loading a save never starts
 provider calls for it on its own.
@@ -636,6 +678,14 @@ menu's keyboard highlight as the world updates, including when owner names
 change order. Press **Enter** to select the highlighted owner. If that owner
 becomes unavailable, the menu closes so you can choose from the current list.
 
+At close and mid zoom, stored goods show as log, crate and sack piles beside
+store doors where clear Town ground allows it. Empty stores show none; piles
+use the fuller drawing when recorded storage reaches 80% of its limit. Logs
+show wood, sacks show bulk food, crops, seeds, fiber and herbs, and crates show
+other goods. They are visual groups; click the building to read exact contents.
+Piles avoid Roads, doorsteps, buildings and the Town edge. If there is no clear
+space beside a door, its piles stay hidden.
+
 A building's storage-space bar shows how much of its recorded limit is used,
 with exact used/limit numbers. It counts all stored goods, including materials
 held for work and goods belonging to someone else. It updates when goods move
@@ -668,13 +718,23 @@ goods are fetched. Nights are colder outdoors, so an agent with no clothing,
 shelter or fire loses warmth, and their warmth bar shows it. New worlds start
 in the morning; loading a saved world keeps its recorded time.
 
+Dawn adds a soft rose glow to the ground and dusk adds a gold one, following
+the season's changing night length. Names, people, panels, lit windows and
+weather keep their own colours. The glow fades away in full daylight and
+full night, and pausing holds its transition still.
+
+At close and mid zoom, occupied Houses and working Blacksmith forges give off
+soft grey smoke that rises and drifts east. Empty Houses and idle forges give
+off none. Smoke freezes while the world is paused.
+
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
 heading for each day, each with an icon for its kind. Lines name who was
 involved: births, deaths, partnerships, marriages, skills learned, animals and
-scouting trips all appear. Routine steps such as meals, forage trips, cart
-loading and each Town project work shift are left out, because a later line
-already reports what came of them. An event with a known
+scouting trips all appear. Building and crafting entries name the building or
+recipe, including older recorded work. Routine steps such as meals, forage
+trips, cart loading and each Town project work shift are left out, because a
+later line already reports what came of them. An event with a known
 location has a **Find** button that moves the camera there. The log grows to
 fit wrapped text and day headings until it reaches the bottom of the screen,
 then scrolls. It adjusts when the window changes size. Opening the log
@@ -706,8 +766,9 @@ portraits, its council, its current and latest settled election, eight recent
 proposal results and a **Show** button that moves the map there. Below the list
 are each household's stores, the projects under way and how far they have got,
 the household council and recent social activity; the page scrolls once it is
-long. **World** shows today's date, the season and weather where you are
-looking and the year length, then counts of agents, Towns, households,
+long. Hover a resident portrait for their current name; an accepted rename
+appears there with the next observation. **World** shows today's date, the
+season and weather where you are looking and the year length, then counts of agents, Towns, households,
 buildings, road tiles, bridges, resource sites and the map size.
 
 Residents with a personal model can propose a supported default estate law
@@ -935,8 +996,19 @@ Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
+Rain falls as straight streaks with tiny landing bursts. Storm streaks arrive
+in gusts, and snowflake crosses drift sideways. The weather stays light enough
+to read the map and freezes with the world when paused.
+
 Game Settings controls the window, theme, weather effects, date/time format
-and the model-call limit.
+and the model-call limit. Rain, storms and snow fade in or out over about a
+second when regional weather changes. Pausing freezes a fade where it is;
+loading a world shows its existing weather at once.
+
+At close and mid zoom, autumn adds a few fallen leaves under mature broadleaf
+and fruiting or picked orchard trees. They stay off Roads and water and
+disappear when autumn ends. You cannot gather them.
+
 Dates name the season and its day, such as **Autumn 2, Year 1 · 14:20**; a new
 world's year has four ten-day seasons: Spring, Summer, Autumn and Winter. The
 top bar then shows the weather beside the date without naming the season again.
@@ -1043,7 +1115,9 @@ the world's date, so **Save** works straight away; type another name first if
 you like. The card under the timeline says whether the new save continues a
 branch or starts a new one. To overwrite a save, choose it, then **Overwrite**,
 and confirm; typing the same name does not overwrite it. Autosaves can't be
-overwritten. World Settings offers rotating
+overwritten. When a long name makes the recovery copy's name reach the
+save-name limit, it is shortened between whole characters, including emoji.
+World Settings offers rotating
 autosaves as well as automatic recovery. If the host's clock moves backwards,
 the next rotating save waits one configured interval from the corrected time.
 **Load World** shows each world as a
@@ -1149,7 +1223,7 @@ horses near wild greens and fresh water.
 
 Click an animal's tile for its name, age, household, care, ready product and
 permissions. If the animal is inside a building, open that building's **Details**
-to see the animals standing there. Use its exact unique name or ID in a Must do order, for example
+to see the animals standing there. Use its exact unique name or ID in an Order, for example
 **Tame Moss**, **Lead home Moss**, **Care for Moss**, or **Collect from Moss**.
 **Repeat care for Moss** and **Repeat collect from Moss** keep the task active
 until cancelled. When the animal is elsewhere in the yard, the adult picks up

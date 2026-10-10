@@ -233,8 +233,9 @@ everything that is available in the current build. See [what works today](../wha
     has no search.
     The Family Tree uses small portrait boxes and opens beside the Profile.
   - The Profile's model line names the model's provider plainly instead of
-    "chosen by". Model choices are labelled **Provider**, **API key** and
-    **Model**, and an agent's model settings link to the main model settings
+    "chosen by". Model choices are labelled **Provider**, **API key**,
+    **Model** and, **agreed on October 9 (the owner in chat)**, **Thinking**,
+    and an agent's model settings link to the main model settings
     instead of offering to delete a key. Add an agent says **Click on land to
     place them**.
   - The Mod Library lists mods as cards with a status tag. Confirmation
@@ -343,7 +344,8 @@ everything that is available in the current build. See [what works today](../wha
   agent uses; there is no single-key-per-provider restriction. The model is
   chosen from the game's own short list for that provider, newest at the top.
   Listed models the selected key can't use are shown greyed out, and the
-  player can always type any other model name. The agent
+  player can always type any other model name. The flow also sets the agent's
+  **Thinking** level. The agent
   chooses its own name after placement; the player can rename it later. Agents
   should choose full names with a surname and may choose a middle name. Do not
   include every existing agent name in the naming prompt merely to avoid
@@ -766,6 +768,11 @@ provide a UI drawing.
 
     Fences, piers, bridges and lanterns follow the same order with their own
     parts.
+  - **16 px vehicles and animals.** At mid zoom the handcart (empty,
+    loaded and pulled) and the rowing boat (rowing and at rest) use 16 px
+    versions halved from their approved drawings, approved in all eight
+    facings ([#914](https://github.com/compoodment/ClankerWorld/issues/914)).
+    Every animal's 16 px drawing, in all eight facings, is approved too.
   - **Abandoned Towns.** Buildings in an abandoned Town look **neglected**:
     faded, mossy, weedy, with the door boarded. Once the Town has stayed
     abandoned for a **full season** they look **falling apart**, with a hole

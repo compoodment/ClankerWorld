@@ -1,0 +1,1 @@
+- Weather uses the approved pixel-streak look: straight rain with tiny landing bursts, gusting stepped storm streaks and wind-blown snowflake crosses. Cloud haze and soft flashes keep their existing controls. [#1427](https://github.com/compoodment/ClankerWorld/issues/1427)

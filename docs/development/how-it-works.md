@@ -147,7 +147,7 @@ Physical movement may preserve damaged or spoiled property. Consumption still
 requires usable inputs. `InventoryFixture` remains the authority for an actual
 reservation, transfer, container operation or consumption.
 
-`Playtest/Goods/` currently supplies two query uses. `Holdings` excludes unusable
+`Playtest/Goods/` currently supplies four query uses. `Holdings` excludes unusable
 lots or parent vessels, reserved quantities, delivery promises and goods held
 for sale at a borrowed Market stall. `ConsumeAt` matches the inventory
 reservation boundary, including usable contained ingredients and partially
@@ -155,13 +155,41 @@ unreserved quantities; reusable vessels themselves are not consumable inputs.
 Requests name exact owners and item kinds, and can restrict a building. The
 answer's `Total` and `First` read the same stable matches. It includes each lot's
 root vessel, physical place, available quantity and whole-vessel movement size.
-Travel, destination capacity and other uses belong to the later steps of
+Destination capacity and remaining uses belong to the later steps of
 [#1366](https://github.com/compoodment/ClankerWorld/issues/1366); unsupported
-travel/destination fields are refused rather than silently ignored.
+origin/destination fields and extra-unit requests are refused rather than silently ignored.
+
+Actor-bound `Collect` extends Holdings with native custody/place permission,
+free vessel families, actual carrying room and an unoccupied native travel route.
+Whole-vessel matches include all contents in their movement size, even when
+matching a contained kind. Already-carried supplies need no additional carry
+room. The route runs last and is reused for lots at the same position and
+interaction range within one answer; native route rules still account for
+occupants, shared destinations and an attached cart.
+
+`ReachableHoldings` adds the same native travel route to Holdings without requiring
+empty carrying space. Preparation uses it to find usable supplies before
+putting aside spare cargo; actual pickup still uses Collect. This keeps a full
+load from hiding shared repair inputs, gathering tools or medical supplies
+from preparation and demand checks. Planting keeps its current free-cargo
+guard before selecting seeds.
+
+`SharedItem` uses Collect for household equipment, repair inputs and planting
+seeds, with the existing Warehouse fallback rechecked through the same use.
+`CollectEquipment` rechecks the selected lot immediately before its transfer.
+Animal-supply sources use Collect and recheck before pickup; care permission,
+feed reserves, product capacity, destination room and workstation surplus
+remain feature-specific filters. These are the first household pickup callers
+of [#1370](https://github.com/compoodment/ClankerWorld/issues/1370). Personal
+recovery, birth food, material counts and the remaining Warehouse/Town paths
+still use their existing helpers.
 
 With `Explain`, exclusions retain their first failure in this fixed order:
 owner, kind, building, damage, spoilage, vessel, empty stock, reservation,
-delivery and Market sale promise. Diagnostics are derived, never saved or
+delivery and Market sale promise. Collect then checks custody/place, family
+reservations, equipped or hitched goods, carry room and finally reach.
+ReachableHoldings checks reach after the Holdings rules.
+Diagnostics are derived, never saved or
 logged every tick. Normal queries use the owner/building index; explanations
 scan all lots so they can also explain an owner or place mismatch.
 
@@ -755,6 +783,27 @@ category/type/tick fields, not raw exceptions or file paths. Do not restart a
 held process before preserving its unsaved state. Filesystem fault injection
 does not establish arbitrary mid-tick rollback or crash durability.
 
+The Godot map keeps unsaved local motion per agent, animal, boat or
+handcart marker. Each short reported move retargets a one-second linear glide
+from its current drawing; it never predicts a future tile. A separate local
+quarter-second phase selects the approved walk frames and one-pixel bob for
+agents/animals. The same `WalkingMotion` code feeds the implemented reference
+animation. Pausing freezes elapsed glide and pose time; a paused authoring
+relocation, a move longer than three tiles, a new world or a checkpoint rewind
+snaps and clears the phase. Wrapped targets use the nearest world copy and
+camera/zoom changes retain intermediate tile coordinates. Pointer targets,
+names, conversation badges and the selected agent card follow the drawn
+control. Despawn removes the local entry. The host's positions, routes,
+observations, clock and save schema are unchanged.
+
+The Godot World Info page refreshes its date, season, camera-local weather,
+soil moisture and calendar separately from its eight count tiles. Advancing
+clocks and changing local conditions keep unchanged count nodes in place,
+even with the panel closed or its Towns page selected. Current observations
+still refresh both sections, so opening World shows the latest data at once.
+Changed counts, map dimensions or theme rebuild the count grid and its F1 hint;
+this cache is display-only and does not change observation cadence or saves.
+
 ### Time of day and night
 
 Time of day is worked out from the elapsed tick and the world's saved calendar
@@ -820,8 +869,20 @@ and below map labels, agent markers, weather and panels. It eases between the
 once-a-tick readings, shows a newly opened world's darkness at once, and looks
 the same in both themes. The World Map panel is not darkened.
 
+`GoldenHourLayer` draws one click-through multiply immediately above that
+wash and below night lights, map labels, moving figures and weather. It uses
+the approved rose E9A3A0 at dawn and gold F2B160 at dusk, up to 22%. Strength
+is `4 × darkness × (1 − darkness)`, so the host's existing seasonal twilight
+determines its timing, with zero effect at full day or night. Morning versus
+evening comes from the accepted world tick, ticks per day and saved calendar
+offset; the client never computes another night-length rule. The local
+strength eases between reports in up to half a second. Pause freezes it;
+world changes, rewind, clock-half changes and gaps over a game hour settle
+directly to the current reading. It is unsaved display state and adds no
+host fields, events, game effects or new night tint.
+
 Night lights ([#890](https://github.com/compoodment/ClankerWorld/issues/890))
-are drawn by `NightLightsLayer`, just above the wash and under labels and
+are drawn by `NightLightsLayer`, above the night and golden-hour washes and under labels and
 agents. It takes each placed building's family, footprint, door side and the
 roof, yard and door spots from `BuildingSprites.Plan`, and decides from the
 snapshot whether it is occupied (a living agent stands within its footprint)
@@ -838,6 +899,54 @@ its texture. At overview zoom a lit building is a warm speck. The same shapes
 draw the art preview's night proposal (`tools/ArtPreview/Proposed/NightLights.md`),
 including designs not in the game yet and the street lanterns of
 [#892](https://github.com/compoodment/ClankerWorld/issues/892).
+
+`SmokeLayer` uses the same living, non-draft occupancy and running-job facts,
+restricted to occupied Houses and working Blacksmith forges. `SmokeArt` anchors
+the approved B column to the building atlas’s actual flue or ember pixels at
+16 and 32 px. It groups translucent pixels into horizontal rows, draws only
+camera-visible sources (including wrapped copies), and steps the existing
+weather clock at 12 frames per second. Pausing freezes that clock. Smoke adds
+no host fields, fuel use, heating rules or saved state.
+
+`StoredStockLayer` draws approved stock A below the night wash and below map
+labels, agents and weather. `StoredStockPiles` reads accepted per-building
+`StoredItems`, `StoredQuantity` and `StorageCapacity`; it never infers stored
+contents from household totals or ground stock. Wood uses logs, listed bulk
+food/crop/seed/fiber/herb kinds use sacks, and other kinds use crates. Positive
+contents use the some drawing, or the full drawing at 80% of a known capacity.
+Unknown capacity stays at some. These are visual fullness bands, not physical
+container counts or new capacity rules.
+
+Each group takes a distinct known Town tile within two cardinal steps of the
+recorded entrance, on the front or nearest side wall. Roads, every building's
+entrance and footprint, bridges, resources, fields, ground stock and construction
+sites are excluded, along with water, mountains and unknown ground. No suitable
+tile means no pile for that group. Native world-pixel primitives preserve the
+approved casts, colours and paint order at both atlas sizes. Drawing is bounded
+to visible tiles and wrapped copies; unchanged piles reuse their commands.
+No host fields, inventory transitions, saved state or collision rules change.
+
+### Building completion moments
+
+`BuildingCompletionLayer` follows accepted owner snapshots and the actual map
+camera. A new placed building must replace a previously observed construction
+site with the same definition and footprint, with its placement tick between
+the last and current observations. Only a visible close/mid-zoom completion
+starts the local three-second effect. Cancelled sites, existing buildings,
+paused authoring insertions and off-screen completions never queue a moment.
+The first observation is a quiet baseline. World, map or observer timeline
+changes, rewind and gaps over a game hour clear display history; removal
+clears that building's active effect.
+
+The layer draws above roofs and night lights, below objects, figures and
+weather. `BuildingCompletionArt` shares the approved C pixel spans with the
+art reference: fourteen C9AC7C dust puffs spread and settle over 1.4 seconds,
+and five FFF6D8 twinkles stop after 2.4 seconds. It uses native horizontal
+spans without particle nodes or textures generated per frame. Active moments
+are bounded to 128; the oldest leaves if a larger visible batch completes.
+The local clock freezes while paused, resumes from the held frame, follows
+zoom and wrapped copies, and hides at overview. No state, event, protocol,
+construction or replay rule changes.
 
 ## Model inputs, usage and memories
 
@@ -1072,13 +1181,53 @@ fallback does not erase the previous accepted choice. Pause/disconnect records
 cancellation; refreshed views and current-format reload preserve it. Exception
 messages, provider bodies and keys do not enter these fields.
 
-The personal adapter sends JSON-object response mode and omits temperature and
-output-token limits. The owner's 16-call sample in
+For OpenAI and Ollama Cloud, the personal adapter sends JSON-object response
+mode and omits temperature and output-token limits. The owner's 16-call sample in
 [#457](https://github.com/compoodment/ClankerWorld/issues/457) used 44,285 output
 tokens (about 2,768 per call), nearly its 43,576 input tokens. This does not
 establish a safe universal output cap, so the cap stays unset; output billing
 and truncation remain model-dependent. There is no smaller candidate list or
 wider Jev role in this change.
+
+**Claude models.** An agent whose provider is Anthropic gets the same prompts
+and the same reply validation. `AnthropicModelClient` in the host sends them to
+Anthropic's Messages API through Anthropic's official C# client
+(`IHostedModelClient` is the seam in the simulation). The game's instructions
+are the system prompt, marked for prompt caching: calls that repeat them cost
+less once they are long enough for the model to cache, and a shorter prompt is
+simply not cached. The observation is the one user message. The Messages API
+requires an output limit, so the client allows 16,000 tokens, room for the
+model's thinking as well as the short JSON reply; an older model typed by name
+with a smaller output limit refuses the request. There is no JSON response mode in these
+requests: the prompt's "Return JSON only" asks for JSON, and one surrounding
+Markdown code fence is removed before the game reads the text.
+- Only text blocks come back. Thinking blocks are dropped and never logged or
+  saved.
+- A refusal, or a reply cut off at the limit, is an unusable reply. An HTTP
+  error keeps its status, so a 400 is an unsupported request, as on the
+  chat-completions path.
+- The client never retries, because a retry is another paid call. It sends
+  only the owner's key: it never falls back to the host's own Anthropic token
+  or login profile.
+- A refused or cut-off conversation turn still records its token counts as a
+  failed call.
+- Usage counts every input token the model read, cached ones included, and the
+  output tokens, which include thinking.
+- The short list is `claude-opus-5-5`, `claude-sonnet-5-5` and the default
+  `claude-haiku-5-5`. Conversations use the same client and the same strict
+  turn validation. Claude is not a routine helper.
+
+**Thinking.** Each hosted agent assignment can carry a thinking level: `low`,
+`medium` or `high` (`ModelThinking`), or none for the model's own default.
+OpenAI and Ollama Cloud receive it as `reasoning_effort`, and Anthropic as
+`output_config.effort`. With no level nothing is sent, so those requests are
+unchanged. The game offers only the levels every hosted provider accepts:
+`none`, `xhigh` and `max` are refused by some current models, so there is no
+Off. A model that refuses the setting fails the call like any other
+unsupported request, and Test model then suggests Model default. The level is
+set per agent with its model; world defaults have none. A personal choice's
+routine and planning rows share it, and a child born in the world starts with
+the model default.
 
 Each agent retains up to eight private thoughts and exposes up to sixteen recent
 non-forgotten social memories to owner inspection, including deceased profiles.
@@ -1163,10 +1312,14 @@ including before the 256-source scan limit; ordinary sources retain their
 relevance and salience ranking. The owner's bounded 16-entry Memories projection
 also keeps permanent entries first and marks them Permanent. All rename source
 records remain saved; bounded lists do not archive or delete them.
+Excerpts use at most 160 UTF-16 units and keep complete Unicode characters;
+the saved source text and evidence stay unchanged.
 An existing Jev routine call may score up to twelve previously unassessed
 ordinary records; permanent entries are excluded from scoring and cannot fade
 through a low assessment. Only linked salience/confidence values are saved.
-It adds no separate paid request or generated prose. Local retrieval works with
+The same Jev or OpenAI Decisions request may include a `memory_summary`
+choice over source-derived recent, earliest or varied extracts, plus
+`keep_records`. It adds no separate paid request or free-form model prose. Local retrieval works with
 Jev off. On an unpaused world-day boundary, `SocietyMemoryArchiveRules` moves
 ordinary experiences and beliefs at least three world days old and below 2,500
 importance basis points out of the active ledger into required owner-private
@@ -1188,7 +1341,26 @@ Its event contains only archived experience/belief counts. Deceased historical
 profiles inspect both ledgers without sharing that evidence with living agents.
 Authoritative life,
 relationship, skill and order state is unchanged. Automatic experience capture
-and narrative summarization are unfinished.
+remains unfinished.
+
+`SocietyMemorySummaryRules` offers four to twelve uncovered ordinary archived
+records owned by that actor, at least three world days old and below the same
+importance cutoff. Corrected, permanent and event-backed records are excluded.
+Each option combines two labeled excerpts into at most 160 characters and is
+shorter than its complete source batch. The helper chooses only an offered ID;
+the host saves its exact extract and canonical typed source links. It can decline
+or omit the choice. Invalid, failed, cancelled, stale or personal-model replies
+cannot write a summary. The host rechecks the batch and attribution before
+applying an awaited reply. No original record is deleted or replaced.
+
+Saved owner-private summaries compete with active source records for the same
+four-excerpt recall budget. Each recalled summary includes bounded source
+attribution: subject, firsthand/hearsay/inference, confidence, speaker, event and
+correction marker, resolved from the owner's original ledger. A later correction
+marks the source corrected without changing the saved extract. Switching the
+helper off prevents new summaries but preserves existing recall. The summary
+event contains only owner and source count. Timing and usefulness remain
+provisional; see the [memory summary playtest](../../playtest/1312-memory-summaries.md).
 
 Childhood talk, play and learning record owner-private experiences whose keys
 fit the same 128-character memory boundary used by recall and Jev scoring.
@@ -1347,7 +1519,8 @@ The owner's model picker shows the game's own list for each provider,
 `ProviderModelCatalog.Curated`: newest generation first and, within a generation,
 larger models first. Add new models there in their place. When a key is known,
 the host checks it against the provider's model-list route (OpenAI
-`/v1/models`; Ollama Cloud `/api/tags`, then `/v1/models`) using
+`/v1/models`; Ollama Cloud `/api/tags`, then `/v1/models`; Anthropic
+`/v1/models` through its official client, with its own key header) using
 the saved key, a named key slot, or a key pasted for that check only, which is
 not stored. Keys never return to the client. Listed models the key's route
 doesn't include are marked unavailable; names are compared without Ollama's
@@ -1365,9 +1538,11 @@ Checks are cached per key for ten minutes, time out after eight seconds and are
 not model calls, so they do not count toward the usage cap below.
 
 **Test model** is a separate owner action in Add Agent and an agent's Model
-panel. It sends one request through the same OpenAI-compatible personal
-decision adapter used in play, including the required JSON response format.
-It sends no temperature or output-token limit. The host durably reserves a
+panel. It sends one request through the same personal decision adapter used in
+play, at the chosen thinking level: chat completions with the required JSON
+response format for OpenAI and Ollama Cloud, and the Messages API for
+Anthropic. It sends no temperature, and an output-token limit only to
+Anthropic, which requires one. The host durably reserves a
 paid-call allowance before sending; every result after that point, including a
 timeout or rejected format, counts as one attempt. The check never tries an
 alternate request format, changes provider settings, or saves a pasted key.
@@ -1428,6 +1603,38 @@ writes do not increment the in-memory total or dispatch a model call. This does
 not promise directory-fsync power-loss durability or provider-invoice parity.
 
 ## Maps, movement and terrain
+
+The client's `WorldTerrainLayer` keeps unsaved regional ground-snow cover
+from accepted owner observations. Only regions seen snowing get an entry;
+the interval until the next observation uses that last reported weather.
+One game hour of snowfall fills the cover and two hours without snow melt it.
+Calendar pace converts ticks to hours; local frame time never ages it. A new
+view begins empty, including when a checkpoint is loaded. World, map and
+timeline changes and tick rewinds clear the history. It adds no host fields,
+saved state, events or movement effects.
+
+Short observed outdoor agent and animal moves leave pressed footprints on
+that cover, using the shortest east-west path on wrapped maps. Spawns, moves
+over three tiles, repeated observations and paused authoring moves make no
+trail. Prints fade in one game hour; at most 4,096 are held, and small overview
+zooms keep their positions without drawing tiny marks. The visible ground
+pass draws the approved snow colours after Roads and before bridges,
+buildings, trees and moving markers. It skips water, permanent snow and
+building/construction tiles. Up to 256 generated snow-overlay textures are
+cached, independent of map area; overview uses up to 256 small 32-tile chunk
+textures instead of a draw command per snowy tile. Changes to buildings,
+construction, bridges and Roads invalidate that overview cache. Cover itself
+is indexed by weather region.
+
+Roofs read that same observed region cover, including tiles blocked from the
+ground overlay. The building pass draws a cached transparent snow texture over
+actual roof planes at close/mid zoom. It shares the approved A2 slope and tint
+rules; comparison with an undecorated roof excludes flues, signs and other
+fittings. Roof outlines, open yards and grass shadows remain clear. Each roof
+is clipped by weather region before drawing, including wrapped copies, so a
+snowy side does not whiten a dry neighbour. At most 256 textures are cached;
+cover changes reuse them. No extra node, host field, event or saved state is added.
+
 Small and Medium generated maps are connected to the normal world path. The
 older tiny map remains a compatibility fixture/world; generation is no longer
 merely a separate primitive. Large/Huge/Mega generator outputs do not imply
@@ -1532,6 +1739,24 @@ reachable area (see [Material gathering](#material-gathering)). Boat transport u
 described in [Ports and communal boats](#ports-and-communal-boats). Trees and planting are described in
 [Trees and planting](#trees-and-planting).
 
+The client camera uses the approved B cubic ease-out for Find/selection jumps
+(0.7 seconds) and zoom steps (0.35 seconds). `CameraEasing` is shared with the
+completed camera review. Main advances only local camera state on process
+frames, keeps zoom anchored to the cursor and uses the shortest wrapped travel.
+New requests start at the shown position/scale; drag and keyboard input cancel
+motion and apply immediately. Quick cards hold their screen position through
+travel. Zoom refreshes map sprites only when integer tile size changes; opening
+another world discards old motion. No observation, host request or save is added.
+
+Autumn ground leaves use the shared `AutumnLeaves` drawing promoted from the
+approved October 9 art review. The observed season enables the leaf pass,
+using authoring data first and the world summary when it is absent, as the
+landscape colors do. No clock, saved cover or resource is added. At sprite zoom it visits
+only visible trees and one neighboring tile, draws at most fourteen sparse
+leaves per eligible tree, and rejects Roads, Market plazas, bridges, building
+footprints and water. The pass runs beneath buildings and nature sprites.
+Overview zoom skips the leaf commands. Wrapped copies use the same map seeds.
+
 Godot draws camera-visible tiles from a compact terrain index and samples it
 for the overview. It does not create a Control per tile. Generated terrain uses
 row-major packed bytes, with separate layer digests. Signed cache claims omit
@@ -1575,6 +1800,21 @@ the older three-day daily-weather estimate in this first experiment; it is not
 a saved moisture grid or an episode-integrated rainfall model. Existing saves
 keep their active weather when loaded; the first resumed tick imports it into
 an episode. See [save handling](saves-and-replay.md#regional-weather-episodes).
+
+The client renders the approved pixel-streak overlay through `WeatherStreaks`:
+straight rain and three-pixel landing bursts, two-down-one-across storm streaks
+in eastward gusts, and wind-blown snowflake crosses. The review tool uses the
+same geometry, timing and ink. `WeatherLayer` caches seven tiny nearest-filtered
+textures and submits one command per particle, bounded by the camera. Its
+precipitation timing and particle count describe synchronous command creation;
+they exclude later layout, drawing and GPU work. Each weather kind keeps a
+soft spatial mask, while a local 1.2-second smooth transition changes its
+opacity. Outgoing precipitation survives until its fade finishes; retargeting
+starts from the last displayed amount. The linear masks retain full coverage
+at regional junctions without changing an unchanged neighbour when a fade ends.
+Pausing holds both clocks, and a new world shows its recorded weather at once.
+Cloud haze, storm flashes and their settings remain available. Nothing new is
+saved or sent by the host.
 
 The generator vendors [FastNoiseLite](../../src/ClankerWorld.Simulation/ThirdParty/FastNoiseLite/README.md).
 Its drainage approach draws on [Red Blob's noise guide](https://www.redblobgames.com/maps/terrain-from-noise/),
@@ -1883,7 +2123,10 @@ allow earlier proposal reconsideration.
 rechecks authority when applying choices. `civic|...` actions let actors visit
 the public notice place, read posted notices, relay them within interaction
 range, nominate another resident, register their own consent and choose proposals
-or ballots. A nomination posts a notice; only the named agent's personal response
+or ballots. Personal-model context includes at most three learned notices, with
+270 UTF-16 units per readable notice and 1,024 units in total. Both excerpts keep
+complete Unicode characters while the full notice text and read/relay receipts
+stay unchanged. A nomination posts a notice; only the named agent's personal response
 can add agreement. An adult with no Town, or a resident of another Town, may
 request their own admission at a Town's notice place. An adult with no Town may
 walk there from anywhere, and a resident of another Town from inside its border,
@@ -2000,7 +2243,11 @@ while its separate household field keeps the complete identity.
 
 Hearing actions enter through admitted personal-model civic choices. Public
 statements remain allegations; actual nearby observations and inspected rights,
-title, law versions and earlier rulings retain their sources. The current land
+title, law versions and earlier rulings retain their sources. Ruling-choice
+context includes the four most recent inspected evidence records and any required
+inspected property record, each excerpt bounded to
+160 UTF-16 units without splitting a Unicode character. The full text, its sources
+and the inspection records stay saved. The current land
 mayor must inspect the file and revalidate authority, conflicts and the response
 window before ruling. A permission past its agreed end must be renewed, amended
 or ended; it cannot be confirmed or left as it is. A renewal renews every lapsed
@@ -2047,6 +2294,12 @@ an eligible receiving household and every receiving adult's personal agreement.
 The owner projection shows readable asset and consent details in the existing
 Town, plot and property hearing views. Personal owners keep limited entrance
 collection access after recovery and onward granting.
+
+Building inspection labels property rulings separately from permission-only
+cases and keeps the current building owner above the historical outcome.
+Result-event text resolves the exact ruling ID within the event's Town to choose
+property or permission wording. Missing case context uses a neutral land-ruling
+description; event prose does not establish ownership or case kind.
 
 `TownRuntimeState.Nonviolent` records non-land allegations, notice revisions,
 sources, responses and civil findings separately from permission adjustments.
@@ -2241,7 +2494,35 @@ corner tiles are clear, and pays extra for each tile beside an existing Road,
 so it meets streets rather than running alongside them. Then every dead end
 fewer than three tiles past its nearest door carries on in its own direction
 where the land allows (`town_road_extended`). The border grows around all the
-new Road tiles.
+new local Road tiles. Local streets join Roads within their own Town's border;
+they do not choose another Town's network as their destination.
+
+When a Town gains its first completed building, `GenerateRoadBetweenTowns`
+selects the nearest other Town by wrapped foot distance between recorded
+origins, breaking equal distances by Town ID. A completed household building
+incorporated during founding triggers the same link. `RoadRoutePlanner` searches
+from the building's legal entrances to Roads in the selected Town, or to
+building entrances inside its border or its unoccupied origin when it has no
+Roads. The route uses
+the existing Road movement discount, without the local side-street adjacency
+penalty. It may reuse existing Roads and bridges, including Roads subsequently
+overlapped by household land. Existing diagonal Road edges retain their land
+access, while physical corner obstructions still refuse the step. New tiles
+and bridge banks still avoid held land, pending requests, resources and
+building footprints. The complete route
+and any new one- or two-tile river crossings validate before commitment.
+Inter-Town search uses admissible distance bounds to direct it toward the
+selected Town within the existing 32,768-tile search budget; local side streets
+keep Dijkstra ordering.
+`town_road_linked` records the selected pair; `town_road_link_unconnected`
+records a refused route. A failed link does not choose a farther Town. These
+inter-Town Roads use the ordinary saved Road tiles and bridge records, keep the
+same rendering and persistence, and never expand either Town's title or border.
+The Town's saved `FirstBuildingCompletedTick` prevents a replacement building
+from repeating the link after removal or reload, including a failed first link.
+Reassigning a completed Warehouse to an empty Town uses the same first-building
+trigger. When that Warehouse stands outside the receiving Town, the Road starts
+at the receiving Town's origin and leaves the remote building's entrance alone.
 
 Street neighbours, headings, diagonal corners and clearance use the map's
 east-west wrap. A Road across the seam counts toward the distance to the last
@@ -2292,6 +2573,11 @@ Household planning computes each prospective building's identity once per design
 before checking placed buildings for it. Each later query reads current reservations
 again. See [household plan query measurements](household-plan-query-measurements.md)
 for native candidate/state equivalence, repeated timings and allocation results.
+Layout and shared route searches reuse the step legality just established by
+`FootNeighbors` when computing Road costs. Public step costs and movement still
+validate the complete step; terrain, Road discounts, occupied corners and queue
+order retain their existing rules. See [route step cost measurements](route-step-cost-measurements.md)
+for matched native captures and timing limits.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
@@ -2499,6 +2785,9 @@ agent card and People section distinguish accepted care, a blocked home and
 travel through existing observation notes. `guardian_placement_pending`,
 `guardian_placement_completed` and `guardian_placement_cancelled` record the
 placement lifecycle separately from `guardian_assigned` and `guardian_needed`.
+The guardian's model housing note keeps the accepted task and current blocker
+within a 256-unit text budget without splitting Unicode characters. The complete
+child name and accepted care and House references stay saved.
 
 **Continuity rule** (`SettlementContinuity`). The owner's answer on
 [#1266](https://github.com/compoodment/ClankerWorld/issues/1266) replaces the
@@ -2996,8 +3285,9 @@ for the law's Town share only at 100%, with room for all its contents.
 No living person's ownership changes when the law passes.
 
 Final words are optional with either outcome. `CognitionWillChoice.NormalizeFinalWords`
-turns control and invisible formatting characters into spaces, collapses
-spaces, and refuses text over 80 characters or containing markup characters
+preserves complete printable Unicode characters, turns control, invisible
+formatting, private-use and malformed UTF-16 characters into spaces, collapses
+spaces, and refuses text over 80 UTF-16 units or containing markup characters
 (`< > [ ] { }` and backticks). The HTTP provider parser drops unusable words
 before admission; a directly supplied typed reply with invalid words is refused.
 An admitted reply keeps its words even when its division falls back. At settlement
@@ -3102,8 +3392,12 @@ artifacts, work reservations and delivery loads. Infants remain excluded.
 Children use only ordinary unreserved cargo; the planting-reservation exception
 below remains an adult action.
 
-Urgent adult food recovery first sets down ordinary spare cargo. If that cannot free
-enough carrying room, it may also select the actor's own orchard propagation
+Food recovery first sets down ordinary spare cargo. A quantity claim on a loose
+stack protects its held units while unrelated unreserved units remain available;
+the original claimed source and offer stay intact. Whole vessels with any held
+family member remain protected, along with retained repair inputs, worn
+equipment, knowledge goods and delivery loads. If that cannot free enough room,
+urgent adult food recovery may also select the actor's own orchard propagation
 seeds. Their selected planting reservations are released in the same inventory
 transition that stores the seeds with the household, after reaching the House
 or camp pile. Walking, an unavailable destination or a refused transfer does
@@ -3474,8 +3768,8 @@ The owner snapshot projects physical boats, cargo, incoming docks and all active
 requests, plus recent settled requests. Godot retains one marker per boat,
 observes its heading and wrap behavior, uses the approved art unchanged at close
 zoom, and shows travel and dock use in tile, Port and Town inspection. Port night
-lights use the approved T-head lantern. Smaller views scale the approved 32-pixel
-boat until #914 supplies approved 16-pixel art.
+lights use the approved T-head lantern. Medium zoom uses the approved 16-pixel
+boat from #914; close zoom retains the unchanged 32-pixel drawing.
 
 Checkpoint compaction retains every active request and the existing 40 recent
 closed requests by sequence. It durably archives full older records before
@@ -3756,6 +4050,14 @@ owner action to finish. Menu visibility, observation generation and preview
 revision still fence the waiting work, so only the current options are
 requested and closing or switching screens discards the old refresh.
 
+The host serializes read-only preview generation and terrain packing on a
+separate coordinator gate. A running configured world can keep ticking and
+saving while a preview computes; preview requests never hold its provider/world
+mutation gate. Concurrent previews on that coordinator still run one at a time.
+The same bounded candidate selection and complete terrain/layer packing are
+used. Create and Select retain the world-mutation gate, confirmed pause,
+preview identity checks and durable provider/save transactions.
+
 Continue also belongs to the current Main Menu navigation. Opening Settings,
 New World or Load World, returning to Main Menu, or starting another Continue
 expires the earlier entry attempt. Its late refresh can update observations,
@@ -3814,6 +4116,13 @@ to the patch's interaction area, using the same live people and animal blockers
 as movement. A crowded nearer patch does not hide another reachable patch within
 the existing search radius.
 
+Wild drinking selection likewise checks the complete unoccupied route to a
+fresh-water shore before choosing it. Shores retain their distance, row and
+column order and twelve-tile search radius. A crowded approach to an empty
+shore does not hide an alternate reachable shore. Selection and movement share
+the same live people and animal blockers and route search; drinking and care
+durations remain unchanged.
+
 Forage checks that radius before looking up stock through the current ecology
 state's ID index. Feed consumption replaces the ecology state, so the next
 animal sees the remaining quantity. Distance and ordinal-ID ordering stay the
@@ -3865,7 +4174,10 @@ change no state, and the existing order schedule resumes the task when its
 physical supply path becomes available.
 
 Cared adult pairs breed automatically when their yard has a place and delivered
-supplies cover existing animals and the offspring. Pregnancy reserves one place;
+supplies cover existing animals and the offspring. Feed and water inside a
+broken vessel do not satisfy that prerequisite; healthy loose feed and usable
+alternative vessels still count, under the existing quantity and reservation
+rules. Pregnancy reserves one place;
 young animals and reservations count toward eight per household or wild herd.
 Missed care pauses progress. Only old age kills animals; an owned sheep, cow or
 horse leaves one household hide at its actual death position. Untamed animals
@@ -3888,7 +4200,9 @@ A cared adult horse has one real reserved saddle and one adult rider. Movement
 uses the normal legal route and occupancy rules, halves walking cost and admits
 at most two legal steps per tick. A mount adds eight cargo units. Care or
 permission loss ends riding; dismount puts unreserved excess cargo at the actual
-position without changing its owner. Cart attachments and boat travel exclude
+position without changing its owner. A partially held loose stack can shed
+only its unreserved units, preserving the original claimed source; a held
+vessel or its contents protect the whole vessel family. Cart attachments and boat travel exclude
 ridden or led animals. Godot projects and draws the authoritative animal state
 with young/adult headings, mounted horses, yard art, inspection and event text.
 
@@ -3910,7 +4224,11 @@ drinking consumes one portion and preserves the jug. Infant self-feeding and
 adult-only animal work remain age restricted.
 
 Milk stock travels as an actual household jug to a held Store or borrowed Market
-stall, with a stock receipt at a stall. Fresh seller and buyer personal choices
+stall, with a stock receipt at a stall. Restocking leaves household jugs on
+actively borrowed Market stalls in place; after the seller leaves, the same
+jug and milk can be collected for a normal Store delivery. Offers and execution
+recheck current borrowing, including during an already accepted restocking walk.
+Fresh seller and buyer personal choices
 exchange one held portion into the buyer's real carried jug for the named
 personal payment. Each pending offer has a distinct milk source lot, even
 when the lot contains several available portions. Candidate generation and

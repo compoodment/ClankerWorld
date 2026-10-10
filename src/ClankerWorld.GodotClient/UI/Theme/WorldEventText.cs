@@ -53,6 +53,44 @@ public static class WorldEventText
         catch (JsonException) { return "Developer edit."; }
     }
 
+    private static string? ContentName(string detail, OwnerWorldSnapshot? snapshot)
+    {
+        // The digest contains a colon of its own. Actor and instance IDs may contain more.
+        var start = detail.IndexOf("sha256:", StringComparison.Ordinal);
+        if (start < 0) return null;
+        var end = detail.IndexOf(':', start + 7);
+        var id = end < 0 ? detail[start..] : detail[start..end];
+        var fields = id.Split('/');
+        if (fields.Length != 3 || fields[0].Length != 71 ||
+            fields[0][7..].Any(character => !Uri.IsHexDigit(character)) ||
+            fields[1] is not ("building" or "recipe")) return null;
+        var version = fields[2].IndexOf('@');
+        if (version <= 0 || version == fields[2].Length - 1) return null;
+        var localId = fields[2][..version];
+        if (localId.Any(character => !(char.IsLower(character) || char.IsDigit(character) || character is '.' or '-' or '_')))
+            return null;
+        if (fields[1] == "building")
+        {
+            var name = snapshot?.PlacedBuildings.FirstOrDefault(building => building.DefinitionId == id)?.DisplayName;
+            if (!string.IsNullOrWhiteSpace(name)) return name;
+            // Historical building IDs include a footprint suffix, which is not part of their name.
+            var dash = localId.LastIndexOf('-');
+            var footprint = dash < 0 ? [] : localId[(dash + 1)..].Split('x');
+            if (footprint.Length == 2 &&
+                int.TryParse(footprint[0], NumberStyles.None, CultureInfo.InvariantCulture, out var width) && width > 0 &&
+                int.TryParse(footprint[1], NumberStyles.None, CultureInfo.InvariantCulture, out var height) && height > 0)
+                localId = localId[..dash];
+        }
+        else
+        {
+            var name = snapshot?.ProductionJobs.FirstOrDefault(job => job.RecipeId == id)?.Recipe?.Name ??
+                snapshot?.PlacedBuildings.SelectMany(building => building.AvailableRecipes ?? [])
+                    .FirstOrDefault(recipe => recipe.Id == id)?.Name;
+            if (!string.IsNullOrWhiteSpace(name)) return name;
+        }
+        return GameUiText.HumanizeIdentifier(localId);
+    }
+
     public static bool OffersNewcomer(OwnerWorldSnapshot? snapshot) =>
         snapshot is { ContinuityRuleActive: true, FounderSetup.Started: true };
 
@@ -67,9 +105,13 @@ public static class WorldEventText
             return worldEvent.Detail;
         if (worldEvent.Kind == "marriage_surname_blocked")
             return "The shared surname would make a name too long. Shorten the agent's name and resume the surname conversation; both names are unchanged.";
-        string ThingAt(int index) => index >= 0 && index < parts.Length
-            ? GameUiText.HumanizeIdentifier(parts[index])
-            : "something new";
+        string ThingAt(int index)
+        {
+            if (index == 1 && worldEvent.Kind is "building_placed" or "build_started" or "build_completed" or "recipe_started" or "recipe_completed" &&
+                ContentName(worldEvent.Detail, snapshot) is { } contentName)
+                return contentName;
+            return index >= 0 && index < parts.Length ? GameUiText.HumanizeIdentifier(parts[index]) : "something new";
+        }
         var buildingName = snapshot?.PlacedBuildings.FirstOrDefault(building =>
             IsLeadingId(worldEvent.Detail, building.InstanceId))?.DisplayName ?? "building";
         var guestName = snapshot?.Inhabitants.OrderByDescending(person => person.Id.Length).FirstOrDefault(person =>
@@ -235,7 +277,7 @@ public static class WorldEventText
             "town_civic_proposal" => $"A proposal was submitted to {civicTownName}'s council.",
             // Rulings and household transfers post their outcome as a result notice, but no council decided them.
             "town_civic_result" when Field(worldEvent.Detail, 1).StartsWith("land-ruling:", StringComparison.Ordinal) =>
-                $"{civicTownName} posted the result of a land ruling. See the Towns page for what changed and why.",
+                DescribeLandRulingResult(worldEvent, snapshot, civicTownName),
             "town_civic_result" when Field(worldEvent.Detail, 1).StartsWith("land-transfer:", StringComparison.Ordinal) =>
                 $"{civicTownName} posted the outcome of a land handover between households. See the Towns page.",
             "town_civic_result" => $"{civicTownName}'s council made a decision. See the Towns page for the result.",
@@ -342,6 +384,21 @@ public static class WorldEventText
             "law_case_remedy_effect" => $"{actor ?? "Someone"} did their part of an agreed settlement in {town}.",
             _ => $"{town} turned down a request in a case. Nothing was imposed.",
         };
+    }
+
+    private static string DescribeLandRulingResult(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot, string townName)
+    {
+        var town = snapshot?.Towns.FirstOrDefault(item => item.Id == Field(worldEvent.Detail, 0));
+        var rulingId = Field(worldEvent.Detail, 1);
+        var hearing = town?.LandHearings.FirstOrDefault(item => item.Rulings.Any(ruling => ruling.Id == rulingId));
+        var subject = hearing?.Kind == "property" ? "property ruling" : "land ruling";
+        var outcome = hearing?.Kind switch
+        {
+            "property" => "ownership outcome",
+            "dispute" or "expiry" => "permission change",
+            _ => "outcome",
+        };
+        return $"{townName} posted the result of a {subject}. See the Towns page for its {outcome} and reasons.";
     }
 
     private static string DescribeLandTransfer(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
