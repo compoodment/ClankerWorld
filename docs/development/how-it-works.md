@@ -146,14 +146,14 @@ Destination capacity and remaining uses belong to the later steps of
 origin/destination fields and extra-unit requests are refused rather than silently ignored.
 
 Actor-bound `Collect` extends Holdings with native custody/place permission,
-free vessel families, actual carrying room and an unoccupied walking route.
+free vessel families, actual carrying room and an unoccupied native travel route.
 Whole-vessel matches include all contents in their movement size, even when
 matching a contained kind. Already-carried supplies need no additional carry
 room. The route runs last and is reused for lots at the same position and
 interaction range within one answer; native route rules still account for
 occupants, shared destinations and an attached cart.
 
-`ReachableHoldings` adds the same walking route to Holdings without requiring
+`ReachableHoldings` adds the same native travel route to Holdings without requiring
 empty carrying space. Preparation uses it to find usable supplies before
 putting aside spare cargo; actual pickup still uses Collect. This keeps a full
 load from hiding shared repair inputs, gathering tools or medical supplies
