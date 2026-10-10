@@ -3813,6 +3813,10 @@ milk enters a reusable household jug. Jug pickup and collection require cargo
 space for the jug's existing contents and the pending milk batch; an unsuitable
 first jug does not hide a fitting alternative. Products then use ordinary stock hauling,
 recipes and trade.
+`drink_milk` uses the same carried-milk selector for its offered choice and
+execution. It excludes milk or a jug assigned to a building delivery, keeping
+the promised contents available for their destination. Unassigned carried
+milk remains drinkable and leaves its reusable jug intact.
 
 When care is due, its native order candidate requires complete safe inputs, a current care
 supply trip or an obtainable supply. Missing inputs use the existing blocked
