@@ -356,11 +356,14 @@ public sealed partial class PrivateWorldRuntime
             AssignedBuildingIds = town.AssignedBuildingIds.Append(building.InstanceId)
                 .Order(StringComparer.Ordinal).ToArray(),
             BorderTiles = border,
+            FirstBuildingCompletedTick = town.FirstBuildingCompletedTick ?? WorldTick,
         });
         var updated = towns.Single(item => item.Id == town.Id);
         AppendEvent("town_building_assigned", $"{town.Id}:{building.InstanceId}:buildings:{updated.AssignedBuildingIds.Count}");
         if (!town.BorderTiles.SequenceEqual(border))
             AppendEvent("town_border_expanded", $"{town.Id}:{building.InstanceId}:tiles:{border.Count}");
+        if (town.FirstBuildingCompletedTick is null)
+            GenerateRoadBetweenTowns(updated, building);
         var laid = GenerateRoadToBuilding(building, updated.BorderTiles.ToHashSet());
         if (laid.Count == 0) return;
         // Town Roads stay inside the border, so it grows around the new Road too.

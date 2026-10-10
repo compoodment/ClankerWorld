@@ -151,6 +151,7 @@ public partial class Main
 
         TextureRect Expect(int facing, bool loaded, bool pulled, string phase, bool sameMarker = true)
         {
+            AdvanceMapMarkers(WalkingMotion.GlideSeconds);
             var marker = mapObjectVisuals["handcart:" + cart.Id];
             var sprite = marker.GetNode<TextureRect>("HandcartSprite");
             using var image = sprite.Texture.GetImage();
@@ -211,13 +212,14 @@ public partial class Main
         var baseTile = currentTileSize;
         cameraZoom = 39f / baseTile;
         RenderMap(map);
-        var fallback = mapObjectVisuals["handcart:" + cart.Id].GetNode<TextureRect>("HandcartSprite");
-        using (var image = fallback.Texture.GetImage())
-        using (var reference = ItemIcons.Texture("handcart", 16).GetImage())
+        var medium = mapObjectVisuals["handcart:" + cart.Id].GetNode<TextureRect>("HandcartSprite");
+        using (var image = medium.Texture.GetImage())
+        using (var reference = HandcartSprites.Sprite(6, true, true, 16))
+        using (var icon = ItemIcons.Texture("handcart", 16).GetImage())
         {
-            if (currentTileSize != 39 || image.GetWidth() != 16 || fallback.Size != new Vector2(16, 16) ||
-                !image.GetData().AsSpan().SequenceEqual(reference.GetData()))
-                throw new InvalidOperationException("At an actual 39px tile, the cart must retain the unchanged 16px item fallback.");
+            if (currentTileSize != 39 || image.GetWidth() != 16 || medium.Size != new Vector2(16, 16) ||
+                !image.GetData().AsSpan().SequenceEqual(reference.GetData()) || image.GetData().AsSpan().SequenceEqual(icon.GetData()))
+                throw new InvalidOperationException("At an actual 39px tile, the cart must use its approved 16px vehicle drawing, not the item icon.");
         }
         cameraZoom = 40f / baseTile;
         RenderMap(map);

@@ -1,0 +1,1 @@
+- Town notice summaries supplied to agents now keep complete emoji at their length limits, preserving the full posted text and who read or relayed it.

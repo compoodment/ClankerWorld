@@ -1,0 +1,1 @@
+- Building and crafting entries in the Event Log show their building or recipe names, including older recorded work, instead of “Sha256.” ([#1289](https://github.com/compoodment/ClankerWorld/issues/1289))

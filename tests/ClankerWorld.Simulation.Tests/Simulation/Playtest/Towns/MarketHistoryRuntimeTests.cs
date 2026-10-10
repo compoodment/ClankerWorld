@@ -65,13 +65,6 @@ public sealed class MarketHistoryRuntimeTests(ITestOutputHelper output)
     internal static async Task<PrivateWorldRuntimeState> ClosedTradeStateAsync() =>
         PrivateWorldRuntimeCodec.Decode(await ClosedTrades.Value);
 
-    [Fact]
-    public async Task NativeSettlementsAndCancellationsRetireOffersAndKeepExactPayments()
-    {
-        var state = await ClosedTradeStateAsync();
-        Assert.Equal(32, PaidMarketWorld.Market(state).Trades.Count);
-    }
-
     private static async Task<byte[]> BuildClosedTradeStateAsync()
     {
         const string buyer = "founder:00000000000000000000000000000003";

@@ -12,10 +12,13 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class TownHeirWillTests
 {
-    [Fact]
-    public async Task ANaturalDeathOnTheNormalPathCanLeaveGoodsToTheTownWarehouseInOneModelRequest()
+    [Theory]
+    [InlineData("  Keep the\nfire lit.  ", "Keep the fire lit.")]
+    [InlineData("Remember 𠀀 and 😀.", "Remember 𠀀 and 😀.")]
+    public async Task ANaturalDeathOnTheNormalPathCanLeaveGoodsToTheTownWarehouseInOneModelRequest(
+        string replyWords, string expectedWords)
     {
-        var handler = new WillModelHandler();
+        var handler = new WillModelHandler(replyWords);
         using var client = new HttpClient(handler);
         var model = new OpenAiCompatibleDecisionProvider(client, () => "synthetic-key",
             new Uri("https://model.test/v1/chat/completions"), "synthetic-model");
@@ -62,7 +65,7 @@ public sealed class TownHeirWillTests
         }
         estate = world.Society.GetEstate(estate.Id);
         Assert.Equal("accepted", estate.WillStatus);
-        Assert.Equal("Keep the fire lit.", estate.FinalWords);
+        Assert.Equal(expectedWords, estate.FinalWords);
         Assert.Equal(TownBorderRules.FirstTownId, estate.WillHeirIds![0]);
         Assert.Equal(
         [
@@ -78,6 +81,7 @@ public sealed class TownHeirWillTests
             Assert.DoesNotContain("will-wood", prompt, StringComparison.Ordinal);
         }
         var profile = new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants.Single(item => item.Id == deceasedId).FinalWill!;
+        Assert.Equal(expectedWords, profile.FinalWords);
         var town = profile.Heirs[0];
         Assert.Equal(("First Town", true), (town.Name, town.IsTown));
         Assert.Equal([new ViewerInventoryEntry("food", 2), new ViewerInventoryEntry("wood", 4)], town.Items);
@@ -90,7 +94,13 @@ public sealed class TownHeirWillTests
         };
         using var settling = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(
             saved with { Society = saved.Society with { Society = shortened } })), Provider);
+        var beforeSettlement = PrivateWorldRuntimeCodec.Encode(settling.ExportState());
+        Assert.False((await settling.AdvanceOneTickNonBlockingAsync(() => false)).Advanced);
+        Assert.Equal(beforeSettlement, PrivateWorldRuntimeCodec.Encode(settling.ExportState()));
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(beforeSettlement), Provider);
         Assert.True((await settling.AdvanceOneTickNonBlockingAsync()).Advanced);
+        Assert.True((await replay.AdvanceOneTickNonBlockingAsync()).Advanced);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(settling.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
         var settled = settling.Society;
         Assert.True(settled.GetEstate(estate.Id).Settled);
         var wood = Assert.Single(settled.Inventory.Lots, lot => lot.ProvenanceLotId == "will-wood");
@@ -102,7 +112,16 @@ public sealed class TownHeirWillTests
             settled.Memories.Where(memory => memory.Id.StartsWith("final-words:", StringComparison.Ordinal))
                 .Select(memory => memory.OwnerId).Order(StringComparer.Ordinal));
         Assert.All(settled.Memories.Where(memory => memory.Id.StartsWith("final-words:", StringComparison.Ordinal)),
-            memory => Assert.Equal("private", memory.Visibility));
+            memory =>
+            {
+                Assert.Equal("private", memory.Visibility);
+                Assert.Equal($"{settled.GetInhabitant(deceasedId).Name}'s final words were: '{expectedWords}'", memory.Summary);
+            });
+        var bytes = PrivateWorldRuntimeCodec.Encode(settling.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        restored.Validate();
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        Assert.Equal(expectedWords, restored.Society.GetEstate(estate.Id).FinalWords);
         Assert.Single(handler.Bodies);
     }
 
@@ -304,7 +323,7 @@ public sealed class TownHeirWillTests
     }
 
     /// <summary>A synthetic model that leaves food and wood to the Town and names one person.</summary>
-    private sealed class WillModelHandler : HttpMessageHandler
+    private sealed class WillModelHandler(string finalWords = "  Keep the\nfire lit.  ") : HttpMessageHandler
     {
         public ConcurrentQueue<string> Bodies { get; } = new();
 
@@ -327,7 +346,7 @@ public sealed class TownHeirWillTests
                 ["heirs"] = new[] { town, person },
                 ["split"] = "items",
                 ["items"] = items,
-                ["final_words"] = "  Keep the\nfire lit.  ",
+                ["final_words"] = finalWords,
             });
             var reply = JsonSerializer.Serialize(new { choices = new[] { new { message = new { content = answer } } } });
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(reply, Encoding.UTF8, "application/json") };

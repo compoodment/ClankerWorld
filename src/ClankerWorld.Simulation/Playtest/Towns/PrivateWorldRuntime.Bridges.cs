@@ -24,12 +24,15 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>Occupied or held ground that new Road tiles and bridge banks must leave clear.</summary>
-    private HashSet<GridPoint> RoadBlockedTiles()
+    private HashSet<GridPoint> RoadBlockedTiles() =>
+        RoadOccupiedTiles().Concat(HouseholdLandHeldByOthers(null)).ToHashSet();
+
+    /// <summary>Physical occupancy that even an existing Road cannot cut diagonally past.</summary>
+    private HashSet<GridPoint> RoadOccupiedTiles()
     {
         var definitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         return map.Resources.Select(item => item.Position)
             .Concat(fields.Select(field => field.Position))
-            .Concat(HouseholdLandHeldByOthers(null))
             .Concat(map.CampObjects.Select(item => item.Position))
             .Concat(worldSimulation.Buildings.SelectMany(building =>
                 WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building)))

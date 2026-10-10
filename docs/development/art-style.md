@@ -363,7 +363,7 @@ color-blind modes are outside it.
 - E2 Night is one multiply tint, 3C4C6E at 45%, with no visibility change.
 - E3 Weather stays an animated, sparse overlay; no opaque shapes. It uses
   look B from the October 8 weather review
-  ([Weather](../../tools/ArtPreview/Proposed/Weather.md)): one-pixel rain
+  ([Weather](../../tools/ArtPreview/WeatherReview.md)): one-pixel rain
   streaks lighter at the top, landing as a three-pixel burst; storm streaks
   stepping two pixels down for every one across, in gusts sweeping east; and
   small snowflake crosses blown sideways. No cloud shadows.

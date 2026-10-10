@@ -1,0 +1,2 @@
+- A new Town's first completed building now connects it to the nearest Town by a legal Road, reusing existing streets and bridging narrow rivers where possible.
+- This alpha records the first completion in saves; older alpha saves are refused and kept without migration.
