@@ -5,7 +5,10 @@ namespace ClankerWorld.Simulation.Playtest;
 
 public sealed record BoatTripRequest(string Id, long Sequence, string PassengerId, string BoatTownId,
     string OriginPortId, string DestinationPortId, long RequestedTick, string Status = "waiting",
-    string? BoatId = null, long? SettledTick = null);
+    string? BoatId = null, long? SettledTick = null)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? OrderInstructionId { get; init; }
+}
 
 public sealed record BoatJourney(string RequestId, string PassengerId, string OriginPortId,
     string DestinationPortId, GridPoint ReservedDock, IReadOnlyList<GridPoint> WaterPath,

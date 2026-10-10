@@ -28,13 +28,28 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new(CivicAction(town.Id, "propose", SiteToken(here)),
                 $"Propose a law for the claimed land within {TownLawRules.SiteRadius} tiles of where you stand in {town.Name}, visitors included. {format}", 192));
         var history = CivicHistory(town);
+        if (town.Government is { } government && !TownEstateDefaultRules.HasPending(government))
+        {
+            var estateLaw = government.Laws.SingleOrDefault(law => TownLawRules.IsInForce(law) && TownLawRules.Current(law).EstateDefault is not null);
+            var knowsEstateLaw = estateLaw is null || town.Governance!.Notices.LastOrDefault(notice => notice.SubjectId == estateLaw.Id) is { } notice &&
+                history.Known(actor).Contains(notice.Id);
+            if (knowsEstateLaw)
+                foreach (var share in new[] { 0, 25, 50, 75, 100 })
+                {
+                    if (estateLaw is not null && TownLawRules.Current(estateLaw).EstateDefault!.TownSharePercent == share) continue;
+                    var target = estateLaw is null ? "adopt" : estateLaw.Id + ":" + TownLawRules.Current(estateLaw).Version.ToString(CultureInfo.InvariantCulture);
+                    candidates.Add(new(CivicAction(town.Id, "estate_default", target, share.ToString(CultureInfo.InvariantCulture)),
+                        $"Propose a supported default estate law: {TownEstateDefaultRules.Text(new(share))} " +
+                        "It needs the ordinary Council vote. No living person's belongings move; a valid will always wins. Whole vessels stay together, and undeliverable Town shares follow the household default.", 195));
+                }
+        }
         foreach (var law in town.Government?.Laws.Where(l => TownLawRules.IsInForce(l) && town.Governance!.Notices.LastOrDefault(n => n.SubjectId == l.Id) is { } latest &&
                 history.Known(actor).Contains(latest.Id))
             ?? [])
         {
             var number = TownLawRules.Number(law.Id).ToString(CultureInfo.InvariantCulture);
             var current = TownLawRules.Current(law);
-            if (current.BoatAccess is null) candidates.Add(new(CivicAction(town.Id, "amend", law.Id, current.Version.ToString(CultureInfo.InvariantCulture)),
+            if (current.BoatAccess is null && current.EstateDefault is null) candidates.Add(new(CivicAction(town.Id, "amend", law.Id, current.Version.ToString(CultureInfo.InvariantCulture)),
                 $"Propose amending {town.Name}'s law {number} ({current.Subject}); write the complete new wording in civic_proposal as 'subject: rule'. " +
                 "It keeps the law's scope, needs the council's votes and applies only from adoption.", 193));
             candidates.Add(new(CivicAction(town.Id, "repeal", law.Id, current.Version.ToString(CultureInfo.InvariantCulture)),

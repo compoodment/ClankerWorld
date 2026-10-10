@@ -13,6 +13,7 @@ Run from this folder with the .NET 8 SDK or newer:
 dotnet run -- baseline out   # every current texture, 1× PNGs and captioned 4× sheets
 dotnet run -- proposed out   # every proposal under Proposed/; add a family name, such as nightlights, for just that one
 dotnet run -- scene out      # the reference Town and mountain-range scenes: current art, each proposal, and all proposals together
+dotnet run -- seasons out    # the same reference scenes in spring, summer, autumn and winter at 16 and 32 px
 dotnet run -- animate out weather  # proposals that move, such as weather, as numbered frames of each loop
 dotnet run -- check          # current scene contract checks in memory; writes no pictures
 python3 build_review.py --baseline out/baseline --proposed out/proposed --scene out/scene \

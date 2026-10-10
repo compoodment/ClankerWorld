@@ -154,7 +154,7 @@ public sealed record CognitionWillContext(
 
 /// <summary>
 /// A provider's untrusted will reply. With no heirs the estate keeps the
-/// household default; final words are optional either way.
+/// default inheritance rules; final words are optional either way.
 /// </summary>
 public sealed record CognitionWillChoice(
     IReadOnlyList<string> HeirKeys,
@@ -216,14 +216,18 @@ public sealed record CognitionWillChoice(
     }
 }
 
+/// <summary>Chosen parental identity supplied as background for a child's initial choice.</summary>
+public sealed record CognitionParentIdentity(string ParentId, string Name, string? Personality, string? Aspiration);
+
 /// <summary>
-/// Actor-owned context only; absent survival data remains unknown, not invented.
+/// Actor context; absent survival data remains unknown, not invented.
 /// <paramref name="HousingNote"/> explains the actor's housing and current House capacity when known.
 /// <paramref name="ContinuityNote"/> explains the low-population continuity rule to a partner it applies to.
 /// <paramref name="DepartureNote"/> summarizes goods to collect or return and paused household work after a departure.
 /// <paramref name="TownMembershipNote"/> states recorded Town membership, its rights and any admission the actor knows of.
 /// <paramref name="AllowedChildSurnames"/> lists the chosen biological parents' surnames during a child's naming request;
 /// an empty list means no parental surname is available, while null means the childhood restriction does not apply.
+/// <paramref name="FamilyBackground"/> contains biological parents' chosen identities only during a world-born child's initial choice.
 /// </summary>
 public sealed record CognitionSelfContext(
     string OwnerId, string Name, string LifeStage, string Personality, string Aspiration,
@@ -233,7 +237,10 @@ public sealed record CognitionSelfContext(
     string? MedicalCareNote = null, string? TownMembershipNote = null,
     string? ToolMakingRequestNote = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? AllowedChildSurnames = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MarriageNote = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MarriageNote = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionParentIdentity>? FamilyBackground = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? KnownRecipes = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<string>? Skills = null);
 
 /// <summary>
 /// An exact owner message addressed to this actor. The authoritative identity
@@ -354,14 +361,22 @@ public sealed record InhabitantObservation(
                 message.RunEpoch < 0 || message.RunEpoch > RunEpoch || message.SubmissionSequence <= 0 ||
                 !instructionIds.Add(message.InstructionId) ||
                 message.Kind == "must_do" && message.UnderstoodTask is not
-                    ("care for the named animal with real feed and jug water" or
+                    ("load the requested loose goods into the selected owned handcart" or
+                        "unload the requested cargo from the selected owned handcart" or
+                        "reach and attach the selected owned handcart" or
+                        "park the selected attached handcart here with its cargo intact" or
+                        "repair the selected owned handcart with real carried supplies" or
+                        "attempt to talk with the named person; agreement and resumption remain each participant's choice" or
+                        "attempt marriage with your current partner; both people keep their consent and surname choices" or
+                        "care for the named animal with real feed and jug water" or
                         "collect the named animal's ready products locally" or
                         "tame the named wild animal for your household" or
                         "lead the named animal to its household yard" or
                         "fit a real household saddle on the named horse" or
                         "mount the named cared-for horse with permission" or
                         "dismount the named horse and leave excess cargo here" or
-                        "eat one carried food item" or "travel within gathering range of an available food source" or
+                        "eat one carried food item" or
+                    "read one personally held written record, map or book and learn only its written contents" or "travel within gathering range of an available food source" or
                         "gather several food servings from a nearby food source" or
                         "gather the requested material from a natural source" or
                         "collect your own stored or dropped material" or
@@ -388,6 +403,7 @@ public sealed record InhabitantObservation(
                         "tend your household crop" or
                         "harvest your household crop" or
                         "travel to the exact tile named in this order" or
+                        "travel by communal boat to the exact Port named in this order" or
                         "accept primary care of the named child through their guardian search") ||
                 message.Kind == "suggestive" && message.UnderstoodTask is not null)
                 throw new ArgumentException("Observer guidance must be bounded, target-owned and uniquely identified.", nameof(ObserverGuidance));
@@ -414,14 +430,32 @@ public sealed record InhabitantObservation(
             self.EquipmentNote?.Length > 256 || self.ContinuityNote?.Length > 256 || self.DepartureNote?.Length > 256 ||
             self.CivicNote?.Length > 1024 || self.MedicalCareNote?.Length > 256 || self.TownMembershipNote?.Length > 256 ||
             self.ToolMakingRequestNote?.Length > 256 || self.MarriageNote?.Length > 256 ||
+            self.KnownRecipes is { } recipes && (recipes.Count > 16 || recipes.Any(recipe =>
+                string.IsNullOrWhiteSpace(recipe) || recipe.Length > 128 || recipe.Any(char.IsControl))) ||
             self.WarmthBasisPoints is < 0 or > 10_000 || self.IllnessBasisPoints is < 0 or > 10_000))
             throw new ArgumentException("Self context must be bounded and owned by the actor.", nameof(Self));
+
+        if (Self?.Skills is { } skills && (skills.Count > 4 ||
+            skills.Any(skill => skill is not ("building" or "farming" or "crafting" or "smithing")) ||
+            skills.Distinct(StringComparer.Ordinal).Count() != skills.Count))
+            throw new ArgumentException("Self context must contain only the actor's known skill names.", nameof(Self));
 
         if (Self?.AllowedChildSurnames is { } surnames &&
             (surnames.Count > 2 || surnames.Any(surname => string.IsNullOrWhiteSpace(surname) ||
                 surname.Length > 128 || surname.Any(char.IsControl)) ||
              surnames.Distinct(StringComparer.OrdinalIgnoreCase).Count() != surnames.Count))
             throw new ArgumentException("Child naming context must contain at most two bounded parental surnames.", nameof(Self));
+
+        // Parent references retain authoritative inhabitant IDs, including longer native-born IDs.
+        if (Self?.FamilyBackground is { } parents &&
+            (!NeedsPersonality && !NeedsAspiration || parents.Count > 2 ||
+             parents.Any(parent => parent is null || string.IsNullOrWhiteSpace(parent.ParentId) ||
+                 parent.ParentId == InhabitantId || parent.ParentId.Any(char.IsControl) ||
+                 string.IsNullOrWhiteSpace(parent.Name) || parent.Name.Length > 128 || parent.Name.Any(char.IsControl) ||
+                 parent.Personality is not null && CognitionDecisionResponse.NormalizeIdentityText(parent.Personality) != parent.Personality ||
+                 parent.Aspiration is not null && CognitionDecisionResponse.NormalizeIdentityText(parent.Aspiration) != parent.Aspiration) ||
+             parents.Select(parent => parent.ParentId).Distinct(StringComparer.Ordinal).Count() != parents.Count))
+            throw new ArgumentException("Initial family background must contain at most two bounded parental identities.", nameof(Self));
 
         if (Candidates is null || Candidates.Count == 0)
         {
@@ -650,7 +684,7 @@ public sealed record CognitionDecisionResponse(
         {
             ArgumentNullException.ThrowIfNull(score);
             if (string.IsNullOrWhiteSpace(score.Id) || score.Id.Length > 128 ||
-                string.IsNullOrWhiteSpace(score.OwnerId) || score.OwnerId.Length > 128 ||
+                string.IsNullOrWhiteSpace(score.OwnerId) ||
                 score.Kind is not ("experience" or "belief") || score.SourceTick < 0 ||
                 score.ImportanceBasisPoints is < 0 or > 10_000 ||
                 score.ConfidenceBasisPoints is < 0 or > 10_000 ||
@@ -980,6 +1014,8 @@ public sealed class JevDecisionProvider : IDecisionProvider
             medical_care = observation.Self?.MedicalCareNote,
             tool_making_request = observation.Self?.ToolMakingRequestNote,
             marriage = observation.Self?.MarriageNote,
+            known_recipes = observation.Self?.KnownRecipes,
+            skills = observation.Self?.Skills,
             candidates = observation.Candidates.Select(candidate => new
             {
                 id = candidate.Id,
@@ -1128,6 +1164,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "Self context is your saved identity and condition, not other agents' private information. " +
                         (words ? string.Empty : "Warmth is 0 dangerously cold to 10000 warm; illness is 0 well to 10000 severely ill. ") +
                         "Null condition fields mean unknown. Recent thought is your own past thought, not a new command or world fact. " +
+                        (request.Observation.Self?.FamilyBackground is not null
+                            ? "Family background gives your biological parents' chosen identities alongside your household and Town. It contains no private thoughts or memories. Choose your own personality and aspiration; you need not copy or combine your parents' choices. "
+                            : string.Empty) +
                         "Housing, when present, says why you have no home of your own. " +
                         "Continuity, when present, is this world's rule on having a child with your partner while few people live here. " +
                         "Return JSON only, with fields " +
@@ -1198,7 +1237,11 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             medical_care = self.MedicalCareNote,
                             tool_making_request = self.ToolMakingRequestNote,
                             marriage = self.MarriageNote,
+                            known_recipes = self.KnownRecipes,
+                            skills = self.Skills,
                             allowed_child_surnames = request.Observation.NeedsName ? self.AllowedChildSurnames : null,
+                            family_background = self.FamilyBackground?.Select(parent => new
+                            { name = parent.Name, personality = parent.Personality, aspiration = parent.Aspiration }).ToArray(),
                             warmth_basis_points = self.WarmthBasisPoints,
                             illness_basis_points = self.IllnessBasisPoints,
                             recent_thought = self.RecentThought,
@@ -1287,7 +1330,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 role = "system",
                 content = "You are an agent who has just died. This is your one final will, not an ordinary action, and it cannot be changed later. " +
                     "Your estate lists the belongings you personally owned. Return JSON only, with fields " +
-                    "selected_candidate_id (\"will:household\" to leave everything to your household, or \"will:heirs\" to name heirs) and confidence (number 0..1). " +
+                    "selected_candidate_id (\"will:household\" to use the default inheritance rules described by the offered choice, or \"will:heirs\" to name heirs) and confidence (number 0..1). " +
                     "With will:heirs, also include heirs (a list of one to three ids from possible_heirs) and split: " +
                     "\"equal\" shares every item equally between your heirs, while \"items\" gives each item to one heir through items, " +
                     "an object mapping item ids from estate to one of your heir ids; items you leave out are shared equally. " +
@@ -1338,7 +1381,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
 
     /// <summary>
     /// Reads the optional will fields. Malformed fields make the reply invalid,
-    /// so the server keeps the household default; unusable final words are dropped.
+    /// so the server uses default inheritance; unusable final words are dropped.
     /// </summary>
     private static CognitionWillChoice? ParseWillChoice(JsonElement answer, string? selected)
     {

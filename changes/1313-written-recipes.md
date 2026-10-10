@@ -1,0 +1,1 @@
+- Field records and books can carry recipes learned through production or reading. Copies preserve their source, and reading teaches the person without granting a skill.

@@ -240,6 +240,7 @@ public sealed partial class PrivateWorldRuntime
         var people = society.Checkpoint.Inhabitants.Where(person => person.Status == SocietyInhabitantStatus.Active && person.HouseholdId == household)
             .Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
         var ready = society.Checkpoint.Inventory.Lots.Where(item => IsEdibleFood(item.ItemKind) &&
+            InUsableVesselOrLoose(item) && !OnBorrowedMarketStall(item) &&
             (item.OwnerId == household || people.Contains(item.OwnerId))).Sum(AvailableLotQuantity);
         return ready - quantity >= people.Count * 2 + (inhabitants.Values.Any(person => people.Contains(person.InhabitantId) && ActiveParenthood(person.Parenthood)) ? 4 : 0);
     }
@@ -284,9 +285,10 @@ public sealed partial class PrivateWorldRuntime
                 (PersonalEquipmentRules.IsCarried(lot, actor) || lot.StorageBuildingId == animal.YardId &&
                     worldSimulation.Buildings.Any(building => building.InstanceId == animal.YardId && building.Position == inhabitants[actor].Position)) &&
                 inventory.Lots.Where(content => content.ContainerLotId == lot.Id).All(content => content.ItemKind == "milk") &&
-                ContainerContentsQuantity(inventory, lot.Id) + product.Quantity <= InventoryContainerRules.WaterJugCapacity);
-            if (jug is null || !PersonalEquipmentRules.IsCarried(jug, actor) &&
-                ContainerFamilyQuantity(inventory, jug.Id) + product.Quantity > FreeCarryCapacity(actor)) return;
+                ContainerContentsQuantity(inventory, lot.Id) + product.Quantity <= InventoryContainerRules.WaterJugCapacity &&
+                (PersonalEquipmentRules.IsCarried(lot, actor) ||
+                 ContainerFamilyQuantity(inventory, lot.Id) + product.Quantity <= FreeCarryCapacity(actor)));
+            if (jug is null) return;
         }
         ClearAnimalProduct(animal, discard: false);
         if (jug is null)
