@@ -3262,8 +3262,8 @@ metadata, never private prose or map contents. Logs are derived telemetry, never
 simulation authority or required save state. Observability tests must prove both
 useful signal and absence of representative secrets.
 
-**Report a problem** (`ProblemReport` in `ClankerWorld.Shared`, shared with the
-launcher) zips `summary.txt` and the last 4 MB of each log it is given: the
+**Report a problem** (`Diagnostics/ProblemReport.cs` in the Godot client, with
+no Godot dependency so the launcher can compile the same file) zips `summary.txt` and the last 4 MB of each log it is given: the
 Godot log and the newest older one, plus `host.log` and `host.previous.log`
 when the game runs its own host. It reads only those files, never saves,
 settings or key stores. Each line passes through `ProblemReport.Redact`, which

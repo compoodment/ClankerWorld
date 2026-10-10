@@ -1,4 +1,5 @@
 using System.Globalization;
+using ClankerWorld.GodotClient.Diagnostics;
 using Godot;
 
 namespace ClankerWorld.GodotClient;

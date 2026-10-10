@@ -8,6 +8,5 @@
   <ItemGroup>
     <Compile Include="../ClankerWorld.Shared/BuildInformation.cs" Link="Shared/BuildInformation.cs" />
     <Compile Include="../ClankerWorld.Shared/AgentPlacementRules.cs" Link="Shared/AgentPlacementRules.cs" />
-    <Compile Include="../ClankerWorld.Shared/ProblemReport.cs" Link="Shared/ProblemReport.cs" />
   </ItemGroup>
 </Project>

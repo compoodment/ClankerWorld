@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using ClankerWorld.GodotClient.Diagnostics;
 
 namespace ClankerWorld.Simulation.Tests;
 

@@ -3,7 +3,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace ClankerWorld;
+namespace ClankerWorld.GodotClient.Diagnostics;
 
 /// <summary>A log file to copy into a problem report, under <c>logs/EntryName</c>.</summary>
 public sealed record ProblemReportLog(string EntryName, string SourcePath);
@@ -12,7 +12,7 @@ public sealed record ProblemReportLog(string EntryName, string SourcePath);
 /// Builds the zip a player sends with a bug report: a short summary and the
 /// latest logs, with anything that looks like a key or secret blanked out.
 /// It reads only the files it is given, so saves, keys and settings never
-/// reach it. The game and the launcher share this code.
+/// reach it. It needs no Godot, so the launcher can compile the same file.
 /// </summary>
 public static partial class ProblemReport
 {
