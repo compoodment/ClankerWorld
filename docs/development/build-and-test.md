@@ -66,8 +66,11 @@ local checks should fit the change. List checks you could not run and why.
 
 ### How CI runs
 
-The Protect main ruleset requires three checks: `verify`,
-`windows-documentation` and `windows-provider-storage`. `verify` passes only
+The Protect main ruleset merges pull requests only through GitHub's merge
+queue, by squash, and requires three checks: `verify`,
+`windows-documentation` and `windows-provider-storage`. They must pass on a
+pull request's head before it joins the queue, and again on each batch the
+queue builds on top of main. `verify` passes only
 when every part of the Verify workflow passes:
 
 - **scope** decides which of the other jobs the change needs.
