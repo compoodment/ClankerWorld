@@ -1642,6 +1642,15 @@ reachable area (see [Material gathering](#material-gathering)). Boat transport u
 described in [Ports and communal boats](#ports-and-communal-boats). Trees and planting are described in
 [Trees and planting](#trees-and-planting).
 
+The client camera uses the approved B cubic ease-out for Find/selection jumps
+(0.7 seconds) and zoom steps (0.35 seconds). `CameraEasing` is shared with the
+completed camera review. Main advances only local camera state on process
+frames, keeps zoom anchored to the cursor and uses the shortest wrapped travel.
+New requests start at the shown position/scale; drag and keyboard input cancel
+motion and apply immediately. Quick cards hold their screen position through
+travel. Zoom refreshes map sprites only when integer tile size changes; opening
+another world discards old motion. No observation, host request or save is added.
+
 Autumn ground leaves use the shared `AutumnLeaves` drawing promoted from the
 approved October 9 art review. The observed season enables the leaf pass,
 using authoring data first and the world summary when it is absent, as the

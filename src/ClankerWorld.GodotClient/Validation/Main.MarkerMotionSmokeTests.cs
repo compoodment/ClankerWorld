@@ -122,13 +122,13 @@ public partial class Main
 
             map = map with { WorldId = "gliding-wrap-smoke", WrapsEastWest = true };
             Move(255);
-            CenterCameraAt(new(0.5f, 61));
+            SetCameraAtImmediately(new(0.5f, 61));
             var seamStart = agent.Position;
             Move(0); AdvanceMapMarkers(0.5);
             if (Math.Abs(agent.Position.X - seamStart.X - stride * 0.5f) > 0.01f || agent.Facing != AgentSprites.FacingToward(1, 0))
                 throw new InvalidOperationException("A wrapped move must glide one tile across the seam, never across the whole world.");
             var beforePan = agent.Position;
-            CenterCameraAt(new(256.5f, 61));
+            SetCameraAtImmediately(new(256.5f, 61));
             if (Math.Abs(agent.Position.X - beforePan.X) > 0.01f)
                 throw new InvalidOperationException("Equivalent camera copies must preserve the intermediate wrapped drawing.");
             var normalized = inhabitantCanonicalXs[person.Id] / stride;

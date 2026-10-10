@@ -277,6 +277,7 @@ public partial class Main
             snapshot.CalendarPace?.CalendarOffsetTicks ?? 0, snapshot.DarknessBasisPoints, snapshot.Authoring?.IsPaused == true);
         if (!string.Equals(cameraWorldId, snapshot.WorldId, StringComparison.Ordinal))
         {
+            CancelCameraMotion();
             cameraWorldId = snapshot.WorldId;
             cameraZoom = 1;
             cameraCenterTiles = InitialCameraCenter(snapshot, terrainMap);

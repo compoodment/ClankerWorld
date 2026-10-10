@@ -138,8 +138,10 @@ the Silo.
 **Find** moves the view from the Farmhouse to the east Houses, then the view
 zooms in one step.
 
-- **A · Today:** the view jumps.
+- **A · Previous view:** the view jumps.
 - **B · Ease:** the view glides there in about 0.7 s, slowing as it arrives.
+  Its approved drawing is now in the client and the completed
+  [camera review](../CameraReview.md).
 - **C · Ease and settle:** a gentler start and a soft settle.
 
 ## 12 · Moments (`moments`)

@@ -261,6 +261,7 @@ public partial class Main
     public override void _Process(double delta)
     {
         UpdateDeveloperFrameTime(delta);
+        AdvanceCameraMotion(delta);
         AdvanceMapMarkers(delta);
         if (!GetWindow().HasFocus()) return;
         var direction = new Vector2(

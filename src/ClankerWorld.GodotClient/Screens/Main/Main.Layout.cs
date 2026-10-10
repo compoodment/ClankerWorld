@@ -196,7 +196,7 @@ public partial class Main
         BuildAgentCards();
         BuildBuildingCards();
 
-        worldOverview.CenterRequested += CenterKeyboardCameraAt;
+        worldOverview.CenterRequested += tileCenter => CenterKeyboardCameraAt(tileCenter, immediately: true);
         var overviewBody = new VBoxContainer();
         overviewBody.AddThemeConstantOverride("separation", 6);
         overviewBody.AddChild(worldOverview);

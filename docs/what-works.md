@@ -1508,6 +1508,12 @@ covers the new sizes and their ordinary work.
 
 ## Maps, weather and appearance
 
+Find, agent selections and building jumps ease the camera to their destination
+in about 0.7 seconds. Zoom steps ease over about a third of a second and keep
+the pointed-at tile under the cursor. A new request starts from the shown view;
+wrapped travel takes the short route. Open quick cards stay still during the
+glide. Middle dragging, keyboard panning and the World Map remain immediate.
+
 Agents and animals glide between the host's reported tiles, with walking
 frames every quarter second and a one-pixel bob. Boats and handcarts glide
 without a bob. Pause freezes local motion; resume continues it. Long jumps,
