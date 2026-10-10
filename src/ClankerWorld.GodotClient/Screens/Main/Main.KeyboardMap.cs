@@ -58,7 +58,7 @@ public partial class Main
 
     private void CenterKeyboardCameraAt(Vector2 tileCenter)
     {
-        if (mapCanvas.HasFocus() && renderedMapSnapshot is { } snapshot && terrainMap is not null)
+        if (keyboardNavigation && renderedMapSnapshot is { } snapshot && terrainMap is not null)
             keyboardMapTile = BoundKeyboardMapTile(snapshot, new Vector2I((int)tileCenter.X, (int)tileCenter.Y));
         CenterCameraAt(tileCenter);
     }

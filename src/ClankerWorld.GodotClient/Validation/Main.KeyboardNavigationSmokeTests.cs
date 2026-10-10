@@ -239,9 +239,13 @@ public partial class Main
                         if (!find.HasFocus()) throw new InvalidOperationException("Tab must reach the event's Find action.");
                         knownEvents[9002] = new OwnerWorldEvent(9002, 2, "food_consumed", people[1].Id, new(3, 3));
                         RenderEventLog();
+                        var restoredFind = GetViewport().GuiGetFocusOwner();
+                        if (restoredFind is not Button || !restoredFind.HasMeta("keyboard_event_action") ||
+                            restoredFind.GetMeta("keyboard_event_action").AsString() != "9001")
+                            throw new InvalidOperationException("An arriving event must retain its focused Find action before activation.");
                         await KeyboardKeyAsync(Key.Enter);
                         if (eventsPanel.Visible || cameraCenterTiles != expectedCamera)
-                            throw new InvalidOperationException("An arriving event must preserve the focused Find action and its destination.");
+                            throw new InvalidOperationException($"An arriving event must preserve the focused Find action and its destination: panel={eventsPanel.Visible}, expected={expectedCamera}, actual={cameraCenterTiles}, focus={GetViewport().GuiGetFocusOwner()?.GetPath()}, cursor={keyboardMapTile}.");
                     }
                     finally
                     {

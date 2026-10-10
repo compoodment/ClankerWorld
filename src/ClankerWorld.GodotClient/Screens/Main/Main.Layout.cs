@@ -185,7 +185,7 @@ public partial class Main
         BuildAgentCards();
         BuildBuildingCards();
 
-        worldOverview.CenterRequested += CenterCameraAt;
+        worldOverview.CenterRequested += CenterKeyboardCameraAt;
         var overviewBody = new VBoxContainer();
         overviewBody.AddThemeConstantOverride("separation", 6);
         overviewBody.AddChild(worldOverview);
