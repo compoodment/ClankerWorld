@@ -1,0 +1,1 @@
+- [ ] With healthy flour, water and wood at a House, check that meals inside a broken pot do not prevent ordinary bread cooking. Compare healthy stored meals, no finished stock and an explicit cooking order; save and reload to check quantities and ownership. Also check a Restaurant with unusable finished dishes. [#1343](https://github.com/compoodment/ClankerWorld/issues/1343)

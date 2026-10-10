@@ -37,20 +37,22 @@ public sealed partial class PrivateWorldRuntime
     private bool HasLearningDecision(string actor) => ReadyForLesson(actor) && inhabitants.Values.Any(person =>
         person.Lesson is { Stage: "requested" } lesson && lesson.TeacherId == actor);
 
-    private bool CanContinueLesson(string actor)
+    private bool CanContinueLesson(string actor, bool waitingForModel = false)
     {
-        if (!AdultResident(actor) || !ReadyForLesson(actor) || IsConversationBusy(actor) || HasCouncilDecision(actor) || HasHousingDecision(actor) || HasTradeResponse(actor) || HasFamilyDecision(actor) || HasParenthoodDecision(actor) || HasDependentCareDecision(actor))
+        if (!AdultResident(actor) || !ReadyForLesson(actor) || IsConversationBusy(actor) ||
+            !waitingForModel && (HasCouncilDecision(actor) || HasHousingDecision(actor) || HasTradeResponse(actor) || HasFamilyDecision(actor) || HasParenthoodDecision(actor) || HasDependentCareDecision(actor)))
         {
             return false;
         }
         if (inhabitants[actor].Lesson is { Stage: "accepted" or "training" } lesson)
         {
             return ReadyForLesson(lesson.TeacherId) && AdultResident(lesson.TeacherId) &&
-                !IsConversationBusy(lesson.TeacherId) && !HasHousingDecision(lesson.TeacherId);
+                !IsConversationBusy(lesson.TeacherId) &&
+                (!HasHousingDecision(lesson.TeacherId) || society.PendingHostedInhabitantIds().Contains(lesson.TeacherId));
         }
         return ActiveStudent(actor) is { } student && AdultResident(student.InhabitantId) &&
             ReadyForLesson(student.InhabitantId) && !IsConversationBusy(student.InhabitantId) &&
-            !HasHousingDecision(student.InhabitantId);
+            (!HasHousingDecision(student.InhabitantId) || society.PendingHostedInhabitantIds().Contains(student.InhabitantId));
     }
 
     private void MaintainLessons()
@@ -180,9 +182,9 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private void ContinueLesson(string actor)
+    private void ContinueLesson(string actor, bool waitingForModel = false)
     {
-        if (!CanContinueLesson(actor))
+        if (!CanContinueLesson(actor, waitingForModel))
         {
             return;
         }
@@ -208,7 +210,8 @@ public sealed partial class PrivateWorldRuntime
             if (!society.Checkpoint.Memories.Any(memory => memory.Id == memoryId))
             {
                 society.Apply(checkpoint => SocietyFixture.RecordSocialMemory(checkpoint, new(memoryId, student.InhabitantId, actor,
-                    $"Learned {lesson.Skill.ToString().ToLowerInvariant()} with {checkpoint.GetInhabitant(actor).Name}.", "public", WorldTick)));
+                    $"Learned {lesson.Skill.ToString().ToLowerInvariant()} with {checkpoint.GetInhabitant(actor).Name}.", "public", WorldTick)
+                { Kind = SocietyMemoryKind.Skill }));
             }
         }
         SetLesson(student.InhabitantId, lesson);

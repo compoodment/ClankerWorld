@@ -6,4 +6,8 @@
     <ProjectReference Include="..\ClankerWorld.Simulation\ClankerWorld.Simulation.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Anthropic" Version="12.55.0" />
+  </ItemGroup>
+
 </Project>

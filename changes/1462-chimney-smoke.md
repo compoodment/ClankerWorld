@@ -1,0 +1,1 @@
+- Occupied Houses and working Blacksmith forges now emit soft grey chimney smoke at close and mid zoom. Smoke rises, drifts east and fades, and freezes while the world is paused.

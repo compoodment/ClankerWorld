@@ -389,23 +389,30 @@ public sealed partial class PrivateWorldFieldOrderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ACancelledHeldModelReplyCannotSpendTheReleasedSeed(bool explicitLocation)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task ACancelledHeldModelReplyCannotSpendTheReleasedSeed(bool explicitLocation, bool delayedStartup = false)
     {
         var provider = new FieldChoices(DecisionProviderKind.LargeLanguageModel, hold: true);
         using var world = PrivateWorldRuntime.Restore(WithFields(WithSeeds(Prepared(), "grain", 1), new FarmFieldState(Point, Household, FarmFieldStage.Prepared)),
             actor => actor == Actor ? provider : new FieldChoices());
         var text = "plant grain" + (explicitLocation ? $" at ({Point.X}, {Point.Y})" : "");
         var receipt = Submit(world, "held", text);
+        var startAfterTick = world.WorldTick + 3;
+        // A hosted request may need later committed ticks before it enters
+        // the provider. Make that scheduling boundary observable in one row.
+        if (delayedStartup) provider.CanStart = () => world.WorldTick >= startAfterTick;
         try
         {
-            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            await AdvanceUntil(world, () => provider.Started.Task.IsCompleted,
+                "The held field request did not start within forty native ticks.");
+            if (delayedStartup) Assert.True(world.WorldTick >= startAfterTick);
             var reservation = Assert.Single(world.Fields).Work!.SeedReservationId!;
             Assert.True(world.CancelOrder(new("stop-held", "owner:test", world.Society.WorldId, Actor, receipt.InstructionId)).Changed);
             provider.Release.TrySetResult(true);
-            await provider.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            await AdvanceUntil(world, () => provider.Returned.Task.IsCompleted,
+                "The released field reply did not return within forty native ticks.");
             for (var tick = 0; tick < 8; tick++) Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
             Assert.Equal(("cancelled", 0), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
             Assert.Equal(1, SeedQuantity(world, "grain"));
@@ -505,6 +512,24 @@ public sealed partial class PrivateWorldFieldOrderTests
     {
         for (var tick = 0; tick < maximum && Order(world, receipt).Status != "finished"; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
     }
+    private static async Task AdvanceUntil(PrivateWorldRuntime world, Func<bool> done, string failureMessage)
+    {
+        for (var tick = 0; tick < 40 && !done(); tick++)
+        {
+            // Bound a stalled tick separately from normal hosted scheduling.
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                Assert.True((await world.AdvanceOneTickNonBlockingAsync(cancellationToken: deadline.Token)).Advanced);
+            }
+            catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+            {
+                Assert.Fail($"World tick {world.WorldTick} stalled during poll {tick + 1} of 40.");
+            }
+            if (!done()) await Task.Delay(5);
+        }
+        Assert.True(done(), failureMessage);
+    }
     private static GridPoint OtherPoint(PrivateWorldRuntimeState state)
     {
         var occupied = state.WorldSimulation!.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
@@ -521,11 +546,13 @@ public sealed partial class PrivateWorldFieldOrderTests
         public DecisionProviderKind Kind => kind;
         public long ProviderEpoch => 0;
         public ConcurrentQueue<InhabitantObservation> Requests { get; } = new();
+        public Func<bool>? CanStart { get; set; }
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
+            while (CanStart?.Invoke() == false) await Task.Delay(1, cancellationToken);
             request.Validate();
             var observation = request.Observation;
             Requests.Enqueue(observation);

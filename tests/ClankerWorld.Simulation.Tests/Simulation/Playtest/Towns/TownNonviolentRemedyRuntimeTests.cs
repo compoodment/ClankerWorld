@@ -200,6 +200,137 @@ public sealed class TownNonviolentRemedyRuntimeTests
     }
 
     [Fact]
+    public async Task CraftingSkillMakesASevenTickCoatRepairOfferAndConsentFeasibleAcrossReload()
+    {
+        var state = await NonviolentRuntimeFixture.FindingAsync();
+        var actor = NonviolentRuntimeFixture.Subject;
+        var boardPosition = state.Inhabitants.Single(person => person.InhabitantId == actor).Position;
+        var inspect = new NonviolentTestProvider
+        {
+            Choose = observation => observation.InhabitantId == actor
+                ? observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|law_case_inspect|", StringComparison.Ordinal)) : null,
+        };
+        using (var reading = NonviolentRuntimeFixture.Create(state, inspect))
+        {
+            NonviolentRuntimeFixture.Wake(reading, actor, "inspect-skilled-repair-case");
+            await NonviolentRuntimeFixture.UntilAsync(reading, () =>
+                TownNonviolentRules.ReadCurrent(reading.Towns[0].Nonviolent.Cases[0], actor, reading.WorldTick), 4);
+            state = NonviolentRuntimeFixture.Strict(reading.ExportState());
+        }
+        var household = state.Society.Society.Inhabitants.Single(person => person.Id == actor).HouseholdId!;
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "skilled-remedy-shop-fiber", "fiber",
+            household, 2, storageBuildingId: "first-town-house-b");
+        using (var setup = NonviolentRuntimeFixture.Create(WithInventory(state, inventory), new NonviolentTestProvider()))
+        {
+            var definition = setup.WorldContent.Buildings.Single(building => building.LocalId == "tailor-shop-1x1");
+            var house = setup.WorldSimulation.Buildings.Single(building => building.HouseholdId == household &&
+                setup.WorldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId).Tags.Contains("house"));
+            Assert.Contains(Enumerable.Range(-4, 9).SelectMany(dy => Enumerable.Range(-4, 9)
+                .Select(dx => new GridPoint(house.Position.X + dx, house.Position.Y + dy))),
+                point => setup.PlaceBuilding("skilled-remedy-tailor", definition.CanonicalId, point, household).Applied);
+            state = setup.ExportState();
+        }
+        var shop = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "skilled-remedy-tailor");
+        inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "skilled-remedy-coat", "padded_coat", actor, 1,
+            conditionBasisPoints: 3_000);
+        inventory = InventoryFixture.AddLot(inventory, "skilled-remedy-cloth", "cloth", actor, 2);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
+            { Position = shop.Position, HungerBasisPoints = 10_000, Survival = new(), Equipment = new("skilled-remedy-coat") } : person).ToArray(),
+        };
+        state = SettlementSkillWorkTests.WithSkill(state, actor, SettlementSkillKind.Crafting);
+        var offerProvider = new NonviolentTestProvider
+        {
+            Choose = observation => observation.InhabitantId == actor
+                ? observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|remedy_offer|", StringComparison.Ordinal)) : null,
+            Payload = (_, candidate) => candidate.Id.Contains("|remedy_offer|", StringComparison.Ordinal)
+                ? new(Statement: "I voluntarily offer my own named coat repair in seven ticks.",
+                    Terms: [new("repair_equipment", actor, actor, "padded_coat", 1, "skilled-remedy-coat")], CompletionTicks: 7) : null,
+        };
+        using (var offering = NonviolentRuntimeFixture.Create(state, offerProvider))
+        {
+            NonviolentRuntimeFixture.Wake(offering, actor, "offer-skilled-short-repair");
+            await NonviolentRuntimeFixture.UntilAsync(offering, () => offering.Towns[0].Nonviolent.Offers.Count > 0, 4);
+            state = NonviolentRuntimeFixture.Strict(offering.ExportState());
+        }
+        var offer = Assert.Single(state.Towns![0].Nonviolent.Offers);
+        Assert.Equal(7, offer.CompletionTicks);
+        Assert.Empty(state.Towns[0].Nonviolent.Agreements);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
+            { Position = boardPosition } : person).ToArray(),
+        };
+        var readOffer = new NonviolentTestProvider
+        {
+            Choose = observation => observation.InhabitantId == actor
+                ? observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|remedy_read|", StringComparison.Ordinal)) : null,
+        };
+        using (var reading = NonviolentRuntimeFixture.Create(state, readOffer))
+        {
+            NonviolentRuntimeFixture.Wake(reading, actor, "read-skilled-short-repair-offer");
+            await NonviolentRuntimeFixture.UntilAsync(reading, () => reading.Towns[0].Governance!.Knowledge.Any(receipt =>
+                receipt.AgentId == actor && receipt.NoticeId == offer.NoticeId), 4);
+            state = NonviolentRuntimeFixture.Strict(reading.ExportState());
+        }
+        Assert.Empty(state.Towns![0].Nonviolent.Agreements);
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
+            { Position = shop.Position } : person).ToArray(),
+        };
+        Assert.DoesNotContain(state.Society.Society.Inventory.Reservations, reservation => reservation.LotId == "skilled-remedy-cloth");
+        var consent = new NonviolentTestProvider
+        {
+            Choose = observation => observation.InhabitantId == actor
+                ? observation.Candidates.FirstOrDefault(candidate => candidate.Id.Contains("|remedy_accept|", StringComparison.Ordinal)) : null,
+        };
+        using (var accepting = NonviolentRuntimeFixture.Create(state, consent))
+        {
+            NonviolentRuntimeFixture.Wake(accepting, actor, "accept-skilled-short-repair");
+            await NonviolentRuntimeFixture.UntilAsync(accepting, () => accepting.Towns[0].Nonviolent.Agreements.Count > 0, 4);
+            state = NonviolentRuntimeFixture.Strict(accepting.ExportState());
+        }
+        var agreement = Assert.Single(state.Towns![0].Nonviolent.Agreements);
+        Assert.Equal(agreement.AcceptedTick + 7, agreement.DeadlineTick);
+        using var world = NonviolentRuntimeFixture.Create(state, CompletionProvider());
+        NonviolentRuntimeFixture.Wake(world, actor, "perform-skilled-short-repair");
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var repair = Assert.IsType<EquipmentRepairWork>(world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.Repair);
+        Assert.Equal(0, repair.WorkDone);
+        Assert.Equal(2, world.Society.Inventory.GetLot("skilled-remedy-cloth").Quantity);
+        Assert.All(repair.MaterialReservationIds, id => Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation(id).State));
+        using var replay = NonviolentRuntimeFixture.Create(NonviolentRuntimeFixture.Strict(world.ExportState()), CompletionProvider());
+        for (var tick = 0; tick < 6; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+            if (tick < 5)
+            {
+                Assert.NotNull(world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.Repair);
+                Assert.Empty(world.Towns[0].Nonviolent.NativeReceipts);
+                Assert.Equal(2, world.Society.Inventory.GetLot("skilled-remedy-cloth").Quantity);
+            }
+        }
+        Assert.Equal(agreement.DeadlineTick, world.WorldTick);
+        Assert.Null(world.Inhabitants.Single(person => person.InhabitantId == actor).Equipment!.Repair);
+        Assert.Equal("completed", Assert.Single(world.Towns[0].Nonviolent.Agreements).Status);
+        var receipt = Assert.Single(world.Towns[0].Nonviolent.NativeReceipts);
+        Assert.Equal("skilled-remedy-coat", receipt.TargetId);
+        Assert.Equal(actor, receipt.ActorId);
+        Assert.Equal(receipt.Id, Assert.Single(world.Towns[0].Nonviolent.Effects).NativeReceiptId);
+        Assert.Equal(1, world.Society.Inventory.GetLot("skilled-remedy-cloth").Quantity);
+        Assert.InRange(world.Society.Inventory.GetLot("skilled-remedy-coat").ConditionBasisPoints, 8_900, 9_000);
+        Assert.All(repair.MaterialReservationIds, id => Assert.Equal(InventoryReservationState.Completed, world.Society.Inventory.GetReservation(id).State));
+        NonviolentRuntimeFixture.Strict(world.ExportState());
+    }
+
+    [Fact]
     public async Task TownServiceCreditsOnlyBoundedLoadsActuallyStoredInTheResidentWarehouseAcrossRestart()
     {
         var state = await NonviolentRuntimeFixture.FindingAsync();
