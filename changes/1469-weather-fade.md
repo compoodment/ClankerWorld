@@ -1,0 +1,1 @@
+- Rain, storms and snow fade in and out over about a second when regional weather changes, and stop fading while paused. [#1469](https://github.com/compoodment/ClankerWorld/issues/1469)

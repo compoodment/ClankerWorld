@@ -17,7 +17,7 @@ public sealed partial class PrivateWorldRuntime
     private const string GatherBuildingMaterialPrefix = "gather_building_material:";
 
     private void AddHouseholdBuildingPlans(List<CognitionCandidate> candidates, SocietyInhabitant inhabitant,
-        PlaytestInhabitantState state, string householdId)
+        PlaytestInhabitantState state, string householdId, List<string> buildingsWithoutSites)
     {
         TownLayoutContext? sharedLayout = null;
         foreach (var definition in PlannableHouseholdBuildings(householdId, inhabitant.Id))
@@ -35,6 +35,7 @@ public sealed partial class PrivateWorldRuntime
                 ? CreateTownLayoutContext(inhabitant.Id, building: definition)
                 : sharedLayout ??= CreateTownLayoutContext(inhabitant.Id);
             var sites = TownLayoutService.RankConstructionSites(layout, definition);
+            if (sites.Count == 0) buildingsWithoutSites.Add(definition.DisplayName);
             for (var rank = 0; rank < sites.Count; rank++)
             {
                 var site = sites[rank];
@@ -100,7 +101,8 @@ public sealed partial class PrivateWorldRuntime
                 HouseholdMaterialInHand(householdId, cost.ResourceId) < cost.Amount);
             if (missing.Amount == 0)
                 continue;
-            if (MaterialSource(missing.ResourceId, actor) is not null)
+            if (MaterialSource(missing.ResourceId, actor, HouseForHousehold(householdId)?.Position ?? SettlementStoragePosition,
+                HouseForHousehold(householdId) is null ? ResourceInteractionRange : 0, useHarvestBonus: false) is not null)
                 return (definition, missing);
         }
         return null;
@@ -109,9 +111,12 @@ public sealed partial class PrivateWorldRuntime
     private void AddBuildingMaterialCandidate(List<CognitionCandidate> candidates, string actor, string householdId)
     {
         if (NeededBuildingMaterial(actor, householdId) is not { } need ||
-            MaterialSource(need.Material.ResourceId, actor) is not { } source)
+            MaterialSource(need.Material.ResourceId, actor, HouseForHousehold(householdId)?.Position ?? SettlementStoragePosition,
+                HouseForHousehold(householdId) is null ? ResourceInteractionRange : 0, useHarvestBonus: false) is not { } source)
             return;
-        var useHarvestBonus = UseHarvestBonusForBuildingMaterial(actor, need.Material.ResourceId, source);
+        var useHarvestBonus = UseHarvestBonusForBuildingMaterial(actor, need.Material.ResourceId, source,
+            HouseForHousehold(householdId)?.Position ?? SettlementStoragePosition,
+            HouseForHousehold(householdId) is null ? ResourceInteractionRange : 0);
         if (FreeCarryCapacity(actor) < ProjectMaterialCarryUnits(actor, need.Material.ResourceId, source, useHarvestBonus))
             return;
         var load = useHarvestBonus ? "using its faster whole load" : "as a smaller whole load that fits your carrying space";
@@ -121,11 +126,13 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>Use the faster harvest only when its complete output fits the current carry space.</summary>
-    private bool UseHarvestBonusForBuildingMaterial(string actor, string itemKind, MapResource source)
+    private bool UseHarvestBonusForBuildingMaterial(string actor, string itemKind, MapResource source,
+        GridPoint? returnTo = null, int returnRange = 0)
     {
         var plan = ProjectMaterialHarvest(actor, itemKind, source, useHarvestBonus: true);
         return plan is { ToolLotId: not null, Quantity: > 4 } &&
-            FreeCarryCapacity(actor) >= checked(plan.Quantity + plan.TreeSeedQuantity);
+            FreeCarryCapacity(actor) >= checked(plan.Quantity + plan.TreeSeedQuantity) &&
+            (returnTo is null || CanReturnWithHarvest(actor, itemKind, source, returnTo.Value, returnRange));
     }
 
     /// <summary>
@@ -137,7 +144,8 @@ public sealed partial class PrivateWorldRuntime
         if (inhabitants[actor].Project is { Stage: not ("completed" or "cancelled") } ||
             HouseForHousehold(householdId) is not { } house || StorageRoom(house.InstanceId) == 0 ||
             NeededBuildingMaterial(actor, householdId) is not { } need ||
-            MaterialSource(need.Material.ResourceId, actor) is not { } source)
+            MaterialSource(need.Material.ResourceId, actor, HouseForHousehold(householdId)?.Position ?? SettlementStoragePosition,
+                HouseForHousehold(householdId) is null ? ResourceInteractionRange : 0, useHarvestBonus: false) is not { } source)
             return null;
 
         var free = FreeCarryCapacity(actor);
@@ -158,10 +166,15 @@ public sealed partial class PrivateWorldRuntime
     {
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             NeededBuildingMaterial(actor, householdId) is not { } need || need.Material.ResourceId != itemKind ||
-            MaterialSource(itemKind, actor) is not { } source)
+            MaterialSource(itemKind, actor, HouseForHousehold(householdId)?.Position ?? SettlementStoragePosition,
+                HouseForHousehold(householdId) is null ? ResourceInteractionRange : 0, useHarvestBonus: false) is not { } source)
             return;
-        var useHarvestBonus = UseHarvestBonusForBuildingMaterial(actor, itemKind, source);
+        var useHarvestBonus = UseHarvestBonusForBuildingMaterial(actor, itemKind, source,
+            HouseForHousehold(householdId)?.Position ?? SettlementStoragePosition,
+            HouseForHousehold(householdId) is null ? ResourceInteractionRange : 0);
         var deliveryBuildingId = HouseForHousehold(householdId)?.InstanceId;
-        GatherProjectMaterial(actor, state, itemKind, source, useHarvestBonus, deliveryBuildingId);
+        GatherProjectMaterial(actor, state, itemKind, source, useHarvestBonus, deliveryBuildingId,
+            HouseForHousehold(householdId)?.Position ?? SettlementStoragePosition,
+            HouseForHousehold(householdId) is null ? ResourceInteractionRange : 0);
     }
 }

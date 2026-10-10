@@ -63,7 +63,9 @@ public static class SocietyMemorySummaryRules
     {
         var clean = string.Join(' ', new string(text.Select(character => char.IsControl(character) ? ' ' : character).ToArray())
             .Split(' ', StringSplitOptions.RemoveEmptyEntries));
-        return clean.Length <= 48 ? clean : clean[..47] + "…";
+        if (clean.Length <= 48) return clean;
+        var length = char.IsHighSurrogate(clean[46]) && char.IsLowSurrogate(clean[47]) ? 46 : 47;
+        return clean[..length] + "…";
     }
 
     internal sealed record SourceRecord(SocietyMemorySummarySource Source, string Text, string Label, bool Corrected);

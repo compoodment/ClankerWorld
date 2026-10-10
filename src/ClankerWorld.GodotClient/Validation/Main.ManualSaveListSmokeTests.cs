@@ -24,7 +24,8 @@ public partial class Main
         if (!IsLatestInBranch(harvest, saves) || !IsLatestInBranch(winter, saves) ||
             IsLatestInBranch(flood, saves) || IsLatestInBranch(old, saves))
             throw new InvalidOperationException("Only the newest point of a branch may continue it.");
-        if (BranchLabel(second) != "Branch 2" || BranchLabel(null) != "Earlier saves")
+        if (BranchLabel(second) != "From Before the flood" || BranchLabel(first) != "Branch 1" ||
+            BranchLabel(null) != "Earlier saves")
             throw new InvalidOperationException("Branch labels must name the branch, or saves from before branches.");
 
         // The middle save was deleted, and a recovery copy of the first point
@@ -44,6 +45,9 @@ public partial class Main
         var winterCard = manualSaveList.GetItemTitle(0);
         if (manualSaveList.ItemCount != 4 || winterCard != "Hungry winter")
             throw new InvalidOperationException("The save list must show every branch's saves.");
+        if (!manualSaveList.FindChildren("*", nameof(Label), true, false).OfType<Label>()
+            .Any(label => label.TooltipText == "From Before the flood" && label.Text.StartsWith("FROM ", StringComparison.Ordinal)))
+            throw new InvalidOperationException("The actual save-list card must show its recorded branch origin.");
         allListedManualSaves = [];
         listedManualSaves = [];
         manualSaveList.Clear();

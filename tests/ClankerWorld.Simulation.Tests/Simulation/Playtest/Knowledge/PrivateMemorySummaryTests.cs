@@ -10,6 +10,93 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class PrivateMemorySummaryTests
 {
     [Theory]
+    [InlineData(45)]
+    [InlineData(46)]
+    [InlineData(47)]
+    public async Task AcceptedUnicodeExtractsKeepTheirSourcesAndReloadExactly(int prefixLength)
+    {
+        var state = await ArchivedState();
+        var owner = state.Inhabitants[0].InhabitantId;
+        var original = state.Society.Society.ArchivedMemories.Select(item => item.Memory.OwnerId == owner
+            ? item with { Memory = item.Memory with { Summary = new string('a', prefixLength) + "😀" + new string('b', 40) } }
+            : item).ToArray();
+        state = state with
+        {
+            JevEnabled = true,
+            RoutineHelper = new("jev", "jev-1.13.0"),
+            Society = state.Society with { Society = state.Society.Society with { ArchivedMemories = original } }
+        };
+        using var world = PrivateWorldRuntime.Restore(state,
+            id => new SummaryProvider(id == owner ? DecisionProviderKind.Jev : DecisionProviderKind.Deterministic));
+        for (var tick = 0; tick < 8 && world.Society.MemorySummaries.Count == 0; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var summary = Assert.Single(world.Society.MemorySummaries);
+        _ = new System.Text.UTF8Encoding(false, true).GetBytes(summary.Text);
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var loaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        var loadedSummary = Assert.Single(loaded.Society.MemorySummaries);
+        Assert.Equal((summary.Id, summary.OwnerId, summary.Choice, summary.Text, summary.CreatedTick),
+            (loadedSummary.Id, loadedSummary.OwnerId, loadedSummary.Choice, loadedSummary.Text, loadedSummary.CreatedTick));
+        Assert.Equal(summary.Sources, loadedSummary.Sources);
+        Assert.Equal(original, loaded.Society.ArchivedMemories);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
+    }
+
+    [Fact]
+    public void LongOwnerSummaryCanEnterTheActualCognitionSchedulerAfterReload()
+    {
+        var owner = "descendant:" + new string('a', 140);
+        var config = new SocietyConfig { TicksPerWorldDay = 1, BaseNaturalMortalityBasisPoints = 0 };
+        var society = SocietyFixture.CreateGenesis("long-summary", [SocietyFixture.CreateFounder(owner, "Aster Vale", config: config)], config: config);
+        for (var index = 0; index < 4; index++)
+            society = SocietyFixture.RecordSocialMemory(society, new("old-" + index, owner, owner,
+                "I remember a long walk along the old familiar path and the weather that afternoon " + index, "private", 0)).Checkpoint;
+        society = SocietyFixture.AdvanceTo(SocietyFixture.Resume(society).Checkpoint, 4).Checkpoint;
+        society = SocietyMemoryArchiveRules.Archive(society, new HashSet<string>(), new HashSet<string>());
+        society = SocietyFixture.RecordAgentMemorySummary(society, owner, SocietyMemorySummaryRules.Options(society, owner)[0]);
+        society = SocietyCheckpointCodec.Decode(SocietyCheckpointCodec.Encode(society));
+        var candidates = new CognitionCandidate[] { new("safe_idle", "Remember the familiar path.", 0) };
+        var memories = PrivateWorldMemoryRetrieval.Retrieve(society.Memories, society.Beliefs ?? [], null, owner, 4, candidates, society);
+        var summary = Assert.Single(memories, memory => memory.Kind == "summary");
+        Assert.Equal(owner, summary.OwnerId);
+        Assert.InRange(summary.SubjectId.Length, 1, 128);
+        Assert.All(summary.SummarySources!, source => Assert.Equal(summary.SubjectId, source.SubjectId));
+        var observation = new InhabitantObservation(owner, 4, 0, 1, "sha256:long-summary", 10_000, candidates) { RetrievedMemories = memories };
+        var scheduler = new SocietyCognitionScheduler(society.Inhabitants);
+        Assert.True(scheduler.Enqueue(new("long-summary-recall", owner, 1, 4, [], observation)));
+        scheduler.Validate();
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void StandaloneSummaryFormatsRefuseTheirPredecessorAndMissingSummaryLedger(bool runtime, bool missing)
+    {
+        var society = SocietyFixture.CreateGenesis("summary-format", [SocietyFixture.CreateFounder("agent", "Aster Vale")]);
+        using var world = new SocietyWorldRuntime(society);
+        var bytes = runtime ? SocietyWorldRuntimeCodec.Encode(world.ExportState()) : SocietyCheckpointCodec.Encode(society);
+        var document = JsonNode.Parse(bytes)!;
+        if (missing)
+        {
+            var checkpoint = runtime ? document["state"]!["society"]! : document["checkpoint"]!;
+            Assert.True(checkpoint.AsObject().Remove("memorySummaries"));
+        }
+        else document["format"] = runtime ? "clankerworld.society-runtime/v3" : "clankerworld.society/v3";
+        var invalid = System.Text.Encoding.UTF8.GetBytes(document.ToJsonString());
+        var error = Record.Exception(() =>
+        {
+            if (runtime) SocietyWorldRuntimeCodec.Decode(invalid);
+            else SocietyCheckpointCodec.Decode(invalid);
+        });
+        Assert.True(error is System.Text.Json.JsonException or InvalidDataException,
+            error?.ToString() ?? "The previous envelope and missing summary ledger must both be refused.");
+        Assert.Equal(bytes, runtime ? SocietyWorldRuntimeCodec.Encode(SocietyWorldRuntimeCodec.Decode(bytes))
+            : SocietyCheckpointCodec.Encode(SocietyCheckpointCodec.Decode(bytes)));
+    }
+
+    [Theory]
     [InlineData(DecisionProviderKind.Jev)]
     [InlineData(DecisionProviderKind.OpenAiDecisions)]
     public async Task AcceptedHelperSummarizesOnlyOwnArchiveAndRecallPreservesEvidenceAcrossReplay(DecisionProviderKind kind)

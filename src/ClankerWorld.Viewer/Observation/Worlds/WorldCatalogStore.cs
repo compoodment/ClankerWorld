@@ -24,6 +24,17 @@ public sealed class WorldCatalogStore
     private WorldCatalogSnapshot index;
     public bool RecoveredSelection { get; }
 
+    /// <summary>Read the last selected world's identity without opening or changing its checkpoint.</summary>
+    public static CatalogWorld? ReadActiveIdentity(string activeSavePath)
+    {
+        var path = Path.Combine(Path.GetFullPath(activeSavePath) + ".worlds", "catalog.json");
+        if (!File.Exists(path)) return null;
+        var saved = JsonSerializer.Deserialize<WorldCatalogSnapshot>(File.ReadAllBytes(path))
+            ?? throw new InvalidDataException("The world catalog is empty.");
+        Validate(saved);
+        return saved.Worlds.Single(world => world.Id == saved.ActiveId);
+    }
+
     public WorldCatalogStore(string activeSavePath, PrivateWorldRuntimeState activeState,
         IReadOnlyList<InhabitantProviderAssignment> assignments, WorldAutosaveSettings autosaveSettings,
         object? mutationGate = null)

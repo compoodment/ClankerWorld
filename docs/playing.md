@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Playing the current game
@@ -38,6 +38,13 @@ updated too. Keep your current device pairing; pairing again does not repair
 that version mismatch. You can still reconnect to the existing world.
 
 Adults may leave a household without its permission. Their own goods remain theirs even in the old House; collecting them and returning borrowed tools require travel and carrying space. A primary caregiver keeps dependent children with them unless another adult explicitly takes over care. Once grown, those children can collect their own belongings left in the former House, even if the caregiver has died. An adult seeks an accepting existing home with room for the whole group first, then may start a household alone and build a House through the usual materials and site rules. Inspect the agent to see membership, goods awaiting collection, borrowed goods, care responsibility and the housing blocker.
+
+If a household has building materials but no legal site, its agent can ask for
+household use of available Town land or ask the Council to claim adjoining
+unclaimed land. Those choices appear only when eligible land exists. The
+House waiting message explains these routes. Filing does not grant land: a
+Council approval and, for household use, every current adult's acceptance are
+still required.
 
 When a child loses their last caregiver, relatives are asked first, then adults
 in the child's household and Town. Until someone accepts, the child shows
@@ -90,7 +97,12 @@ name. A child's chosen surname must come from a biological parent. Temporary
 names do not reserve first names, and renaming leaves past conversations as
 spoken. Changing a married agent's surname updates both spouses together,
 keeping the other spouse's first and middle names. A taken first name leaves
-both names unchanged. An unfinished rename stays in the open editor through
+both names unchanged. A successful rename gives each person whose name changed
+a private, permanent memory such as "I was renamed on day 22 to Mira Hale".
+Their model receives it in later decisions, and Memories marks it **Permanent**.
+Earlier rename memories keep their original date and name through save/load;
+other agents are not told. Retrying an unchanged name adds no memory.
+An unfinished rename stays in the open editor through
 world refreshes, even when the name field loses focus. Closing the editor or
 choosing another agent or world discards it.
 
@@ -161,7 +173,17 @@ details.
 
 ## Look around
 
-Use the mouse wheel to zoom, hold the middle mouse button to drag the camera,
+A death leaves a wooden cross or rounded headstone on a fresh earth mound at
+close and mid zoom. The marker stays for one game year, then fades over the
+following game day. Water, Roads, buildings and occupied ground move it to the
+nearest clear tile; building over a marker relocates it rather than destroying
+it. Graves are decoration and do not block movement.
+
+Use the mouse wheel to zoom in an eased step lasting about a third of a second.
+**Find** and agent or building jumps glide there in about 0.7 seconds, slowing
+as they arrive. Another Find starts from the view already shown; wrapped
+maps take the short way round. Open quick cards stay in place during the
+glide. Hold the middle mouse button to drag the camera,
 or use movement keys to pan. Opening the pause menu or switching to another
 application ends a drag; press the middle button again to start another. **Map** opens the World
 Map, which marks each Town and agent; click it or drag its view rectangle to
@@ -172,11 +194,28 @@ title, household use right, pending use request or dispute, the household that
 owns it, and anything on it, such as a tree, a field or goods left on the
 ground.
 
+When a building finishes on screen at close or mid zoom, a ring of dust
+settles around it and a few twinkles appear over the roof. The moment plays
+once, freezes while paused, and does not replay when you reopen the world.
+
+Snowfall gradually covers open ground in the regions you watch, with grass
+tips and greyer, trodden Roads still showing. Walking agents and animals leave
+prints that fade within a game hour. Cover melts after snow stops, and pausing
+holds it still. Reopening a world starts this local weather history again;
+permanent snowy ground keeps its usual picture.
+
 **Filters** turns map overlays on and off: Town borders, household property,
 Town land title, household land use and disputed land. Each one says what it
 draws, and all start off. Town borders show as a pale dashed line. While you
 place a founder or an added agent, the map shows all of them without turning
 Filters on.
+
+Agents and animals glide to each reported position, changing walking frames
+with a small bob. Boats and handcarts glide too. Pausing holds their drawing
+in place; resuming continues it. Longer jumps and loaded checkpoints snap to
+the reported position. Click the moving figure to select it; its name and
+quick card follow the drawing. This does not change how fast anyone travels
+in the world.
 
 Click an agent to open a small card beside them: what they are doing and bars
 for fullness, warmth and illness. **Profile** opens everything else on the left
@@ -208,12 +247,19 @@ Agents can keep scouting beyond a short local trip and choose when to return
 to where they started. They learn from the places they actually reach, and
 keep their discoveries when they return. You can Suggest that an agent scout
 farther or return; their own model still chooses whether to follow that
-suggestion. Urgent food or warmth needs may interrupt a trip. A return goes
+suggestion. Agents can also look for food they need, materials for their current
+project, or forest and mountain terrain for those materials. An untargeted
+gathering order keeps the requested kind while searching. Finding a usable
+source resumes the task; scouting alone never counts as gathered goods. The
+agent card and Agents list show what they are looking for.
+Urgent food or warmth needs may interrupt a trip. A return goes
 around other people where possible; if it stays blocked, the Event Log records
 that the trip ended without reaching its start.
 
 **Memories** shows what the agent remembers, believes and has mapped as cards,
-newest first, with a tab for each kind. A belief shows how sure they are and
+newest first, with a tab for each kind. Permanent rename memories stay in the
+bounded list even when later ordinary experiences would fill it.
+A belief shows how sure they are and
 whether they saw it or heard it from someone; a map record shows each place
 with a picture of its ground. **Family** opens their family tree beside the
 Profile, with a portrait for each person and a heart between partners. Click
@@ -237,14 +283,18 @@ incoming boats. **World Info → Towns** shows boats and active trip requests.
 Agents may propose paid Ports and boats through the Council, then request
 travel between completed Ports. Visitors need Council permission. A blocked
 arrival waits one world day before returning to a usable departure Port.
+The Towns trip row follows the boat’s current arrival Port during recovery and
+shows when it is returning or waiting for a safe arrival. A queued request
+still names its requested destination.
 Passengers can eat their carried food or drink fresh milk from a usable carried
 jug during travel and while waiting to land. Drinking uses one portion and
 leaves the jug intact.
 
 When agents talk, a chat bubble appears above each participant and nearby
 listeners. Click a bubble to see who spoke and whether the conversation is
-finished or interrupted. **Show history** opens the bounded public history
-that this agent could hear. Reading it does not pause the world, and private
+finished or interrupted. Previews end between whole characters, including
+accented letters and joined emoji. **Show history** opens the bounded public
+history that this agent could hear. Reading it does not pause the world, and private
 thoughts never appear in the conversation. An interrupted conversation stays
 stopped until both participants choose to resume; loading a save never starts
 provider calls for it on its own.
@@ -257,7 +307,8 @@ alternating turns; if they still disagree, the game discloses a draw for the
 surname. A failed call, pause or cancellation keeps the completed turns and
 leaves marriage incomplete until the surname is settled. The agent's Profile
 shows their spouse and whether that choice is still pending. Marriage is not
-required to have a child.
+required to have a child. **Propose marriage** orders the selected adult to
+attempt this process with their current partner; it cannot make the partner agree.
 
 Either partner may end their partnership and marriage alone. A partner's
 death also ends the marriage. Both keep their names, and a living former
@@ -281,11 +332,14 @@ finishes. **Write two maps** requests two items; **Keep drawing maps** continues
 until cancelled. Once the current account has been written, further writing
 waits for newly learned information. Missing supplies or carrying space also
 leave the order waiting with a reason. **Cancel task** releases that order's
-unused reserved supplies.
+unused reserved supplies. Field records and books can also contain recipes the
+writer learned by making goods or reading another written work. Reading or
+sharing teaches only the contents to that person; it grants no skill. The
+agent's Profile shows their learned recipes and the recipes in held written goods.
 
 Adults can also follow **Copy a field record**, **Copy a map**, or **Copy a book**.
-They must own and carry a source of that kind and already know every site it
-contains. Copying uses fresh paper and, for a book, cloth, and preserves the
+They must own and carry a source of that kind and already know every site and
+recipe it contains. Copying uses fresh paper and, for a book, cloth, and preserves the
 source's account. **Copy two maps** or **Keep copying maps** waits for another
 eligible account after the first copy; identical contents are not copied again.
 If the source is lost during work, unused reservations are released and the
@@ -301,6 +355,10 @@ space. A recognized new order replaces the current one unless you turn on
 An agent can also eat from a usable storage pot they own and carry, leaving
 the pot and remaining food together. Eating a serving needs no extra carrying
 space; food reserved for other work or being delivered is unavailable.
+
+A hungry child whose load is full can put spare unreserved supplies at their
+household House or camp to make room for food. Worn equipment, maps, held work
+supplies and delivery loads stay with them. Infants still need their caregivers.
 
 Material orders can gather wood, stone, plant fiber, clay, iron ore, gold ore
 or diamond. For example, use **Gather five wood**, **Keep gathering clay**, or
@@ -362,6 +420,18 @@ acceptance, stopped conversation or outcome; a finished talk attempt can have
 been refused. Queued work waits for the conversation to end. Loading an
 accepted unfinished conversation stops it until both people choose to resume.
 Cancelling the order removes the task; it does not make either person agree.
+
+Use **Propose marriage** or **Propose marriage to my partner** for an adult
+with an eligible current partner. They approach that partner and attempt the
+conversation using their own model. Their partner may refuse the invitation
+or marriage, and either person keeps their own wrap-up and surname choices.
+The card distinguishes refusal, a conversation without a proposal, and marriage
+completed with a shared surname. Accepted marriage waits for that surname
+choice before the order finishes and queued work proceeds. Saving an unfinished
+conversation stops it until both people choose to resume. Cancelling the order
+removes the task while keeping any consent and surname progress already made.
+If the selected person stops being their partner, the order explains the blocker
+and does not choose someone else.
 
 When a child needs a guardian, an adult can follow **Become guardian for Élodie Vale**,
 using the child's full name. Names with accents work when typed or pasted,
@@ -464,8 +534,33 @@ owned cart on that tile. The order keeps that cart even if its location changes;
 an ambiguous tile is not understood. Exact cart identities are also accepted.
 Queue, replacement, cancellation, urgent interruptions and saves retain the
 task. Broken or reserved carts, another attached cart, riding or leading an
-animal, and blocked routes give a reason. Loading, unloading and cart repair
-orders are not supported yet. Once attached, the cart follows normal movement.
+animal, and blocked routes give a reason. Once attached, the cart follows normal movement.
+
+Use **Repair my cart**, **Repair cart at (12, 4)** or **Repair handcart** followed
+by its exact identity to repair one owned worn or broken cart. The agent keeps
+that cart, collects one wood, iron fitting and rope from permitted household
+or Town stock if needed, reaches it and spends the actual carried supplies.
+The repair restores the cart where it stands and preserves its ownership and
+cargo, including damaged cargo.
+Missing supplies, carrying space, reservations, another owner's cart and blocked
+routes explain why the order waits. A healthy cart needs no repair and does not
+finish the task. Queue, cancellation, replacement, urgent interruptions and
+saves keep the target and real progress; cancelling leaves collected supplies
+in the agent's hands.
+
+Use **Load 3 wood into my cart** to put a specific quantity of loose goods into
+an owned cart, or **Unload 2 wood from my cart** to take cargo into personal
+carrying space. Add **onto the ground** to unload onto the cart's tile instead,
+including from a broken cart or for damaged cargo. Each form accepts an exact
+cart identity or **cart at (12, 4)** like attach orders. The agent reaches the
+selected cart; loading uses only authorized goods already accessible there.
+Personally stored goods must be collected first. Filled pots and jugs, goods
+carried by another agent, reserved cargo and
+protected household food cannot bypass their normal rules. Missing goods or
+space show a blocker. Partial progress counts actual items moved, keeps its
+cart and current cargo stack across interruptions and saves, and can continue
+with another eligible stack of the same good once that stack is fully moved.
+Cancelling or replacing an order leaves all transferred cargo where it is.
 
 To mend worn personal equipment, use **Repair my basket**, **Repair two padded
 coats**, or **Keep repairing basic garments**. Adults and elders can repair basic
@@ -572,6 +667,14 @@ menu's keyboard highlight as the world updates, including when owner names
 change order. Press **Enter** to select the highlighted owner. If that owner
 becomes unavailable, the menu closes so you can choose from the current list.
 
+At close and mid zoom, stored goods show as log, crate and sack piles beside
+store doors where clear Town ground allows it. Empty stores show none; piles
+use the fuller drawing when recorded storage reaches 80% of its limit. Logs
+show wood, sacks show bulk food, crops, seeds, fiber and herbs, and crates show
+other goods. They are visual groups; click the building to read exact contents.
+Piles avoid Roads, doorsteps, buildings and the Town edge. If there is no clear
+space beside a door, its piles stay hidden.
+
 A building's storage-space bar shows how much of its recorded limit is used,
 with exact used/limit numbers. It counts all stored goods, including materials
 held for work and goods belonging to someone else. It updates when goods move
@@ -604,16 +707,31 @@ goods are fetched. Nights are colder outdoors, so an agent with no clothing,
 shelter or fire loses warmth, and their warmth bar shows it. New worlds start
 in the morning; loading a saved world keeps its recorded time.
 
+Dawn adds a soft rose glow to the ground and dusk adds a gold one, following
+the season's changing night length. Names, people, panels, lit windows and
+weather keep their own colours. The glow fades away in full daylight and
+full night, and pausing holds its transition still.
+
+At close and mid zoom, occupied Houses and working Blacksmith forges give off
+soft grey smoke that rises and drifts east. Empty Houses and idle forges give
+off none. Smoke freezes while the world is paused.
+
 Click bare ground to inspect the recorded facts there. Agents take priority
 when they overlap the pointer. **Event Log** shows important events under a
-heading for each day, each with an icon for its kind. An event with a known
+heading for each day, each with an icon for its kind. Lines name who was
+involved: births, deaths, partnerships, marriages, skills learned, animals and
+scouting trips all appear. Routine steps such as meals, forage trips, cart
+loading and each Town project work shift are left out, because a later line
+already reports what came of them. An event with a known
 location has a **Find** button that moves the camera there. The log grows to
 fit wrapped text and day headings until it reaches the bottom of the screen,
 then scrolls. It adjusts when the window changes size. Opening the log
 marks its new entries read; the ones that were new keep a small dot while it
 stays open. While the continuity rule
 is on, the top of the log offers **Add a newcomer**, which opens Add Agent.
-Opening the offer adds nobody and makes no paid model call. **Agents** lists
+The rule counts eligible adult partnerships, so adding an unpartnered newcomer
+does not itself turn it off. Opening the offer adds nobody and makes no paid
+model call. **Agents** lists
 everyone with their portrait and what they are doing, and tags anyone
 **Hungry**, **Cold** or **Ill**. Click a row to find that agent, or
 double-click it to open their Profile. With the list focused, use **Up** and
@@ -639,6 +757,19 @@ the household council and recent social activity; the page scrolls once it is
 long. **World** shows today's date, the season and weather where you are
 looking and the year length, then counts of agents, Towns, households,
 buildings, road tiles, bridges, resource sites and the map size.
+
+Residents with a personal model can propose a supported default estate law
+through their Town's ordinary Council. Its proposal names the Town's share:
+0%, 25%, 50%, 75% or 100%. It needs the Council's usual majority. The law
+applies only to residents who die after adoption without a valid will; a valid
+will keeps priority. Read the proposal and recorded law in Towns. Changing or
+repealing it later leaves earlier estates under their original rule.
+The final will's default choice describes the law effective at that death;
+choosing it uses default inheritance rather than overriding the Town share.
+The Town keeps eligible goods in its Warehouse while there is room, and living
+household heirs share the rest. Whole vessels stay together. With no living
+household heir, goods belong to the deceased resident's Town; non-food goods
+in an abandoned Town's Warehouse can be salvaged through the usual choice.
 
 Town residents make civic choices through their normal personal-model turns.
 Adults can agree to stand for election, visit their Town's public notice place
@@ -706,10 +837,20 @@ and receiving households must learn the published terms and personally accept;
 proposing, reading and silence supply no acceptance. A new adult joining while
 it is pending must accept too. This ordinary transfer needs no Council or mayor
 approval. It preserves the original grant date and any agreed end date, and
-moves only use permission. Town title, membership, buildings, crops, goods and
-private-building access stay unchanged. Expired, disputed or under-review land
+moves use permission and any agreed goods payment. Town title, membership,
+buildings, crops, other goods and private-building access stay unchanged. Expired, disputed or under-review land
 cannot use this route. Town, plot and property details show the exact terms,
 names, dates and each household's acceptance progress.
+
+A household can also offer that exact use permission for a named quantity of
+goods. Every affected adult accepts the published price as well as the plot.
+Permission waits until a buyer adult brings their own usable, unreserved loose
+goods to meet a seller adult at the Town's notice place. The payment becomes
+seller household stock there as the permission moves; no money price is used.
+Household work tools stay borrowed, and reserved goods, vessel contents, full
+hands or a blocked route cannot supply payment. Town and plot details show the
+price, whether payment is still needed, and who completed it. A decline or
+withdrawal leaves permissions and unpaid goods with their owners.
 
 An affected household can ask for a land hearing, and the Town can file through
 its legitimate government. A permission with an agreed end date enters review
@@ -777,9 +918,15 @@ If they gather new wood or stone, those goods stay personal until their own mode
 freshly chooses to donate them. **Speak → Suggest** may ask an adult to consider
 helping or donating; an Order cannot give away their goods. After completion,
 select the Hall for its project and payment details. Agents read civic notices
-there, with the same nearby learning and relay rules as before. A blocked project
+there, with the same nearby learning and relay rules as before. If you remove a
+finished Hall, the Towns page keeps its paid construction history and labels it
+**Built, later removed**, without offering it for selection on the map. Older
+Event Log lines keep the project name even when its worker is no longer present.
+A blocked project
 keeps its materials as Town property and releases unused claims rather than
-building for free. If its site can no longer be used, the Town stops the
+building for free. Its waiting message explains that work retries when the
+approved site is usable and reachable and the required materials are available.
+If its site can no longer be used, the Town stops the
 project and the Towns page says why; its leftover materials stay Town
 property where they are. See [What works today](what-works.md#life-work-and-society)
 for this first version's limits and provisional amounts. Its
@@ -807,6 +954,12 @@ Order. That survival interruption keeps the task and its progress. Other
 Market work waits until urgent hunger passes. The
 [Market hands-on checklist](../playtest/564-market-stalls.md) remains pending.
 
+A preparing birth cannot count or spend household food on a stall while borrowing
+is active. Its food shortage is shown in the parents' cards and caregiver's
+guidance. Leaving the stall makes that food available again under the normal
+birth reserve and payment rules; enough separate household food can fund the
+birth while sale stock stays untouched.
+
 Residents can also propose a **stone street lamp** or **hanging street lantern**
 beside an existing Road. The Council approves its design, Road edge and exact
 budget before anyone builds. Trial costs are **4 stone**, or **4 wood and
@@ -830,8 +983,19 @@ Opening ordinary inspection panels leaves time running.
 Settings and the Mod Library open inside the Pause Menu window; its back arrow
 or **Escape** returns to the menu's buttons.
 
+Rain falls as straight streaks with tiny landing bursts. Storm streaks arrive
+in gusts, and snowflake crosses drift sideways. The weather stays light enough
+to read the map and freezes with the world when paused.
+
 Game Settings controls the window, theme, weather effects, date/time format
-and the model-call limit.
+and the model-call limit. Rain, storms and snow fade in or out over about a
+second when regional weather changes. Pausing freezes a fade where it is;
+loading a world shows its existing weather at once.
+
+At close and mid zoom, autumn adds a few fallen leaves under mature broadleaf
+and fruiting or picked orchard trees. They stay off Roads and water and
+disappear when autumn ends. You cannot gather them.
+
 Dates name the season and its day, such as **Autumn 2, Year 1 · 14:20**; a new
 world's year has four ten-day seasons: Spring, Summer, Autumn and Winter. The
 top bar then shows the weather beside the date without naming the season again.
@@ -859,6 +1023,21 @@ and grouped by what they do. With no menu or text field
 active, **Space** or **P** pauses, **N** selects the next agent, **Shift+N** the
 previous one, **C** centers the selected agent and **H** returns to the opening
 Town view. **Escape** closes the newest panel or mode, then opens the Pause Menu.
+
+Use **Tab** and **Shift+Tab** to move between controls in the open panel, with a
+visible focus outline. **Enter** activates the focused control; arrow keys
+browse lists and choices. Focus stays in menus and returns to the control that
+opened a panel when you close it. Numeric fields and scrollable readers are
+also reachable with Tab. In a text field, Escape leaves the field first;
+press it again to close the panel. The Agents list keeps focus while you browse with
+arrows; Enter opens the selected Profile.
+
+Press **K** to focus a tile on the world map. Arrows move one tile, or ten with
+**Shift**; the camera follows when the tile leaves the view. **Enter** selects
+an agent, building or ground tile there. During founder, first Town or new-agent
+placement, Enter uses the same placement action as clicking that tile. Move
+the pointer to return to mouse browsing. In **World Map**, Tab to the atlas and
+use arrows to move the camera. Key remapping is not available.
 
 Press **F12** in a world to open **Developer tools** at the right edge of the
 screen, and again to close them; **Escape** closes them once nothing newer is
@@ -899,6 +1078,25 @@ server's displayed information and unfinished edit.
 
 ## Save and return
 
+If the server's save disk is low on space, a warning stays visible while you
+play and appears in Save World before saving or overwriting. Make room soon;
+saves can fail when the disk fills. The warning is advisory: manual saves,
+autosaves and automatic recovery still try to save. If free space cannot be
+checked, the game says so. The initial warning level is below 1 GiB and may
+change after playtesting.
+
+If the host restarts with a saved state it cannot open, **Recover world**
+appears before you enter the world. It offers the last usable autosave from
+that world's current history and says when it was saved. Choose **Recover
+autosave** to open it paused. Progress since that autosave will be absent from
+the recovered world; your other saves stay unchanged and the refused file is
+kept. There is no automatic replacement.
+
+If no usable autosave is available, recovery stays blocked. **Check again**
+checks for a usable autosave without changing your world. You can quit and keep
+the saved files for recovery. A lost recovery reply also offers **Check again**
+so you can find out whether recovery finished before trying it again.
+
 **Save World** creates a named save for the current world. Its name starts as
 the world's date, so **Save** works straight away; type another name first if
 you like. The card under the timeline says whether the new save continues a
@@ -927,7 +1125,11 @@ the key above the timeline shows which is which. **You are here** marks the
 world as it is now, at the end of its branch, or on a dotted **New branch** row
 when your next save will start one. Click a save to see it described
 underneath; the arrow keys also move between saves. **List** shows the saves as
-cards instead, grouped by branch, with tags such as **Branch 2** and **Latest**.
+cards instead, grouped by branch, with tags such as **From Before the flood**
+and **Latest**. A branch keeps the name of the save it started from, even if
+that save's name changes later. Long labels are shortened to fit; hover the
+timeline's branch name or a branch tag to read the full label. Branches without
+a recorded source name keep their numbered label.
 Saves from before branches existed are shown as **Earlier saves**.
 
 **Quit to Menu** and Main Menu **Quit Game** ask for confirmation. Closing the
@@ -944,6 +1146,18 @@ and other saves alone. In Load World, **Delete World** removes that
 world and all its saves. Open or create another world first if the target is
 active. Canceling either confirmation changes nothing. These controls require
 a paused world.
+
+To clean older recovery copies, pause the world and open **Save World**. Set
+**Recovery copies per save** (1–10; initially a provisional 3), then choose
+**Preview cleanup**. The confirmation lists the exact copies to remove and keep.
+**Delete these copies** permanently removes only that preview's older verified
+recoveries. Canceling changes nothing. Cleanup stays off until you ask for it;
+it never runs automatically or deletes by age.
+
+The latest verified recovery for each save is kept, along with any recovery the
+running world continues from. Manual saves, migration originals, older copies
+without recovery records and checkpoints the host cannot verify are kept. If
+the saves change while the preview is open, preview again before confirming.
 
 ## Report what you notice
 
@@ -970,6 +1184,19 @@ starts automatically after that action completes.
 loads. You can reroll during generation; the preview will follow your latest
 seed. If the world name is missing, enter it and choose **Preview again**.
 
+## Crossing rivers and lakes
+
+Agents can wade rivers one or two tiles wide. A healthy agent with enough
+warmth and a light load can also swim wider rivers and lakes, much more slowly,
+losing warmth as they move. The map shows the agent swimming with a
+**Swimming** label; their tooltip says the same. Cold or ill agents, loads above
+four carried units, carts and accompanying animals prevent a new swim.
+When supplies must return across freshwater, agents collect only what they can
+carry back; vessels count together with their contents. The sea still needs a boat.
+An agent already swimming can reach shore if their condition changes, and an
+unfinished crossing survives saving and loading. Swimming speed, warmth loss
+and the load limit are provisional for playtesting.
+
 ## Animals
 
 Adults with a House can **Build an animal yard** and **Expand my animal yard**
@@ -990,6 +1217,11 @@ use those supplies directly. The adult walks and brings actual available
 supplies; an order waits when permission, supplies, product, space or a route
 is missing. Care without safe feed or jug water shows a blocker and can resume
 when supplies become available.
+Care keeps two usable ready-to-eat portions per living household member, plus
+the existing extra allowance for an active family plan. Food trapped in a broken
+pot or on an actively borrowed Market stall cannot cover that reserve. Once
+stall borrowing ends, its food can count again. Grain can feed animals without
+spending the family's ready-to-eat meals.
 Taming needs two grain/greens and one jug water. Chickens need one feed and one
 water daily; sheep, cows and horses need two each. Jugs remain reusable.
 

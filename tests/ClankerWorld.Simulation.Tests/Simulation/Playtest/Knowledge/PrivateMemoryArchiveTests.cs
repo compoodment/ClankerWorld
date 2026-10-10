@@ -11,6 +11,71 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class PrivateMemoryArchiveTests
 {
     [Fact]
+    public async Task NativeRenameRemainsLiveAcrossTheDailyArchiveBoundaryAndReload()
+    {
+        using var renamed = Restore(PrivateWorldRuntimeCodec.Encode(NearBoundary(generated: true)));
+        var owner = renamed.Society.Inhabitants[0].Id;
+        Assert.True(renamed.RenameAgent(owner, "Archiveproof Vale"));
+        var original = Assert.Single(renamed.Society.Memories, item => item.Id.StartsWith("player-rename:", StringComparison.Ordinal));
+        Assert.True(original.Permanent);
+        Assert.Equal((owner, owner, 5L, SocietyMemoryKind.Experience), (original.OwnerId, original.SubjectId, original.SourceTick, original.Kind));
+        var ordinary = new SocietySocialMemory("ordinary-rename-age-control", owner, owner, "An ordinary private experience.", "private", original.SourceTick);
+        var state = renamed.ExportState();
+        state = WithSources(state, state.Society.Society.Memories.Append(ordinary).ToArray(), state.Society.Society.Beliefs ?? []);
+        using var world = Restore(PrivateWorldRuntimeCodec.Encode(state));
+        for (var tick = 0; tick < 6; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(11, world.WorldTick);
+        Assert.Contains(ordinary, world.Society.Memories);
+        Assert.Contains(original, world.Society.Memories);
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.False((await world.AdvanceOneTickAsync(commitPermitted: () => false)).Advanced);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        using var replay = Restore(bytes);
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(12, world.WorldTick);
+        Assert.Contains(world.Society.ArchivedMemories, item => item.Memory == ordinary && item.ArchivedTick == 12);
+        Assert.DoesNotContain(world.Society.Memories, item => item.Id == ordinary.Id);
+        Assert.Contains(original, world.Society.Memories);
+        Assert.DoesNotContain(world.Society.ArchivedMemories, item => item.Memory.Id == original.Id);
+        var after = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.Equal(after, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        using var loaded = Restore(after);
+        Assert.Equal(after, PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
+        Assert.Contains(original, loaded.Society.Memories);
+        var observations = new List<InhabitantObservation>();
+        using var recalling = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(after), _ => new IdleProvider(observations));
+        recalling.SubmitInstruction(new("recall-rename", "owner:test", owner, OwnerInstructionKind.Suggestive, "Remember my accepted name."));
+        for (var tick = 0; tick < 4 && observations.All(item => item.InhabitantId != owner); tick++)
+            Assert.True((await recalling.AdvanceOneTickAsync()).Advanced);
+        var observed = Assert.Single(observations.Where(item => item.InhabitantId == owner).Take(1));
+        Assert.Contains(observed.RetrievedMemories ?? [], item => item.Id == original.Id && item.Summary == original.Summary);
+        Assert.DoesNotContain(observed.RetrievedMemories ?? [], item => item.Id == ordinary.Id);
+        Assert.All(observations.Where(item => item.InhabitantId != owner), item =>
+            Assert.DoesNotContain(item.RetrievedMemories ?? [], memory => memory.Id == original.Id));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void StrictLoadingRefusesAnArchivedPlayerRenameWithEitherPermanentMarker(bool permanent)
+    {
+        using var world = Restore(PrivateWorldRuntimeCodec.Encode(NearBoundary(generated: true)));
+        Assert.True(world.RenameAgent(world.Society.Inhabitants[0].Id, "Archiveproof Vale"));
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var json = JsonNode.Parse(bytes)!;
+        var society = json["state"]!["society"]!["society"]!;
+        var live = society["memories"]!.AsArray();
+        var memory = live.Single(item => item!["id"]!.GetValue<string>().StartsWith("player-rename:", StringComparison.Ordinal))!;
+        var archived = memory.DeepClone();
+        Assert.True(live.Remove(memory));
+        archived["permanent"] = permanent;
+        society["archivedMemories"]!.AsArray().Add(new JsonObject { ["memory"] = archived, ["archivedTick"] = world.WorldTick });
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(System.Text.Encoding.UTF8.GetBytes(json.ToJsonString())));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+    }
+
+    [Fact]
     public async Task DailyNativeRuleWorksWithoutHelpersAndPreservesProtectedRecordsAcrossReplay()
     {
         var state = NearBoundary(generated: true);
