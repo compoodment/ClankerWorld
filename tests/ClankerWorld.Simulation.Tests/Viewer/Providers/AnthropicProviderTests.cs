@@ -261,9 +261,11 @@ public sealed class AnthropicProviderTests
     }
 
     [Theory]
-    [InlineData(-1, 30)]
-    [InlineData(120, -1)]
-    public async Task MalformedChatAnswersWithInvalidUsageStillFinishDecisionAndSetupAttempts(int input, int output)
+    [InlineData(-1, 30, true)]
+    [InlineData(120, -1, true)]
+    [InlineData(-1, 30, false)]
+    [InlineData(120, -1, false)]
+    public async Task ChatAnswersWithInvalidUsageStillFinishDecisionAndSetupAttempts(int input, int output, bool malformed)
     {
         var directory = Directory.CreateTempSubdirectory("clankerworld-invalid-failed-usage-");
         try
@@ -276,14 +278,16 @@ public sealed class AnthropicProviderTests
             var body = JsonSerializer.Serialize(new
             {
                 model = "gpt-6-luna",
-                choices = new[] { new { message = new { content = "not-json" } } },
+                choices = new[] { new { message = new { content = malformed ? "not-json" : Answer } } },
                 usage = new { prompt_tokens = input, completion_tokens = output },
             });
             var handler = new ChatHandler(body);
             var factory = new FixedHttpClientFactory(handler);
             var router = new ConfigurableDecisionProvider(store, factory, usageStore: usage);
-            await Assert.ThrowsAsync<InvalidDataException>(() => router.DecideAsync(
-                new CognitionDecisionRequest("invalid-usage", router.ProviderEpoch, Observation(true))).AsTask());
+            Task Decide() => router.DecideAsync(
+                new CognitionDecisionRequest("invalid-usage", router.ProviderEpoch, Observation(true))).AsTask();
+            if (malformed) await Assert.ThrowsAsync<InvalidDataException>(Decide);
+            else await Assert.ThrowsAsync<ArgumentOutOfRangeException>(Decide);
             var check = await new ProviderSetupCheckService(store, usage, factory).CheckAsync(
                 new OwnerProviderSetupCheckAction("openai", "gpt-6-luna", ApiKey: "test-key"), CancellationToken.None);
             Assert.Equal("unusable", check.Outcome);

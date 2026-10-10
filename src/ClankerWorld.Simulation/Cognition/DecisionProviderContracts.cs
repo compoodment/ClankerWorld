@@ -1561,7 +1561,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         var usage = readUsage();
         try
         {
-            return ParseAnswerCore(request, content, usage);
+            var response = ParseAnswerCore(request, content, usage);
+            usage?.Validate();
+            return response;
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
