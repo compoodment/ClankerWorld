@@ -1,3 +1,4 @@
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Control;
 using ClankerWorld.Viewer.Observation;
@@ -7,10 +8,13 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class TownLawProposalSaveTests
 {
     [Theory]
-    [InlineData("create")]
-    [InlineData("autosave")]
-    [InlineData("overwrite")]
-    public void RejectedLawCheckpointLeavesNamedSaveAndTimelineUntouched(string operation)
+    [InlineData("create", false)]
+    [InlineData("autosave", false)]
+    [InlineData("overwrite", false)]
+    [InlineData("create", true)]
+    [InlineData("autosave", true)]
+    [InlineData("overwrite", true)]
+    public void RejectedCheckpointLeavesNamedSaveAndTimelineUntouched(string operation, bool serializationOnly)
     {
         var directory = Directory.CreateTempSubdirectory("rejected-law-save-");
         try
@@ -22,9 +26,24 @@ public sealed class TownLawProposalSaveTests
             var saved = store.Create("Good law", world, []);
             var goodBytes = PrivateWorldRuntimeCodec.Encode(store.Read(saved.Id));
             var before = Directory.GetFiles(path + ".manual").ToDictionary(file => file, File.ReadAllBytes);
-            // Simulate an invalid live snapshot without changing its last good save.
-            var drafts = Assert.IsAssignableFrom<IList<TownLawDraft>>(world.Towns[0].Government!.LawDrafts);
-            drafts[0] = drafts[0] with { Rule = "This no longer matches the actual council vote." };
+            if (serializationOnly)
+            {
+                // Deliberate native boundary input: distinct UTF-16 keys become the
+                // same replacement character in JSON. Encode alone accepts this;
+                // the serialized checkpoint must also pass the actual decoder.
+                foreach (var key in new[] { "serialization:\uD800", "serialization:\uD801" })
+                    world.SubmitInstruction(new(key, "owner:test", NonviolentRuntimeFixture.Judge,
+                        OwnerInstructionKind.Suggestive, "Consider the current public law."));
+                world.Validate();
+                var unreadable = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+                Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Decode(unreadable));
+            }
+            else
+            {
+                // Simulate an invalid live snapshot without changing its last good save.
+                var drafts = Assert.IsAssignableFrom<IList<TownLawDraft>>(world.Towns[0].Government!.LawDrafts);
+                drafts[0] = drafts[0] with { Rule = "This no longer matches the actual council vote." };
+            }
             Assert.Throws<InvalidDataException>(() =>
             {
                 if (operation == "overwrite") store.Overwrite(saved.Id, world, []);
