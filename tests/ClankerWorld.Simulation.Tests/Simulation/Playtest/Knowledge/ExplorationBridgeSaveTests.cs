@@ -21,7 +21,10 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
     [Fact]
     public async Task APaidRoadBridgePreservesAnActuallyWalkedExplorationPathAndRecoverySave()
     {
-        using var world = CreateScoutingWorld();
+        var returnRequested = false;
+        IDecisionProvider ChooseProvider(string actor) => new ScoutProvider(
+            actor == "founder:00000000000000000000000000000001", () => returnRequested);
+        using var world = CreateScoutingWorld(ChooseProvider);
         var actor = world.Inhabitants[0].InhabitantId;
         // The seeded visited memory starts at tick zero, so let the ordinary
         // scouting cooldown and idle admission expire without resetting them.
@@ -48,7 +51,7 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
         var directory = Directory.CreateTempSubdirectory("clankerworld-exploration-bridge-");
         try
         {
-            var file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"), Provider);
+            var file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"), ChooseProvider);
             file.Save(world);
             var workshop = world.WorldContent.Buildings.Single(item => item.LocalId == "workshop");
             var beforeStock = Totals(world.ExportState());
@@ -75,7 +78,7 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
             byte[]? saved = null;
             PrivateWorldRuntime? direct = null;
             var encodeFailure = Record.Exception(() => saved = PrivateWorldRuntimeCodec.Encode(after));
-            var restoreFailure = Record.Exception(() => direct = PrivateWorldRuntime.Restore(after, Provider));
+            var restoreFailure = Record.Exception(() => direct = PrivateWorldRuntime.Restore(after, ChooseProvider));
             var saveFailure = Record.Exception(() => file.Save(world));
             output.WriteLine($"Encode={encodeFailure?.Message ?? "success"}; direct restore={restoreFailure?.Message ?? "success"}; recovery write={saveFailure?.Message ?? "success"}.");
             if (saveFailure is not null) Assert.Equal(previousRecovery, File.ReadAllBytes(file.Path));
@@ -88,7 +91,7 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
             Assert.Null(restoreFailure);
             Assert.Null(saveFailure);
             Assert.NotNull(saved);
-            using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), Provider);
+            using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), ChooseProvider);
             Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
             using var recovery = file.LoadOrCreate(Seed);
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(recovery.ExportState()));
@@ -97,6 +100,11 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
             var committed = PrivateWorldRuntimeCodec.Encode(world.ExportState());
             Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
             Assert.Equal(committed, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+            var returnSuggestion = new OwnerInstructionRequest("bridge-scout-return", "owner:test", actor,
+                OwnerInstructionKind.Suggestive, "Please return along your scouting route.");
+            returnRequested = true;
+            world.SubmitInstruction(returnSuggestion);
+            recovery.SubmitInstruction(returnSuggestion);
             for (var tick = 0; tick < 128 && Scout(world, actor).Exploration!.OutingPath.Count > 0; tick++)
             {
                 var previous = Scout(world, actor).Position;
@@ -140,10 +148,11 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
     private static PlaytestInhabitantState Scout(PrivateWorldRuntime world, string actor) =>
         world.Inhabitants.Single(item => item.InhabitantId == actor);
 
-    internal static PrivateWorldRuntime CreateScoutingWorld()
+    internal static PrivateWorldRuntime CreateScoutingWorld(Func<string, IDecisionProvider>? chooseProvider = null)
     {
+        chooseProvider ??= Provider;
         var geography = new GeographyOptions(Seed, WorldSizePreset.Small, WaterPercent: 50, HydrologyVersion: 1);
-        using var setup = new PrivateWorldRuntime(Seed, Provider, startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
+        using var setup = new PrivateWorldRuntime(Seed, chooseProvider, startPace: WorldStartPace.FounderSetup, geographyOptions: geography);
         setup.InitializeFirstTownContent();
         var map = setup.ExportState().Map;
         var anchor = NormalPathWorld.FindStartingTownSite(map);
@@ -184,22 +193,23 @@ public sealed class ExplorationBridgeSaveTests(ITestOutputHelper output)
                 Exploration = new SettlementExploration(visited, [], 0, false),
             } : person).ToArray(),
         };
-        return PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), Provider);
+        return PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), chooseProvider);
     }
 
-    private static IDecisionProvider Provider(string actor) => new ScoutProvider(actor == "founder:00000000000000000000000000000001");
+    private static ScoutProvider Provider(string actor) => new ScoutProvider(actor == "founder:00000000000000000000000000000001");
 
     private static Dictionary<string, int> Totals(PrivateWorldRuntimeState state) => state.Society.Society.Inventory.Lots
         .GroupBy(lot => lot.ItemKind, StringComparer.Ordinal)
         .ToDictionary(group => group.Key, group => group.Sum(lot => lot.Quantity), StringComparer.Ordinal);
 
-    private sealed class ScoutProvider(bool scout) : IDecisionProvider
+    private sealed class ScoutProvider(bool scout, Func<bool>? returnRequested = null) : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
-            var choice = request.Observation.Candidates.FirstOrDefault(item => scout && item.Id == "explore")
+            var returning = returnRequested?.Invoke() == true;
+            var choice = request.Observation.Candidates.FirstOrDefault(item => scout && item.Id == (returning ? "explore_return" : "explore"))
                 ?? request.Observation.Candidates.Single(item => item.Id == "safe_idle");
             return new DeterministicDecisionProvider().DecideAsync(request with
             { Observation = request.Observation with { Candidates = [choice] } }, cancellationToken);

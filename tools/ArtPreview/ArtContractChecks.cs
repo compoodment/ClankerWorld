@@ -10,6 +10,14 @@ internal static class ArtContractChecks
     {
         CheckWeatherFade();
         var current = new ArtSet();
+        CheckApprovedSmoke();
+        foreach (var size in new[] { 16, 32 })
+            foreach (var badge in new[] { false, true })
+                for (var frame = 0; frame < 8; frame++)
+                    Equal(Proposed.WaitingMarker.WaitingMarkerProposal.Frame('c', size, frame, badge),
+                        Proposed.WaitingMarker.WaitingMarkerProposal.Frame('c', size, frame, badge, clientArt: true),
+                        $"Approved circling spark frame {frame}, badge {badge}, must match at {size} px.");
+        CheckApprovedStock();
         CheckApprovedBuildings(current);
         CheckApprovedNature(current);
         CheckApprovedItems();
@@ -50,6 +58,30 @@ internal static class ArtContractChecks
         if (SceneComposer.RoadLinksAt(crossing, 1, 2, true) != RoadLinks.None)
             throw new InvalidOperationException("A deck must not create a Road piece on an empty bank.");
         Console.WriteLine("Current-art contract checks passed.");
+    }
+
+    private static void CheckApprovedSmoke()
+    {
+        foreach (var size in new[] { 16, 32 })
+        {
+            var sources = SmokeClientPreview.Sources(size).ToArray();
+            if (!sources.SequenceEqual(Approved.SmokeProposal.Sources(size)))
+                throw new InvalidOperationException("Smoke must begin at the actual approved chimney and forge pixels.");
+            for (var frame = 0; frame < 36; frame++)
+                Equal(Approved.SmokeProposal.Frame("b-column", size, frame / 12.0),
+                    SmokeClientPreview.Frame(size, frame / 12.0),
+                    $"Approved smoke B must match at {size} px, frame {frame}.");
+        }
+        Console.WriteLine("Approved smoke: 72 exact RGBA frame comparisons and both atlas source checks.");
+    }
+
+    private static void CheckApprovedStock()
+    {
+        foreach (var size in new[] { 16, 32 })
+            foreach (var level in new[] { 0, 1, 2 })
+                Equal(Approved.StockProposal.Frame("a-at-door", level, size), StoredStockClientPreview.Frame(level, size),
+                    $"Stock A must match at {size} px, level {level}.");
+        Console.WriteLine("Approved stock: 6 exact RGBA scene comparisons, covering all pile families and levels at both atlases.");
     }
 
     private static void CheckWeatherFade()

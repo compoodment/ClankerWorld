@@ -1,13 +1,18 @@
-# Weather overlay
+# Weather review
 
 **Chosen on October 8 ([#1325](https://github.com/compoodment/ClankerWorld/issues/1325)):**
 computment picked **B · Pixel streaks**, and does not want D's cloud shadows
 mixed in. B is the approved look for the map's weather overlay; A, C and D stay
 here only as the record of the review.
 
+B now uses the client's shared [pixel-streak drawing](../../src/ClankerWorld.GodotClient/UI/Map/WeatherStreaks.cs).
+Its approved pixels have moved out of `Proposed/` into the live overlay; this
+completed review keeps the other options for comparison. The cloud haze and
+soft storm flash retain their existing drawing, with no cloud shadows.
+
 The map's weather overlay goes through the art review like every other
 picture (agreed October 8, [#1254](https://github.com/compoodment/ClankerWorld/issues/1254)).
-This proposal draws today's overlay and three alternatives for rain, storm and
+This completed review draws the previous overlay and three alternatives for rain, storm and
 snow over the reference Town corner, at 32 px (close) and 16 px (mid zoom).
 The weather covers everything except a clear north-west corner, so each option
 also shows how a region ends. All four keep the same cloud haze (Clouds B) and
@@ -15,15 +20,17 @@ the same soft storm flash, so only the weather itself differs.
 
 `dotnet run -- proposed out weather` draws a still of each;
 `dotnet run -- animate out weather` writes each as a three-second loop of
-numbered frames at 12 frames a second, which repeats without a jump.
+numbered frames at 12 frames a second, which repeats without a jump. For this
+short review loop, the shared cloud haze follows a small closed drift while
+keeping the game's cloud pattern, sampling and opacity.
 
 Every option follows style rule E3: weather stays an animated, sparse overlay
 with no opaque shapes. None changes the weather rules, where weather falls or
 how regions move.
 
-## A · Today's overlay
+## A · Previous overlay
 
-What the game draws now, redrawn from `WeatherLayer`: a faint tint, short
+What the game drew before B, retained from `WeatherLayer`: a faint tint, short
 two-pixel drops that land as small flat rings, slanting storm streaks with the
 odd splash, and two-pixel snowflakes swaying down.
 
@@ -33,7 +40,7 @@ Crisp pixel weather. Rain is straight one-pixel streaks, lighter at the top,
 landing as a three-pixel burst instead of a ring. Storm streaks step exactly two
 pixels down for every one across, so they stay sharp, and come in gusts that
 sweep east through the storm. Snowflakes are small crosses blown sideways by
-the wind. The tints are a little cooler than today's.
+the wind. The tints are a little cooler than the previous overlay.
 
 ## C · Ripples
 

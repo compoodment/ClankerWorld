@@ -1,0 +1,1 @@
+- New conversations no longer hide an older unfinished invitation or session from the game. Every unfinished conversation stays visible after reconnecting or reloading, alongside up to 16 recently closed conversations.

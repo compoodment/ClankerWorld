@@ -3,7 +3,7 @@ using ClankerWorld.Simulation.Kernel;
 
 namespace ClankerWorld.Simulation.Playtest;
 
-public enum GoodsUse { Holdings, ConsumeAt }
+public enum GoodsUse { Holdings, ConsumeAt, Collect, ReachableHoldings }
 
 public sealed record GoodsOwners(IReadOnlyList<string> Ids)
 {
@@ -22,7 +22,7 @@ public enum GoodsPlaceKind { Stored, Ground, Carried, Unlocated }
 public sealed record GoodsPlace(GoodsPlaceKind Kind, string? BuildingId = null,
     GridPoint? Position = null, string? CarrierId = null, string? DeliveryBuildingId = null);
 
-public enum GoodsReason { Owner, Kind, Place, Damaged, Spoiled, Vessel, Empty, Reservation, Delivery, MarketStall }
+public enum GoodsReason { Owner, Kind, Place, Damaged, Spoiled, Vessel, Empty, Reservation, Delivery, MarketStall, Custody, CarryRoom, Route }
 public sealed record GoodsMatch(InventoryLot Lot, InventoryLot Root, GoodsPlace Place, int Quantity, int MoveUnits);
 public sealed record GoodsAnswer(IReadOnlyList<GoodsMatch> Matches, IReadOnlyList<(string LotId, GoodsReason Reason)> Excluded)
 {

@@ -1,4 +1,4 @@
 interface:
   display_name: "Review and merge"
-  short_description: "Review and merge ClankerWorld pull requests, keeping the merging turn busy"
-  default_prompt: "Use $review-merge to review and merge ready ClankerWorld pull requests, highest priority and oldest first, keeping two moving so the merging turn is never idle."
+  short_description: "Review and merge ClankerWorld pull requests through the merge queue"
+  default_prompt: "Use $review-merge to review and merge ready ClankerWorld pull requests, highest priority and oldest first, keeping reviewed ones flowing into the merge queue."

@@ -1,0 +1,1 @@
+- World Info keeps its unchanged statistic tiles while the date and local weather update, reducing work while the panel is closed and keeping its latest information ready to show.

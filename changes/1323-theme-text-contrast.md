@@ -1,0 +1,1 @@
+- Light and Dark themes keep text readable in hover, pressed, disabled, placeholder and selected states. Save-branch and warning badge text uses contrasting ink, and deceased family profiles keep full text opacity with an explicit died label and tooltip when names are clipped.

@@ -49,12 +49,19 @@ public partial class Main
                 if (initial < 0.99f || Math.Abs(half - 0.5f) > 0.001f ||
                     weatherLayer.CoverageAt(144, 80, kind + "-support") < 0.99f)
                     throw new InvalidOperationException($"Outgoing {kind} must retain then fade its actual native field: {initial}, {half}.");
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (weatherLayer.DrawnParticleCount <= 0)
+                    throw new InvalidOperationException($"Outgoing {kind} must still draw actual approved particles after the final active region clears.");
                 weatherLayer.Paused = true;
                 weatherLayer._Process(3);
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 if (weatherLayer.CoverageAt(144, 80, kind) != half)
                     throw new InvalidOperationException($"Pause must freeze the partly faded {kind} overlay.");
                 weatherLayer.Paused = false;
+                // A sub-frame advance changes the clock but must not change the cached drawing.
+                weatherLayer._Process(0.06);
+                if (weatherLayer.CoverageAt(144, 80, kind) != half)
+                    throw new InvalidOperationException($"A sub-frame {kind} advance must retain the displayed cached amount.");
                 // Reverse halfway: the first new frame must retain exactly the displayed amount.
                 RenderMap(map);
                 weatherLayer._Process(0);
@@ -79,6 +86,52 @@ public partial class Main
                     throw new InvalidOperationException($"Incoming {kind} must follow the approved 1.2-second envelope.");
                 weatherLayer._Process(WeatherFade.Seconds);
             }
+            // Ending rain must not change the spatial admission of its unchanged storm neighbour.
+            var boundary = map with
+            {
+                WorldId = "weather-boundary-check",
+                MapManifestDigest = "weather-boundary-check",
+                WeatherRegions = regions.Select(region => region with { Weather = region.X < 4 ? "rain" : "storm" }).ToArray(),
+            };
+            RenderMap(boundary);
+            cameraCenterTiles = new(128, 80);
+            cameraZoom = 1;
+            UpdateMapGeometry(boundary);
+            weatherLayer._Process(0);
+            RenderMap(boundary with
+            {
+                WeatherRegions = boundary.WeatherRegions.Select(region =>
+                region with { Weather = region.X < 4 ? "clear" : "storm" }).ToArray()
+            });
+            weatherLayer._Process(0);
+            weatherLayer._Process(WeatherFade.Seconds - 0.000001);
+            var edge = Enumerable.Range(96, 65).Select(x => (X: x, Storm: weatherLayer.CoverageAt(x, 80, "storm")))
+                .Where(sample => sample.Storm > 0.05f && sample.Storm < 0.95f).ToArray();
+            if (edge.Length == 0) throw new InvalidOperationException("The boundary fixture must contain actual partly covered storm cells.");
+            weatherLayer._Process(0.000002);
+            if (edge.Any(sample => Math.Abs(weatherLayer.CoverageAt(sample.X, 80, "storm") - sample.Storm) > 0.001f))
+                throw new InvalidOperationException("Finishing adjacent rain must not make the unchanged storm boundary jump.");
+            var junction = boundary with
+            {
+                WorldId = "weather-junction-check",
+                MapManifestDigest = "weather-junction-check",
+                WeatherRegions = regions.Select(region => region with
+                {
+                    Weather = region.X < 4
+                    ? region.Y < 2 ? "rain" : "storm"
+                    : region.Y < 2 ? "snow" : "cloudy"
+                }).ToArray(),
+            };
+            RenderMap(junction);
+            cameraCenterTiles = new(128, 64);
+            UpdateMapGeometry(junction);
+            weatherLayer._Process(0);
+            var junctions = Enumerable.Range(96, 65).SelectMany(x => Enumerable.Range(32, 65).Select(y =>
+                new[] { weatherLayer.CoverageAt(x, y, "rain"), weatherLayer.CoverageAt(x, y, "storm"), weatherLayer.CoverageAt(x, y, "snow"), weatherLayer.CoverageAt(x, y, "cloudy") }))
+                .Where(amounts => amounts.Count(amount => amount > 0.01f) >= 3).ToArray();
+            if (junctions.Length == 0) throw new InvalidOperationException("The weather fixture must contain a real multi-kind junction.");
+            if (junctions.Any(amounts => Math.Abs(amounts.Sum() - 1) > 0.001f))
+                throw new InvalidOperationException("Loaded weather kinds must keep full combined coverage at their regional junction.");
         }
         finally
         {

@@ -114,6 +114,32 @@ public partial class Main
             !TownBoatText(map, town).Contains("Passenger: Rowan", StringComparison.Ordinal))
             throw new InvalidOperationException("Port and Town inspection must count incoming space and disclose boat travel.");
 
+        var originalDestination = port with { InstanceId = "original-destination", Position = new(196, 13) };
+        var request = new OwnerWorldBoatTripRequest("boat-request:1", 1, "traveler", "Rowan", town.Id,
+            port.InstanceId, originalDestination.InstanceId, "underway", boat.Id);
+        var cases = new[]
+        {
+            (Status: "underway", Destination: originalDestination.InstanceId, Request: request, Expected: "196, 13 · aboard"),
+            (Status: "returning", Destination: port.InstanceId, Request: request with { Status = "waiting", BoatId = null }, Expected: "196, 13 · waiting to depart"),
+            (Status: "underway", Destination: port.InstanceId, Request: request with { BoatId = "missing-boat" }, Expected: "196, 13 · aboard"),
+            (Status: "returning", Destination: port.InstanceId, Request: request, Expected: "118, 58 · returning"),
+            (Status: "waiting", Destination: port.InstanceId, Request: request, Expected: "118, 58 · waiting for a safe arrival"),
+        };
+        foreach (var sample in cases)
+        {
+            var trip = map with
+            {
+                PlacedBuildings = [port, originalDestination],
+                Boats = [boat with { Status = sample.Status, DestinationPortId = sample.Destination }],
+                BoatRequests = [sample.Request],
+            };
+            RenderWorldInfo(trip);
+            var row = PageText(townList).Split('\n').Single(line => line.StartsWith("Rowan →", StringComparison.Ordinal));
+            if (row != "Rowan → Port at " + sample.Expected)
+                throw new InvalidOperationException($"A Town trip row must show its current arrival and travel state: expected={sample.Expected} actual={row}");
+        }
+        RenderWorldInfo(map);
+
         cameraZoom = 1; RenderMap(map);
         var baseTile = currentTileSize;
         cameraZoom = 39f / baseTile; RenderMap(map);

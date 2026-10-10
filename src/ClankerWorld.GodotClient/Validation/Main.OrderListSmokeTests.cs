@@ -194,6 +194,17 @@ public partial class Main
             RenderSelectedInhabitantCard(snapshot with { Instructions = [movement] });
             if (quickCardOrderLabel.Text != "Order: Blocked · Going to a tile · 0/1 sites reached · No open walking route reaches the requested tile right now.")
                 throw new InvalidOperationException($"Movement orders need their own task name: {quickCardOrderLabel.Text}");
+            var boatOrder = movement with
+            {
+                Order = movement.Order! with
+                {
+                    Action = "travel_by_boat",
+                    BlockedReason = "Waiting for dock space at the destination Port."
+                }
+            };
+            RenderSelectedInhabitantCard(snapshot with { Instructions = [boatOrder] });
+            if (quickCardOrderLabel.Text != "Order: Blocked · Traveling to a Port by boat · 0/1 sites reached · Waiting for dock space at the destination Port.")
+                throw new InvalidOperationException($"Boat orders need their own task and waiting reason: {quickCardOrderLabel.Text}");
             RenderSelectedInhabitantCard(snapshot with { Instructions = [] });
             if (quickCardOrderLabel.Visible || allOrdersButton.Visible)
                 throw new InvalidOperationException("An agent with no orders must show no order line and no All orders button.");
