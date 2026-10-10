@@ -1293,6 +1293,9 @@ Conversation participants and speakers retain their complete native inhabitant
 IDs too, through proposal, personal model routing, requests and saved history.
 These references use canonical identity and known-world participant checks
 instead of prose length limits, including for longer identities created by birth.
+An ordinary conversation's generated handle combines its proposal tick with a
+SHA-256 digest of the ordered pair of complete participant IDs. This keeps the
+handle and derived turn IDs bounded without shortening either participant reference.
 
 Owner snapshots include every unfinished saved conversation and the 16 most
 recent closed conversations, ordered by last update and then ID. New snapshots
