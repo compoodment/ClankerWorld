@@ -256,6 +256,9 @@ incoming boats. **World Info → Towns** shows boats and active trip requests.
 Agents may propose paid Ports and boats through the Council, then request
 travel between completed Ports. Visitors need Council permission. A blocked
 arrival waits one world day before returning to a usable departure Port.
+The Towns trip row follows the boat’s current arrival Port during recovery and
+shows when it is returning or waiting for a safe arrival. A queued request
+still names its requested destination.
 Passengers can eat their carried food or drink fresh milk from a usable carried
 jug during travel and while waiting to land. Drinking uses one portion and
 leaves the jug intact.
