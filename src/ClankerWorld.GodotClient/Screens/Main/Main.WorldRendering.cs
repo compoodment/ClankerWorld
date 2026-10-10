@@ -68,6 +68,7 @@ public partial class Main
         usagePauseWorldId = null;
         lastLifePaceWorldId = null;
         renderedTownList = null;
+        renderedRosterPresentation = null;
         foreach (var marker in inhabitantVisuals.Values) marker.QueueFree();
         inhabitantVisuals.Clear();
         inhabitantCanonicalXs.Clear();

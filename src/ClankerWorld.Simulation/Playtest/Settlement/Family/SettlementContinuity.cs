@@ -138,7 +138,7 @@ public sealed partial class PrivateWorldRuntime
             var deadline = !ContinuityAllowsPostponement(couple) ? "Your two days are up. "
                 : $"Your two days end in about {((couple.DeadlineTick - WorldTick) * 24 + worldSystems.Config.TicksPerDay - 1) / worldSystems.Config.TicksPerDay} hours. ";
             return "Continuity rule: you may put off a child for two days but may not refuse. " + deadline +
-                "Preparing for parenthood. " + ParenthoodFoodNote(society.Checkpoint, caregiver,
+                "Preparing for parenthood. " + ParenthoodFoodNote(society.Checkpoint, caregiver, towns,
                     society.Checkpoint.GetInhabitant(actor).HouseholdId == society.Checkpoint.GetInhabitant(caregiver).HouseholdId);
         }
         var rule = $"Continuity rule: fewer than {ContinuityEligibleCoupleThreshold} adult couples who are not close relatives can have children. " +
