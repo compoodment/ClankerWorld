@@ -54,7 +54,7 @@ marked as ways to work quickly, are advice.
   downloads and package caches between worktrees.
 - If `git fetch` fails to authenticate, this repository is public: try an
   anonymous read for that one command, with credential helpers turned off,
-  such as `git -c credential.helper= fetch https://github.com/compoodment/ClankerWorld.git main`.
+  such as `git -c credential.helper= fetch https://github.com/ClankerWorldOrg/ClankerWorld.git main`.
   Check separately that your GitHub tools can do the writes you need. If
   a route is broken, spend a few minutes on it, then report what is missing.
   Never print credentials.
@@ -260,12 +260,11 @@ before either merges.
   takes only the pull request's title, with `(#<number>)` added:
   `Review: <tool> session <id> reviewed <sha>; checked <what>`, each reviewer
   fix or "none", and each author as `Author: <tool> session <id>`.
-- **Add it:** with GitHub's "Merge when ready" button, by enabling auto-merge
-  (squash), which joins the queue once checks pass, or with
-  `gh api graphql -f query='mutation($id: ID!) { enqueuePullRequest(input: {pullRequestId: $id}) { mergeQueueEntry { position } } }' -f id=<node_id>`,
-  where `gh api repos/compoodment/ClankerWorld/pulls/<number> --jq .node_id`
-  gives the node ID. Keep `status:reviewing` on while it is queued; the claim
-  ends when it merges.
+- **Add it** by enabling squash auto-merge with your GitHub tools, or with
+  GitHub's "Merge when ready" button; GitHub adds it to the queue once its
+  checks pass. GraphQL's `enqueuePullRequest` mutation also works. Never merge
+  it directly, even if your tools offer to. Keep `status:reviewing` on while it
+  is queued; the claim ends when it merges.
 - **While it is queued,** don't push to it: a push takes it out of the queue.
   Push only a fix you need, then add it again.
 - **If the queue takes it out,** because its batch failed, a conflict appeared
