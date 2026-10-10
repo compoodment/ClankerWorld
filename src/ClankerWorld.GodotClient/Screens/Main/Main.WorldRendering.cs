@@ -80,6 +80,7 @@ public partial class Main
         occupancyBadges.Clear();
         occupancyCanonicalXs.Clear();
         mapObjectCanonicalXs.Clear();
+        markerMotions.Clear();
         handcartFacings.Clear();
         animalFacings.Clear();
         boatFacings.Clear();
@@ -174,6 +175,8 @@ public partial class Main
             animalFacings.Clear();
             boatFacings.Clear();
         }
+        if (renderedMapSnapshot?.WorldId != snapshot.WorldId || renderedMapSnapshot.WorldTick > snapshot.WorldTick)
+            markerMotions.Clear();
         renderedMapSnapshot = snapshot;
         var objectIds = snapshot.Resources.Where(resource => resource.TreeKind is null)
             .Select(resource => "resource:" + resource.Id)
@@ -187,6 +190,7 @@ public partial class Main
             mapObjectVisuals[id].QueueFree();
             mapObjectVisuals.Remove(id);
             mapObjectCanonicalXs.Remove(id);
+            markerMotions.Remove(id);
         }
         foreach (var id in handcartFacings.Keys.Where(id => !objectIds.Contains("handcart:" + id)).ToArray())
             handcartFacings.Remove(id);
@@ -205,6 +209,7 @@ public partial class Main
             foreach (var visual in inhabitantVisuals.Values) visual.QueueFree();
             inhabitantVisuals.Clear();
             inhabitantCanonicalXs.Clear();
+            markerMotions.Clear();
             terrainLayer.SetHoveredTile(null);
             UpdateTownSiteGuidance(null);
             return;
@@ -303,6 +308,7 @@ public partial class Main
             sprite.Size = new(size, size);
             sprite.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
             sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
+            PresentMovingMarker(id, marker, boat.Position, new(4, 4), snapshot, agent: false, bob: false);
         }
 
         foreach (var animal in snapshot.Animals)
@@ -340,6 +346,8 @@ public partial class Main
             sprite.Size = new(size, size);
             sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
             sprite.Modulate = animal.LifeStage == "deceased" ? new Color("A89279") : Colors.White;
+            PresentMovingMarker(id, marker, animal.Position, new(4, 4), snapshot, agent: false, bob: true,
+                snap: animal.LifeStage == "deceased");
         }
 
         foreach (var cart in snapshot.Handcarts)
@@ -367,6 +375,7 @@ public partial class Main
                 : ItemIcons.Texture("handcart", 16);
             sprite.Size = new(size, size);
             sprite.Position = new(0, Math.Max(0, marker.Size.Y - size));
+            PresentMovingMarker(id, marker, cart.Position, new(4, 4), snapshot, agent: false, bob: false);
             sprite.Modulate = cart.ConditionPercent == 0 ? new Color("A89279") : Colors.White;
         }
 
@@ -479,11 +488,9 @@ public partial class Main
                     actorTooltip += "\n" + ConversationTooltipSummary(inhabitant.Id, conversation);
                 if (actorMarker.TooltipText != actorTooltip) actorMarker.TooltipText = actorTooltip;
                 actorMarker.Selected = string.Equals(inhabitant.Id, selectedInhabitantId, StringComparison.Ordinal);
-                inhabitantCanonicalXs[inhabitant.Id] = targetPosition.X;
-                actorMarker.Position = new Vector2(
-                    WrappedMarkerX(targetPosition.X, mapWidth, stride, snapshot.WrapsEastWest),
-                    targetPosition.Y);
                 actorMarker.Size = markerSize;
+                PresentMovingMarker("agent:" + inhabitant.Id, actorMarker, inhabitant.Position,
+                    new(offsetX, offsetY), snapshot, agent: true, bob: true, snap: !actorMarker.Visible);
 
             }
         }
@@ -497,6 +504,7 @@ public partial class Main
             inhabitantVisuals[removedId].QueueFree();
             inhabitantVisuals.Remove(removedId);
             inhabitantCanonicalXs.Remove(removedId);
+            markerMotions.Remove("agent:" + removedId);
         }
 
         RenderOccupancyBadges(snapshot, peopleInside);

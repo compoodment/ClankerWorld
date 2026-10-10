@@ -167,7 +167,6 @@ public sealed class MovementProposal : IArtProposal, IAnimatedArtProposal
     [
         ("a-today", "A: today, jumping a tile at each update"),
         ("b-glide", "B: gliding steadily between tiles, walk frames every quarter second"),
-        ("c-glide-bob", "C: gliding, with a one-pixel bob on each step"),
     ];
 
     public IEnumerable<Entry> Render()
@@ -191,7 +190,7 @@ public sealed class MovementProposal : IArtProposal, IAnimatedArtProposal
         var walkFrame = look == "a-today"
             ? (step % 2 == 0 ? AgentFrame.Walk1 : AgentFrame.Walk2)
             : ((int)(t * 4) % 2 == 0 ? AgentFrame.Walk1 : AgentFrame.Walk2);
-        var bob = look == "c-glide-bob" && (int)(t * 4) % 2 == 1 ? -1 : 0;
+        const int bob = 0;
 
         var drawn = (int)MathF.Round(size * SceneComposer.AgentSpriteScale);
         var agentX = (look == "a-today" ? 8 + step : 8 + step + within) * size + size / 2f;
@@ -202,7 +201,7 @@ public sealed class MovementProposal : IArtProposal, IAnimatedArtProposal
         var cowX = (look == "a-today" ? 9 + step : 9 + step + within) * size;
         var cowStep = look == "a-today" ? (step % 2 + 1) : ((int)(t * 4) % 2 + 1);
         var cow = AnimalSprites.Sprite("cow", east, young: false, mounted: false, size: size, step: cowStep);
-        canvas.Stamp(cow, (int)MathF.Round(cowX), 10 * size + (look == "c-glide-bob" ? bob : 0), size);
+        canvas.Stamp(cow, (int)MathF.Round(cowX), 10 * size, size);
         return canvas.ToImage();
     }
 }
