@@ -326,5 +326,12 @@ public static class TownLawRules
     private static string SiteKey(GridPoint[] tiles) => tiles.Length == 0 ? "-" :
         string.Join(';', tiles.Select(t => t.X.ToString(CultureInfo.InvariantCulture) + "," + t.Y.ToString(CultureInfo.InvariantCulture)));
 
-    private static string Bounded(string text) => text.Length <= MaximumTextLength ? text : text[..(MaximumTextLength - 1)] + "…";
+    private static string Bounded(string text)
+    {
+        if (text.Length <= MaximumTextLength) return text;
+        var length = MaximumTextLength - 1;
+        if (char.IsHighSurrogate(text[length - 1]) && char.IsLowSurrogate(text[length]))
+            length--;
+        return text[..length] + "…";
+    }
 }
