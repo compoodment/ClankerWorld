@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-09
+updated: 2026-10-10
 ---
 
 # What works today
