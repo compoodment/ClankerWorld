@@ -118,7 +118,7 @@ public sealed partial class PrivateWorldRuntime
             map.Tiles[to.Y * map.Width + to.X].Terrain is not (TerrainKind.Mountain or TerrainKind.Peak));
 
     private int TravelStepCost(string actor, GridPoint from, GridPoint to) => AttachedHandcart(actor) is null
-        ? RoadStepCost(from, to)
+        ? AgentStepCost(from, to)
         : IsRoadSurface(from) && IsRoadSurface(to)
             ? RoadStepCost(from, to) : checked(RoadStepCost(from, to) + 100);
 
