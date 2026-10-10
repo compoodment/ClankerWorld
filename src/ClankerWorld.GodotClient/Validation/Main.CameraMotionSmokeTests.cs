@@ -57,6 +57,33 @@ public partial class Main
             if (CameraMoving || cameraCenterTiles.DistanceTo(new(100, 64)) > 0.01f)
                 throw new InvalidOperationException("A retargeted glide must finish at its new destination.");
 
+            var navigation = keyboardNavigation;
+            var focusMode = mapCanvas.FocusMode;
+            var cursor = keyboardMapTile;
+            try
+            {
+                keyboardNavigation = true;
+                mapCanvas.FocusMode = Control.FocusModeEnum.All;
+                keyboardMapTile = new(80, 64);
+                SetCameraAtImmediately(new(80, 64));
+                mapCanvas.GrabFocus();
+                CenterOnInhabitant(person.Id);
+                AdvanceCameraMotion(CameraEasing.MoveSeconds / 2);
+                if (!cameraGliding || cameraCenterTiles.DistanceTo(new Vector2(80, 64).Lerp(new(180.5f, 64.5f), 0.875f)) > 0.01f)
+                    throw new InvalidOperationException("Focused-map Find must retain its glide while the destination cursor is still offscreen.");
+                var focused = keyboardMapTile!.Value;
+                HandleKeyboardMapInput(new InputEventKey { Keycode = Key.Right, Pressed = true }, fixture);
+                if (CameraMoving || keyboardMapTile != new Vector2I(focused.X + 1, focused.Y))
+                    throw new InvalidOperationException("Manual cursor movement must cancel Find motion and retain immediate tile navigation.");
+            }
+            finally
+            {
+                mapCanvas.ReleaseFocus();
+                mapCanvas.FocusMode = focusMode;
+                keyboardNavigation = navigation;
+                keyboardMapTile = cursor;
+            }
+
             selectedBuildingId = "camera-house";
             RenderBuildingCard(fixture);
             cardPosition = buildingQuickCard.Position;

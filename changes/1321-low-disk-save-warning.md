@@ -1,0 +1,1 @@
+- Warn when the server's save disk has little free space, before manual saves and while autosaves run, while continuing to attempt saving and automatic recovery.

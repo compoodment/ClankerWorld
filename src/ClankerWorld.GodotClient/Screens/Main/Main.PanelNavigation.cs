@@ -262,6 +262,7 @@ public partial class Main
     {
         UpdateDeveloperFrameTime(delta);
         AdvanceCameraMotion(delta);
+        AdvanceMapMarkers(delta);
         if (!GetWindow().HasFocus()) return;
         var direction = new Vector2(
             (Input.IsPhysicalKeyPressed(Key.D) || Input.IsPhysicalKeyPressed(Key.Right) ? 1 : 0) -

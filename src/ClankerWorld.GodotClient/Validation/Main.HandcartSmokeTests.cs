@@ -151,6 +151,7 @@ public partial class Main
 
         TextureRect Expect(int facing, bool loaded, bool pulled, string phase, bool sameMarker = true)
         {
+            AdvanceMapMarkers(WalkingMotion.GlideSeconds);
             var marker = mapObjectVisuals["handcart:" + cart.Id];
             var sprite = marker.GetNode<TextureRect>("HandcartSprite");
             using var image = sprite.Texture.GetImage();

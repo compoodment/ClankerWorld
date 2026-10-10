@@ -1,0 +1,1 @@
+- With a cow's milk ready and an empty household jug stored at its Animal Yard, order an adult standing beside the cow to collect from it. Check that the milk enters the jug and the order finishes once. Save and reload; check that its completed progress remains. Try again with the jug already carried. ([#1216](https://github.com/compoodment/ClankerWorld/issues/1216))

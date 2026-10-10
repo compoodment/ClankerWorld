@@ -1,0 +1,3 @@
+- [ ] With little free space on the host's save disk, check that the warning is legible in both themes during play and in Save World, and Save/Overwrite remain usable. [#1321](https://github.com/compoodment/ClankerWorld/issues/1321)
+- [ ] Check that rotating autosaves and emergency recovery continue trying under the warning, and a failed write explains the failure without claiming a successful save. [#1321](https://github.com/compoodment/ClankerWorld/issues/1321)
+- [ ] Make room on the host's save disk and check that the warning clears; when space cannot be checked, check that the message says so. [#1321](https://github.com/compoodment/ClankerWorld/issues/1321)

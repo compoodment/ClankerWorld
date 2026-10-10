@@ -11,6 +11,10 @@ namespace ClankerWorld.GodotClient.UI;
 // the authoritative server or simulation assemblies.
 public sealed record OwnerDeletionAction(string Kind, string Id, string WorldId, DateTimeOffset? ExpectedCreatedUtc = null);
 public sealed record OwnerDeletionReceipt(string Id, bool CleanupComplete);
+public sealed record OwnerRecoveryCleanupAction(string Operation, string WorldId, int KeepCount, string? ExpectedDigest = null);
+public sealed record OwnerRecoveryCleanupReceipt(IReadOnlyList<string> RemovedIds, bool CleanupComplete);
+public sealed record RecoveryCleanupPreview(string WorldId, int KeepCount, string Digest,
+    IReadOnlyList<ManualWorldSave> Remove, IReadOnlyList<ManualWorldSave> Keep);
 
 public sealed record OwnerWorldProtocolVersion(int Major, int Minor);
 
@@ -125,7 +129,7 @@ public sealed record OwnerWorldInhabitantRelationship(
     string? Direction = null);
 
 public sealed record OwnerWorldPrivateThought(long WorldTick, string Text);
-public sealed record OwnerWorldAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility);
+public sealed record OwnerWorldAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility, bool Permanent = false);
 public sealed record OwnerWorldAgentBelief(
     long WorldTick,
     string Statement,
@@ -147,13 +151,17 @@ public sealed record OwnerWorldKnowledgeFact(
     string Acquisition,
     string? SourceAgentName);
 public sealed record OwnerWorldKnowledgeSite(int X, int Y, string Terrain, IReadOnlyList<string> ResourceKinds, string DiscovererName);
+public sealed record OwnerWorldRecipe(long WorldTick, string Name, string Acquisition, string? SourceAgentName);
 public sealed record OwnerWorldKnowledgeArtifact(
     string Id,
     string Kind,
     string Title,
     long CreatedTick,
     string CreatorName,
-    IReadOnlyList<OwnerWorldKnowledgeSite> Sites);
+    IReadOnlyList<OwnerWorldKnowledgeSite> Sites)
+{
+    public IReadOnlyList<string> RecipeNames { get; init; } = [];
+}
 /// <summary>
 /// The world's saved calendar. Season lengths and the clock offset come from
 /// the world's saved values; an older host leaves missing values at zero.
@@ -208,7 +216,14 @@ public sealed record OwnerLandTransfer(string Id, string FilerId, string FilerNa
     string TargetHouseholdName, IReadOnlyList<OwnerWorldPosition> Tiles, IReadOnlyList<OwnerLandHearingRightVersion> RightVersions,
     IReadOnlyList<OwnerLandTransferParty> Parties, string NoticeId, long ProposedTick,
     IReadOnlyList<OwnerLandTransferResponse> Responses, string Status, long? SettledTick, string? Reason,
-    string? ReceiptAdjustmentId);
+    string? ReceiptAdjustmentId)
+{
+    public OwnerLandSalePrice? Price { get; init; }
+    public OwnerLandSalePayment? Payment { get; init; }
+}
+public sealed record OwnerLandSalePrice(string SellerHouseholdId, string SellerHouseholdName, string ItemKind, int Quantity);
+public sealed record OwnerLandSalePayment(string BuyerAgentId, string BuyerName, string SellerAgentId, string SellerName,
+    OwnerWorldPosition Position, long Tick);
 
 public sealed record OwnerLandHearingOutcome(string Kind, string? HouseholdId, string? HouseholdName, long? AgreedEndTick);
 public sealed record OwnerLandHearingProposal(IReadOnlyList<OwnerWorldPosition> Tiles,
@@ -257,6 +272,7 @@ public sealed record OwnerTownLandHearing(string Id, string Kind, string Status,
     OwnerLandHearingElection? JudgeElection, OwnerLandHearingElection? LatestJudgeElection,
     IReadOnlyList<OwnerLandHearingReopenRequest> ReopenRequests)
 {
+    public IReadOnlyList<string> PropertyDetails { get; init; } = [];
     public IReadOnlyList<OwnerLandHearingRead> Reads { get; init; } = [];
     public IReadOnlyList<OwnerLandHearingParty> CurrentParties { get; init; } = [];
 }
@@ -320,6 +336,7 @@ public sealed record OwnerWorldTownProject(string Id, string ProposalId, string 
 {
     public IReadOnlyList<string> Tags { get; init; } = [];
     public string? CompletedBoatId { get; init; }
+    public long? RemovedTick { get; init; }
 }
 public sealed record OwnerCivicCandidate(string Id, string Name, int Votes);
 public sealed record OwnerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
@@ -383,6 +400,7 @@ public sealed record OwnerWorldInhabitant(
     public IReadOnlyList<OwnerWorldAgentBelief> RecentBeliefs { get; init; } = [];
 
     public IReadOnlyList<OwnerWorldKnowledgeFact> RecentKnowledgeFacts { get; init; } = [];
+    public IReadOnlyList<OwnerWorldRecipe> KnownRecipes { get; init; } = [];
 
     public IReadOnlyList<OwnerWorldKnowledgeArtifact> KnowledgeArtifacts { get; init; } = [];
 
@@ -440,7 +458,12 @@ public sealed record OwnerWorldInstructionOrder(
     string? TargetItemKind = null,
     string? TargetBuildingKind = null,
     string? TargetAnimalId = null,
-    string? TargetKnowledgeKind = null);
+    string? TargetKnowledgeKind = null,
+    string? TargetCartLotId = null,
+    string? TalkConversationId = null,
+    string? TalkStatus = null,
+    string? TalkOutcome = null,
+    string? TargetKnowledgeArtifactId = null);
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -610,6 +633,9 @@ public sealed record OwnerWorldActor(
     int FoodItems,
     int WoodItems);
 
+public sealed record OwnerWorldGeneration(string Seed, string Size, string ClimateMode,
+    string SelectedClimate, bool LatitudeCooling, bool WrapEastWest);
+
 public sealed record OwnerWorldSnapshot(
     string WorldId,
     long WorldTick,
@@ -624,6 +650,7 @@ public sealed record OwnerWorldSnapshot(
     public OwnerWorldPackedMapLayers? PackedMapLayers { get; init; }
     public string? MapLayersDigest { get; init; }
     public bool WrapsEastWest { get; init; }
+    public OwnerWorldGeneration? Generation { get; init; }
     public IReadOnlyList<OwnerWorldFarmField> Fields { get; init; } = [];
     public IReadOnlyList<OwnerWorldGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<OwnerWorldHandcart> Handcarts { get; init; } = [];
@@ -702,6 +729,8 @@ public sealed record OwnerReconnectAction(long AfterEventId,
 
 public sealed record OwnerControlAction(string Operation);
 public sealed record OwnerManualSaveAction(string Operation, string Value);
+public sealed record StartupRecoveryStatus(bool Pending, string? WorldId, ManualWorldSave? Autosave, string? Reason = null);
+public sealed record StartupRecoveryReceipt(string LoadedId, long WorldTick);
 public sealed record OwnerWorldCreationAction(string Name, string Seed, string Size,
     int WaterPercent, bool WrapEastWest, string ClimateMode = "Balanced",
     string SelectedClimate = "Temperate", bool LatitudeCooling = true,
@@ -759,6 +788,8 @@ public sealed record SaveBranch(string Id, int Number, string? StartedFromId = n
 public sealed record SaveTimelinePosition(string? ContinuedFromId, string? BranchId, bool StartsNewBranch,
     int? NextBranchNumber = null, long? ContinuedFromTick = null);
 public sealed record ManualSaveLoadReceipt(string LoadedId, string BackupId, long WorldTick);
+public sealed record SaveDiskSpaceStatus(string State, long? AvailableBytes, long WarningBelowBytes,
+    DateTimeOffset? CheckedUtc);
 public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string BackupId);
 public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount, string WorldId);
 public sealed record WorldAutosaveSettings(string WorldId, bool Enabled, int IntervalMinutes,

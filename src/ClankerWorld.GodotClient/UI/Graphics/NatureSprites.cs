@@ -58,8 +58,8 @@ public enum NatureSprite : byte
 public static partial class NatureSprites
 {
     private static readonly int SpriteCount = Enum.GetValues<NatureSprite>().Length;
-    private static readonly Dictionary<int, Image> Images = [];
-    private static readonly Dictionary<int, ImageTexture> Textures = [];
+    private static readonly Dictionary<(int Size, LandscapeSeason Season), Image> Images = [];
+    private static readonly Dictionary<(int Size, LandscapeSeason Season), ImageTexture> Textures = [];
     private static readonly Color Shadow = new(0.05f, 0.08f, 0.05f, 0.28f);
 
     /// <summary>The sprite for a terrain-layer tree code, as listed in <see cref="TreeArtManifest"/>.</summary>
@@ -151,11 +151,14 @@ public static partial class NatureSprites
 
     public static int AtlasTileSize(int drawnTileSize) => drawnTileSize >= 24 ? 32 : 16;
 
-    public static ImageTexture Atlas(int size)
+    public static ImageTexture Atlas(int size) => Atlas(size, LandscapeSeason.Summer);
+
+    public static ImageTexture Atlas(int size, LandscapeSeason season)
     {
-        if (Textures.TryGetValue(size, out var cached)) return cached;
-        var texture = ImageTexture.CreateFromImage(AtlasImage(size));
-        Textures[size] = texture;
+        var key = (size, season);
+        if (Textures.TryGetValue(key, out var cached)) return cached;
+        var texture = ImageTexture.CreateFromImage(AtlasImage(size, season));
+        Textures[key] = texture;
         return texture;
     }
 
@@ -164,9 +167,31 @@ public static partial class NatureSprites
     public static Image Sprite(NatureSprite sprite, int size) =>
         AtlasImage(size).GetRegion(new Rect2I((int)sprite * size, 0, size, size));
 
-    private static Image AtlasImage(int size)
+    public static Image Sprite(NatureSprite sprite, int size, LandscapeSeason season) =>
+        AtlasImage(size, season).GetRegion(new Rect2I((int)sprite * size, 0, size, size));
+
+    private static Image AtlasImage(int size, LandscapeSeason season = LandscapeSeason.Summer)
     {
-        if (Images.TryGetValue(size, out var cached)) return cached;
+        var key = (size, season);
+        if (Images.TryGetValue(key, out var cached)) return cached;
+        if (season != LandscapeSeason.Summer)
+        {
+            var tinted = (Image)AtlasImage(size).Duplicate();
+            var ramps = new[] { Canopy, Needle, OrchardCanopy };
+            var colours = ramps.SelectMany(ramp => new[] { ramp.Edge, ramp.Shade, ramp.Base, ramp.Light, ramp.Highlight })
+                .Distinct().ToDictionary(colour => colour, colour => LandscapePalette.Apply(colour, season));
+            foreach (var sprite in new[] { NatureSprite.Broadleaf, NatureSprite.Conifer, NatureSprite.BroadleafSapling,
+                NatureSprite.ConiferSapling, NatureSprite.OrchardFruiting, NatureSprite.OrchardPicked, NatureSprite.OrchardGrowing })
+                for (var y = 0; y < size; y++)
+                    for (var x = (int)sprite * size; x < ((int)sprite + 1) * size; x++)
+                    {
+                        var original = tinted.GetPixel(x, y);
+                        if (colours.TryGetValue(new Color(original, 1), out var next))
+                            tinted.SetPixel(x, y, new Color(next, original.A));
+                    }
+            Images[key] = tinted;
+            return tinted;
+        }
         var image = Image.CreateEmpty(size * SpriteCount, size, false, Image.Format.Rgba8);
         image.Fill(Colors.Transparent);
         foreach (var sprite in Enum.GetValues<NatureSprite>())
@@ -176,7 +201,7 @@ public static partial class NatureSprites
             else if (IsApproved(sprite)) PaintApproved(new Layers(image, cell), sprite);
             else Paint(new PixelCanvas(image, cell, size / 32f), sprite);
         }
-        Images[size] = image;
+        Images[key] = image;
         return image;
     }
 
