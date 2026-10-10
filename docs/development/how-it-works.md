@@ -3854,6 +3854,13 @@ to the patch's interaction area, using the same live people and animal blockers
 as movement. A crowded nearer patch does not hide another reachable patch within
 the existing search radius.
 
+Wild drinking selection likewise checks the complete unoccupied route to a
+fresh-water shore before choosing it. Shores retain their distance, row and
+column order and twelve-tile search radius. A crowded approach to an empty
+shore does not hide an alternate reachable shore. Selection and movement share
+the same live people and animal blockers and route search; drinking and care
+durations remain unchanged.
+
 Forage checks that radius before looking up stock through the current ecology
 state's ID index. Feed consumption replaces the ecology state, so the next
 animal sees the remaining quantity. Distance and ordinal-ID ordering stay the

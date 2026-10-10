@@ -1,0 +1,1 @@
+- Wild animals can reach another fresh-water shore when people or animals crowd the preferred shore's approach.
