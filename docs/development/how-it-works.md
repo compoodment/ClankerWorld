@@ -2964,8 +2964,11 @@ for other buildings, Town project sites, expansions, fields, tree planting and
 household land requests. The provisional starter budget is 24 wood,
 8 stone and 4 fiber with 10 work units; another stall costs 4 wood and 2 fiber
 with 3 work units. General plaza growth has no implementation or agreed rule.
-Physical stock receipts retain the personal or household owner. One named
-active adult borrows a stall while they remain inside the hall-and-plaza area;
+Physical stock receipts retain the personal or household owner. Each receipt
+keeps complete native source and destination lot IDs, including long
+split/move histories and a partial deposit's derived destination. Its hashed
+identity and exact inventory event bind that history to the real deposit.
+A named active adult borrows a stall while they remain inside the hall-and-plaza area;
 leaving, household change, death or removal ends borrowing and releases
 unfinished offer claims without transferring leftovers.
 
