@@ -73,6 +73,36 @@ public sealed partial class AgentConversationProviderTests
     }
 
     [Fact]
+    public async Task MarriageActivityReachesOnlyTheSpeakersPersonalConversationContext()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-marriage-activity-");
+        try
+        {
+            var store = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"), new(
+                "deterministic", null, null, null, null, null, null));
+            _ = store.Configure(Personal("agent-a", "own-model", "own-model-key"));
+            var handler = new ConversationResponseHandler("I want to discuss marriage.");
+            IAgentConversationProvider router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler),
+                new RecordingLogger<ConfigurableDecisionProvider>(), usageStore: new ProviderUsageStore(Path.Combine(directory.FullName, "usage.json")));
+            _ = await router.SpeakAsync(Request("agent-a", "agent-b") with
+            { ExpectedProviderEpoch = router.ProviderEpoch, RequestedActivity = "propose_marriage" });
+            using var body = JsonDocument.Parse(Assert.Single(handler.Bodies));
+            var messages = body.RootElement.GetProperty("messages");
+            using var context = JsonDocument.Parse(messages[1].GetProperty("content").GetString()!);
+            Assert.Equal("propose_marriage", context.RootElement.GetProperty("observer_requested_activity").GetString());
+            Assert.Equal("agent-a", context.RootElement.GetProperty("speaker").GetProperty("id").GetString());
+            Assert.Contains("personal consent", messages[0].GetProperty("content").GetString()!, StringComparison.Ordinal);
+            Assert.Throws<ArgumentException>(() => (Request("agent-a", "agent-b") with { RequestedActivity = "force_marriage" }).Validate());
+            Assert.Throws<ArgumentException>(() => (Request("agent-a", "agent-b") with
+            { RequestedActivity = "propose_marriage", Purpose = AgentConversationPurpose.SurnameChoice, AllowedSurnames = ["Ash", "Reed"] }).Validate());
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task UnknownStructuredEffectIsRejectedAndOnlyBoundedFailureIsLogged()
     {
         var directory = Directory.CreateTempSubdirectory("clankerworld-conversation-rejection-");

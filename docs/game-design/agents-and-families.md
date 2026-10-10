@@ -2,7 +2,7 @@
 title: Agents, families and social life
 type: game-design
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # Agents, families and social life
@@ -58,6 +58,16 @@ everything that is available in the current build. See [what works today](../wha
   agents may use the same stored key. Agents choose their own personality,
   aspirations and initial identity. Agents start with no skills; an agent first
   gains a skill by finishing that kind of work. The player can add adults freely.
+- **Agreed on October 9 (the owner in chat):** Anthropic's Claude models are a
+  hosted provider for agents' personal models, next to OpenAI and Ollama Cloud.
+  Its short list is Claude Opus 5.5, Claude Sonnet 5.5 and Claude Haiku 5.5,
+  and a new Anthropic agent starts on **Claude Haiku 5.5**. Claude is not a routine
+  helper choice.
+- **Agreed on October 9 (the owner in chat):** every agent's hosted model has a
+  **Thinking** setting, chosen with its model for every hosted provider:
+  **Model default**, **Low**, **Medium** or **High**. Model default leaves the
+  provider's own setting. There is no Off, because several current models
+  refuse it. A child born in the world starts with the model default.
 - An agent chooses its personality and aspiration **once, at its first
   decision**. **Agreed, with provisional timing and limits for playtesting:**
   it can change them later only at moments the game names: a
@@ -201,7 +211,7 @@ everything that is available in the current build. See [what works today](../wha
   established inheritance rule can change the default household distribution.
 - **What a will may do, agreed on October 1
   ([#645](https://github.com/compoodment/ClankerWorld/issues/645)):** a will
-  may leave the estate to the household default, or name **up to three** living
+  may use default inheritance, or name **up to three** living
   heirs or the Town, item by item or in equal shares. Children can inherit;
   their goods stay where they are stored, as their personal property. The dying
   agent may also leave **short final words**. The people who inherit hear them
@@ -216,7 +226,7 @@ everything that is available in the current build. See [what works today](../wha
   arrive within 30 seconds of unpaused world time (about two hours on the game
   clock). A request cut short by loading a save is not asked again. The game
   checks the will against what the agent really owned and against the law, and
-  uses the household default if the model is unavailable or gives no valid
+  uses default inheritance if the model is unavailable or gives no valid
   will. The estate is held for seven world days, then divided. With no valid
   will and no household left, the goods go to the Town's communal stock.
 - **Town law and debts, agreed on October 8
@@ -302,7 +312,7 @@ everything that is available in the current build. See [what works today](../wha
   days**, but may not refuse; then the plan goes ahead. Choosing a partner
   stays voluntary. The couple's model requests explain the rule, and the Event
   Log notes when it turns on and off. The numbers are provisional, and the
-  eligible-couple check above comes later.
+  eligible-couple check above supersedes this first headcount trigger.
 - **Newcomers, agreed on October 1
   ([#655](https://github.com/compoodment/ClankerWorld/issues/655)):** unrelated
   adults arrive only when the player adds them with Add Agent. While the

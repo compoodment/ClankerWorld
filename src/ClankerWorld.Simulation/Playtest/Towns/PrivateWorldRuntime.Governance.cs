@@ -149,10 +149,14 @@ public sealed partial class PrivateWorldRuntime
     private static string CivicRoundToken(TownElection election) =>
         $"{election.Id}:{election.Stage}:{election.OpenedTick.ToString(CultureInfo.InvariantCulture)}";
 
-    private void AddTownCivicCandidates(List<CognitionCandidate> candidates, string actor)
+    private void AddTownCivicCandidates(List<CognitionCandidate> candidates, string actor,
+        IReadOnlyList<string>? buildingsWithoutSites = null)
     {
         // Civic agreement and votes are explicit personal choices, never a built-in idle alternative.
         if (NeedsUrgentWarmth(inhabitants[actor])) return;
+        var siteRecovery = buildingsWithoutSites is { Count: > 0 }
+            ? $"No legal building site is available for {string.Join(", ", buildingsWithoutSites)}. "
+            : string.Empty;
         if (TownFoundingLayout(actor) is { } founding)
             candidates.Add(new(CivicAction(founding.Id, "found"),
                 "Explicitly found a new Town here on unclaimed land. You leave your previous Town and your dependent children join without moving or changing care. The new council begins with its adult residents. Existing household property stays owned; no House, goods or household membership are supplied.", 170));
@@ -199,11 +203,11 @@ public sealed partial class PrivateWorldRuntime
                 var here = inhabitants[actor].Position;
                 // The model sees no map grid, so name real claimable tiles it can choose from.
                 if (TownLandClaimRules.ClaimableNear(map, town, townLandTitles, here, 6) is { Length: > 0 } nearest)
-                    candidates.Add(new(CivicAction(town.Id, "claim_land"), $"Ask {town.Name}'s council to claim a connected plot of adjoining unclaimed land; include its exact coordinates in civic_land_tiles. " +
+                    candidates.Add(new(CivicAction(town.Id, "claim_land"), siteRecovery + $"Ask {town.Name}'s council to claim a connected plot of adjoining unclaimed land; include its exact coordinates in civic_land_tiles. " +
                         FormattableString.Invariant($"You stand at ({here.X}, {here.Y}); unclaimed tiles beside the Town's land nearest you: {string.Join("; ", nearest.Select(tile => FormattableString.Invariant($"({tile.X}, {tile.Y})")))}. ") +
                         "Existing titles, household rights, buildings and goods stay with their holders.", 190));
                 if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not null && RequestableLandNear(town, here, 6) is { Length: > 0 } free)
-                    candidates.Add(new(CivicAction(town.Id, "request_land_use"), $"Ask {town.Name}'s council for household use of a connected plot of Town-titled land; include exact coordinates in civic_land_tiles. " +
+                    candidates.Add(new(CivicAction(town.Id, "request_land_use"), siteRecovery + $"Ask {town.Name}'s council for household use of a connected plot of Town-titled land; include exact coordinates in civic_land_tiles. " +
                         FormattableString.Invariant($"You stand at ({here.X}, {here.Y}); free Town land nearest you: {string.Join("; ", free.Select(tile => FormattableString.Invariant($"({tile.X}, {tile.Y})")))}. ") +
                         "Filing grants nothing and supplies no household acceptance.", 190));
             }
@@ -356,6 +360,11 @@ public sealed partial class PrivateWorldRuntime
                     if (visitorId is not null && (!inhabitants.ContainsKey(visitorId) || town.ResidentIds.Contains(visitorId, StringComparer.Ordinal))) return;
                     (state, government) = TownLawRules.ProposeBoatAccess(state, government, town.Id, actor,
                         visitorId, TownAdults(town), WorldTick, CivicDay);
+                    break;
+                case "estate_default":
+                    if (!int.TryParse(parts[4], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var townShare)) return;
+                    (state, government) = TownLawRules.ProposeEstateDefault(state, government, town.Id, actor,
+                        townShare, TownAdults(town), WorldTick, CivicDay);
                     break;
                 case "boat_project":
                     var boatPort = Port(parts[3]);

@@ -2,7 +2,7 @@
 title: The interface, art and audio
 type: game-design
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # The interface, art and audio
@@ -96,7 +96,14 @@ everything that is available in the current build. See [what works today](../wha
   log has an icon for each kind of event and a heading for each day, shows the
   newest first and has no filters. Only an event with a place has a **Find**
   button. The game keeps the newest 1,024 events in each of its event records
-  and archives older ones; that number is provisional.
+  and archives older ones; that number is provisional. **Agreed on October 9
+  (owner request in chat):** each line says who was involved and what
+  happened, in plain words without legal or code terms. Births, deaths,
+  marriages, skills learned, animals and scouting trips appear. Routine steps
+  that a later line already reports do not: meals, forage trips, tending a
+  crop, loading and parking a cart, starting a recipe, picking up goods on the
+  way to a delivery, each Town project work shift, and reading or passing on a
+  case file.
 - World Info should let the player inspect discovered capabilities and other
   world information. Separate map filters show Town title, household land use,
   disputed land, household property and Town borders; these are the first set
@@ -226,8 +233,9 @@ everything that is available in the current build. See [what works today](../wha
     has no search.
     The Family Tree uses small portrait boxes and opens beside the Profile.
   - The Profile's model line names the model's provider plainly instead of
-    "chosen by". Model choices are labelled **Provider**, **API key** and
-    **Model**, and an agent's model settings link to the main model settings
+    "chosen by". Model choices are labelled **Provider**, **API key**,
+    **Model** and, **agreed on October 9 (the owner in chat)**, **Thinking**,
+    and an agent's model settings link to the main model settings
     instead of offering to delete a key. Add an agent says **Click on land to
     place them**.
   - The Mod Library lists mods as cards with a status tag. Confirmation
@@ -336,7 +344,8 @@ everything that is available in the current build. See [what works today](../wha
   agent uses; there is no single-key-per-provider restriction. The model is
   chosen from the game's own short list for that provider, newest at the top.
   Listed models the selected key can't use are shown greyed out, and the
-  player can always type any other model name. The agent
+  player can always type any other model name. The flow also sets the agent's
+  **Thinking** level. The agent
   chooses its own name after placement; the player can rename it later. Agents
   should choose full names with a surname and may choose a middle name. Do not
   include every existing agent name in the naming prompt merely to avoid
@@ -596,6 +605,31 @@ provide a UI drawing.
   computment chose look B, crisp pixel streaks: straight one-pixel rain that
   lands as a small burst, sharp storm streaks in gusts, and small snowflake
   crosses blown by the wind. No cloud shadows.
+- **Agreed on October 9 (direct owner request,
+  [visual polish review](../../tools/ArtPreview/Proposed/Polish.md)):** the
+  map gets touches that only show, more clearly, what the world already
+  records:
+  - agents and animals glide between tiles, with a small bob on each step,
+    instead of jumping;
+  - Houses with someone inside and a working forge send up a column of
+    smoke that leans with the wind;
+  - after snowfall the open ground turns white, with grass tips and trodden
+    Roads showing, and anyone crossing it leaves footprints that fade; in
+    autumn a few leaves lie under broadleaf and orchard trees;
+  - dawn has a rose glow and dusk a gold one;
+  - stores show piles of logs, crates and sacks beside the door that grow
+    with what they hold;
+  - the camera eases when **Find** moves it or the view zooms;
+  - a finished building gets a ring of dust and a few twinkles;
+  - after snowfall roofs keep snow on their shaded side and a dusting on
+    their sunny side, following each roof's shape;
+  - where someone died, a grave marked by a wooden cross or a headstone
+    stays for a year of game time, then fades;
+  - weather fades in and out instead of switching at once.
+
+  Puddles after rain are postponed: none of the three rounds of drawings
+  matched what computment has in mind, and whether puddles belong in the
+  game at all is left open for later.
 - Ground remains square-tiled, but permanent **black tile-border grid lines**
   are not part of the intended presentation; they would clash with textures.
 - **Agreed on October 8
@@ -734,6 +768,11 @@ provide a UI drawing.
 
     Fences, piers, bridges and lanterns follow the same order with their own
     parts.
+  - **16 px vehicles and animals.** At mid zoom the handcart (empty,
+    loaded and pulled) and the rowing boat (rowing and at rest) use 16 px
+    versions halved from their approved drawings, approved in all eight
+    facings ([#914](https://github.com/compoodment/ClankerWorld/issues/914)).
+    Every animal's 16 px drawing, in all eight facings, is approved too.
   - **Abandoned Towns.** Buildings in an abandoned Town look **neglected**:
     faded, mossy, weedy, with the door boarded. Once the Town has stayed
     abandoned for a **full season** they look **falling apart**, with a hole

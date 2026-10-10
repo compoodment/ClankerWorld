@@ -129,7 +129,7 @@ public sealed record OwnerWorldInhabitantRelationship(
     string? Direction = null);
 
 public sealed record OwnerWorldPrivateThought(long WorldTick, string Text);
-public sealed record OwnerWorldAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility);
+public sealed record OwnerWorldAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility, bool Permanent = false);
 public sealed record OwnerWorldAgentBelief(
     long WorldTick,
     string Statement,
@@ -216,7 +216,14 @@ public sealed record OwnerLandTransfer(string Id, string FilerId, string FilerNa
     string TargetHouseholdName, IReadOnlyList<OwnerWorldPosition> Tiles, IReadOnlyList<OwnerLandHearingRightVersion> RightVersions,
     IReadOnlyList<OwnerLandTransferParty> Parties, string NoticeId, long ProposedTick,
     IReadOnlyList<OwnerLandTransferResponse> Responses, string Status, long? SettledTick, string? Reason,
-    string? ReceiptAdjustmentId);
+    string? ReceiptAdjustmentId)
+{
+    public OwnerLandSalePrice? Price { get; init; }
+    public OwnerLandSalePayment? Payment { get; init; }
+}
+public sealed record OwnerLandSalePrice(string SellerHouseholdId, string SellerHouseholdName, string ItemKind, int Quantity);
+public sealed record OwnerLandSalePayment(string BuyerAgentId, string BuyerName, string SellerAgentId, string SellerName,
+    OwnerWorldPosition Position, long Tick);
 
 public sealed record OwnerLandHearingOutcome(string Kind, string? HouseholdId, string? HouseholdName, long? AgreedEndTick);
 public sealed record OwnerLandHearingProposal(IReadOnlyList<OwnerWorldPosition> Tiles,
@@ -329,6 +336,7 @@ public sealed record OwnerWorldTownProject(string Id, string ProposalId, string 
 {
     public IReadOnlyList<string> Tags { get; init; } = [];
     public string? CompletedBoatId { get; init; }
+    public long? RemovedTick { get; init; }
 }
 public sealed record OwnerCivicCandidate(string Id, string Name, int Votes);
 public sealed record OwnerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
@@ -833,7 +841,7 @@ public sealed record OwnerProviderModelListAction(
     string Provider, string? CredentialSlotId = null, string? ApiKey = null, bool CheckKey = true);
 
 public sealed record OwnerProviderSetupCheckAction(
-    string Provider, string Model, string? CredentialSlotId = null, string? ApiKey = null);
+    string Provider, string Model, string? CredentialSlotId = null, string? ApiKey = null, string? Thinking = null);
 
 public sealed record OwnerProviderSetupCheckResult(string Outcome, string Message, bool IsReady);
 
@@ -857,15 +865,21 @@ public sealed record OwnerProviderConfigurationAction(
     bool ForgetCredential,
     string? InhabitantId = null,
     string? CredentialSlotId = null,
-    string? NewCredentialLabel = null);
+    string? NewCredentialLabel = null,
+    string? Thinking = null);
 
+/// <summary>
+/// One agent's model for one role. <see cref="Thinking"/> is low, medium or
+/// high, or <see langword="null"/> for the model's own default.
+/// </summary>
 public sealed record InhabitantProviderAssignment(
     string InhabitantId,
     string Role,
     string Provider,
     string? Model = null,
     string? CredentialSlotId = null,
-    string? SelectionReason = null);
+    string? SelectionReason = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Thinking = null);
 
 public sealed record OwnerProviderCredentialStatus(string Id, string Provider, string Label);
 

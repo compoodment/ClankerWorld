@@ -533,6 +533,9 @@ public sealed partial class PrivateWorldRuntime
                 var civic = intention.CandidateId.Split('|');
                 if (civic.Length == 5 && civic[2] == "visit" && intention.Provider == DecisionProviderKind.LargeLanguageModel)
                     ContinueTownCivicVisit(inhabitant.Id, intention.CandidateId);
+                else if (civic.Length == 5 && civic[2] is "land_transfer_collect_payment" or "land_transfer_pay" or "land_transfer_meet" &&
+                    intention.Provider == DecisionProviderKind.LargeLanguageModel)
+                    ContinueTownLandSaleWalk(inhabitant.Id, intention.CandidateId);
                 continue;
             }
             if (IsTownProjectDonationCandidate(intention.CandidateId))
@@ -1281,6 +1284,8 @@ public sealed partial class PrivateWorldRuntime
         {
             candidates.Add(new CognitionCandidate("consume_food", "Eat one carried food item.", 0));
         }
+        if (CarriedMilk(inhabitantId) is not null && state.HungerBasisPoints < ComfortableFullness)
+            candidates.Add(new("drink_milk", "Drink one portion of carried jug milk, leaving the reusable jug intact.", 0));
 
         if (instructionCandidate == "consume_food" && hasFood &&
             state.HungerBasisPoints < ComfortableFullness &&
@@ -1368,7 +1373,8 @@ public sealed partial class PrivateWorldRuntime
             var reachableToolCache = new Dictionary<(ToolFamily Family, int Tier), ToolDefinition?>();
             var accessibleWarehouses = new Lazy<PlacedBuilding[]>(() => WarehousesAccessibleTo(inhabitantId).ToArray(),
                 LazyThreadSafetyMode.None);
-            AddBuildCandidates(candidates, inhabitant, state, reachableToolCache, accessibleWarehouses);
+            var buildingsWithoutSites = new List<string>();
+            AddBuildCandidates(candidates, inhabitant, state, reachableToolCache, accessibleWarehouses, buildingsWithoutSites);
             AddBuildingExpansionCandidates(candidates, inhabitantId, reachableToolCache, accessibleWarehouses);
             AddHouseGuestCandidates(candidates, inhabitantId);
             AddHouseHaulCandidate(candidates, inhabitantId, state);
@@ -1386,7 +1392,7 @@ public sealed partial class PrivateWorldRuntime
             AddForestryCandidates(candidates, inhabitantId, state);
             AddTradeCandidates(candidates, inhabitantId);
             AddCouncilCandidates(candidates, inhabitantId);
-            AddTownCivicCandidates(candidates, inhabitantId);
+            AddTownCivicCandidates(candidates, inhabitantId, buildingsWithoutSites);
             AddTownProjectDonationCandidates(candidates, inhabitantId);
             AddMarketCandidates(candidates, inhabitantId);
             AddBoatCandidates(candidates, inhabitantId);
@@ -1444,10 +1450,11 @@ public sealed partial class PrivateWorldRuntime
         SocietyInhabitant inhabitant,
         PlaytestInhabitantState state,
         Dictionary<(ToolFamily Family, int Tier), ToolDefinition?> reachableToolCache,
-        Lazy<PlacedBuilding[]> accessibleWarehouses)
+        Lazy<PlacedBuilding[]> accessibleWarehouses,
+        List<string> buildingsWithoutSites)
     {
         if (inhabitant.HouseholdId is { } planningHousehold)
-            AddHouseholdBuildingPlans(candidates, inhabitant, state, planningHousehold);
+            AddHouseholdBuildingPlans(candidates, inhabitant, state, planningHousehold, buildingsWithoutSites);
 
         // Work follows what the household holds, not a role: crops need the
         // household's Farmhouse, and workstation recipes need a building the

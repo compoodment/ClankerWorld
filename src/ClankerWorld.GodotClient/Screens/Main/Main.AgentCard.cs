@@ -155,7 +155,7 @@ public partial class Main
         // A small pencil beside the name renames; it opens a field only when wanted.
         StyleIconButton(renameToggleButton, PixelGlyph.Pencil);
         renameToggleButton.Flat = true;
-        foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "disabled", "focus" })
+        foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "disabled" })
             renameToggleButton.AddThemeStyleboxOverride(state, new StyleBoxEmpty { ContentMarginLeft = 3, ContentMarginRight = 3, ContentMarginTop = 3, ContentMarginBottom = 3 });
         renameToggleButton.TooltipText = "Rename";
         renameToggleButton.Pressed += ToggleRenameRow;
@@ -363,7 +363,7 @@ public partial class Main
     }
 
     /// <summary>Whether a decision came from an agent's own model rather than a routine helper or the built-in rules.</summary>
-    private static bool IsModelProvider(string provider) => provider is "openai" or "ollama-cloud";
+    private static bool IsModelProvider(string provider) => IsHostedProvider(provider);
 
     /// <summary>A flat, short tab-style button that sits beside a section heading.</summary>
     private static void StyleCompactToggle(Button button)
@@ -529,6 +529,8 @@ public partial class Main
             instructionText.CallDeferred(Control.MethodName.GrabFocus);
             QueueAgentProfileFit();
         }
+        else if (keyboardNavigation)
+            Callable.From(() => FocusKeyboardPanel(agentProfilePanel)).CallDeferred();
     }
 
     /// <summary>
@@ -865,6 +867,7 @@ public partial class Main
             "load_handcart" => "Loading " + OrderItemName(order.TargetItemKind),
             "unload_handcart" or "unload_handcart_ground" => "Unloading " + OrderItemName(order.TargetItemKind),
             "talk_to" => "Talking with the named person",
+            "propose_marriage" => "Proposing marriage to their partner",
             "attach_handcart" => "Attaching a handcart",
             "park_handcart" => "Parking a handcart",
             "repair_handcart" => "Repairing a handcart",
@@ -886,8 +889,11 @@ public partial class Main
         var reason = order.Status is "blocked" or "interrupted" or "cancelled" && !string.IsNullOrWhiteSpace(order.BlockedReason)
             ? $" · {order.BlockedReason}"
             : string.Empty;
-        var conversation = order.Action != "talk_to" ? string.Empty : " · " + (order.TalkOutcome switch
+        var conversation = order.Action is not ("talk_to" or "propose_marriage") ? string.Empty : " · " + (order.TalkOutcome switch
         {
+            "married" => "Marriage and surname completed",
+            "proposal_declined" => "Marriage proposal declined",
+            "not_proposed" => "Marriage not proposed",
             "agreed" => "Conversation completed",
             "refused" => "Invitation refused",
             "deadline" => "Invitation expired",
@@ -897,6 +903,9 @@ public partial class Main
             "participant_unavailable" => "Person unavailable",
             _ => order.TalkStatus switch
             {
+                "surname_ready" or "surname_awaiting_speaker" => "Marriage agreed; choosing a shared surname",
+                "surname_suspended" => "Marriage agreed; surname conversation stopped",
+                "surname_closed" or "surname_pending" => "Marriage agreed; surname remains unfinished",
                 "proposed" => "Invitation awaiting their choice",
                 "ready" or "awaiting_speaker" => "Invitation accepted; talking",
                 "wrap_up" => "Waiting for both people's wrap-up choices",
@@ -936,6 +945,7 @@ public partial class Main
         "food_items" => "food items",
         "knowledge_reads" => "items read",
         "conversations" => "talk attempts completed",
+        "marriage_attempts" => "marriage attempts completed",
         "material_items" => "items",
         "equipment_items" => "equipment items",
         "goods_items" => "items",
