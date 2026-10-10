@@ -620,17 +620,22 @@ public sealed partial class PrivateWorldRuntime
             for (var outputIndex = 0; outputIndex < recipe.Outputs.Count; outputIndex++)
             {
                 var output = recipe.Outputs[outputIndex];
-                current = InventoryFixture.AddLot(
-                    current,
-                    $"{job.JobId}:output:{outputIndex.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)}",
-                    output.ResourceId,
-                    output.ResourceId == InventoryContainerRules.Handcart ? job.WorkerId : productionOwner,
-                    output.Amount,
-                    targetTick,
-                    storageBuildingId: output.ResourceId != InventoryContainerRules.Handcart && productionBuilding?.HouseholdId is not null
-                        ? productionBuilding.InstanceId : null,
-                    groundPosition: output.ResourceId == InventoryContainerRules.Handcart
-                        ? new InventoryGroundPosition(productionBuilding!.Position.X, productionBuilding.Position.Y) : null);
+                var outputLotId = $"{job.JobId}:output:{outputIndex.ToString("D2", CultureInfo.InvariantCulture)}";
+                var vessel = InventoryContainerRules.IsContainer(output.ResourceId);
+                for (var unitIndex = 0; unitIndex < (vessel ? output.Amount : 1); unitIndex++)
+                {
+                    current = InventoryFixture.AddLot(
+                        current,
+                        unitIndex == 0 ? outputLotId : $"{outputLotId}:unit:{unitIndex.ToString("D2", CultureInfo.InvariantCulture)}",
+                        output.ResourceId,
+                        output.ResourceId == InventoryContainerRules.Handcart ? job.WorkerId : productionOwner,
+                        vessel ? 1 : output.Amount,
+                        targetTick,
+                        storageBuildingId: output.ResourceId != InventoryContainerRules.Handcart && productionBuilding?.HouseholdId is not null
+                            ? productionBuilding.InstanceId : null,
+                        groundPosition: output.ResourceId == InventoryContainerRules.Handcart
+                            ? new InventoryGroundPosition(productionBuilding!.Position.X, productionBuilding.Position.Y) : null);
+                }
             }
 
             return knifePlan is null ? current : ApplyToolWorkToInventory(current, job.WorkerId,

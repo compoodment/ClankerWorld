@@ -11,7 +11,7 @@ using System.Text.Json;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class ToolMakingRequestTests
+public sealed partial class ToolMakingRequestTests
 {
     private static readonly JsonSerializerOptions PayloadOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 

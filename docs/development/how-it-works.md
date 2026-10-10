@@ -628,7 +628,12 @@ travel and production, even though ordinary project continuation yields to an
 active instruction. Starting or waiting for a job earns no progress. Only a
 committed completion of the exact bound job credits its physical outputs, with
 a production receipt preventing duplicate credit. Outputs retain ordinary
-recipe ownership. Cancelling or replacing an order releases its unfinished
+recipe ownership. Each reusable vessel in a recipe output is a separate
+quantity-one lot; a batch of jugs, pots or handcarts never becomes one stacked
+vessel. The first item keeps the usual output lot ID, and additional vessels
+have deterministic unit IDs. Handcarts remain personal ground items; other
+vessels use the recipe's normal owner and storage location.
+Cancelling or replacing an order releases its unfinished
 job's inputs without adopting or cancelling another project. Survival pauses
 the bound job before it can finish and resumes its remaining duration after
 the actor returns. Recipe, project, job and order references are validated
