@@ -1016,7 +1016,7 @@ public sealed partial class ConfigurableDecisionProvider(
 
     public bool CanSpeakAs(string agentId)
     {
-        if (string.IsNullOrWhiteSpace(agentId) || agentId.Length > 128 || agentId != agentId.Trim()) return false;
+        if (string.IsNullOrWhiteSpace(agentId) || agentId != agentId.Trim() || agentId.Any(char.IsControl)) return false;
         try
         {
             var route = ConversationRouteFor(configuration.CaptureRuntimeConfiguration(), agentId);
@@ -1075,7 +1075,7 @@ public sealed partial class ConfigurableDecisionProvider(
                 new
                 {
                     role = "system",
-                    content = "Speak as one agent in a bounded shared conversation. Use only your own identity plus the public history included below. Never claim the other person agreed. Do not invent events, private thoughts, promises, ownership, resources or world changes. Return JSON only with utterance (one line, at most 500 characters), disposition (continue or withdraw), and effect (one of allowed_effects). Mutual trust and marriage are proposals only: both people must separately accept the same wrap-up. For surname_choice, marriage consent already exists: include surname_choice, exactly one of allowed_surnames, and effect none. Each partner has at most two alternating valid turns; continued disagreement after four turns uses a disclosed seeded draw. A withdrawal suspends that surname session without counting a turn. Do not include reasoning.",
+                    content = "Speak as one agent in a bounded shared conversation. Use only your own identity plus the public history included below. An observer_requested_activity is what the outside observer asked this speaker to attempt, not public speech or evidence of anyone's agreement; personal consent and allowed effects remain your own choices. Never claim the other person agreed. Do not invent events, private thoughts, promises, ownership, resources or world changes. Return JSON only with utterance (one line, at most 500 characters), disposition (continue or withdraw), and effect (one of allowed_effects). Mutual trust and marriage are proposals only: both people must separately accept the same wrap-up. For surname_choice, marriage consent already exists: include surname_choice, exactly one of allowed_surnames, and effect none. Each partner has at most two alternating valid turns; continued disagreement after four turns uses a disclosed seeded draw. A withdrawal suspends that surname session without counting a turn. Do not include reasoning.",
                 },
                 new
                 {
@@ -1083,6 +1083,7 @@ public sealed partial class ConfigurableDecisionProvider(
                     content = JsonSerializer.Serialize(new
                     {
                         purpose = purposeWire,
+                        observer_requested_activity = request.RequestedActivity,
                         speaker = new
                         {
                             id = request.SpeakerId,
@@ -1480,6 +1481,13 @@ public sealed partial class ConfigurableDecisionProvider(
     {
         var helper = policy.Helper;
         var routine = IsRoutine(observation);
+        var helperEligible = observation.Self?.LifeStage is "Adult" or "Elder" ||
+            (observation.Self is null && !observation.RequiresPersonalProvider);
+        // Birth provenance protects personal requests throughout life. It does
+        // not exclude a grown resident from the shared routine helper.
+        if (routine && helperEligible && helper.Provider != "off" &&
+            (helper.Provider == "decisions" || policy.Revision > 0 || observation.RequiresPersonalProvider))
+            return (helper.Provider, null);
         var role = routine ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole;
         var assigned = AssignmentFor(configuration, observation.InhabitantId, role);
         if (assigned?.Provider == PlayerDecisionProviders.Inherit)
@@ -1488,25 +1496,20 @@ public sealed partial class ConfigurableDecisionProvider(
                 return (PlayerDecisionProviders.Deterministic, assigned);
             assigned = null;
         }
-        // Children born in this world never inherit a potentially billable
-        // world default. Their own explicit assignment is the only route to a
-        // personal model after infancy; until then they use local safe choices.
+        // World-born residents never inherit a potentially billable world
+        // default for personal requests. Their explicit assignment remains
+        // the route to their own model, including after they grow up.
         if (observation.RequiresPersonalProvider && assigned is null)
             return (PlayerDecisionProviders.Deterministic, null);
         if (observation.RequiresPersonalProvider && assigned?.SelectionReason is not null &&
             !HasUsableCredential(configuration, assigned))
             return (PlayerDecisionProviders.Deterministic, null);
-        // An explicit world helper handles eligible adult routine choices while
-        // personal assignments remain available for planning, guidance and identity.
-        // The initial policy retains the installation's existing Jev routing.
-        if (routine && !observation.RequiresPersonalProvider && helper.Provider != "off" &&
-            (helper.Provider == "decisions" || policy.Revision > 0)) return (helper.Provider, null);
         var provider = assigned?.Provider ?? (routine ? configuration.RoutineProvider : configuration.PlanningProvider);
         if (observation.RequiresPersonalProvider && provider == PlayerDecisionProviders.Jev)
             return (PlayerDecisionProviders.Deterministic, null);
-        if (routine && provider == PlayerDecisionProviders.Jev && helper.Provider != "off")
+        if (routine && helperEligible && provider == PlayerDecisionProviders.Jev && helper.Provider != "off")
             return (helper.Provider, null);
-        if (routine && provider == PlayerDecisionProviders.Jev && helper.Provider == "off")
+        if (routine && provider == PlayerDecisionProviders.Jev && (helper.Provider == "off" || !helperEligible))
         {
             // Jev is a world-level helper, never a requirement for an agent to
             // continue. Prefer this agent's personal planner, then the world
@@ -1534,6 +1537,7 @@ public sealed partial class ConfigurableDecisionProvider(
 
     private static bool IsRoutine(InhabitantObservation observation) =>
         observation.ObserverGuidance is not { Count: > 0 } &&
+        !observation.NeedsName && !observation.IsNameRetry &&
         !observation.NeedsPersonality && !observation.NeedsAspiration &&
         observation.Candidates.All(candidate => RoutineCandidateIds.Contains(candidate.Id) || candidate.Id.StartsWith("care:", StringComparison.Ordinal));
 

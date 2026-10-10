@@ -55,9 +55,8 @@ forms, scripts and documented searches use is active.
 - **Areas:** at most two, from the files it changes, set when it opens,
   reopens, is marked ready, is pushed to or changes base, unless someone has
   changed its areas by hand.
-- **Status:** `status:needs-review` while it is ready. `status:needs-review`,
-  `status:reviewing` and `status:merging` come off when it closes or goes back
-  to draft.
+- **Status:** `status:needs-review` while it is ready. `status:needs-review`
+  and `status:reviewing` come off when it closes or goes back to draft.
 - A pull request stacked on another's branch is judged by what it would change
   on main.
 

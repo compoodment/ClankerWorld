@@ -821,7 +821,7 @@ public sealed class ToolProgressionRuntimeTests
 
     private static MapResource? MaterialSource(PrivateWorldRuntime world, string itemKind, string actor) =>
         (MapResource?)typeof(PrivateWorldRuntime).GetMethod("MaterialSource", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(world, [itemKind, actor]);
+            .Invoke(world, [itemKind, actor, null, 0, true]);
 
     private sealed class WorkChoiceRecorder : IDecisionProvider
     {

@@ -239,8 +239,15 @@ public sealed class BuildingExpansionTests
         using var growing = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => new IdleProvider());
         var started = growing.StartBuildingExpansion(actor, house.InstanceId);
         Assert.True(started.Applied, started.Failure);
+        var secondJob = growing.WorldSimulation.BuildingExpansions!.Single(item => item.JobId == started.JobId);
+        Assert.Equal(16, secondJob.CompletionTick - secondJob.StartedTick);
         using var reloaded = Reload(growing);
-        for (var tick = 0; tick < 20; tick++) Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+        for (var tick = 0; tick < 16; tick++)
+        {
+            Assert.True((await growing.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await reloaded.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(growing.ExportState()), PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+        }
         var expanded = reloaded.WorldSimulation.Buildings.Single(item => item.InstanceId == house.InstanceId);
         Assert.Equal(new BuildingFootprintRevision(2, 2, 2), expanded.Footprint);
         Assert.Single(reloaded.WorldSimulation.Buildings, item => item.HouseholdId == house.HouseholdId && item.DefinitionId == house.DefinitionId);
