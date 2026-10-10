@@ -14,8 +14,8 @@ readonly GODOT_ARCHIVE_SHA256="129f82db7bafd54ae14bb5bb284041c73860e8c7a009a3a02
 readonly GODOT_TEMPLATES_ARCHIVE="Godot_v${GODOT_VERSION}-stable_mono_export_templates.tpz"
 readonly GODOT_TEMPLATES_SHA256="92f8681e349ef1f90891b792da95e3b2b0bd1ed610b78018c58feb2d87e15a9d"
 readonly GODOT_RELEASE_URL="https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}"
-readonly EXPORT_PRESET="Windows 11 x64"
-readonly EXPORT_EXE="ClankerWorld.exe"
+EXPORT_PRESET="Windows 11 x64"
+EXPORT_EXE="ClankerWorld.exe"
 readonly CLIENT_ASSEMBLY="ClankerWorld.GodotClient.dll"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,8 +24,17 @@ project_file="${project_dir}/ClankerWorld.GodotClient.csproj"
 default_output_dir="${repo_root}/export/windows-x64"
 
 usage() {
-    printf 'Usage: %s [output-directory]\n' "${0##*/}" >&2
+    printf 'Usage: %s [--launcher] [output-directory]\n' "${0##*/}" >&2
 }
+
+# --launcher exports the launcher (#1566) from the same project instead of the game.
+if [[ "${1:-}" == "--launcher" ]]; then
+    shift
+    EXPORT_PRESET="Launcher Windows 11 x64"
+    EXPORT_EXE="ClankerWorldLauncher.exe"
+    default_output_dir="${repo_root}/export/launcher-windows-x64"
+fi
+readonly EXPORT_PRESET EXPORT_EXE
 
 if (( $# > 1 )); then
     usage
@@ -189,7 +198,7 @@ fi
 manifest_path="${output_dir}/manifest.sha256"
 printf 'Writing export manifest\n'
 {
-    printf '# ClankerWorld Windows 11 x64 release export\n'
+    printf '# ClankerWorld %s release export\n' "${EXPORT_PRESET}"
     printf '# %s\n' "${build_line}"
     printf '# Source commit: %s\n' "${build_revision}"
     printf '# Windows file/product version: %s\n' "${file_version}"
