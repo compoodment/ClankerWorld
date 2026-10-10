@@ -2,7 +2,7 @@
 title: Pixel-art style guide
 type: development-reference
 status: active
-updated: 2026-10-01
+updated: 2026-10-09
 ---
 
 # Pixel-art style guide
@@ -107,6 +107,33 @@ its own ramp for mottling, and at most two colours from another ramp for
 motifs (pebbles, tufts). Rule P2: a sprite uses at most five steps of its
 main ramp plus accents. Rule P3: shades are a step of the ramp, never a
 black overlay; the ramps already shift hue toward blue in the shade.
+
+## Interface text and status
+
+Light and Dark both use at least **4.5:1** contrast for text against the
+surface behind it. Ordinary ink on parchment retains **7:1**. The minimum
+also applies to hover, pressed, focused, disabled, read-only, placeholder
+and selected text, wooden-bar captions, dialog titles, tags and count badges.
+Faint ink remains available for decorative lines and icons; use readable
+muted ink for secondary text.
+
+Keep the existing palette, fonts and generated frames. When a colored
+button or badge needs stronger text, use an existing dark ink or cream from
+that palette. A status label may use ordinary ink when its colored ink
+would fall below the minimum on a selected card.
+
+The Godot UI smoke check builds both themes and checks their registered
+text colors against their generated style surfaces, including transparent
+parents and blended selection highlights. Every newly registered text
+color needs a corresponding surface/state assertion. It also checks custom
+count/branch badge ink and historical-list text. Deceased family buttons
+retain full text opacity and say **died**.
+
+Status must have a word, number, shape or tooltip as well as color. For
+example, branches have numbers, hunger is named in the Agents tooltip,
+condition bars have captions and amounts, and deceased profiles have text
+labels. Light and Dark share this baseline; separate high-contrast and
+color-blind modes are outside it.
 
 ## 3. Light, shadow and outline
 
@@ -320,7 +347,12 @@ black overlay; the ramps already shift hue toward blue in the shade.
   ramps: spring toward Grass highlight, summer base, autumn 20% toward Fruit
   base, winter 30% desaturated with snow cover where the world says so.
 - E2 Night is one multiply tint, 3C4C6E at 45%, with no visibility change.
-- E3 Weather stays an animated, sparse overlay; no opaque shapes.
+- E3 Weather stays an animated, sparse overlay; no opaque shapes. It uses
+  look B from the October 8 weather review
+  ([Weather](../../tools/ArtPreview/Proposed/Weather.md)): one-pixel rain
+  streaks lighter at the top, landing as a three-pixel burst; storm streaks
+  stepping two pixels down for every one across, in gusts sweeping east; and
+  small snowflake crosses blown sideways. No cloud shadows.
 
 ## 15. Critic's checklist
 
