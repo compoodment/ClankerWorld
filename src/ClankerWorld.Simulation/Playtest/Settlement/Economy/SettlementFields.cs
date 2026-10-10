@@ -75,8 +75,9 @@ public sealed partial class PrivateWorldRuntime
         var sickleLotId = sickle is null ? null : IsolateFieldToolForWork(workerId, position, sickle.ToolLotId);
         SetFarmField(field with
         {
-            Work = new(workerId, kind, FarmFieldRules.WorkTicks(kind), WorldTick, reservationId, crop,
+            Work = new(workerId, kind, SkilledWorkTicks(workerId, SettlementSkillKind.Farming, FarmFieldRules.WorkTicks(kind)), WorldTick, reservationId, crop,
                 hoeLotId, sickleLotId, orderInstructionId),
+            LastWorkedTick = WorldTick,
         });
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("field_work_started", $"{workerId}:{FarmFieldRules.FieldId(position)}:{kind}");
@@ -135,7 +136,24 @@ public sealed partial class PrivateWorldRuntime
             }
             if (field.ReplantingReservationId is { } reserve && !ActiveFarmReservation(reserve))
                 SetFarmField(fields.Single(item => item.Position == field.Position) with { ReplantingReservationId = null });
+            var current = fields.Single(item => item.Position == field.Position);
+            if (current.Work is null && WorldTick - current.LastWorkedTick >= FarmFieldRules.IdleTicksBeforeGrass(worldSystems.Config))
+                ReturnFieldToGrass(current);
         }
+    }
+
+    /// <summary>
+    /// Removes a field nobody has worked for a full season. Any crop still on
+    /// it is lost and the seed kept back for replanting is freed; harvested
+    /// goods already on the ground and the land's fertility stay.
+    /// </summary>
+    private void ReturnFieldToGrass(FarmFieldState field)
+    {
+        if (field.ReplantingReservationId is { } reserve && ActiveFarmReservation(reserve))
+            ApplyInventoryTransition(inventory => InventoryFixture.ReleaseReservation(inventory, reserve, "field_returned_to_grass"));
+        fields.RemoveAll(item => item.Position == field.Position);
+        checkpointSchemaVersion = StateSchemaVersion;
+        AppendEvent("field_returned_to_grass", $"{FarmFieldRules.FieldId(field.Position)}:{field.HouseholdId}");
     }
 
     private bool ActiveFarmReservation(string id) => society.Checkpoint.Inventory.Reservations.Any(reservation =>
@@ -194,9 +212,9 @@ public sealed partial class PrivateWorldRuntime
         {
             ApplyToolWork(workerId, toolPlans.ToArray());
             if (FieldWorkToolsAvailable(workerId, work))
-                SetFarmField(field with { Work = work });
+                SetFarmField(field with { Work = work, LastWorkedTick = WorldTick });
             else
-                CancelFarmWork(field with { Work = work });
+                CancelFarmWork(field with { Work = work, LastWorkedTick = WorldTick });
             return true;
         }
         switch (work.Kind)
@@ -231,6 +249,8 @@ public sealed partial class PrivateWorldRuntime
                 CompleteFieldHarvest(field, toolPlans);
                 break;
         }
+        if (fields.SingleOrDefault(item => item.Position == field.Position) is { } finished)
+            SetFarmField(finished with { LastWorkedTick = WorldTick });
         completed = field with { Work = work };
         CreditCompletedWork(workerId, "farming");
         AppendEvent(work.Kind == FarmWorkKind.Till ? "field_prepared" : work.Kind == FarmWorkKind.Plant ? "field_planted" :
@@ -266,6 +286,15 @@ public sealed partial class PrivateWorldRuntime
     {
         var cycle = checked(field.Cycle + 1);
         var prefix = $"{FarmFieldRules.FieldId(field.Position)}:harvest:{cycle}";
+        // Retilling starts a new field, but goods and released reservations
+        // from the old field remain. Never reuse one of their identities.
+        var previousInventory = society.Checkpoint.Inventory;
+        while (previousInventory.Lots.Any(lot => lot.Id == prefix + ":crop" || lot.Id == prefix + ":seed") ||
+            previousInventory.Reservations.Any(reservation => reservation.Id == prefix + ":replant"))
+        {
+            cycle = checked(cycle + 1);
+            prefix = $"{FarmFieldRules.FieldId(field.Position)}:harvest:{cycle}";
+        }
         var crop = field.Crop!;
         var plantingItem = FarmFieldRules.PlantingItem(crop);
         var plantingLotId = plantingItem == crop ? prefix + ":crop" : prefix + ":seed";

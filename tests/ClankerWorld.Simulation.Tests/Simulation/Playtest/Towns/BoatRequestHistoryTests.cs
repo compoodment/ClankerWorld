@@ -195,7 +195,7 @@ public sealed partial class PortBoatRuntimeTests
             person.InhabitantId == BoatPolicy.Author).Position == origin.Entrance, 120);
         var blockedLanding = departure.World.Inhabitants.Single(person => person.InhabitantId == Blockers[0]).Position;
         departure.World.SubmitInstruction(new("clear-history-landing", "owner:test", Blockers[0],
-            OwnerInstructionKind.MustDo, "move to 194,10"));
+            OwnerInstructionKind.MustDo, MoveAwayFromPorts(departure.World)));
         policy.IdleActors.Remove(Blockers[0]);
         await departure.UntilAsync(() => departure.World.Boats[0].Journey is not null, 30);
         if (outcome != "arrived")
@@ -366,10 +366,11 @@ public sealed partial class PortBoatRuntimeTests
         var waiting = Assert.Single(scenario.World.BoatRequests);
         Assert.Equal("waiting", waiting.Status);
         policy.Trips = false;
+        var aside = FreeSpotAwayFromPorts(scenario.World);
         scenario.World.SubmitInstruction(new("leave-boat-approach", "owner:test", BoatPolicy.Author,
-            OwnerInstructionKind.MustDo, "move to 194,10"));
+            OwnerInstructionKind.MustDo, $"move to {aside.X},{aside.Y}"));
         await scenario.UntilAsync(() => scenario.World.Inhabitants.Single(person =>
-            person.InhabitantId == BoatPolicy.Author).Position == new GridPoint(194, 10), 30);
+            person.InhabitantId == BoatPolicy.Author).Position == aside, 30);
         policy.IdleActors.Add(BoatPolicy.Author);
         policy.TripActor = Follower;
         var cancelled = new List<BoatTripRequest>();

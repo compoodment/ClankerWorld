@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Observation;
@@ -292,6 +293,49 @@ public sealed class SettlementLearningTests
                 ? person with { Lesson = lesson with { Progress = 1 } } : person).ToArray(),
         };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(withLesson));
+    }
+
+    [Fact]
+    public async Task APendingPersonalReplyContinuesAnAcceptedLessonWithoutAnsweringAPartnership()
+    {
+        var state = await PreparedState();
+        var learner = state.Society.Society.Inhabitants.Single(person => person.CurrentRole == SocietyWorkRole.Trader).Id;
+        using var setup = PrivateWorldRuntime.Restore(state,
+            actor => new LessonProvider(actor == learner ? "learn:building:" : "lesson_accept:"));
+        for (var tick = 0; tick < 80 && setup.Inhabitants.Single(person => person.InhabitantId == learner).Lesson?.Progress is not >= 3; tick++)
+            Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        state = setup.ExportState();
+        var lesson = state.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!;
+        Assert.InRange(lesson.Progress, 3, 10);
+        var teacher = lesson.TeacherId;
+        var proposal = SocietyFixture.ProposeRelationship(state.Society.Society,
+            new("waiting-lesson-partnership", 1, SocietyRelationshipType.Partnership, learner, teacher, setup.WorldTick));
+        Assert.Equal(SocietyRelationshipState.Proposed,
+            proposal.Checkpoint.Relationships.Single(item => item.Id == "waiting-lesson-partnership").State);
+        state = state with { Society = state.Society with { Society = proposal.Checkpoint } };
+        var provider = new HeldPhysicalTaskDecisionProvider();
+        using var world = PrivateWorldRuntime.Restore(state,
+            actor => actor == teacher ? provider : new LessonProvider("safe_idle"));
+        world.SubmitInstruction(new("waiting-lesson-guidance", "owner:test", teacher,
+            OwnerInstructionKind.Suggestive, "Think about your next task."));
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Contains(Assert.Single(provider.Requests).Candidates, candidate => candidate.Id.StartsWith("partner_accept:", StringComparison.Ordinal));
+        var before = world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!;
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.False((await world.AdvanceOneTickNonBlockingAsync(() => false)).Advanced);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        Assert.Equal(before.Progress + 3, world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Progress);
+        Assert.Equal(SocietyRelationshipState.Proposed,
+            world.Society.Relationships.Single(item => item.Id == "waiting-lesson-partnership").State);
+        Assert.Single(provider.Requests);
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "hosted_decision_completed");
+        world.Validate();
+        world.Pause();
+        bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
     private static async Task<PrivateWorldRuntimeState> PreparedState()

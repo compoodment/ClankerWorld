@@ -20,10 +20,19 @@ public partial class AgentMarker : Control
     private int stage = 2;
     private int facing = AgentSprites.South;
     private AgentFrame activity;
+    private bool swimming;
+    private double swimmingSeconds;
     private AgentFrame step;
     private double stepSecondsLeft;
     private string? motionWorldId;
     private Vector2I? lastTile;
+    private bool modelWaiting;
+    private double modelWaitSeconds;
+    private string? modelWaitWorldId;
+
+    public const double WaitingMarkerDelaySeconds = 2;
+    public bool WaitingMarkerVisible => modelWaiting && modelWaitSeconds >= WaitingMarkerDelaySeconds;
+    private int WaitingFrame => (int)(Math.Max(0, modelWaitSeconds - WaitingMarkerDelaySeconds) * 8) % 8;
 
     private const float SpriteScale = 1.35f;
     private const float NameMinimum = 20;
@@ -138,18 +147,33 @@ public partial class AgentMarker : Control
     }
 
     /// <summary>
-    /// The frame drawn now. Hurt and carrying show even mid-step, because those
-    /// drawings already read while moving; otherwise a step shows its walk
-    /// frame and a standing agent shows their activity.
+    /// The frame drawn now. Swimming alternates existing work and still poses.
+    /// On land, hurt and carrying show mid-step; otherwise a moving agent
+    /// shows a walk frame and a standing agent shows their activity.
     /// </summary>
-    public AgentFrame Frame => activity is AgentFrame.Hurt or AgentFrame.Carry ? activity
+    public bool Swimming
+    {
+        get => swimming;
+        set
+        {
+            if (swimming == value) return;
+            swimming = value;
+            swimmingSeconds = 0;
+            SetProcess(swimming || step != AgentFrame.Still || modelWaiting);
+            QueueRedraw();
+        }
+    }
+
+    public AgentFrame Frame => swimming ? activity == AgentFrame.Hurt ? AgentFrame.Hurt
+        : (int)(swimmingSeconds * 2) % 2 == 0 ? AgentFrame.Work : AgentFrame.Still
+        : activity is AgentFrame.Hurt or AgentFrame.Carry ? activity
         : step != AgentFrame.Still ? step : activity;
 
     /// <summary>
-    /// The name shows only while the agent is selected or hovered, so a busy
-    /// Town stays clear. It is drawn once the figure is large enough to read.
+    /// Selected or hovered agents show their name; swimmers show an activity
+    /// label. Text is drawn once the figure is large enough to read.
     /// </summary>
-    public bool NameShown => (selected || hovered) && caption.Length > 0;
+    public bool NameShown => swimming || (selected || hovered) && caption.Length > 0;
 
     public AgentMarker()
     {
@@ -160,7 +184,19 @@ public partial class AgentMarker : Control
         MouseExited += () => { hovered = false; Raise(); };
     }
 
-    public override void _Ready() => SetProcess(step != AgentFrame.Still);
+    public override void _Ready() => SetProcess(swimming || step != AgentFrame.Still || modelWaiting);
+
+    /// <summary>A slow model reply gets a local marker; pause, completion and another world clear it immediately.</summary>
+    public void ObserveModelWait(string worldId, bool waiting, bool paused)
+    {
+        waiting &= !paused;
+        if (modelWaitWorldId == worldId && modelWaiting == waiting) return;
+        modelWaitWorldId = worldId;
+        modelWaiting = waiting;
+        modelWaitSeconds = 0;
+        SetProcess(swimming || step != AgentFrame.Still || modelWaiting);
+        QueueRedraw();
+    }
 
     /// <summary>
     /// Records the agent's tile from an observation. A change of tile turns the
@@ -199,8 +235,21 @@ public partial class AgentMarker : Control
 
     public override void _Process(double delta)
     {
-        stepSecondsLeft -= delta;
-        if (stepSecondsLeft <= 0) EndStep();
+        if (step != AgentFrame.Still)
+        {
+            stepSecondsLeft -= delta;
+            if (stepSecondsLeft <= 0) EndStep();
+        }
+        if (swimming)
+        {
+            swimmingSeconds += delta;
+            QueueRedraw();
+        }
+        if (!modelWaiting) return;
+        var visible = WaitingMarkerVisible;
+        var frame = WaitingFrame;
+        modelWaitSeconds += delta;
+        if (visible != WaitingMarkerVisible || WaitingMarkerVisible && frame != WaitingFrame) QueueRedraw();
     }
 
     private void EndStep()
@@ -208,7 +257,7 @@ public partial class AgentMarker : Control
         if (step != AgentFrame.Still) QueueRedraw();
         step = AgentFrame.Still;
         stepSecondsLeft = 0;
-        SetProcess(false);
+        SetProcess(swimming || modelWaiting);
     }
 
     /// <summary>
@@ -256,6 +305,13 @@ public partial class AgentMarker : Control
         }
     }
 
+    private void DrawWaitingSpark(float side)
+    {
+        if (!WaitingMarkerVisible) return;
+        foreach (var (position, color) in AgentSprites.WaitingSparkFrame(Math.Clamp((int)side, 4, 78), WaitingFrame))
+            DrawRect(new Rect2(new Vector2(position.X, position.Y), Vector2.One), color);
+    }
+
     public override void _Draw()
     {
         var side = Math.Min(Size.X, Size.Y);
@@ -268,6 +324,7 @@ public partial class AgentMarker : Control
             DrawCircle(center, Math.Max(1.5f, side / 2), new Color("1E2226"));
             DrawCircle(center, Math.Max(1f, side / 2 - 1), new Color("F4C78A"));
             DrawConversationBadge();
+            DrawWaitingSpark(side);
             return;
         }
 
@@ -285,10 +342,11 @@ public partial class AgentMarker : Control
         DrawTextureRectRegion(AgentSprites.PoseAtlas(variant, stage, facing, frame, atlasSize), sprite,
             AgentSprites.PoseRegion(facing, frame, atlasSize));
         DrawConversationBadge();
+        DrawWaitingSpark(side);
         if (!NameShown || drawn < NameMinimum) return;
         var font = UiFonts.Text;
         var fontSize = UiFonts.Body * TextScale;
-        var text = caption.Length > 14 ? caption[..13] + "..." : caption;
+        var text = swimming ? "Swimming" : caption.Length > 14 ? caption[..13] + "..." : caption;
         var textSize = font.GetStringSize(text, HorizontalAlignment.Left, -1, fontSize);
         // Light letters with a dark pixel edge and no box, gold for the selected agent.
         var baseline = new Vector2(Mathf.Floor(center.X - textSize.X / 2),
