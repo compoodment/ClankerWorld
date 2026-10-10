@@ -2,6 +2,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Observation;
 using static ClankerWorld.Simulation.Tests.ShelterOrderTestFixture;
 
@@ -73,13 +74,20 @@ public sealed class ShelterSiteInspectionCheckpointTests
 
     private static (GridPoint Origin, GridPoint Target) InspectionSite(PrivateWorldRuntimeState state, string actor, string site)
     {
-        if (site == "ocean")
+        if (site is "ocean" or "land")
         {
-            var target = new GridPoint(61, 0);
+            // Just inside the north polar sea: an origin with walkable ground two
+            // steps east, and the sea one row up and two steps west.
+            var y = GeographyGenerator.PolarEdgeRows;
+            var x = Enumerable.Range(0, state.Map.Width - 4).First(x =>
+                Enumerable.Range(1, 4).All(dx => state.Map.IsPassable(new(x + dx, y))) &&
+                state.Inhabitants.All(person => person.Position.Y != y || person.Position.X < x || person.Position.X > x + 4));
+            var origin = new GridPoint(x + 2, y);
+            if (site == "land") return (origin, new(x + 4, y));
+            var target = new GridPoint(x, y - 1);
             Assert.Equal(TerrainKind.Ocean, state.Map.TerrainKindAt(target));
-            return (new(63, 1), target);
+            return (origin, target);
         }
-        if (site == "land") return (new(63, 1), new(65, 1));
 
         // Use an actual generated non-Ocean obstacle and a free two-step
         // approach. Starting position/weather are controlled; terrain is untouched.

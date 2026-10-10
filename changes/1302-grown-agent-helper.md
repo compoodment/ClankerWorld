@@ -1,0 +1,1 @@
+- Adults and elders born in the world can use the selected routine helper for ordinary choices and their own memory scores. Children keep their own model, and personal conversations, identity, wills and planning keep using each agent's own model.

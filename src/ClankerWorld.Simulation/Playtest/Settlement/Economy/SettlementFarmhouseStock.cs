@@ -142,30 +142,36 @@ public sealed partial class PrivateWorldRuntime
         return null;
     }
 
-    private FarmStockChoice? FarmFlourForHouse(string householdId, string farmhouseId) =>
-        FarmStockForDelivery(householdId, "flour", lot => lot.StorageBuildingId == farmhouseId);
+    private FarmStockChoice? FarmFlourForHouse(string householdId, string farmhouseId, string actor, string houseId,
+        int maximumQuantity = int.MaxValue) =>
+        FarmStockForDelivery(householdId, "flour", lot => lot.StorageBuildingId == farmhouseId,
+            choice => PlanFarmStockHaul(actor, houseId, choice, maximumQuantity) is not null);
 
     private FarmStockChoice? FarmStockForDelivery(
         string householdId,
         string itemKind,
-        Func<InventoryLot, bool> locationMatches)
+        Func<InventoryLot, bool> locationMatches,
+        Func<FarmStockChoice, bool> canHaul)
     {
         var inventory = society.Checkpoint.Inventory;
         foreach (var carrier in inventory.Lots.Where(lot => lot.OwnerId == householdId &&
                      lot.ContainerLotId is null && lot.DeliveryBuildingId is null && locationMatches(lot))
                      .OrderBy(lot => lot.Id, StringComparer.Ordinal))
         {
-            if (carrier.ItemKind == itemKind && AvailableLotQuantity(carrier) > 0)
+            if (carrier.ItemKind == itemKind && AvailableLotQuantity(carrier) > 0 &&
+                canHaul(new FarmStockChoice(carrier, carrier)))
                 return new FarmStockChoice(carrier, carrier);
 
             if (!InventoryContainerRules.IsContainer(carrier.ItemKind) ||
                 HasActiveContainerReservation(inventory, carrier.Id))
                 continue;
-            var resource = inventory.Lots.Where(lot => lot.ContainerLotId == carrier.Id &&
+            // A vessel the haul planner rejects must not hide later usable flour.
+            var choice = inventory.Lots.Where(lot => lot.ContainerLotId == carrier.Id &&
                     lot.ItemKind == itemKind && AvailableLotQuantity(lot) > 0)
-                .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
-            if (resource is not null)
-                return new FarmStockChoice(carrier, resource);
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal)
+                .Select(resource => new FarmStockChoice(carrier, resource)).FirstOrDefault(canHaul);
+            if (choice is not null)
+                return choice;
         }
         return null;
     }
@@ -174,8 +180,9 @@ public sealed partial class PrivateWorldRuntime
         int maximumQuantity = int.MaxValue)
     {
         var inventory = society.Checkpoint.Inventory;
-        var capacity = Math.Min(HouseHaulLoadQuantity,
-            Math.Min(FreeCarryCapacity(actor), RemainingDeliveryRoom(inventory, destinationId)));
+        var destination = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == destinationId);
+        var capacity = destination is null ? 0 : Math.Min(HouseHaulLoadQuantity,
+            Math.Min(PickupCarryCapacity(actor, choice.Carrier, destination.Position), RemainingDeliveryRoom(inventory, destinationId)));
         if (capacity <= 0)
             return null;
 
@@ -259,7 +266,7 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor) || householdId is null || CarriedHouseDelivery(actor) is not null ||
             FarmhouseForHousehold(householdId) is not { } farmhouse ||
             HouseForHousehold(householdId) is not { } house ||
-            FarmFlourForHouse(householdId, farmhouse.InstanceId) is not { } flour ||
+            FarmFlourForHouse(householdId, farmhouse.InstanceId, actor, house.InstanceId) is not { } flour ||
             PlanFarmStockHaul(actor, house.InstanceId, flour) is null)
             return;
         if ((!IsWithinInteractionRange(state.Position, farmhouse.Position, 0) &&
@@ -276,7 +283,7 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor) || householdId is null || CarriedHouseDelivery(actor) is not null ||
             FarmhouseForHousehold(householdId) is not { } farmhouse ||
             HouseForHousehold(householdId) is not { } house ||
-            FarmFlourForHouse(householdId, farmhouse.InstanceId) is not { } flour)
+            FarmFlourForHouse(householdId, farmhouse.InstanceId, actor, house.InstanceId) is not { } flour)
             return;
         if (state.Position != farmhouse.Position)
         {

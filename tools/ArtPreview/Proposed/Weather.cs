@@ -76,6 +76,7 @@ public sealed class WeatherProposal : IArtProposal, IAnimatedArtProposal
     /// <summary>The scene with one look's weather drawn over it at a moment in the loop.</summary>
     public static Image Frame(WeatherLook look, string kind, int size, double time, bool flash)
     {
+        time = ((time % LoopSeconds) + LoopSeconds) % LoopSeconds;
         if (!Scenes.TryGetValue(size, out var scene))
             Scenes[size] = scene = SceneComposer.Render(Spec, new ArtSet(), size);
         var canvas = new Canvas(scene, size);
@@ -215,7 +216,9 @@ public sealed class WeatherProposal : IArtProposal, IAnimatedArtProposal
         /// </summary>
         public void Haze(double time)
         {
-            var drift = new Vector2((float)(time * 0.22), (float)(time * 0.06));
+            // Keep the game's cloud pattern, with a closed drift for this short review loop.
+            var phase = time / LoopSeconds * Math.Tau;
+            var drift = new Vector2((float)(Math.Sin(phase) * 0.22), (float)((1 - Math.Cos(phase)) * 0.06));
             Wash((x, y) =>
             {
                 var tile = new Vector2((x + 0.5f) / Size, (y + 0.5f) / Size);
@@ -230,7 +233,7 @@ public sealed class WeatherProposal : IArtProposal, IAnimatedArtProposal
         private static float CloudAlpha(float u, float v)
         {
             const int Texels = 128;
-            cloud ??= Enumerable.Range(0, Texels * Texels).Select(index =>
+            var pattern = cloud ??= Enumerable.Range(0, Texels * Texels).Select(index =>
             {
                 var x = index % Texels;
                 var y = index / Texels;
@@ -242,7 +245,7 @@ public sealed class WeatherProposal : IArtProposal, IAnimatedArtProposal
             v -= 0.5f;
             var x0 = (int)MathF.Floor(u);
             var y0 = (int)MathF.Floor(v);
-            float At(int x, int y) => cloud[(((y % Texels) + Texels) % Texels) * Texels + ((x % Texels) + Texels) % Texels];
+            float At(int x, int y) => pattern[(((y % Texels) + Texels) % Texels) * Texels + ((x % Texels) + Texels) % Texels];
             var fx = u - x0;
             var fy = v - y0;
             return Lerp(Lerp(At(x0, y0), At(x0 + 1, y0), fx), Lerp(At(x0, y0 + 1), At(x0 + 1, y0 + 1), fx), fy);
@@ -398,7 +401,7 @@ public sealed class WeatherProposal : IArtProposal, IAnimatedArtProposal
                         if (kind == "storm")
                         {
                             // Gusts: denser bands that sweep east across the storm.
-                            var gust = 0.55f + 0.45f * MathF.Sin((float)((px / (size * 6f)) - time * 2 * Math.PI / LoopSeconds) * MathF.Tau);
+                            var gust = 0.55f + 0.45f * MathF.Sin((float)((px / (size * 6f)) - time / LoopSeconds) * MathF.Tau);
                             here *= gust;
                         }
                         if (here <= particle.Threshold) continue;

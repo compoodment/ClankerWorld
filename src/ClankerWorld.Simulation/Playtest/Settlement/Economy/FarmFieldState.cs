@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Playtest;
 
@@ -15,7 +16,8 @@ public sealed record FarmFieldWork(string WorkerId, FarmWorkKind Kind, int Remai
 public sealed record FarmFieldState(GridPoint Position, string HouseholdId, FarmFieldStage Stage,
     string? Crop = null, long PlantedTick = 0, long ReadyTick = 0, bool Tended = false, int Cycle = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] FarmFieldWork? Work = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReplantingReservationId = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReplantingReservationId = null,
+    [property: JsonRequired] long LastWorkedTick = 0);
 
 public sealed record FarmWorkResult(bool Accepted, string Message);
 
@@ -51,4 +53,10 @@ public static class FarmFieldRules
         (crop == Potatoes ? 5 : 4) + fertility / 25;
     public static long GrowthTicks(int ticksPerDay, int fertility) => Math.Max(12, ticksPerDay * (150L - fertility) / 200);
     public static string FieldId(GridPoint point) => $"field-{point.X}-{point.Y}";
+
+    /// <summary>
+    /// A field nobody works for a full season, a quarter of the world's year,
+    /// goes back to grass (agreed October 8, #1248). The land keeps its fertility.
+    /// </summary>
+    public static long IdleTicksBeforeGrass(WorldSystemsConfig config) => (long)config.TicksPerDay * config.DaysPerYear / 4;
 }

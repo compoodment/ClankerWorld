@@ -311,8 +311,8 @@ public sealed partial class PrivateWorldRuntime
                     else
                     {
                         destination = EquipmentRepairSite(actor, target)!.Position;
-                        work = inProgress is null ? 1 + PersonalEquipmentRules.RepairWorkTicks :
-                            PersonalEquipmentRules.RepairWorkTicks - inProgress.WorkDone;
+                        var repairTicks = SkilledWorkTicks(actor, SettlementSkillKind.Crafting, PersonalEquipmentRules.RepairWorkTicks);
+                        work = inProgress is null ? 1 + repairTicks : Math.Max(1, repairTicks - inProgress.WorkDone);
                     }
                 }
                 else

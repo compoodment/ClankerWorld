@@ -12,6 +12,19 @@ public partial class Main
             original.MapManifestDigest, original.MapManifestDigest, "clear", "summer", []);
         try
         {
+            var systems = original.WorldSystems ?? new OwnerWorldSystemsSummary("summer", "clear", 0, 0, 0, 0, 0);
+            RenderMap(original with { Authoring = null, WorldSystems = systems with { Season = "autumn" } });
+            if (!terrainLayer.AutumnLeavesEnabled)
+                throw new InvalidOperationException("A world-summary autumn must enable leaves when authoring observations are absent.");
+            RenderMap(original with { Authoring = null, WorldSystems = systems with { Season = "winter" } });
+            if (terrainLayer.AutumnLeavesEnabled)
+                throw new InvalidOperationException("A world-summary winter must remove autumn leaves.");
+            RenderMap(original with { Authoring = null, WorldSystems = null });
+            if (terrainLayer.AutumnLeavesEnabled)
+                throw new InvalidOperationException("An unknown observed season must not retain autumn leaves.");
+            RenderMap(original with { Authoring = authoring with { Season = "autumn" }, WorldSystems = systems with { Season = "winter" } });
+            if (!terrainLayer.AutumnLeavesEnabled)
+                throw new InvalidOperationException("Authoring season must take precedence over the world summary, as it does for landscape colors.");
             RenderMap(original with { Authoring = authoring with { Season = "autumn" } });
             if (!terrainLayer.AutumnLeavesEnabled) throw new InvalidOperationException("The live map must enable leaves from the host's autumn observation.");
             RenderMap(original with { Authoring = authoring with { Season = "spring" } });
