@@ -124,6 +124,7 @@ public sealed partial class PrivateWorldRuntime
 
     private static SocietyWorldRuntime CreateSociety(
         string worldSeed,
+        string worldId,
         Func<string, IDecisionProvider>? providerFactory,
         int maxCognitionQueueLength,
         int maxCognitionDispatchPerCycle,
@@ -140,7 +141,7 @@ public sealed partial class PrivateWorldRuntime
         };
         var initialFounders = startPace == WorldStartPace.FounderSetup ? [] : founders;
         var checkpoint = SocietyFixture.CreateGenesis(
-            worldSeed,
+            worldId,
             initialFounders,
             [
                 new InventoryLot(FoodLotId, "food", HouseholdId, 32, 10_000, 10_000, 0),

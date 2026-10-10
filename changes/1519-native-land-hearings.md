@@ -1,0 +1,1 @@
+- Adults born in the world can inspect land and property hearings, contribute evidence, personally accept property grants and serve as elected judges using their complete saved identities.
