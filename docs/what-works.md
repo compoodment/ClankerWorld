@@ -736,6 +736,8 @@ include young animals and reserved births. Yards hold sixteen supply units.
 
 Untamed animals feed from reachable wild greens. If people or other animals
 block a patch's approach, they can use another reachable patch nearby.
+They also drink from reachable fresh water and can use another shore when
+people or animals block the preferred shore's approach.
 
 Taming uses two feed and one jug water. Daily care uses one feed/water for a
 chicken and two each for sheep, cows and horses. Feed is grain or greens. Adults

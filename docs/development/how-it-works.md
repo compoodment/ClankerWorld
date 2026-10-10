@@ -796,6 +796,14 @@ names, conversation badges and the selected agent card follow the drawn
 control. Despawn removes the local entry. The host's positions, routes,
 observations, clock and save schema are unchanged.
 
+The Godot World Info page refreshes its date, season, camera-local weather,
+soil moisture and calendar separately from its eight count tiles. Advancing
+clocks and changing local conditions keep unchanged count nodes in place,
+even with the panel closed or its Towns page selected. Current observations
+still refresh both sections, so opening World shows the latest data at once.
+Changed counts, map dimensions or theme rebuild the count grid and its F1 hint;
+this cache is display-only and does not change observation cadence or saves.
+
 ### Time of day and night
 
 Time of day is worked out from the elapsed tick and the world's saved calendar
@@ -3866,6 +3874,13 @@ or household stock while wild. Wild forage selection checks an unoccupied route
 to the patch's interaction area, using the same live people and animal blockers
 as movement. A crowded nearer patch does not hide another reachable patch within
 the existing search radius.
+
+Wild drinking selection likewise checks the complete unoccupied route to a
+fresh-water shore before choosing it. Shores retain their distance, row and
+column order and twelve-tile search radius. A crowded approach to an empty
+shore does not hide an alternate reachable shore. Selection and movement share
+the same live people and animal blockers and route search; drinking and care
+durations remain unchanged.
 
 Forage checks that radius before looking up stock through the current ecology
 state's ID index. Feed consumption replaces the ecology state, so the next
