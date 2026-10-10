@@ -219,7 +219,9 @@ public partial class Main
             terrainLayer.SetWorld(terrainMap);
             worldOverview.SetWorld(terrainMap);
         }
-        terrainLayer.SetSeason(snapshot.Authoring?.Season ?? snapshot.WorldSystems?.Season);
+        var observedSeason = snapshot.Authoring?.Season ?? snapshot.WorldSystems?.Season;
+        terrainLayer.SetSeason(observedSeason);
+        terrainLayer.SetAutumnLeaves(observedSeason);
         terrainLayer.SetTrees(snapshot.Resources);
         terrainLayer.SetNaturalObjects(snapshot.Resources);
         terrainLayer.SetWeatherRegions(snapshot.WeatherRegionSize, snapshot.WeatherRegions);
