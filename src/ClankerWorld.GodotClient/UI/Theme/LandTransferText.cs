@@ -13,7 +13,8 @@ public static class LandTransferText
     }
 
     public static string Summary(OwnerLandTransfer transfer) => "Permission transfer " +
-        transfer.Id[(transfer.Id.LastIndexOf(':') + 1)..] + " · " + Status(transfer.Status) + " · " +
+        transfer.Id[(transfer.Id.LastIndexOf(':') + 1)..] + " · " + (transfer.Status == "pending" && transfer.Price is not null && transfer.Parties.All(party => party.AdultIds.Count > 0 && party.AcceptedAdultIds.Count == party.AdultIds.Count)
+            ? "awaiting goods payment" : Status(transfer.Status)) + " · " +
         string.Join("; ", transfer.Parties.Where(party => party.Kind == "source").Select(party => party.HouseholdName)) +
         " → " + transfer.TargetHouseholdName;
 
@@ -40,6 +41,13 @@ public static class LandTransferText
             "Proposed by " + transfer.FilerName + " · " + clock(transfer.ProposedTick) + ". Proposing supplies no acceptance.",
             Acceptance(transfer),
         };
+        if (transfer.Price is { } price)
+        {
+            lines.Add("Goods price: " + price.Quantity + " " + price.ItemKind + " to " + price.SellerHouseholdName + ". No money price.");
+            lines.Add(transfer.Payment is { } payment
+                ? "Paid by " + payment.BuyerName + " to " + payment.SellerName + " for the household at (" + payment.Position.X + ", " + payment.Position.Y + ") · " + clock(payment.Tick) + "."
+                : "Payment has not been made. The buyer must carry the agreed goods to meet a seller adult at the notice place before permission moves.");
+        }
         lines.AddRange(Terms(transfer, clock));
         foreach (var party in transfer.Parties)
         {
@@ -59,7 +67,7 @@ public static class LandTransferText
         if (transfer.SettledTick is { } settled) lines.Add("Closed " + clock(settled) + " · " + Status(transfer.Status));
         if (transfer.Reason is { } reason) lines.Add(Reason(reason));
         lines.Add("Every current adult in every source and receiving household must accept. No routine mayor or Council approval is needed.");
-        lines.Add("Only use permission moves; Town title, membership, buildings, crops, goods and private-building access stay unchanged.");
+        lines.Add("Use permission and any agreed goods payment move; Town title, membership, buildings, crops, other goods and private-building access stay unchanged.");
         return lines.Select(GameUiText.PlainEllipses).ToArray();
     }
 

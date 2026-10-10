@@ -55,7 +55,7 @@ internal static class WeatherStreaks
 
     /// <summary>The approved bands move east through the storm without changing its region.</summary>
     public static float Gust(float x, int size, double time) =>
-        0.55f + 0.45f * MathF.Sin((float)(x / (size * 6f) - time * 2 * Math.PI / LoopSeconds) * MathF.Tau);
+        0.55f + 0.45f * MathF.Sin((float)(x / (size * 6f) - time / LoopSeconds) * MathF.Tau);
 
     public static WeatherStreakFrame Frame(char kind, WeatherStreakParticle particle, int size)
     {

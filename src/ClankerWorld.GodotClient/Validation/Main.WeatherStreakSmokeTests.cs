@@ -50,8 +50,10 @@ public partial class Main
             WeatherStreaks.Frame('n', new(0.25f, new(100, 100), 1), 16).Shape != WeatherStreakShape.Dot)
             throw new InvalidOperationException("Weather must retain its approved landing timing, slope and sideways snow drift at both zooms.");
         var gust = WeatherStreaks.Gust(31, 32, 0);
-        var east = WeatherStreaks.Gust(31 + (float)(32 * 6 * 2 * Math.PI / 3), 32, 1);
-        if (Math.Abs(gust - east) > 0.00001f) throw new InvalidOperationException("Storm gusts must sweep east.");
+        var east = WeatherStreaks.Gust(31 + 32 * 6 / 3f, 32, 1);
+        if (Math.Abs(gust - east) > 0.00001f ||
+            Math.Abs(WeatherStreaks.Gust(31, 32, 0.7) - WeatherStreaks.Gust(31, 32, 3.7)) > 0.00001f)
+            throw new InvalidOperationException("Storm gusts must sweep east at the approved speed and repeat after three seconds.");
         var allocated = GC.GetAllocatedBytesForCurrentThread();
         var started = Stopwatch.GetTimestamp();
         long checksum = 0;

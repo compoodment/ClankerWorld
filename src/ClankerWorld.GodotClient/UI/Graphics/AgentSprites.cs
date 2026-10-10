@@ -38,6 +38,52 @@ public enum AgentFrame
 /// </summary>
 public static class AgentSprites
 {
+    private static readonly Dictionary<(int Side, int Frame), IReadOnlyList<(Vector2I Position, Color Color)>> WaitingFrames = new();
+
+    /// <summary>The eight frames of the approved circling spark, cached as ordered pixel layers.</summary>
+    public static IReadOnlyList<(Vector2I Position, Color Color)> WaitingSparkFrame(int side, int frame)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(side, 4);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(side, 78);
+        frame = ((frame % 8) + 8) % 8;
+        if (WaitingFrames.TryGetValue((side, frame), out var cached)) return cached;
+        var pixels = new List<(Vector2I Position, Color Color)>();
+        void Pixel(int x, int y, Color color) => pixels.Add((new Vector2I(x, y), color));
+        var Ink = new Color("1E1712");
+        var Gold = new Color("F2C14E");
+        var Spark = new Color("FFF6D0");
+        var center = new Vector2(side / 2f, side / 2f - (side * 1.35f) * 0.33f);
+        var radius = new Vector2((side * 1.35f) * 0.24f, (side * 1.35f) * 0.08f);
+        Vector2 At(float step) => center + new Vector2(MathF.Cos(step / 8f * MathF.Tau) * radius.X, MathF.Sin(step / 8f * MathF.Tau) * radius.Y);
+        for (var trail = 2; trail >= 1; trail--)
+        {
+            var point = At(frame - trail * 0.5f);
+            Pixel((int)MathF.Floor(point.X), (int)MathF.Floor(point.Y), Gold with { A = 0.6f / trail });
+        }
+        var spark = At(frame);
+        var behind = MathF.Sin(frame / 8f * MathF.Tau) < 0;
+        var strength = behind ? 0.7f : 1f;
+        var x = (int)MathF.Floor(spark.X);
+        var y = (int)MathF.Floor(spark.Y);
+        // A plus-shaped spark with a dark rim, so it reads on grass, road or roof.
+        var arm = side >= 24 ? 2 : 1;
+        for (var dy = -arm - 1; dy <= arm + 1; dy++)
+            for (var dx = -arm - 1; dx <= arm + 1; dx++)
+            {
+                var onPlus = (dx == 0 && Math.Abs(dy) <= arm) || (dy == 0 && Math.Abs(dx) <= arm);
+                var nearPlus = !onPlus && (Math.Abs(dx) <= 1 && Math.Abs(dy) <= arm || Math.Abs(dy) <= 1 && Math.Abs(dx) <= arm) &&
+                    Math.Abs(dx) + Math.Abs(dy) <= arm + 1;
+                if (nearPlus) Pixel(x + dx, y + dy, Ink with { A = 0.75f * strength });
+            }
+        for (var d = -arm; d <= arm; d++)
+        {
+            var tip = Math.Abs(d) == arm && arm > 1;
+            Pixel(x + d, y, (d == 0 ? Spark : tip ? Gold with { A = 0.8f } : Gold) with { A = strength });
+            if (d != 0) Pixel(x, y + d, (tip ? Gold with { A = 0.8f } : Gold) with { A = strength });
+        }
+        return WaitingFrames[(side, frame)] = pixels.AsReadOnly();
+    }
+
     public const int VariantCount = 6;
     public const int StageCount = 4;
 

@@ -57,6 +57,8 @@ public partial class Main
                 await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
                 menuCloseButton.EmitSignal(BaseButton.SignalName.Pressed);
                 mainMenuNewButton.EmitSignal(BaseButton.SignalName.Pressed);
+                await WaitForWorldPreviewSmokeAsync(() => worldMenuOverlay.Visible && worldMenuColumns.Visible,
+                    "New World after its startup recovery check");
                 if (!isOwnerAction || !worldMenuOverlay.Visible || !worldMenuColumns.Visible)
                     throw new InvalidOperationException("New World must open through the real controls while the Settings reply is held.");
                 var before = previews.Count;
@@ -75,6 +77,8 @@ public partial class Main
                 {
                     worldBackButton.EmitSignal(BaseButton.SignalName.Pressed);
                     mainMenuLoadButton.EmitSignal(BaseButton.SignalName.Pressed);
+                    await WaitForWorldPreviewSmokeAsync(() => worldMenuOverlay.Visible && !worldMenuColumns.Visible,
+                        "Load World after its startup recovery check");
                 }
                 release.TrySetResult();
                 await pendingSettings.WaitAsync(TimeSpan.FromSeconds(5));

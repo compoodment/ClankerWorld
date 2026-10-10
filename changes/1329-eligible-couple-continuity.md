@@ -1,0 +1,1 @@
+- The continuity rule now counts eligible adult couples instead of everyone who is not an elder. Unpartnered newcomers and children no longer switch it off; the Event Log explains the couple count. The provisional threshold is four couples, and the two-day postponement stays the same.

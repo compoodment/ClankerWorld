@@ -2,7 +2,7 @@
 title: The interface, art and audio
 type: game-design
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # The interface, art and audio
@@ -96,7 +96,14 @@ everything that is available in the current build. See [what works today](../wha
   log has an icon for each kind of event and a heading for each day, shows the
   newest first and has no filters. Only an event with a place has a **Find**
   button. The game keeps the newest 1,024 events in each of its event records
-  and archives older ones; that number is provisional.
+  and archives older ones; that number is provisional. **Agreed on October 9
+  (owner request in chat):** each line says who was involved and what
+  happened, in plain words without legal or code terms. Births, deaths,
+  marriages, skills learned, animals and scouting trips appear. Routine steps
+  that a later line already reports do not: meals, forage trips, tending a
+  crop, loading and parking a cart, starting a recipe, picking up goods on the
+  way to a delivery, each Town project work shift, and reading or passing on a
+  case file.
 - World Info should let the player inspect discovered capabilities and other
   world information. Separate map filters show Town title, household land use,
   disputed land, household property and Town borders; these are the first set
@@ -292,6 +299,10 @@ everything that is available in the current build. See [what works today](../wha
   provider doesn't make it look frozen. The Event Log adds one line only when
   the provider actually fails. What the agent may do while it waits is in
   [The world](world.md#world-time-pausing-and-slow-models).
+  The owner selected **C · Circling spark** from the October 8 marker review
+  on [#1315](https://github.com/compoodment/ClankerWorld/issues/1315), recorded
+  in its discussion. The proposed short delay is two seconds; it remains
+  provisional for playtesting.
 - **Agreed after the September 30 building panel review:** selecting a
   building opens a small **quick card** beside it, like an agent's: its roof,
   name and owner (household or Town), one line on what is happening there (who
@@ -592,6 +603,31 @@ provide a UI drawing.
   computment chose look B, crisp pixel streaks: straight one-pixel rain that
   lands as a small burst, sharp storm streaks in gusts, and small snowflake
   crosses blown by the wind. No cloud shadows.
+- **Agreed on October 9 (direct owner request,
+  [visual polish review](../../tools/ArtPreview/Proposed/Polish.md)):** the
+  map gets touches that only show, more clearly, what the world already
+  records:
+  - agents and animals glide between tiles, with a small bob on each step,
+    instead of jumping;
+  - Houses with someone inside and a working forge send up a column of
+    smoke that leans with the wind;
+  - after snowfall the open ground turns white, with grass tips and trodden
+    Roads showing, and anyone crossing it leaves footprints that fade; in
+    autumn a few leaves lie under broadleaf and orchard trees;
+  - dawn has a rose glow and dusk a gold one;
+  - stores show piles of logs, crates and sacks beside the door that grow
+    with what they hold;
+  - the camera eases when **Find** moves it or the view zooms;
+  - a finished building gets a ring of dust and a few twinkles;
+  - after snowfall roofs keep snow on their shaded side and a dusting on
+    their sunny side, following each roof's shape;
+  - where someone died, a grave marked by a wooden cross or a headstone
+    stays for a year of game time, then fades;
+  - weather fades in and out instead of switching at once.
+
+  Puddles after rain are postponed: none of the three rounds of drawings
+  matched what computment has in mind, and whether puddles belong in the
+  game at all is left open for later.
 - Ground remains square-tiled, but permanent **black tile-border grid lines**
   are not part of the intended presentation; they would clash with textures.
 - **Agreed on October 8
