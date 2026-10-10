@@ -3525,7 +3525,10 @@ lives in `TreeGrowthRules` and is provisional ([#462](https://github.com/compood
   refusal returns a `TreePlantingRefusal` and a one-line reason and changes
   nothing. Success consumes exactly one seed and adds a `planted-tree-{x}-{y}`
   map resource with a sapling growth record, in the same tick.
-- **Agents** are offered `plant_tree` while they hold a tree seed. The built-in
+- **Agents** are offered `plant_tree` while they hold a tree seed, or can collect
+  one from accessible household stock with free carrying space. A carried seed
+  remains usable with full cargo; the same collection guard covers `replant_tree`.
+  The built-in
   site is the nearest reachable open tile outside every Town border, so trees
   do not block building sites. The species follows the nearest wood tree.
   `replant_tree` also uses a tree seed.
