@@ -1,0 +1,1 @@
+- New worlds no longer start with an unused Copper currency, a 100-unit household wallet or a dormant theft-fine rule. Trade continues to use real goods and existing ownership checks.

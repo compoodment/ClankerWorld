@@ -18,7 +18,7 @@ public sealed partial class PrivateWorldRuntime
         AddTownLandTransferCandidates(candidates, actor, currentTown);
         if (!candidates.Any(candidate => candidate.Id == $"civic|{town.Id}|{action}|{subject}|{choice}"))
             throw new InvalidOperationException("The transfer choice no longer has current source terms or informed household eligibility.");
-        if (action == "land_transfer_propose")
+        if (action is "land_transfer_propose" or "land_transfer_sell")
         {
             var target = hearingChoice?.HouseholdId;
             var source = society.Checkpoint.GetInhabitant(actor).HouseholdId;
@@ -29,10 +29,19 @@ public sealed partial class PrivateWorldRuntime
                 tiles.Any(tile => !TownLandRightsRules.IsCoveredByTownTitle(tile, town.Id, townLandTitles) ||
                     !householdLandUseRights.Any(right => right.TownId == town.Id && right.HouseholdId == source && right.Tiles.Contains(tile))))
                 throw new InvalidOperationException("A transfer names a known household and exact existing titled permission, preserving its agreed term.");
+            TownLandSalePrice? price = null;
+            if (action == "land_transfer_sell")
+            {
+                if (hearingChoice?.PaymentItemKind is not { } kind || hearingChoice.PaymentQuantity is not > 0 ||
+                    !LandSaleKind(kind)) throw new InvalidOperationException("A sale needs an exact supported goods kind and positive quantity.");
+                price = new(source, kind, hearingChoice.PaymentQuantity.Value);
+            }
+            else if (hearingChoice?.PaymentItemKind is not null || hearingChoice?.PaymentQuantity is not null)
+                throw new InvalidOperationException("Paid terms must use the paid offer action.");
             var before = hearings.Transfers.Count;
             hearings = TownLandTransferRules.Propose(hearings, map, town.Id, actor, tiles, target, householdLandUseRights,
                 TownLandTransferRules.PartiesFor(householdLandUseRights, tiles, target, LandTransferAdultHouseholds()),
-                householdLandUseRequests, WorldTick, "notice:" + (council.Notices.Count + 1));
+                householdLandUseRequests, WorldTick, "notice:" + (council.Notices.Count + 1), price);
             if (hearings.Transfers.Count > before)
             {
                 var proposed = hearings.Transfers[^1];
@@ -46,6 +55,14 @@ public sealed partial class PrivateWorldRuntime
         var request = hearings.Transfers.Single(item => LandTransferActionToken(item) == subject && item.Status == "pending");
         switch (action)
         {
+            case "land_transfer_collect_payment":
+                CollectLandSalePayment(actor, currentTown, request);
+                break;
+            case "land_transfer_meet":
+                MoveToward(actor, inhabitants[actor], CivicBoard(currentTown)!.Value, "land_sale", ResourceInteractionRange);
+                break;
+            case "land_transfer_pay":
+                return SettleLandSale(currentTown, council, request, actor);
             case "land_transfer_read":
                 council = TownGovernanceRules.LearnNotice(council, actor, request.NoticeId, WorldTick);
                 LandTransferEvent("read", currentTown, request, actor, "learned");

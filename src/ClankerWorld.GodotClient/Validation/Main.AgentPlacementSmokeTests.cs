@@ -14,6 +14,10 @@ public partial class Main
         var previousObservation = observationSession.Current;
         var previousConfiguration = providerConfiguration;
         var previousRefreshing = isRefreshing;
+        var previousInWorld = isInWorld;
+        var previousMainMenu = mainMenuOverlay.Visible;
+        var previousKeyboard = keyboardNavigation;
+        var previousCursor = keyboardMapTile;
         var previousCi = System.Environment.GetEnvironmentVariable("CI");
         System.Environment.SetEnvironmentVariable("CI", "true");
         using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
@@ -37,6 +41,7 @@ public partial class Main
                 {
                     PackedTerrain = new(3, 3, "terrain-kind-v1", Convert.ToBase64String(new byte[9])),
                     FounderSetup = new(4, 4, true),
+                    Towns = [new("keyboard-town", "Keyboard Town", "founded", 0, [], [], [new(0, 0)])],
                 };
                 var observation = new OwnerWorldReconnect(new OwnerWorldHandshake(new(1, 1),
                     ["owner-observation.read.v1", "inhabitant-inspection.read.v1", "spatial-knowledge.read.v1",
@@ -55,7 +60,46 @@ public partial class Main
                 founderModelPicker.SetModel("placement-smoke-model");
                 placingAddedAgent = true;
                 founderSetupPanel.Show();
-                await PlaceAgentAtAsync(new(0, 0));
+                if (boundary == "success")
+                {
+                    mainMenuOverlay.Hide();
+                    isInWorld = true;
+                    for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                    GetViewport().GuiReleaseFocus();
+                    await KeyboardKeyAsync(Key.K);
+                    if (!mapCanvas.HasFocus()) throw new InvalidOperationException("Keyboard placement must enter the map.");
+                    keyboardMapTile = new Vector2I(1, 0);
+                    RefreshKeyboardMapSelection();
+                    var previousPanelPosition = founderSetupPanel.Position;
+                    try
+                    {
+                        var targetPoint = KeyboardMapCanvasPoint(new(0, 0));
+                        founderSetupPanel.GlobalPosition = mapCanvas.GetGlobalTransform() * targetPoint - new Vector2(20, 20);
+                        if (!founderSetupPanel.GetGlobalRect().HasPoint(mapCanvas.GetGlobalTransform() * targetPoint))
+                            throw new InvalidOperationException("The keyboard placement fixture must put its target under Add Agent.");
+                        UpdateHoverReadout(snapshot, new(1, 0));
+                        PreviewAddAgentPlacement(snapshot, new(1, 0));
+                        UpdateTileHover(targetPoint);
+                        if (hoverReadoutTile != new Vector2I(1, 0))
+                            throw new InvalidOperationException("Pointer hover behind Add Agent must preserve its previous preview.");
+                        await KeyboardKeyAsync(Key.Left);
+                        if (hoverReadoutTile != new Vector2I(0, 0) ||
+                            !founderSetupHint.Text.Contains("They would join Keyboard Town without a household.", StringComparison.Ordinal))
+                            throw new InvalidOperationException("Keyboard placement must preview the target's actual Town even behind Add Agent: " + founderSetupHint.Text);
+                    }
+                    finally { founderSetupPanel.Position = previousPanelPosition; }
+                    for (var step = 0; step < 3; step++)
+                    {
+                        await KeyboardKeyAsync(Key.Left);
+                        await KeyboardKeyAsync(Key.Up);
+                    }
+                    if (keyboardMapTile != new Vector2I(0, 0))
+                        throw new InvalidOperationException("Placement arrows must reach the requested tile.");
+                    await KeyboardKeyAsync(Key.Enter);
+                    for (var frame = 0; frame < 600 && (host.AgentPlacements.IsEmpty || isOwnerAction); frame++)
+                        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                }
+                else await PlaceAgentAtAsync(new(0, 0));
                 var refused = boundary == "placement-refusal";
                 if (host.AgentPlacements.Count != 1 || placingAddedAgent != refused || founderSetupPanel.Visible != refused)
                     throw new InvalidOperationException($"An acknowledged placement must leave placement mode; a refused placement must keep it: boundary={boundary}, attempts={host.AgentPlacements.Count}, mode={placingAddedAgent}, panel={founderSetupPanel.Visible}, status={statusLabel.Text}.");
@@ -91,6 +135,11 @@ public partial class Main
         finally
         {
             founderSetupPanel.Hide();
+            isInWorld = previousInWorld;
+            mainMenuOverlay.Visible = previousMainMenu;
+            keyboardNavigation = previousKeyboard;
+            keyboardMapTile = previousCursor;
+            GetViewport().GuiReleaseFocus();
             placingAddedAgent = false;
             registration = previousRegistration;
             deviceKey = previousKey;

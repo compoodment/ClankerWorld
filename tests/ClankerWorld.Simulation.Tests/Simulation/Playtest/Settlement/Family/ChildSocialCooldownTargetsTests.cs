@@ -39,8 +39,8 @@ public sealed class ChildSocialCooldownTargetsTests
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         await world.AdvanceOneTickAsync();
         await replay.AdvanceOneTickAsync();
-        Assert.Contains(provider.Wanted, provider.ChildCandidates);
-        Assert.DoesNotContain(provider.ChildCandidates, candidate => adults.Take(3).Any(id => candidate.EndsWith(":" + id, StringComparison.Ordinal)));
+        // Opaque world IDs can put the child after the four adults in the
+        // cognition queue. Use the existing bounded native wait for its turn.
         for (var tick = 0; tick < 16 && !world.Society.Memories.Any(memory =>
                  memory.OwnerId == child && memory.SubjectId == adults[3] && memory.Id.StartsWith("child-social:play:", StringComparison.Ordinal)); tick++)
         {
@@ -48,6 +48,8 @@ public sealed class ChildSocialCooldownTargetsTests
             await replay.AdvanceOneTickAsync();
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
         }
+        Assert.Contains(provider.Wanted, provider.ChildCandidates);
+        Assert.DoesNotContain(provider.ChildCandidates, candidate => adults.Take(3).Any(id => candidate.EndsWith(":" + id, StringComparison.Ordinal)));
         Assert.Single(world.Society.Memories, memory => memory.OwnerId == child && memory.SubjectId == adults[3] &&
             memory.Id.StartsWith("child-social:play:", StringComparison.Ordinal));
         Assert.Equal(9, world.Society.Memories.Count(memory => memory.OwnerId == child && adults.Take(3).Contains(memory.SubjectId) &&

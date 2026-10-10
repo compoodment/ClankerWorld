@@ -164,12 +164,14 @@ public sealed class TownProjectRuntimeTests
 
         var hall = scenario.World.WorldSimulation.Buildings.Single(building => building.InstanceId == scenario.Project.CompletedBuildingId);
         var paid = scenario.Project;
+        Assert.Null(ProjectedProject().RemovedTick);
         var consumed = scenario.World.Society.Inventory.Reservations.Where(receipt =>
             paid.Deliveries.Any(delivery => delivery.ReservationId == receipt.Id)).ToArray();
         TownProjectSaveValidationTests.AssertCompletedSourceCannotChange(scenario.World.ExportState());
         var removed = scenario.World.RemoveBuilding(hall.InstanceId, hall.TownId, hall.HouseholdId);
         Assert.True(removed.Applied, removed.Failure);
         Assert.Equal(scenario.World.WorldTick, scenario.Project.RemovedTick);
+        Assert.Equal(scenario.Project.RemovedTick, ProjectedProject().RemovedTick);
         Assert.Equal(paid.LastTransitionTick, scenario.Project.LastTransitionTick);
         Assert.Equal(paid.CompletedBuildingId, scenario.Project.CompletedBuildingId);
         var savedRemoval = PrivateWorldRuntimeCodec.Encode(scenario.World.ExportState());
@@ -184,7 +186,20 @@ public sealed class TownProjectRuntimeTests
         Assert.Equal(consumed, scenario.World.Society.Inventory.Reservations.Where(receipt =>
             paid.Deliveries.Any(delivery => delivery.ReservationId == receipt.Id)).ToArray());
         Assert.Equal("completed", scenario.Project.Stage);
+        var projectedRemoval = ProjectedProject();
+        Assert.Equal(scenario.Project.RemovedTick, projectedRemoval.RemovedTick);
+        Assert.Equal(paid.CompletedBuildingId, projectedRemoval.CompletedBuildingId);
+        Assert.Equal(paid.WorkDone, projectedRemoval.WorkDone);
+        Assert.All(projectedRemoval.Materials, material => Assert.Equal(material.Budget, material.Supplied));
         scenario.World.Validate();
+
+        ClankerWorld.GodotClient.UI.OwnerWorldTownProject ProjectedProject()
+        {
+            var observation = new OwnerWorldObservationStore(scenario.World).GetSnapshot();
+            var json = JsonSerializer.Serialize(observation, TownProjectScenario.JsonOptions);
+            var client = JsonSerializer.Deserialize<GodotSnapshot>(json, TownProjectScenario.JsonOptions)!;
+            return Assert.Single(Assert.Single(client.Towns).Projects);
+        }
     }
 
     [Theory]
@@ -281,7 +296,9 @@ public sealed class TownProjectRuntimeTests
         bool Overlaps(GridPoint site) => WorldContentSimulationRules.Footprint(hall, site).Append(TownHallContent.Entrance(site)).Any(taken.Contains);
         GridPoint[] OfferedSites(Func<InhabitantObservation, bool> include) => scenario.Policy.Observations.Where(include)
             .SelectMany(observation => observation.Candidates)
-            .Where(candidate => candidate.Id.Contains("|project|", StringComparison.Ordinal))
+            // Only Hall sites: street lanterns are separate projects on Road edges.
+            .Where(candidate => candidate.Id.Contains("|project|", StringComparison.Ordinal) &&
+                !candidate.Id.Split('|')[3].EndsWith("lantern", StringComparison.Ordinal))
             .Select(candidate => candidate.Id.Split('|')[4].Split(','))
             .Select(point => new GridPoint(int.Parse(point[0], CultureInfo.InvariantCulture), int.Parse(point[1], CultureInfo.InvariantCulture)))
             .Distinct().ToArray();
