@@ -2,12 +2,106 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
+using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class SettlementTradeTests
 {
+    [Theory]
+    [InlineData(false, "usable", false)]
+    [InlineData(true, "usable", true)]
+    [InlineData(true, "reserved", false)]
+    [InlineData(true, "worn", false)]
+    [InlineData(true, "ground", false)]
+    public async Task PersonalBarterUsesUsableSurplusAcrossLotsAndKeepsReserve(bool split, string reserve, bool splitPayment)
+    {
+        var allowed = reserve == "usable";
+        using var setup = NormalPathWorld.CreateGenerated("personal-barter-lots", _ => new TradeProvider("safe_idle"));
+        Assert.True((await setup.AdvanceOneTickAsync()).Advanced);
+        var state = setup.ExportState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        var meeting = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-warehouse").Position;
+        var positions = state.Map.Tiles.Select(tile => tile.Position).Where(point => state.Map.IsPassable(point) &&
+                state.Map.FootDistance(point, meeting) <= 1 &&
+                state.Inhabitants.All(person => person.InhabitantId == first || person.InhabitantId == second || person.Position != point))
+            .OrderBy(point => point.Y).ThenBy(point => point.X).Take(2).ToArray();
+        Assert.Equal(2, positions.Length);
+        var inventory = state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Where(lot =>
+                !(lot.OwnerId == first || lot.OwnerId == second) || lot.ItemKind is not ("clothing" or "food" or "berries")).ToArray(),
+        };
+        inventory = InventoryFixture.AddLot(inventory, "barter-clothing-a", "clothing", first, split ? 1 : 2);
+        if (split) inventory = InventoryFixture.AddLot(inventory, "barter-clothing-b", "clothing", first, 1);
+        if (reserve == "reserved") inventory = InventoryFixture.Reserve(inventory, "held-garment", first,
+            "barter-clothing-b", 1, "other_work", inventory.WorldTick + 100);
+        if (reserve == "ground") inventory = inventory with
+        {
+            Lots = inventory.Lots.Select(lot => lot.Id == "barter-clothing-b"
+                ? lot with { GroundPosition = new(positions[0].X, positions[0].Y) } : lot).ToArray(),
+        };
+        if (splitPayment)
+            for (var index = 0; index < 4; index++)
+                inventory = InventoryFixture.AddLot(inventory, "barter-berries-" + index, "berries", second, 1);
+        else inventory = InventoryFixture.AddLot(inventory, "barter-berries", "berries", second, 4);
+        state = WithInventory(state, inventory) with
+        {
+            JevEnabled = false,
+            RoutineHelper = RoutineHelperSettings.Off,
+            Inhabitants = state.Inhabitants.Select(person => person with
+            {
+                Position = person.InhabitantId == first ? positions[0] : person.InhabitantId == second ? positions[1] : person.Position,
+                HungerBasisPoints = 7_500,
+                Survival = new(),
+                Equipment = new(person.InhabitantId == first && reserve == "worn" ? "barter-clothing-b" : null),
+                LastDecisionContext = null,
+                Project = null,
+            }).ToArray(),
+        };
+        state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
+        var proposer = new TradeProvider("trade_propose:" + second);
+        IDecisionProvider Provider(string id) => id == first ? proposer : new TradeProvider(id == second ? "trade_accept:" : "safe_idle");
+        var bytes = PrivateWorldRuntimeCodec.Encode(state);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), Provider);
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), id =>
+            new TradeProvider(id == first ? "trade_propose:" + second : id == second ? "trade_accept:" : "safe_idle"));
+        world.Validate();
+        for (var tick = 0; tick < 30; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        if (!allowed)
+        {
+            Assert.DoesNotContain("trade_propose:" + second, proposer.SeenCandidates);
+            Assert.Empty(world.Society.Inventory.Offers);
+            Assert.Equal(2, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == first && lot.ItemKind == "clothing").Sum(lot => lot.Quantity));
+            Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == second && lot.ItemKind == "berries").Sum(lot => lot.Quantity));
+            if (reserve == "reserved") Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("held-garment").State);
+        }
+        else
+        {
+            Assert.Contains("trade_propose:" + second, proposer.SeenCandidates);
+            var offer = Assert.Single(world.Society.Inventory.Offers);
+            Assert.Equal(DirectBarterState.Settled, offer.State);
+            Assert.Equal(2, offer.AcceptedBy.Count);
+            Assert.Equal(1, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == first && lot.ItemKind == "clothing").Sum(lot => lot.Quantity));
+            Assert.Equal(1, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == second && lot.ItemKind == "clothing").Sum(lot => lot.Quantity));
+            Assert.Equal(1, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == first && lot.ItemKind == "berries").Sum(lot => lot.Quantity));
+            Assert.Equal(3, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == second && lot.ItemKind == "berries").Sum(lot => lot.Quantity));
+            Assert.All(world.Society.Inventory.Reservations, reservation => Assert.Equal(InventoryReservationState.Completed, reservation.State));
+        }
+        world.Validate();
+        var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), Provider);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        restored.Validate();
+    }
+
     [Theory]
     [InlineData(SocietyAgeBand.Adolescent)]
     public async Task AdultsCannotOfferTradeToYoungRecipientsBeforeOrAfterReload(SocietyAgeBand age)

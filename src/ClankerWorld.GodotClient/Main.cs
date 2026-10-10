@@ -61,6 +61,7 @@ public partial class Main : Control
     private readonly OptionButton cognitionProviderChoice = new();
     private readonly OptionButton cognitionCredentialChoice = new();
     private readonly ModelPicker cognitionModelPicker = new();
+    private readonly OptionButton cognitionThinkingChoice = new();
     private readonly LineEdit cognitionApiKeyInput = new();
     private readonly LineEdit cognitionCredentialLabelInput = new();
     private readonly Label cognitionConfigurationStatus = new();
@@ -94,11 +95,17 @@ public partial class Main : Control
     private readonly WorldTerrainLayer terrainLayer = new();
     private readonly WeatherLayer weatherLayer = new();
     private readonly NightLayer nightLayer = new();
+    private readonly BuildingCompletionLayer buildingCompletionLayer = new();
+    private readonly GoldenHourLayer goldenHourLayer = new();
+    private readonly GraveLayer graveLayer = new();
     private readonly NightLightsLayer nightLightsLayer = new();
+    private readonly SmokeLayer smokeLayer = new();
+    private readonly StoredStockLayer storedStockLayer = new();
     private WorldTerrainMap? terrainMap;
     private string? terrainWorldId;
-    private string? terrainManifestDigest;
-    private string? terrainLayersDigest;
+    private OwnerWorldPackedTerrain? terrainPackedTerrain;
+    private OwnerWorldPackedMapLayers? terrainPackedLayers;
+    private IReadOnlyList<OwnerWorldTile> terrainTiles = [];
     private readonly Control mapCanvas = new();
     private readonly Control mapStage = new();
     private readonly PanelContainer worldOverviewPanel = new();
@@ -160,7 +167,11 @@ public partial class Main : Control
     private readonly OptionButton clockFormatChoice = new();
     private readonly OptionButton dateFormatChoice = new();
     private readonly OptionButton lifePaceChoice = new();
-    private readonly CheckBox jevAssistanceToggle = new();
+    private readonly OptionButton routineHelperChoice = new();
+    private readonly ModelPicker routineHelperModelPicker = new();
+    private readonly OptionButton routineHelperKeyChoice = new();
+    private readonly Button applyRoutineHelperButton = new();
+    private string? observedRoutineHelperContext;
     private readonly Button applyLifePaceButton = new();
     private int? lastObservedLifePace;
     private string? lastLifePaceWorldId;
@@ -198,6 +209,11 @@ public partial class Main : Control
             refreshCancellation?.Cancel();
             observationSession.ReplaceRegistration(value);
             knownEvents.Clear();
+            usageReads++;
+            usageStatus = null;
+            usageLimitEdited = false;
+            usageAttemptLimitInput.Text = string.Empty;
+            RenderUsageStatus();
         }
     }
     private OwnerPairingStart? pendingPairing;
@@ -219,6 +235,8 @@ public partial class Main : Control
     private bool registeredEndpointInvalid;
     private bool menuPausedWorld;
     private bool menuPauseConfirmed;
+    private int pendingMenuResumes;
+    private long pendingMenuResumeGeneration;
     private OwnerWorldSnapshot? renderedMapSnapshot;
     private int currentTileSize = DefaultTileSize;
     private float cameraZoom = 1;
@@ -258,6 +276,7 @@ public partial class Main : Control
         if (OS.GetCmdlineUserArgs().Contains("--ui-smoke-test", StringComparer.Ordinal))
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
         BuildLayout();
+        BuildKeyboardNavigation();
         UiTheme.Changed += ApplyThemeColors;
         ApplyThemeColors();
         ApplyUiScale();

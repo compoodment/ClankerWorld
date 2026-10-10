@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -116,49 +117,62 @@ public sealed partial class PrivateWorldRuntime
         var pendingAnchors = anchors?.Where(point => map.IsBuildable(point) && !occupiedSites.Contains(point))
             .ToHashSet();
         var open = new PriorityQueue<GridPoint, (int Cost, int Y, int X, int Order)>();
-        var best = new Dictionary<GridPoint, int> { [origin] = 0 };
+        // Layout searches can visit most of a generated map. Keep tentative
+        // costs in a rented tile array rather than allocating a second map-sized
+        // dictionary alongside the settled costs every time a layout is built.
+        var tileCount = checked(map.Width * map.Height);
         var settled = new Dictionary<GridPoint, int>();
         var viableLegacyAnchors = 0;
         var selectedSiteReached = selectedSite is null ||
             pendingAnchors is not null && pendingAnchors.Count == 0;
         var order = 0;
-        open.Enqueue(origin, (0, origin.Y, origin.X, order++));
-        while (open.TryDequeue(out var current, out var priority))
+        var best = ArrayPool<int>.Shared.Rent(tileCount);
+        try
         {
-            if (priority.Cost != best[current])
-                continue;
-            settled[current] = priority.Cost;
-            if (current == selectedSite)
-                selectedSiteReached = true;
-            if (pendingAnchors is null)
+            Array.Fill(best, -1, 0, tileCount);
+            best[origin.Y * map.Width + origin.X] = 0;
+            open.Enqueue(origin, (0, origin.Y, origin.X, order++));
+            while (open.TryDequeue(out var current, out var priority))
             {
-                if (map.IsBuildable(current) && !occupiedSites.Contains(current))
-                    viableLegacyAnchors++;
-            }
-            else
-            {
-                pendingAnchors.Remove(current);
-            }
-            if (selectedSite is not null ? selectedSiteReached :
-                pendingAnchors?.Count == 0 || pendingAnchors is null && viableLegacyAnchors >= 32)
-                break;
-            foreach (var next in map.FootNeighbors(current))
-            {
-                if (occupied.Contains(next) ||
-                    map.IsDiagonalFootStep(current, next) &&
-                    (occupied.Contains(new GridPoint(next.X, current.Y)) ||
-                     occupied.Contains(new GridPoint(current.X, next.Y))))
+                if (priority.Cost != best[current.Y * map.Width + current.X])
                     continue;
+                settled[current] = priority.Cost;
+                if (current == selectedSite)
+                    selectedSiteReached = true;
+                if (pendingAnchors is null)
+                {
+                    if (map.IsBuildable(current) && !occupiedSites.Contains(current))
+                        viableLegacyAnchors++;
+                }
+                else
+                {
+                    pendingAnchors.Remove(current);
+                }
+                if (selectedSite is not null ? selectedSiteReached :
+                    pendingAnchors?.Count == 0 || pendingAnchors is null && viableLegacyAnchors >= 32)
+                    break;
+                foreach (var next in map.FootNeighbors(current))
+                {
+                    if (occupied.Contains(next) ||
+                        map.IsDiagonalFootStep(current, next) &&
+                        (occupied.Contains(new GridPoint(next.X, current.Y)) ||
+                         occupied.Contains(new GridPoint(current.X, next.Y))))
+                        continue;
 
-                var cost = checked(priority.Cost + RoadStepCost(current, next));
-                if (best.TryGetValue(next, out var previous) && previous <= cost)
-                    continue;
-                best[next] = cost;
-                open.Enqueue(next, (cost, next.Y, next.X, order++));
+                    var cost = checked(priority.Cost + LegalRoadStepCost(current, next));
+                    var index = next.Y * map.Width + next.X;
+                    if (best[index] >= 0 && best[index] <= cost)
+                        continue;
+                    best[index] = cost;
+                    open.Enqueue(next, (cost, next.Y, next.X, order++));
+                }
             }
+            return settled;
         }
-
-        return settled;
+        finally
+        {
+            ArrayPool<int>.Shared.Return(best);
+        }
     }
 
     private bool TryFindRecipeSite(
@@ -219,10 +233,9 @@ public sealed partial class PrivateWorldRuntime
         var inventory = society.Checkpoint.Inventory;
         foreach (var requested in quantities)
         {
-            var available = inventory.Lots
-                .Where(lot => lot.OwnerId == (ownerId ?? HouseholdId) && lot.ItemKind == requested.ResourceId &&
-                    !IsHandcartCargo(inventory, lot) && !OnBorrowedMarketStall(lot))
-                .Sum(AvailableLotQuantity);
+            var available = FindGoods(inventory, new(GoodsUse.Holdings, null,
+                    GoodsOwners.One(ownerId ?? HouseholdId), GoodsKinds.One(requested.ResourceId)))
+                .Matches.Where(match => !IsHandcartCargo(inventory, match.Lot)).Sum(match => (long)match.Quantity);
             if (available < requested.Amount)
             {
                 return false;
@@ -278,36 +291,34 @@ public sealed partial class PrivateWorldRuntime
         return candidate;
     }
 
-    private bool CanPlaceBuilding(
-        BuildingDefinition definition,
-        GridPoint position,
-        out string failure,
-        string? townProjectId = null)
-    {
-        var footprint = WorldContentSimulationRules.Footprint(definition, position).ToArray();
-        if (!PortNavigationRules.IsPort(definition) && footprint.Any(point => !map.IsBuildable(point)))
-        {
-            failure = "Every building footprint tile must be on buildable ground; mountains and peaks cannot hold buildings.";
-            return false;
-        }
+    // A synchronous proposal query checks many sites against the same objects.
+    // Keep Market tiles separate: only an extra stall may use its own slot,
+    // and that exception never opens a tile occupied by another kind of object.
+    private sealed record BuildingPlacementTiles(HashSet<GridPoint> Occupied, HashSet<GridPoint> Market,
+        string? Failure = null);
 
+    private sealed record BuildingPlacementWorld(string? ProjectId, Lazy<BuildingPlacementTiles> Tiles);
+
+    private BuildingPlacementWorld CreateBuildingPlacementWorld(string? townProjectId) =>
+        new(townProjectId, new(() => GatherBuildingPlacementTiles(townProjectId), LazyThreadSafetyMode.None));
+
+    private BuildingPlacementTiles GatherBuildingPlacementTiles(string? townProjectId)
+    {
         var occupied = map.CampObjects
             .Select(item => item.Position)
             .Concat(map.Resources.Select(item => item.Position))
             .Concat(RoadAndBridgeTiles())
             .Concat(fields.Select(field => field.Position))
             .Concat(TownProjectProtectedSites(townProjectId))
-            // An extra stall is the one building that belongs on a Market site, on its own approved slot.
-            .Concat(MarketSiteTiles().Where(tile => tile != position || !definition.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal)))
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused).SelectMany(ExpansionTiles))
             .ToHashSet();
+        var market = MarketSiteTiles().ToHashSet();
         var buildingDefinitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         foreach (var placed in worldSimulation.Buildings)
         {
             if (!buildingDefinitions.TryGetValue(placed.DefinitionId, out var existingDefinition))
             {
-                failure = $"Placed building '{placed.InstanceId}' references an unavailable definition.";
-                return false;
+                return new(occupied, market, $"Placed building '{placed.InstanceId}' references an unavailable definition.");
             }
 
             foreach (var existingPoint in WorldContentSimulationRules.Footprint(existingDefinition, placed))
@@ -318,13 +329,40 @@ public sealed partial class PrivateWorldRuntime
 
         occupied.UnionWith(worldSimulation.Buildings.Where(building => Port(building.InstanceId) is not null)
             .Select(PortGeometryFor).SelectMany(geometry => geometry.DockingTiles));
+        return new(occupied, market);
+    }
+
+    private bool CanPlaceBuilding(
+        BuildingDefinition definition,
+        GridPoint position,
+        out string failure,
+        string? townProjectId = null,
+        BuildingPlacementWorld? world = null)
+    {
+        var footprint = WorldContentSimulationRules.Footprint(definition, position).ToArray();
+        if (!PortNavigationRules.IsPort(definition) && footprint.Any(point => !map.IsBuildable(point)))
+        {
+            failure = "Every building footprint tile must be on buildable ground; mountains and peaks cannot hold buildings.";
+            return false;
+        }
+        if (world is not null && world.ProjectId != townProjectId)
+            throw new InvalidOperationException("A building placement check was given tiles gathered for another project.");
+        world ??= CreateBuildingPlacementWorld(townProjectId);
+        var tiles = world.Tiles.Value;
+        if (tiles.Failure is { } contentFailure)
+        {
+            failure = contentFailure;
+            return false;
+        }
         if (PortNavigationRules.IsPort(definition))
         {
+            var occupied = tiles.Occupied.Concat(tiles.Market).ToHashSet();
             var fits = PortNavigationRules.Fits(map, definition, position, occupied, out var portFailure, roadTiles);
             failure = portFailure ?? string.Empty;
             return fits;
         }
-        if (footprint.Any(occupied.Contains))
+        if (footprint.Any(point => tiles.Occupied.Contains(point) || tiles.Market.Contains(point) &&
+                (point != position || !definition.Tags.Contains(MarketContent.StallTag, StringComparer.Ordinal))))
         {
             failure = "The building footprint overlaps an existing object, resource, Road, bridge end, or building.";
             return false;
@@ -341,7 +379,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var equipmentBefore = inhabitants.Values.ToDictionary(person => person.InhabitantId,
                 person => person.Equipment, StringComparer.Ordinal);
-            var updated = transition(checkpoint.Inventory);
+            var updated = InventoryStorageHistory.RecordTransition(checkpoint.Inventory, transition(checkpoint.Inventory));
             foreach (var building in worldSimulation.Buildings)
             {
                 var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
@@ -359,7 +397,7 @@ public sealed partial class PrivateWorldRuntime
                     ReservedBusinessCarrySpace(person.InhabitantId, checkpoint.Inventory);
                 var after = PersonalEquipmentRules.CarriedQuantity(updated, person.InhabitantId, person.Equipment) +
                     ReservedBusinessCarrySpace(person.InhabitantId, updated);
-                if (after > before && after > PersonalEquipmentRules.Capacity(updated, person.InhabitantId, person.Equipment))
+                if (after > before && after > PersonalEquipmentRules.Capacity(updated, person.InhabitantId, person.Equipment) + HorseCargoCapacity(person.InhabitantId))
                     throw new InvalidOperationException("The person is carrying as much as they can; store or set down a load first.");
             }
             return new SocietyOperationResult(checkpoint with { Inventory = updated }, null, []);
@@ -377,24 +415,18 @@ public sealed partial class PrivateWorldRuntime
         {
             var requested = quantities[quantityIndex];
             var remaining = requested.Amount;
-            var lots = current.Lots
-                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId && !IsHandcartCargo(current, lot) && !OnBorrowedMarketStall(lot) && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
-                .OrderBy(lot => lot.Id, StringComparer.Ordinal)
-                .ToArray();
-            foreach (var lot in lots)
+            var request = new GoodsRequest(GoodsUse.Holdings, null,
+                GoodsOwners.One(ownerId), GoodsKinds.One(requested.ResourceId));
+            var matches = ProductionGoods(current, request).ToArray();
+            foreach (var match in matches)
             {
                 if (remaining == 0)
                 {
                     break;
                 }
 
-                var reserved = current.Reservations
-                    .Where(reservation => reservation.LotId == lot.Id &&
-                        reservation.State is InventoryReservationState.Reserved or
-                            InventoryReservationState.PartiallyConsumed or
-                            InventoryReservationState.Committed)
-                    .Sum(reservation => reservation.Quantity);
-                var available = lot.Quantity - reserved;
+                var lot = match.Lot;
+                var available = RecheckGoods(current, request, lot.Id)?.Quantity ?? 0;
                 if (available <= 0)
                 {
                     continue;
@@ -433,17 +465,23 @@ public sealed partial class PrivateWorldRuntime
     private string MissingProductionIngredients(RecipeDefinition recipe, string owner, string buildingId)
     {
         var missing = recipe.Inputs.First(input => !HasIngredientsAtBuilding([input], owner, buildingId));
-        var available = society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == owner &&
-                lot.StorageBuildingId == buildingId && lot.ItemKind == missing.ResourceId).Sum(AvailableLotQuantity);
+        var available = ProductionGoods(society.Checkpoint.Inventory,
+            ProductionGoodsRequest(owner, missing.ResourceId, buildingId)).Sum(match => (long)match.Quantity);
         return $"{MissingHouseholdIngredientsPrefix}{missing.Amount - available} {missing.ResourceId.Replace('_', ' ')} in its on-site stock. Bring it here before starting work.";
     }
 
     private bool HasIngredientsAtBuilding(IReadOnlyList<ContentQuantity> inputs,
         string ownerId, string buildingId) => inputs.All(input =>
-        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == ownerId &&
-                lot.StorageBuildingId == buildingId && lot.ItemKind == input.ResourceId &&
-                lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
-            .Sum(lot => (long)AvailableLotQuantity(lot)) >= input.Amount);
+        ProductionGoods(society.Checkpoint.Inventory, ProductionGoodsRequest(ownerId, input.ResourceId, buildingId))
+            .Sum(match => (long)match.Quantity) >= input.Amount);
+
+    private static GoodsRequest ProductionGoodsRequest(string owner, string kind, string? building = null) =>
+        new(GoodsUse.ConsumeAt, null, GoodsOwners.One(owner), GoodsKinds.One(kind), AtBuilding: building);
+
+    private IEnumerable<GoodsMatch> ProductionGoods(InventoryCheckpoint inventory, GoodsRequest request,
+        bool requireCarried = false) => FindGoods(inventory, request).Matches.Where(match =>
+        !IsHandcartCargo(inventory, match.Lot) && !OnBorrowedMarketStall(match.Lot) &&
+        (!requireCarried || ToolProgressionRules.IsTopLevelCarriedLot(match.Lot, match.Lot.OwnerId)));
 
     private InventoryCheckpoint ReserveQuantities(
         InventoryCheckpoint inventory,
@@ -461,27 +499,17 @@ public sealed partial class PrivateWorldRuntime
         {
             var requested = quantities[quantityIndex];
             var remaining = requested.Amount;
-            var lots = current.Lots
-                .Where(lot => lot.OwnerId == ownerId && lot.ItemKind == requested.ResourceId &&
-                    !IsHandcartCargo(current, lot) && !OnBorrowedMarketStall(lot) && (!requireCarried || ToolProgressionRules.IsTopLevelCarriedLot(lot, ownerId)) &&
-                    lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0 &&
-                    (requiredStorageBuildingId is null || lot.StorageBuildingId == requiredStorageBuildingId))
-                .OrderBy(lot => lot.Id, StringComparer.Ordinal)
-                .ToArray();
-            foreach (var lot in lots)
+            var request = ProductionGoodsRequest(ownerId, requested.ResourceId, requiredStorageBuildingId);
+            var matches = ProductionGoods(current, request, requireCarried).ToArray();
+            foreach (var match in matches)
             {
                 if (remaining == 0)
                 {
                     break;
                 }
 
-                var reserved = current.Reservations
-                    .Where(reservation => reservation.LotId == lot.Id &&
-                        reservation.State is InventoryReservationState.Reserved or
-                            InventoryReservationState.PartiallyConsumed or
-                            InventoryReservationState.Committed)
-                    .Sum(reservation => reservation.Quantity);
-                var available = lot.Quantity - reserved;
+                var lot = match.Lot;
+                var available = RecheckGoods(current, request, lot.Id)?.Quantity ?? 0;
                 if (available <= 0)
                 {
                     continue;
@@ -545,7 +573,11 @@ public sealed partial class PrivateWorldRuntime
                     worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId)?.Position);
             else
                 AppendEvent(completed ? "recipe_completed" : "recipe_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
-            if (completed) CreditProductionOrderJob(job, recipe);
+            if (completed)
+            {
+                LearnProducedRecipe(job, recipe, targetTick);
+                CreditProductionOrderJob(job, recipe);
+            }
         }
     }
 

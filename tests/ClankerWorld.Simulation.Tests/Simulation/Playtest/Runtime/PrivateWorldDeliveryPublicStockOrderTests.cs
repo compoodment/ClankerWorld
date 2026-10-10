@@ -15,6 +15,92 @@ public sealed class PrivateWorldDeliveryPublicStockOrderTests
     private const string Store = "order-stock-store";
     private static readonly Lazy<byte[]> Baseline = new(CreateBaseline);
 
+    [Fact]
+    public async Task StoredAndCollectedWoodCanStillBeDonatedWithTheBuiltInChooser()
+    {
+        var state = ShelterOrderTestFixture.WithClearWeather(ShelterOrderTestFixture.Prepared());
+        var actor = Actor(state);
+        var house = ShelterOrderTestFixture.House(state);
+        state = ShelterOrderTestFixture.At(state, actor, house.Position);
+        state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory, "split-wood", "wood", actor, 8));
+        IDecisionProvider Provider(string id) => id == actor ? new DeterministicDecisionProvider() : new ActionCoverageRecorder(chooseIdle: true);
+        using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), Provider);
+        var store = Submit(world, actor, "store-before-donation", "store four wood in my House");
+        await Complete(store);
+        var collect = Submit(world, actor, "collect-before-donation", "collect four wood");
+        await Complete(collect);
+        var carried = world.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == "wood" &&
+            PersonalEquipmentRules.IsCarried(lot, actor)).ToArray();
+        Assert.Equal(2, carried.Length);
+        Assert.All(carried, lot => Assert.Equal(4, lot.Quantity));
+        var warehouse = Building(state, Warehouse);
+        var walk = Submit(world, actor, "walk-before-donation", string.Create(CultureInfo.InvariantCulture,
+            $"go to ({warehouse.Position.X},{warehouse.Position.Y})"));
+        await Complete(walk);
+        var donate = Submit(world, actor, "donate-after-collection", "donate four wood to my Town Warehouse");
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), Provider);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        for (var tick = 0; tick < 12 && Order(world, donate).Status != "finished"; tick++)
+            await TickTogether(world, replay);
+        Assert.Equal(("finished", 4), (Order(world, donate).Status, Order(world, donate).CompletedUnits));
+        Assert.Equal(4, Stored(world, Warehouse, "wood"));
+        Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor && lot.ItemKind == "wood" &&
+            PersonalEquipmentRules.IsCarried(lot, actor)).Sum(lot => lot.Quantity));
+        await TickTogether(world, replay);
+        Assert.Equal(4, Stored(world, Warehouse, "wood"));
+        world.Validate();
+
+        async Task Complete(OwnerInstructionReceipt receipt)
+        {
+            for (var tick = 0; tick < 20 && Order(world, receipt).Status != "finished"; tick++)
+                await Tick(world);
+            Assert.Equal("finished", Order(world, receipt).Status);
+        }
+    }
+
+    [Theory]
+    [InlineData(4, 4, 0, 4, 4)]
+    [InlineData(1, 7, 0, 4, 4)]
+    [InlineData(2, 6, 2, 4, 2)]
+    [InlineData(2, 2, 0, 4, 0)]
+    [InlineData(4, 4, 0, 1, 1)]
+    public async Task SplitDonationsShareOneUsableReservePerKindAndRespectReservationsAndRoomAcrossReplay(
+        int firstQuantity, int secondQuantity, int reserved, int room, int expectedDonation)
+    {
+        var state = Prepared(Warehouse);
+        var actor = Actor(state);
+        var warehouse = Building(state, Warehouse);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "split-a", "wood", actor, firstQuantity);
+        inventory = InventoryFixture.AddLot(inventory, "split-b", "wood", actor, secondQuantity);
+        inventory = InventoryFixture.AddLot(inventory, "personal-stone", "stone", actor, 4);
+        if (reserved > 0)
+            inventory = InventoryFixture.Reserve(inventory, "protected-split", actor, "split-b", reserved, "other_work", 1_000);
+        var definition = state.WorldContent!.Buildings.Single(item => item.CanonicalId == warehouse.DefinitionId);
+        var capacity = BuildingStorageRules.Capacity(definition, warehouse)!.Value;
+        inventory = InventoryFixture.AddLot(inventory, "warehouse-stone", "stone", warehouse.TownId!, capacity - room,
+            storageBuildingId: Warehouse);
+        using var world = Restore(WithInventory(state, inventory));
+        var receipt = Submit(world, actor, "split-donation", "donate four wood to my Town Warehouse");
+        using var replay = Reload(world);
+        for (var tick = 0; tick < 12; tick++)
+            await TickTogether(world, replay);
+        Assert.Equal((expectedDonation == 4 ? "finished" : "blocked", expectedDonation),
+            (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.Equal(expectedDonation, Stored(world, Warehouse, "wood"));
+        Assert.Equal(firstQuantity + secondQuantity, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        Assert.Equal(firstQuantity + secondQuantity - expectedDonation, world.Society.Inventory.Lots.Where(lot =>
+            lot.OwnerId == actor && lot.ItemKind == "wood" && PersonalEquipmentRules.IsCarried(lot, actor)).Sum(lot => lot.Quantity));
+        Assert.Equal((actor, 4, (string?)null), (world.Society.Inventory.GetLot("personal-stone").OwnerId,
+            world.Society.Inventory.GetLot("personal-stone").Quantity, world.Society.Inventory.GetLot("personal-stone").StorageBuildingId));
+        if (reserved > 0)
+        {
+            Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("protected-split").State);
+            Assert.True(world.Society.Inventory.GetLot("split-b").Quantity >= reserved);
+        }
+        world.Validate();
+    }
+
     [Theory]
     [InlineData(3, 3, "finished")]
     [InlineData(8, 6, "blocked")]
@@ -358,6 +444,145 @@ public sealed class PrivateWorldDeliveryPublicStockOrderTests
         if (reserved) Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("cloth-reserved").State);
         using var replay = Reload(world);
         await TickTogether(world, replay);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ActualCollectionsShareOnePersonalStoreFoodReserveAcrossReplay(bool split)
+    {
+        var state = Prepared(split ? House : Store);
+        var actor = Actor(state);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "collected-berries", "berries", actor, 4,
+            storageBuildingId: split ? House : null);
+        IDecisionProvider Provider(string id) => id == actor ? new DeterministicDecisionProvider() : new ActionCoverageRecorder(chooseIdle: true);
+        using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory), Provider);
+        if (split)
+        {
+            await Complete(Submit(world, actor, "collect-first", "collect two berries"));
+            await Complete(Submit(world, actor, "collect-second", "collect two berries"));
+            Assert.Equal(2, CarriedLots().Length);
+            Assert.All(CarriedLots(), lot => Assert.Equal(2, lot.Quantity));
+            var store = Building(state, Store);
+            await Complete(Submit(world, actor, "walk-to-store", string.Create(CultureInfo.InvariantCulture,
+                $"go to ({store.Position.X},{store.Position.Y})")));
+        }
+        var receipt = Submit(world, actor, "stock-collected-food", "stock two berries in my Store");
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), Provider);
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        for (var tick = 0; tick < 12 && Order(world, receipt).Status != "finished"; tick++)
+            await TickTogether(world, replay);
+        Assert.Equal(("finished", 2), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.Equal(2, Stored(world, Store, "berries"));
+        Assert.Equal(2, CarriedLots().Sum(lot => lot.Quantity));
+        Assert.Equal(4, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "berries").Sum(lot => lot.Quantity));
+        Assert.All(world.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == Store), lot => Assert.Equal(Household, lot.OwnerId));
+        await TickTogether(world, replay);
+        Assert.Equal(2, Stored(world, Store, "berries"));
+        world.Validate();
+
+        InventoryLot[] CarriedLots() => world.Society.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
+            lot.ItemKind == "berries" && PersonalEquipmentRules.IsCarried(lot, actor)).ToArray();
+        async Task Complete(OwnerInstructionReceipt instruction)
+        {
+            for (var tick = 0; tick < 20 && Order(world, instruction).Status != "finished"; tick++) await Tick(world);
+            Assert.Equal("finished", Order(world, instruction).Status);
+        }
+    }
+
+    [Fact]
+    public async Task AWalkingStoreOrderCountsOtherLotsWhileKeepingItsBoundFoodSourceAcrossReplay()
+    {
+        var state = Prepared(Store, adjacent: true);
+        var actor = Actor(state);
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "a-bound-berries", "berries", actor, 2);
+        inventory = InventoryFixture.AddLot(inventory, "b-kept-berries", "berries", actor, 2);
+        using var world = Restore(WithInventory(state, inventory));
+        var receipt = Submit(world, actor, "walk-split-food", "stock two berries in my Store");
+        await Tick(world);
+        Assert.Equal(("a-bound-berries", 2, 0), (Order(world, receipt).DeliveryLotId,
+            Order(world, receipt).DeliveryQuantity, Order(world, receipt).CompletedUnits));
+        AssertPinned(Order(world, receipt), Building(state, Store), Household);
+        Assert.Equal(0, Stored(world, Store, "berries"));
+        using var replay = Reload(world);
+        for (var step = 0; step < 12 && Order(world, receipt).Status != "finished"; step++) await TickTogether(world, replay);
+        Assert.Equal(("finished", 2), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.Equal(2, Stored(world, Store, "berries"));
+        Assert.Equal((actor, 2, (string?)null), (world.Society.Inventory.GetLot("b-kept-berries").OwnerId,
+            world.Society.Inventory.GetLot("b-kept-berries").Quantity, world.Society.Inventory.GetLot("b-kept-berries").StorageBuildingId));
+        Assert.Equal((Household, 2, Store), (world.Society.Inventory.GetLot("a-bound-berries").OwnerId,
+            world.Society.Inventory.GetLot("a-bound-berries").Quantity, world.Society.Inventory.GetLot("a-bound-berries").StorageBuildingId));
+        world.Validate();
+    }
+
+    [Fact]
+    public async Task SplitHouseholdFoodStocksOnlyTheSurplusAcrossReplay()
+    {
+        var state = Prepared(House);
+        var actor = Actor(state);
+        var reserve = 2 * state.Society.Society.GetHousehold(Household).MemberIds
+            .Count(id => state.Inhabitants.Any(person => person.InhabitantId == id));
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "household-food-a", "berries", Household,
+            reserve / 2 + 1, storageBuildingId: House);
+        inventory = InventoryFixture.AddLot(inventory, "household-food-b", "berries", Household,
+            reserve / 2 + 1, storageBuildingId: House);
+        using var world = Restore(WithInventory(state, inventory));
+        var receipt = Submit(world, actor, "stock-split-household-food", "stock two berries in my Store");
+        using var replay = Reload(world);
+        for (var step = 0; step < 24 && Order(world, receipt).Status != "finished"; step++) await TickTogether(world, replay);
+        Assert.Equal(("finished", 2), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.Equal(2, Stored(world, Store, "berries"));
+        Assert.Equal(reserve, Stored(world, House, "berries"));
+        Assert.Equal(reserve + 2, world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "berries").Sum(lot => lot.Quantity));
+        Assert.All(world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "berries"), lot => Assert.Equal(Household, lot.OwnerId));
+        Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.DeliveryBuildingId is not null);
+        world.Validate();
+    }
+
+    [Theory]
+    [InlineData("other-owner")]
+    [InlineData("other-kind")]
+    [InlineData("reserved")]
+    [InlineData("stored")]
+    [InlineData("other-carrier")]
+    [InlineData("spoiled")]
+    [InlineData("pot")]
+    public async Task UnavailableOrDifferentStockCannotReplaceThePersonalStoreFoodReserve(string boundary)
+    {
+        var state = Prepared(Store);
+        var actor = Actor(state);
+        var owner = boundary == "other-owner" ? Household : actor;
+        var kind = boundary == "other-kind" ? "fruit" : "berries";
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "a-personal-reserve", "berries", actor, 2);
+        inventory = InventoryFixture.AddLot(inventory, "z-unavailable-food", kind, owner, 2,
+            storageBuildingId: boundary == "stored" ? House : null,
+            freshnessBasisPoints: boundary == "spoiled" ? 0 : 10_000);
+        if (boundary == "reserved")
+            inventory = InventoryFixture.Reserve(inventory, "protected-food", actor, "z-unavailable-food", 2, "other_work", 1_000);
+        if (boundary == "other-carrier")
+            inventory = InventoryFixture.Relocate(inventory, "lend-food", "z-unavailable-food", actor, 2,
+                carrierId: state.Inhabitants.First(person => person.InhabitantId != actor).InhabitantId);
+        if (boundary == "pot")
+        {
+            inventory = InventoryFixture.AddLot(inventory, "personal-pot", InventoryContainerRules.StoragePot, actor, 1);
+            inventory = InventoryFixture.PutIntoContainer(inventory, "protect-pot-food", actor, "personal-pot", "z-unavailable-food", 2);
+        }
+        using var world = Restore(WithInventory(state, inventory));
+        var receipt = Submit(world, actor, "protect-food-reserve", "stock two berries in my Store");
+        using var replay = Reload(world);
+        await TickTogether(world, replay);
+        await TickTogether(world, replay);
+        Assert.Equal(("blocked", 0), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        Assert.Equal(0, Stored(world, Store, "berries"));
+        Assert.Equal((actor, 2), (world.Society.Inventory.GetLot("a-personal-reserve").OwnerId,
+            world.Society.Inventory.GetLot("a-personal-reserve").Quantity));
+        Assert.Equal((owner, kind, 2), (world.Society.Inventory.GetLot("z-unavailable-food").OwnerId,
+            world.Society.Inventory.GetLot("z-unavailable-food").ItemKind, world.Society.Inventory.GetLot("z-unavailable-food").Quantity));
+        Assert.DoesNotContain(world.ExportState().Events, item => item.Kind is "owner_stock_picked_up" or "owner_stock_delivered");
+        if (boundary == "reserved")
+            Assert.Equal(InventoryReservationState.Reserved, world.Society.Inventory.GetReservation("protected-food").State);
+        world.Validate();
     }
 
     private static byte[] CreateBaseline()

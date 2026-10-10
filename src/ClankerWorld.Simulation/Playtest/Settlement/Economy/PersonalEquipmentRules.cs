@@ -21,7 +21,7 @@ public static class PersonalEquipmentRules
     public const int RepairWorkTicks = 8;
 
     public static bool IsGarment(string kind) => kind is "clothing" or "padded_coat" or "rain_cloak";
-    public static bool IsCarryAid(string kind) => kind is "basket" or "sack";
+    public static bool IsCarryAid(string kind) => kind is "basket" or "sack" or "leather_sack";
     public static bool IsOrnament(string kind) => kind is "gold_ornament" or "diamond_ornament";
     public static bool IsSelected(PersonalEquipment? equipment, string lotId) => equipment is not null &&
         (equipment.ClothingLotId == lotId || equipment.CarryAidLotId == lotId ||
@@ -43,10 +43,8 @@ public static class PersonalEquipmentRules
     }
 
     public static int AvailableQuantity(InventoryCheckpoint inventory, InventoryLot lot) =>
-        lot.ConditionBasisPoints == 0 || lot.FreshnessBasisPoints == 0 ? 0 : Math.Max(0, lot.Quantity -
-            inventory.Reservations.Where(item => item.LotId == lot.Id && item.State is
-                InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
-                InventoryReservationState.Committed).Sum(item => item.Quantity));
+        lot.ConditionBasisPoints == 0 || lot.FreshnessBasisPoints == 0 ? 0 :
+            Math.Max(0, InventoryRules.UnreservedQuantity(InventoryIndex.For(inventory), lot));
 
     public static InventoryLot? EquippedUnit(InventoryCheckpoint inventory, string actor, string? id) =>
         id is null ? null : inventory.Lots.FirstOrDefault(lot => lot.Id == id && lot.Quantity == 1 &&
@@ -59,6 +57,7 @@ public static class PersonalEquipmentRules
         {
             "basket" => BasketCapacity,
             "sack" => SackCapacity,
+            "leather_sack" => 32,
             _ => BaseCapacity,
         };
     }
@@ -102,6 +101,7 @@ public static class PersonalEquipmentRules
     public static IReadOnlyList<ContentQuantity> RepairMaterials(string kind) => kind switch
     {
         "basket" => [new("fiber", 1), new("rope", 1)],
+        "leather_sack" => [new("leather", 1)],
         "clothing" or "padded_coat" or "rain_cloak" or "sack" => [new("cloth", 1)],
         _ => [],
     };

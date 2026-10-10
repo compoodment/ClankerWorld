@@ -89,6 +89,9 @@ public partial class Main
         foreach (var (id, visual) in inhabitantVisuals)
             if (inhabitantCanonicalXs.TryGetValue(id, out var x))
                 visual.Position = new Vector2(WrappedMarkerX(x, mapWidth, stride, wrapsEastWest), visual.Position.Y);
+        foreach (var (id, badge) in occupancyBadges)
+            if (occupancyCanonicalXs.TryGetValue(id, out var x))
+                badge.Position = new Vector2(WrappedMarkerX(x, mapWidth, stride, wrapsEastWest), badge.Position.Y);
     }
 
     private void RefreshOverviewViewport(int mapWidth, int mapHeight, float stride, bool wrapsEastWest)
@@ -111,10 +114,12 @@ public partial class Main
             return;
         }
 
-        cameraCenterTiles = tileCenter;
-        UpdateMapGeometry(snapshot);
-        PositionSelectedInhabitantCard(snapshot);
-        PositionBuildingQuickCard(snapshot);
+        BeginCameraMotion();
+        cameraZooming = false;
+        cameraGlideFrom = cameraCenterTiles;
+        cameraGlideTo = CameraEasing.Destination(cameraCenterTiles, tileCenter, MapDimensions(snapshot).Width, snapshot.WrapsEastWest);
+        cameraGlideElapsed = 0;
+        cameraGliding = cameraGlideFrom.DistanceTo(cameraGlideTo) > 0.0001f;
     }
 
     private void PanCamera(Vector2 deltaTiles)
@@ -124,7 +129,7 @@ public partial class Main
             return;
         }
 
-        CenterCameraAt(cameraCenterTiles + deltaTiles);
+        SetCameraAtImmediately(cameraCenterTiles + deltaTiles);
     }
 
     private void HandleMapInput(InputEvent @event)
@@ -135,32 +140,19 @@ public partial class Main
             return;
         }
 
+        if (HandleKeyboardMapInput(@event, snapshot))
+        {
+            mapCanvas.AcceptEvent();
+            return;
+        }
+
         if (@event is InputEventMouseButton mouse)
         {
             // Clicking the world hands the keyboard back to map controls.
             if (mouse.Pressed) GetViewport().GuiReleaseFocus();
-            if (mouse.Pressed && mouse.ButtonIndex == MouseButton.Left && movingFounderId is not null &&
-                snapshot.FounderSetup is { Started: false })
+            if (mouse.Pressed && mouse.ButtonIndex == MouseButton.Left)
             {
-                _ = MoveFounderAtAsync(TileAtCanvas(mouse.Position, snapshot));
-                mapCanvas.AcceptEvent();
-            }
-            else if (mouse.Pressed && mouse.ButtonIndex == MouseButton.Left && choosingFirstTownSite &&
-                snapshot.FounderSetup is { CanChooseTownSite: true })
-            {
-                _ = AcceptFirstTownSiteAtAsync(TileAtCanvas(mouse.Position, snapshot));
-                mapCanvas.AcceptEvent();
-            }
-            else if (mouse.Pressed && mouse.ButtonIndex == MouseButton.Left && founderSetupPanel.Visible &&
-                snapshot.FounderSetup is { Started: false })
-            {
-                _ = PlaceFounderAtAsync(TileAtCanvas(mouse.Position, snapshot));
-                mapCanvas.AcceptEvent();
-            }
-            else if (mouse.Pressed && mouse.ButtonIndex == MouseButton.Left && founderSetupPanel.Visible &&
-                placingAddedAgent && snapshot.FounderSetup is { Started: true })
-            {
-                _ = PlaceAgentAtAsync(TileAtCanvas(mouse.Position, snapshot));
+                ActivateMapTile(snapshot, TileAtCanvas(mouse.Position, snapshot), mouse.Position);
                 mapCanvas.AcceptEvent();
             }
             else if (mouse.ButtonIndex == MouseButton.Middle)
@@ -181,29 +173,10 @@ public partial class Main
                 ZoomAt(mouse.Position, mouse.ButtonIndex == MouseButton.WheelUp);
                 mapCanvas.AcceptEvent();
             }
-            else if (mouse.Pressed && mouse.ButtonIndex == MouseButton.Left)
-            {
-                var tile = TileAtCanvas(mouse.Position, snapshot);
-                if (MapContains(snapshot, tile.X, tile.Y) && BuildingAt(snapshot, tile, mouse.Position) is { } building)
-                {
-                    // A building opens its own card instead of the tile's.
-                    SelectBuilding(building.InstanceId);
-                    mapCanvas.AcceptEvent();
-                }
-                else if (MapContains(snapshot, tile.X, tile.Y))
-                {
-                    ClearBuildingSelection();
-                    selectedTile = tile;
-                    terrainLayer.SetSelectedTile(tile);
-                    // Show first: hidden containers report no content size.
-                    selectedTilePanel.Show();
-                    RenderTileInspection(snapshot);
-                    mapCanvas.AcceptEvent();
-                }
-            }
         }
         else if (@event is InputEventMouseMotion hoverMotion)
         {
+            if ((hoverMotion.ButtonMask & MouseButtonMask.Middle) == 0) draggingMap = false;
             if (draggingMap)
             {
                 PanCamera(-hoverMotion.Relative / (currentTileSize + TileGap));
@@ -215,6 +188,11 @@ public partial class Main
 
     private void RefreshTileHoverAtMouse()
     {
+        if (mapCanvas.HasFocus())
+        {
+            RefreshKeyboardMapSelection();
+            return;
+        }
         // Observation refreshes also update map geometry. A pointer in a HUD
         // panel must not preview the map tile hidden beneath that panel.
         if (GetViewport().GuiGetHoveredControl() is { } hovered && uiLayer.IsAncestorOf(hovered))
@@ -297,6 +275,8 @@ public partial class Main
         }
         foreach (var cart in snapshot.Handcarts.Where(cart => cart.Position.X == tile.X && cart.Position.Y == tile.Y))
             lines.Add(GameUiText.HandcartDescription(cart));
+        foreach (var animal in snapshot.Animals.Where(animal => animal.Position.X == tile.X && animal.Position.Y == tile.Y))
+            lines.Add(GameUiText.AnimalDescription(animal));
         foreach (var stock in snapshot.GroundStocks.Where(stock => stock.Position.X == tile.X && stock.Position.Y == tile.Y))
             lines.Add($"On the ground: {stock.Quantity} {GameUiText.ItemName(stock.Kind)} · {snapshot.Stockpiles.FirstOrDefault(owner => owner.OwnerId == stock.OwnerId)?.Name ?? stock.OwnerId}");
         if (hydrology is not null and not "Land") lines.Add($"Water: {hydrology}");
@@ -307,7 +287,7 @@ public partial class Main
         if (region?.SoilMoisture is { } moisture)
             lines.Add($"Soil moisture: {moisture}%");
         if (elevation is { } level) lines.Add($"Elevation: {level}/255");
-        if (town is not null) lines.Add($"Town: {town.Name}");
+        if (town is not null) lines.Add($"Town: {town.Name}" + (town.IsAbandoned ? " (abandoned)" : string.Empty));
         // Title, use rights, requests and disputes go on the card under shorter names.
         var landFacts = new List<(string Key, string Value)>();
         foreach (var title in titles)
@@ -405,7 +385,7 @@ public partial class Main
             Math.Max(14, UiSize.Y - Math.Max(selectedTilePanel.Size.Y,
                 selectedTilePanel.CustomMinimumSize.Y) - 14));
 
-    private void UpdateTileHover(Vector2 canvasPosition)
+    private void UpdateTileHover(Vector2 canvasPosition, bool keyboard = false)
     {
         if (renderedMapSnapshot is not { } snapshot || !HasMap(snapshot) ||
             gameMenuPanel.Visible ||
@@ -422,7 +402,7 @@ public partial class Main
         // open, or while the pointer is inside the scaled Add Agent panel.
         if (founderSetupPanel.IsVisibleInTree() &&
             (GetViewport().GetEmbeddedSubwindows().Any(window => window.Visible) ||
-             founderSetupPanel.GetGlobalRect().HasPoint(mapCanvas.GetGlobalTransform() * canvasPosition)))
+             (!keyboard && founderSetupPanel.GetGlobalRect().HasPoint(mapCanvas.GetGlobalTransform() * canvasPosition))))
             return;
 
         var stagePosition = canvasPosition - mapStage.Position;

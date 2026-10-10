@@ -144,7 +144,7 @@ public sealed partial class PrivateWorldRuntime
                         var text = "Applicable law at the alleged act: " + TownLawRules.Text(wording.Subject, wording.Rule);
                         if (evidence.Kind != "record" || evidence.Acquisition != "record_inspection" ||
                             evidence.SourceAgentId != evidence.SubmittedByAgentId || evidence.SourceVersion != TownLandHearingRules.LawVersion(wording) ||
-                            evidence.ObservedTick != file.Allegation.ConductTick || evidence.Text != text[..Math.Min(256, text.Length)] ||
+                            evidence.ObservedTick != file.Allegation.ConductTick || evidence.Text != NonviolentExcerpt(text, 256) ||
                             !file.Reads.Any(read => read.AgentId == evidence.SubmittedByAgentId && read.ReadTick == evidence.SubmittedTick &&
                                 read.EvidenceIds.Contains(evidence.Id, StringComparer.Ordinal)))
                             throw new InvalidDataException("A cited law record requires its exact historical wording and actual public file inspection.");
@@ -192,8 +192,10 @@ public sealed partial class PrivateWorldRuntime
                         receipt.BeneficiaryId == receipt.ActorId || receipt.TargetId != receipt.SourceLotId) ||
                     receipt.Kind == "public_service_goods" && (receipt.BeneficiaryId != town.Id || receipt.ActorTownId != town.Id ||
                         !WarehouseResourceKinds.Contains(receipt.ItemKind) || receipt.Quantity > WarehouseLoadQuantity ||
-                        receipt.AvailableQuantityBefore - receipt.Quantity < WarehouseLoadQuantity ||
-                        !TownHearingProcedure.Id(receipt.TargetId)))
+                        receipt.CarriedAvailableQuantityBefore is not { } carriedAvailable ||
+                        carriedAvailable < receipt.AvailableQuantityBefore || carriedAvailable - receipt.Quantity < WarehouseLoadQuantity ||
+                        !TownHearingProcedure.Id(receipt.TargetId)) ||
+                    receipt.Kind != "public_service_goods" && receipt.CarriedAvailableQuantityBefore is not null)
                     throw new InvalidDataException("A saved native remedy receipt is inconsistent with a supported physical effect.");
                 if (receipt.Kind == "repair_equipment")
                 {

@@ -17,9 +17,16 @@ public sealed partial class PrivateWorldRuntime
         if (removed > 0) AppendEvent("saved_road_footprints_repaired", $"removed:{removed}");
     }
 
-    private int RoadStepCost(GridPoint from, GridPoint to)
+    private int RoadStepCost(GridPoint from, GridPoint to) =>
+        RoadAdjustedStepCost(from, to, map.FootStepCost(from, to));
+
+    // Route searches obtain legal edges from FootNeighbors immediately before
+    // costing them; movement and other callers keep the validating entry point.
+    private int LegalRoadStepCost(GridPoint from, GridPoint to) =>
+        RoadAdjustedStepCost(from, to, map.LegalFootStepCost(from, to));
+
+    private int RoadAdjustedStepCost(GridPoint from, GridPoint to, int cost)
     {
-        var cost = map.FootStepCost(from, to);
         // One ground tile per tick is already the movement floor. This
         // provisional factor removes diagonal wait ticks and biases routing
         // toward an existing Road without making illness delays disappear.
@@ -135,11 +142,11 @@ public sealed partial class PrivateWorldRuntime
         var random = Pcg32XshRrV1.Create(worldSeed, $"town-streets/{building.InstanceId}");
         foreach (var end in ordered)
         {
-            var linked = LinkedRoads(working, end, existing, crossings).ToArray();
-            if (linked.Length != 1 || StepsToDoor(working, end, doors, existing, crossings) is not { } steps ||
+            var linked = LinkedRoads(map, working, end, existing, crossings).ToArray();
+            if (linked.Length != 1 || StepsToDoor(map, working, end, doors, existing, crossings) is not { } steps ||
                 steps >= TownStreets.RunOnTiles)
                 continue;
-            var path = streets.Wander(end, RoadHeading(linked[0], end, existing, crossings),
+            var path = streets.Wander(end, RoadHeading(map, linked[0], end, existing, crossings),
                 TownStreets.RunOnTiles - steps, 0, random,
                 crossRiver: (from, direction) => RunOnCrossing(from, direction, occupied, existing, crossings),
                 crossings: crossings);
@@ -149,7 +156,7 @@ public sealed partial class PrivateWorldRuntime
         return (extended, crossings);
     }
 
-    private static int RoadHeading(GridPoint from, GridPoint to,
+    private static int RoadHeading(SeededMap map, GridPoint from, GridPoint to,
         IReadOnlyList<RiverCrossing> existing, IReadOnlyList<RiverCrossing> pending)
     {
         foreach (var crossing in existing.Concat(pending))
@@ -162,7 +169,7 @@ public sealed partial class PrivateWorldRuntime
             var direction = crossing.Axis == BridgeAxis.EastWest ? 0 : 2;
             return fromA ? direction : TownStreets.Turn(direction, 4);
         }
-        return TownStreets.DirectionBetween(from, to);
+        return TownStreets.DirectionBetween(map, from, to);
     }
 
     /// <summary>
@@ -187,10 +194,10 @@ public sealed partial class PrivateWorldRuntime
     /// any bridge that has Road at both ends, so a street that crosses a river
     /// is not mistaken for two dead ends.
     /// </summary>
-    private static IEnumerable<GridPoint> LinkedRoads(IReadOnlySet<GridPoint> roads, GridPoint tile,
+    private static IEnumerable<GridPoint> LinkedRoads(SeededMap map, IReadOnlySet<GridPoint> roads, GridPoint tile,
         IReadOnlyList<RiverCrossing> existing, IReadOnlyList<RiverCrossing> pending)
     {
-        foreach (var next in TownStreets.Linked(roads, tile)) yield return next;
+        foreach (var next in TownStreets.Linked(map, roads, tile)) yield return next;
         foreach (var crossing in existing.Concat(pending))
         {
             if (crossing.EntranceA == tile && roads.Contains(crossing.EntranceB)) yield return crossing.EntranceB;
@@ -199,7 +206,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     /// <summary>Road steps from a tile to the nearest door, looking no further than a street's run-on.</summary>
-    private static int? StepsToDoor(IReadOnlySet<GridPoint> roads, GridPoint start, HashSet<GridPoint> doors,
+    private static int? StepsToDoor(SeededMap map, IReadOnlySet<GridPoint> roads, GridPoint start, HashSet<GridPoint> doors,
         IReadOnlyList<RiverCrossing> existing, IReadOnlyList<RiverCrossing> pending)
     {
         var steps = new Dictionary<GridPoint, int> { [start] = 0 };
@@ -208,7 +215,7 @@ public sealed partial class PrivateWorldRuntime
         {
             if (doors.Contains(current)) return steps[current];
             if (steps[current] >= TownStreets.RunOnTiles) continue;
-            foreach (var next in LinkedRoads(roads, current, existing, pending))
+            foreach (var next in LinkedRoads(map, roads, current, existing, pending))
                 if (steps.TryAdd(next, steps[current] + 1)) queue.Enqueue(next);
         }
         return null;

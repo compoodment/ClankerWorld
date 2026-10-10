@@ -47,6 +47,9 @@ public partial class WorldOverview : Control
     public WorldOverview()
     {
         MouseFilter = MouseFilterEnum.Stop;
+        FocusMode = FocusModeEnum.All;
+        FocusEntered += QueueRedraw;
+        FocusExited += QueueRedraw;
         TextureFilter = TextureFilterEnum.Nearest;
         CustomMinimumSize = new Vector2(230, 130);
         TooltipText = "Click to jump there, or drag the bright box to move the view.";
@@ -141,6 +144,7 @@ public partial class WorldOverview : Control
     public override void _Draw()
     {
         DrawRect(new Rect2(Vector2.Zero, Size), Backdrop);
+        if (HasFocus()) DrawStyleBox(GetThemeStylebox("focus", "ScrollContainer"), new Rect2(Vector2.Zero, Size));
         if (mapWidth <= 0 || mapHeight <= 0)
         {
             return;
@@ -226,7 +230,27 @@ public partial class WorldOverview : Control
             return;
         }
 
-        if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left } button)
+        if (@event is InputEventKey { Pressed: true } key && !key.CtrlPressed && !key.AltPressed && !key.MetaPressed)
+        {
+            var step = key.ShiftPressed ? 10 : 1;
+            var direction = key.Keycode switch
+            {
+                Key.Left => new Vector2(-step, 0),
+                Key.Right => new Vector2(step, 0),
+                Key.Up => new Vector2(0, -step),
+                Key.Down => new Vector2(0, step),
+                _ => Vector2.Zero,
+            };
+            if (direction != Vector2.Zero)
+            {
+                var center = visibleTiles.GetCenter() + direction;
+                center.X = WrapsEastWest ? (center.X % mapWidth + mapWidth) % mapWidth : Math.Clamp(center.X, 0, mapWidth);
+                center.Y = Math.Clamp(center.Y, 0, mapHeight);
+                CenterRequested?.Invoke(center);
+                AcceptEvent();
+            }
+        }
+        else if (@event is InputEventMouseButton { ButtonIndex: MouseButton.Left } button)
         {
             dragging = button.Pressed && AtlasRect().HasPoint(button.Position);
             if (dragging)

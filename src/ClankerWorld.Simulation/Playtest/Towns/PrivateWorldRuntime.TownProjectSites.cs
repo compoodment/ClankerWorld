@@ -46,7 +46,7 @@ public sealed partial class PrivateWorldRuntime
     // gathered when a check first needs it, so a site refused early never gathers the rest.
     private sealed record TownProjectSiteWorld(string TownId, string? ProjectId, bool IgnorePendingRequests,
         Lazy<HashSet<GridPoint>> Legal, Lazy<HashSet<GridPoint>> Pending, Lazy<HashSet<GridPoint>> Occupied,
-        Lazy<HashSet<GridPoint>> BridgeEnds, Lazy<PortProjectSiteWorld> Ports);
+        Lazy<HashSet<GridPoint>> BridgeEnds, Lazy<PortProjectSiteWorld> Ports, BuildingPlacementWorld Placement);
 
     private TownProjectSiteWorld CreateTownProjectSiteWorld(TownRuntimeState town, string? projectId = null,
         bool ignorePendingRequests = false) => new(town.Id, projectId, ignorePendingRequests,
@@ -59,7 +59,7 @@ public sealed partial class PrivateWorldRuntime
             .Concat((worldSimulation.BuildingExpansions ?? []).Where(job => job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused)
                 .SelectMany(ExpansionTiles)).Concat(TownProjectProtectedSites(projectId)).ToHashSet(), LazyThreadSafetyMode.None),
         new(() => bridges.SelectMany(bridge => bridge.Entrances).ToHashSet(), LazyThreadSafetyMode.None),
-        new(() => CreatePortProjectSiteWorld(projectId), LazyThreadSafetyMode.None));
+        new(() => CreatePortProjectSiteWorld(projectId), LazyThreadSafetyMode.None), CreateBuildingPlacementWorld(projectId));
 
     private string? TownProjectSiteFailure(TownRuntimeState town, TownProjectPayload plan,
         string? projectId = null, string? actor = null, bool ignorePendingRequests = false, TownProjectSiteWorld? world = null)
@@ -87,7 +87,7 @@ public sealed partial class PrivateWorldRuntime
         if (lantern && (!StreetLanternContent.IsRoadEdge(plan.Site, plan.Entrance) ||
             !roadTiles.Contains(plan.Entrance) || !legal.Contains(plan.Entrance)))
             return "The lantern must stand beside an actual Road on uncontested Town-titled land.";
-        if (!CanPlaceBuilding(definition, plan.Site, out var failure, projectId)) return failure;
+        if (!CanPlaceBuilding(definition, plan.Site, out var failure, projectId, world.Placement)) return failure;
         var occupied = world.Occupied.Value;
         if (footprint.Any(point => !map.IsBuildable(point) || occupied.Contains(point)))
             return "The approved building and its plaza need clear buildable ground.";

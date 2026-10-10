@@ -50,6 +50,59 @@ public sealed partial class PrivateWorldFieldOrderTests
     }
 
     [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task PlantingOrdersSkipOccupiedSeedStockAndConsumeOneAccessibleSeed(bool occupied, bool nearbyFirst)
+    {
+        var state = WithFields(Prepared(), new FarmFieldState(Point, Household, FarmFieldStage.Prepared)) with
+        {
+            JevEnabled = false,
+            RoutineHelper = RoutineHelperSettings.Off,
+        };
+        var blockedPoint = OtherPoint(state);
+        var blocker = state.Inhabitants.First(person => person.InhabitantId != Actor).InhabitantId;
+        if (occupied) state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == blocker
+                ? person with { Position = blockedPoint, LastDecisionContext = null } : person).ToArray(),
+        };
+        var blockedId = nearbyFirst ? "zzz-planting-seed" : "aaa-planting-seed";
+        var nearbyId = nearbyFirst ? "aaa-planting-seed" : "zzz-planting-seed";
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, blockedId, "grain_seed", Household, 1,
+            groundPosition: new(blockedPoint.X, blockedPoint.Y));
+        inventory = InventoryFixture.AddLot(inventory, nearbyId, "grain_seed", Household, 1,
+            groundPosition: new(Point.X, Point.Y));
+        state = FarmFieldTests.WithInventory(state, inventory);
+        var bytes = PrivateWorldRuntimeCodec.Encode(state);
+        using var world = Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        var receipt = Submit(world, "accessible-planting-stock", "plant grain");
+        Assert.Equal(receipt, Submit(replay, "accessible-planting-stock", "plant grain"));
+        for (var tick = 0; tick < 40 && Order(world, receipt).Status != "finished"; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        Assert.Equal(("finished", 1), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+        var field = Assert.Single(world.Fields);
+        Assert.Equal((Point, "grain", FarmFieldStage.Planted), (field.Position, field.Crop, field.Stage));
+        Assert.Equal(1, SeedQuantity(world, "grain"));
+        var used = occupied || nearbyFirst ? nearbyId : blockedId;
+        var retained = used == nearbyId ? blockedId : nearbyId;
+        Assert.Equal(0, world.Society.Inventory.Lots.Where(lot => lot.Id == used || lot.ProvenanceLotId == used).Sum(lot => lot.Quantity));
+        Assert.Equal((Household, 1), (world.Society.Inventory.GetLot(retained).OwnerId, world.Society.Inventory.GetLot(retained).Quantity));
+        Assert.Single(world.ExportState().Events, item => item.Kind == "field_planted");
+        if (occupied) Assert.Equal(blockedPoint, world.Inhabitants.Single(person => person.InhabitantId == blocker).Position);
+        world.Validate();
+        var final = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var loaded = Restore(PrivateWorldRuntimeCodec.Decode(final));
+        Assert.Equal(final, PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
+    }
+
+    [Theory]
     [InlineData("grain")]
     [InlineData("potatoes")]
     [InlineData("cultivated_greens")]
@@ -336,23 +389,30 @@ public sealed partial class PrivateWorldFieldOrderTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ACancelledHeldModelReplyCannotSpendTheReleasedSeed(bool explicitLocation)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task ACancelledHeldModelReplyCannotSpendTheReleasedSeed(bool explicitLocation, bool delayedStartup = false)
     {
         var provider = new FieldChoices(DecisionProviderKind.LargeLanguageModel, hold: true);
         using var world = PrivateWorldRuntime.Restore(WithFields(WithSeeds(Prepared(), "grain", 1), new FarmFieldState(Point, Household, FarmFieldStage.Prepared)),
             actor => actor == Actor ? provider : new FieldChoices());
         var text = "plant grain" + (explicitLocation ? $" at ({Point.X}, {Point.Y})" : "");
         var receipt = Submit(world, "held", text);
+        var startAfterTick = world.WorldTick + 3;
+        // A hosted request may need later committed ticks before it enters
+        // the provider. Make that scheduling boundary observable in one row.
+        if (delayedStartup) provider.CanStart = () => world.WorldTick >= startAfterTick;
         try
         {
-            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            await AdvanceUntil(world, () => provider.Started.Task.IsCompleted,
+                "The held field request did not start within forty native ticks.");
+            if (delayedStartup) Assert.True(world.WorldTick >= startAfterTick);
             var reservation = Assert.Single(world.Fields).Work!.SeedReservationId!;
             Assert.True(world.CancelOrder(new("stop-held", "owner:test", world.Society.WorldId, Actor, receipt.InstructionId)).Changed);
             provider.Release.TrySetResult(true);
-            await provider.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            await AdvanceUntil(world, () => provider.Returned.Task.IsCompleted,
+                "The released field reply did not return within forty native ticks.");
             for (var tick = 0; tick < 8; tick++) Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
             Assert.Equal(("cancelled", 0), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
             Assert.Equal(1, SeedQuantity(world, "grain"));
@@ -452,6 +512,24 @@ public sealed partial class PrivateWorldFieldOrderTests
     {
         for (var tick = 0; tick < maximum && Order(world, receipt).Status != "finished"; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
     }
+    private static async Task AdvanceUntil(PrivateWorldRuntime world, Func<bool> done, string failureMessage)
+    {
+        for (var tick = 0; tick < 40 && !done(); tick++)
+        {
+            // Bound a stalled tick separately from normal hosted scheduling.
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                Assert.True((await world.AdvanceOneTickNonBlockingAsync(cancellationToken: deadline.Token)).Advanced);
+            }
+            catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+            {
+                Assert.Fail($"World tick {world.WorldTick} stalled during poll {tick + 1} of 40.");
+            }
+            if (!done()) await Task.Delay(5);
+        }
+        Assert.True(done(), failureMessage);
+    }
     private static GridPoint OtherPoint(PrivateWorldRuntimeState state)
     {
         var occupied = state.WorldSimulation!.Buildings.SelectMany(building => WorldContentSimulationRules.Footprint(
@@ -468,11 +546,13 @@ public sealed partial class PrivateWorldFieldOrderTests
         public DecisionProviderKind Kind => kind;
         public long ProviderEpoch => 0;
         public ConcurrentQueue<InhabitantObservation> Requests { get; } = new();
+        public Func<bool>? CanStart { get; set; }
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
+            while (CanStart?.Invoke() == false) await Task.Delay(1, cancellationToken);
             request.Validate();
             var observation = request.Observation;
             Requests.Enqueue(observation);

@@ -280,6 +280,14 @@ public sealed class PrivateWorldDeferredCognitionTests
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
         await Task.WhenAll(firstProvider.FirstReturned.Task, secondProvider.FirstReturned.Task)
             .WaitAsync(TimeSpan.FromSeconds(3));
+        // Each provider signals just before the runtime's call task finishes,
+        // so wait for both calls to finish before the tick that admits them together.
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+        while (!world.HostedDecisionsFinished(NameTargetId, NameOwnerId))
+        {
+            Assert.True(DateTime.UtcNow < deadline, "Both model calls should finish.");
+            await Task.Delay(1);
+        }
         var simultaneous = await world.AdvanceOneTickNonBlockingAsync();
         Assert.True(simultaneous.Advanced);
         Assert.Contains(simultaneous.Decisions, item => item.InhabitantId == NameTargetId && item.Admission.Accepted);
@@ -319,8 +327,10 @@ public sealed class PrivateWorldDeferredCognitionTests
             saved.Society.Cognition.Queue.Single(item => item.InhabitantId == NameTargetId).TriggerIds);
         Assert.False(Encoding.UTF8.GetString(savedJson).Contains("isNameRetry", StringComparison.OrdinalIgnoreCase));
 
-        provider.ReleaseSecond.TrySetResult(true);
-        await provider.SecondReturned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(provider.SecondCancellationToken.IsCancellationRequested);
+        var canceledReply = provider.CompleteSecondReply();
+        Assert.True(canceledReply.IsCompletedSuccessfully);
+        Assert.Equal("Restored Name", (await canceledReply).ChosenName);
         Assert.Equal(completedBeforeCancellation, world.ExportState().Events.Count(item =>
             item.Kind == "hosted_decision_completed"));
         Assert.Equal(placeholder, world.Society.GetInhabitant(NameTargetId).Name);
@@ -382,6 +392,47 @@ public sealed class PrivateWorldDeferredCognitionTests
         Assert.DoesNotContain(freshProvider.ObservedRequests, request => request.IsNameRetry || request.NeedsName);
         if (!otherWork) Assert.Equal(0, freshProvider.CallCount);
         Assert.Equal("Player Name", restored.Society.GetInhabitant(NameTargetId).Name);
+    }
+
+    [Fact]
+    public async Task HelperSwitchPreservesMemoriesDiscardsLateRepliesAndReplaysItsSavedChoice()
+    {
+        var hosted = new HeldHostedProvider(ignoreCancellation: true, kind: DecisionProviderKind.OpenAiDecisions);
+        using var world = new PrivateWorldRuntime("helper-switch", id => id == "founder-scout" ? hosted : new QuietDecisionProvider());
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await hosted.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        world.Pause();
+        var memories = world.Society.Memories;
+        Assert.True(world.SetRoutineHelper(new("decisions", "gpt-6-luna")));
+        Assert.True(world.SetRoutineHelper(new("jev", "typed-jev-model")));
+        Assert.True(world.SetRoutineHelper(RoutineHelperSettings.Off));
+        var checkpoint = world.ExportState();
+        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, checkpoint.SchemaVersion);
+        var older = checkpoint with { SchemaVersion = checkpoint.SchemaVersion - 1 };
+        var refused = Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(older));
+        Assert.Contains("older than the minimum supported schema", refused.Message, StringComparison.Ordinal);
+        var saved = PrivateWorldRuntimeCodec.Encode(checkpoint);
+        hosted.Release.TrySetResult(true);
+        await hosted.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.False((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        Assert.Equal(memories, world.Society.Memories);
+        using var first = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new QuietDecisionProvider());
+        using var second = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new QuietDecisionProvider());
+        first.Resume();
+        second.Resume();
+        for (var tick = 0; tick < 3; tick++)
+        {
+            Assert.True((await first.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await second.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(first.ExportState()), PrivateWorldRuntimeCodec.Encode(second.ExportState()));
+        }
+        Assert.Equal(RoutineHelperSettings.Off, first.RoutineHelper);
+        Assert.Equal(3, first.JevPolicyRevision);
+        first.Pause();
+        Assert.True(first.SetRoutineHelper(new("decisions", "future-model")));
+        using var modelRestored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(first.ExportState())));
+        Assert.Equal(new RoutineHelperSettings("decisions", "future-model"), modelRestored.RoutineHelper);
     }
 
     [Fact]
@@ -511,9 +562,10 @@ public sealed class PrivateWorldDeferredCognitionTests
 
     private static async Task<PrivateWorldStepResult> AdvanceUntilAcceptedAsync(PrivateWorldRuntime world, string inhabitantId)
     {
-        // The provider signals just before its outer task completes. Admission
-        // belongs to a later committed tick, not necessarily the first one.
-        for (var attempt = 0; attempt < 20; attempt++)
+        // Hosted completion runs between ticks and can be delayed by runner load.
+        // Keep admitting through native ticks under a wall-clock deadline.
+        var waiting = System.Diagnostics.Stopwatch.StartNew();
+        while (waiting.Elapsed < TimeSpan.FromSeconds(3))
         {
             var step = await world.AdvanceOneTickNonBlockingAsync();
             Assert.True(step.Advanced);
@@ -521,7 +573,7 @@ public sealed class PrivateWorldDeferredCognitionTests
                 return step;
             await Task.Delay(10);
         }
-        throw new TimeoutException($"The completed hosted decision for {inhabitantId} was not admitted within 20 ticks.");
+        throw new TimeoutException($"The completed hosted decision for {inhabitantId} was not admitted within 3 seconds.");
     }
 
     private static PrivateWorldRuntime CreateNameTestWorld(
@@ -567,6 +619,10 @@ public sealed class PrivateWorldDeferredCognitionTests
         bool failSecond = false) : IDecisionProvider
     {
         private int callCount;
+        private readonly TaskCompletionSource<CognitionDecisionResponse> heldSecondReply =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private CognitionDecisionResponse? secondReply;
+        private Task<CognitionDecisionResponse>? secondResponseTask;
 
         public SequencedHostedProvider(params NameReply[] replies)
             : this((IReadOnlyList<NameReply>)replies)
@@ -576,42 +632,38 @@ public sealed class PrivateWorldDeferredCognitionTests
         public ConcurrentQueue<InhabitantObservation> ObservedRequests { get; } = new();
         public TaskCompletionSource<bool> FirstReturned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> SecondStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<bool> ReleaseSecond { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<bool> SecondReturned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> SecondFailed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public InhabitantObservation? SecondObservation { get; private set; }
+        public CancellationToken SecondCancellationToken { get; private set; }
         public int CallCount => Volatile.Read(ref callCount);
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 1;
 
-        public async ValueTask<CognitionDecisionResponse> DecideAsync(
+        public Task<CognitionDecisionResponse> CompleteSecondReply()
+        {
+            // Complete the actual provider response on the test thread. A separate
+            // post-release continuation would only measure thread-pool scheduling.
+            Assert.True(heldSecondReply.TrySetResult(Assert.IsType<CognitionDecisionResponse>(secondReply)));
+            return Assert.IsAssignableFrom<Task<CognitionDecisionResponse>>(secondResponseTask);
+        }
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(
             CognitionDecisionRequest request,
             CancellationToken cancellationToken = default)
         {
             var call = Interlocked.Increment(ref callCount);
             var observation = request.Observation;
             ObservedRequests.Enqueue(observation);
-            if (call == 2)
-            {
-                SecondObservation = observation;
-                SecondStarted.TrySetResult(true);
-                if (holdSecond)
-                {
-                    if (ignoreSecondCancellation)
-                        await ReleaseSecond.Task;
-                    else
-                        await ReleaseSecond.Task.WaitAsync(cancellationToken);
-                }
-            }
-
             if (failSecond && observation.IsNameRetry)
             {
                 if (call == 2)
                 {
+                    SecondObservation = observation;
+                    SecondCancellationToken = cancellationToken;
+                    SecondStarted.TrySetResult(true);
                     SecondFailed.TrySetResult(true);
-                    SecondReturned.TrySetResult(true);
                 }
-                throw new HttpRequestException("test transport failure");
+                return ValueTask.FromException<CognitionDecisionResponse>(new HttpRequestException("test transport failure"));
             }
 
             var reply = replies[Math.Min(call - 1, replies.Count - 1)];
@@ -631,9 +683,21 @@ public sealed class PrivateWorldDeferredCognitionTests
                 probabilities,
                 Usage: new CognitionUsage("test-model", 10, 2),
                 ChosenName: reply.Name);
+            if (call == 2)
+            {
+                SecondObservation = observation;
+                SecondCancellationToken = cancellationToken;
+                secondReply = response;
+                if (holdSecond)
+                    secondResponseTask = ignoreSecondCancellation
+                        ? heldSecondReply.Task
+                        : heldSecondReply.Task.WaitAsync(cancellationToken);
+                SecondStarted.TrySetResult(true);
+                if (holdSecond)
+                    return new ValueTask<CognitionDecisionResponse>(secondResponseTask!);
+            }
             if (call == 1) FirstReturned.TrySetResult(true);
-            if (call == 2) SecondReturned.TrySetResult(true);
-            return response;
+            return ValueTask.FromResult(response);
         }
     }
 

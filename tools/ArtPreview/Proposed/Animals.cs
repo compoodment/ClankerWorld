@@ -33,7 +33,7 @@ namespace ArtPreview.Proposed.Animals;
 /// Livestock have no predators and no legs show from above, like the horse.
 /// Everything is deterministic.
 /// </summary>
-public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
+public sealed partial class AnimalsProposal : IArtProposal, IArtSetProvider
 {
     public string Family => "animals";
     public string Name => "animals";
@@ -272,7 +272,8 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
     /// </summary>
     private readonly record struct BodyFrame(Vector2 Origin, Vector2 Forward, Vector2 Right, float Unit)
     {
-        public Vector2 At(float along, float across = 0) => Origin + Forward * (along * Unit) + Right * (across * Unit);
+        public Vector2 At(float along, float across = 0) =>
+            Origin + Forward * (Walking.Along(along) * Unit) + Right * (Walking.Across(along, across) * Unit);
 
         /// <summary>Whether a screen point lies inside an oval given in body units.</summary>
         public bool InPart(Vector2 point, float along, float across, float halfAlong, float halfAcross) =>
@@ -352,6 +353,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         }
 
         paint.Oval(f.At(1.0f) + new Vector2(1, 3) * f.Unit, f.Forward, 12.4f * f.Unit, 6.6f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
 
         // Tail: a thin rope lying back from the rump with a dark tuft at the end.
         if (!small)
@@ -435,6 +437,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         bool Inside(Vector2 q) => InFleece(q) || InHead(q);
 
         paint.Oval(f.At(-0.6f) + new Vector2(1, 3) * f.Unit, f.Forward, 8.8f * f.Unit, (shorn ? 4.2f : 5.6f) * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
 
         var shadeRim = small ? 0.8f : 1.4f;
         var lightRim = small ? 0.7f : 1.2f;
@@ -508,6 +511,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
             : HenTail;
 
         paint.Oval(f.At(-0.4f) + new Vector2(1, 3) * f.Unit, f.Forward, 6.0f * f.Unit, 4.2f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
 
         // The beak pokes out of the outline ahead of the head, like an agent's nose.
         var beak = f.At(small ? 6.4f : 6.8f);
@@ -553,15 +557,16 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
     /// edge saddle sits on the barrel. With <paramref name="rider"/> an adult
     /// sits on the saddle with boots on both flanks and hands on the reins.
     /// </summary>
-    public static Image Horse(int facing, bool rider, int size)
+    public static Image Horse(int facing, bool rider, int size, bool saddled = true)
     {
+        saddled |= rider;
         var image = Bitmap.Empty(size, size);
         var paint = new Painter(image);
         var p = size / 32f;
         var d = Direction(facing);
         var s = Side(d);
         var o = new Vector2(16, 16) * p - d * (0.6f * p);   // the withers, a little behind the cell centre
-        Vector2 At(float along, float across = 0) => o + d * (along * p) + s * (across * p);
+        Vector2 At(float along, float across = 0) => o + d * (Walking.Along(along) * p) + s * (Walking.Across(along, across) * p);
         var diagonal = IsDiagonal(facing);
         var forwardStep = PixelStep(d);
 
@@ -585,6 +590,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         }
 
         paint.Oval(o + new Vector2(1, 3) * p, d, 13.5f * p, 5.4f * p, Shadow);
+        Walking.Legs(paint, At, d, p);
 
         // Tail: a tuft swinging a little to one side, under the rump.
         var tailRoot = At(-10.0f);
@@ -613,6 +619,7 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
 
         // Saddle: a Timber edge seat with a lighter pommel toward the head.
         var seat = At(-1.0f);
+        if (!saddled) return image;   // round 4: a horse without tack shows its bare back
         if (diagonal)
         {
             // Turned 45°, the seat is traced pixel by pixel so its rim stays unbroken; a
@@ -648,6 +655,217 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
         Rider(paint, build, facing, Skins[0], Hairs[0], Shirts[0]);
         return image;
     }
+
+    // ---------------------------------------------------------------- young (round 4)
+
+    /// <summary>A chick's down: the Gold ramp's light steps, so it reads as fluffy yellow beside the rust hen.</summary>
+    private static readonly Ramp ChickDown = new(new("F2CC5E"), new("D9AE3C"), new("FFE28A"));
+    /// <summary>Its wing stubs: one Gold step down.</summary>
+    private static readonly Ramp ChickWing = new(new("D9AE3C"), new("B8902E"), new("F2CC5E"));
+    private static readonly Color ChickBeak = new("E0893F");     // Fruit base
+    /// <summary>A foal's coat: the Timber ramp one step lighter than its mother's.</summary>
+    private static readonly Ramp FoalCoat = new(new("A77C52"), new("8A6440"), new("D2AC77"));
+
+    /// <summary>A frame like <see cref="BodyFrame.For"/> with its unit scaled by <paramref name="scale"/>, for a smaller young animal.</summary>
+    private static BodyFrame YoungFrame(int facing, int size, float back, float scale)
+    {
+        var unit = size / 32f * scale;
+        var forward = Direction(facing);
+        return new BodyFrame(new Vector2(16, 16) * (size / 32f) - forward * (back * unit), forward, Side(forward), unit);
+    }
+
+    /// <summary>
+    /// A chick: a round ball of yellow down about half the hen's length, a
+    /// smaller head, two darker wing stubs and a tiny orange beak. It has no
+    /// comb and no tail fan yet, so it reads as a chick rather than a small hen.
+    /// </summary>
+    public static Image Chick(int facing, int size)
+    {
+        var image = Bitmap.Empty(size, size);
+        var paint = new Painter(image);
+        var small = size < 24;
+        var f = YoungFrame(facing, size, 0.0f, 1f);
+        var diagonal = IsDiagonal(facing);
+        bool InBody(Vector2 q) => f.InPart(q, -0.4f, 0, 2.7f, 2.5f);
+        bool InHead(Vector2 q) => f.InPart(q, 2.5f, 0, 1.6f, 1.6f);
+        bool InWing(Vector2 q) => f.InPart(q, -0.7f, -2.0f, 1.3f, 0.8f) || f.InPart(q, -0.7f, 2.0f, 1.3f, 0.8f);
+        bool Inside(Vector2 q) => InBody(q) || InHead(q) || (!small && InWing(q));
+        paint.Oval(f.At(-0.2f) + new Vector2(1, 2) * f.Unit, f.Forward, 3.4f * f.Unit, 2.8f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
+        var beak = f.At(small ? 4.2f : 4.4f);
+        paint.Disc(beak, small ? 0.5f : 0.8f, Outline);
+        paint.Coat(Inside, Outline, q => !small && InWing(q) && !InHead(q) ? ChickWing : ChickDown,
+            small ? 0.7f : 1.0f, small ? 0.6f : 0.9f, dropSpurs: diagonal);
+        paint.Dot(beak, ChickBeak);
+        return image;
+    }
+
+    /// <summary>
+    /// A lamb: the sheep's fleece in miniature with tighter, smaller curls,
+    /// no top-knot yet, and a head and ears that are large for its body. It
+    /// keeps the black face, so it is plainly a young sheep.
+    /// </summary>
+    public static Image Lamb(int facing, int size)
+    {
+        var image = Bitmap.Empty(size, size);
+        var paint = new Painter(image);
+        var small = size < 24;
+        var f = YoungFrame(facing, size, 0.4f, 1f);
+        var diagonal = IsDiagonal(facing);
+        const float coreAt = -1.2f, coreAlong = 3.4f, coreAcross = 2.7f;
+        var lumpCount = small ? 7 : 9;
+        var lumpRadius = small ? 1.6f : 1.3f;
+        var lumps = new List<(float At, float Across)>();
+        for (var k = 0; k < lumpCount; k++)
+        {
+            var angle = (k + 0.5f) * MathF.Tau / lumpCount;
+            lumps.Add((coreAt + MathF.Cos(angle) * coreAlong, MathF.Sin(angle) * coreAcross));
+        }
+        bool InFleece(Vector2 q)
+        {
+            if (f.InPart(q, coreAt, 0, coreAlong, coreAcross)) return true;
+            foreach (var (at, across) in lumps)
+                if (f.InPart(q, at, across, lumpRadius, lumpRadius)) return true;
+            return false;
+        }
+        var headAt = diagonal ? 0.4f : 0f;
+        bool InHead(Vector2 q) =>
+            f.InPart(q, 3.8f + headAt, 0, 1.8f, 1.8f)
+            || f.InPart(q, 5.2f + headAt, 0, 1.3f, 1.4f)
+            || f.InPart(q, 3.6f + headAt, -2.3f, 0.7f, 1.1f)
+            || f.InPart(q, 3.6f + headAt, 2.3f, 0.7f, 1.1f);
+        bool Inside(Vector2 q) => InFleece(q) || InHead(q);
+        paint.Oval(f.At(-0.4f) + new Vector2(1, 2) * f.Unit, f.Forward, 5.8f * f.Unit, 3.8f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
+        paint.Coat(Inside, Outline, q => InFleece(q) ? Wool : SheepFace, small ? 0.8f : 1.2f, small ? 0.7f : 1.0f);
+        if (small) return image;
+        bool Interior(Vector2 q) => InFleece(q - TowardLight * 1.4f) && InFleece(q + TowardLight * 1.2f) && !InHead(q);
+        (float At, float Across)[] tufts = [(-3.0f, -0.6f), (-1.0f, 1.0f), (0.6f, -1.0f)];
+        const float tuftRadius = 1.3f;
+        foreach (var (at, across) in tufts)
+        {
+            var centre = f.At(at, across);
+            paint.Oval(centre, f.Forward, tuftRadius, tuftRadius, Wool.Shade,
+                (q, _, _) => (q - TowardLight * 0.9f).Length() > tuftRadius && Interior(q + centre));
+        }
+        paint.Dot(f.At(6.1f + headAt), SheepFace.Light);
+        return image;
+    }
+
+    /// <summary>
+    /// A calf: the cow's patched cream hide on a smaller, rounder body with a
+    /// big head and big ears for its size, a pink muzzle, a short tail and no
+    /// horns yet. Fewer, larger patches keep it readable at this size.
+    /// </summary>
+    public static Image Calf(int facing, int size)
+    {
+        var image = Bitmap.Empty(size, size);
+        var paint = new Painter(image);
+        var small = size < 24;
+        var f = YoungFrame(facing, size, 1.0f, 1f);
+        var diagonal = IsDiagonal(facing);
+        (float At, float Along, float Across)[] body =
+        [
+            (-4.2f, 2.8f, 3.6f),   // rump
+            (-1.0f, 3.8f, 4.1f),   // barrel
+            (2.3f, 2.0f, 3.3f),    // chest
+            (4.2f, 1.4f, 2.0f),    // neck
+            (6.2f, 1.7f, 2.2f),    // big head
+            (7.8f, 1.5f, 1.9f),    // face
+            (8.8f, 1.1f, 1.8f),    // muzzle
+        ];
+        bool InCore(Vector2 q)
+        {
+            foreach (var (at, along, across) in body)
+                if (f.InPart(q, at, 0, along, across)) return true;
+            return false;
+        }
+        bool InEar(Vector2 q) => f.InPart(q, 5.6f, -2.8f, 0.8f, 1.4f) || f.InPart(q, 5.6f, 2.8f, 0.8f, 1.4f);
+        bool Inside(Vector2 q) => InCore(q) || InEar(q);
+        (float At, float Across, float Along, float Wide)[] patches = small
+            ? [(-1.0f, -1.6f, 2.4f, 2.4f)]
+            : [(-4.2f, 1.6f, 1.9f, 1.7f), (-2.8f, 2.6f, 1.2f, 1.1f), (0.2f, -1.8f, 2.1f, 1.9f), (7.3f, -1.0f, 1.0f, 0.9f)];
+        bool InPatch(Vector2 q)
+        {
+            foreach (var (at, across, along, wide) in patches)
+                if (f.InPart(q, at, across, along, wide)) return true;
+            return false;
+        }
+        paint.Oval(f.At(0.6f) + new Vector2(1, 2) * f.Unit, f.Forward, 8.4f * f.Unit, 4.4f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
+        if (!small)
+        {
+            var tailRoot = f.At(-6.6f, 0.4f);
+            var tailTip = f.At(-8.6f, 1.0f);
+            var tailAxis = (tailTip - tailRoot).Normalized();
+            bool InRope(Vector2 q) => Painter.InOval(q - (tailRoot + tailTip) / 2, tailAxis, 1.3f, 0.5f);
+            bool InTuft(Vector2 q) => Painter.InOval(q - tailTip, tailAxis, 0.9f, 0.8f);
+            paint.Coat(q => InRope(q) || InTuft(q), Outline, q => InTuft(q) ? CowPatch : CowHide, 1.0f, 0.8f);
+        }
+        paint.Coat(Inside, Outline, q => InPatch(q) ? CowPatch : CowHide, small ? 0.8f : 1.3f, small ? 0.7f : 1.1f, dropSpurs: diagonal);
+        paint.Oval(f.At(9.0f), f.Forward, 1.0f * f.Unit, 1.7f * f.Unit, MuzzlePink, (q, _, _) => InCore(q + f.At(9.0f)));
+        return image;
+    }
+
+    /// <summary>
+    /// A foal: the horse in miniature, a step lighter in coat, with a big
+    /// head and ears for its size, a short brush of a tail, a short upright
+    /// mane and the pale blaze. It never wears a saddle.
+    /// </summary>
+    public static Image Foal(int facing, int size)
+    {
+        var image = Bitmap.Empty(size, size);
+        var paint = new Painter(image);
+        var small = size < 24;
+        var f = YoungFrame(facing, size, 0.6f, 1f);
+        var diagonal = IsDiagonal(facing);
+        var forwardStep = PixelStep(f.Forward);
+        (float At, float Along, float Across)[] body =
+        [
+            (-4.0f, 3.0f, 3.1f),   // rump
+            (-0.8f, 3.8f, 3.4f),   // barrel
+            (2.6f, 1.9f, 2.7f),    // chest
+            (4.9f, 2.0f, 1.6f),    // neck
+            (7.0f, 1.5f, 1.9f),    // jowls and forehead
+            (8.7f, 1.7f, 1.4f),    // face
+        ];
+        bool InBody(Vector2 q)
+        {
+            foreach (var (at, along, across) in body)
+                if (f.InPart(q, at, 0, along, across)) return true;
+            return f.InPart(q, 6.0f, -1.9f, 1.0f, 0.7f) || f.InPart(q, 6.0f, 1.9f, 1.0f, 0.7f);
+        }
+        paint.Oval(f.At(0.6f) + new Vector2(1, 2) * f.Unit, f.Forward, 9.0f * f.Unit, 3.6f * f.Unit, Shadow);
+        Walking.Legs(paint, f.At, f.Forward, f.Unit);
+        var tailRoot = f.At(-6.6f);
+        var tailTip = f.At(-8.6f, -0.6f);
+        var tailAxis = (tailTip - tailRoot).Normalized();
+        bool InTail(Vector2 q) => Painter.InOval(q - (tailRoot + tailTip) / 2, tailAxis, 1.4f * f.Unit, 1.0f * f.Unit);
+        if (!small) paint.Silhouette(InTail, Outline, ManeColor, ManeColor.Darkened(0.25f), ManeColor.Lightened(0.15f), 1.0f, 0.8f);
+        paint.Coat(InBody, Outline, _ => FoalCoat, small ? 0.8f : 1.3f, small ? 0.7f : 1.1f, dropSpurs: diagonal);
+        if (small) return image;
+        paint.Oval(f.At(9.6f), f.Forward, 0.9f * f.Unit, 1.3f * f.Unit, TimberBase, (q, _, _) => InBody(q + f.At(9.6f)));
+        if (diagonal)
+            paint.Run(f.At(8.8f), -forwardStep, 2, ClothLight);
+        else
+            paint.Line(f.At(7.2f), f.At(8.8f), ClothLight);
+        paint.Box(f.At(4.4f, 0.3f), f.Forward, 2.0f * f.Unit, 0.7f * f.Unit, ManeColor);
+        return image;
+    }
+
+    /// <summary>Review aid: each grown animal on the left of a 64×32 grass strip with its young beside it, both facing <paramref name="facing"/>.</summary>
+    public static Image ParentAndYoung(Func<int, Image> parent, Func<int, Image> young, int facing)
+    {
+        var image = Bitmap.Empty(64, 32);
+        for (var cell = 0; cell < 2; cell++)
+            image.BlitRect(TerrainTextures.Tile(TerrainStyle.Grass, TerrainTextures.VariantAt(cell, 3), 32), new Rect2I(0, 0, 32, 32), new Vector2I(cell * 32, 0));
+        Sheet.Blend(image, parent(facing), 0, 0);
+        Sheet.Blend(image, young(facing), 32, 0);
+        return image;
+    }
+
+    /// <summary>All eight facings side by side on grass, for review sheets outside this class.</summary>
+    public static Image TurnaroundOf(Func<int, Image> draw) => Turnaround(draw);
 
     // ---------------------------------------------------------------- rider
 
@@ -1014,5 +1232,66 @@ public sealed class AnimalsProposal : IArtProposal, IArtSetProvider
                 Pixel(x, y, color);
             }
         }
+    }
+}
+
+/// <summary>
+/// Round 4 (October 7): the young of every animal and a horse without a
+/// saddle, drawn with the approved animals' parts, outline, light and ramps.
+/// Each young animal is about two-thirds of its parent's length (a chick about
+/// half the hen's), with a head and ears large for its body. Young animals
+/// show no adult gear: the calf has no horns, the chick no comb or tail fan,
+/// the lamb no top-knot and the foal no saddle.
+/// </summary>
+public sealed class YoungAnimalsProposal : IArtProposal
+{
+    public string Family => "young-animals";
+
+    public IEnumerable<Entry> Render()
+    {
+        var names = AnimalsProposal.FacingNames;
+        var entries = new List<Entry>
+        {
+            new(Family, "families.S", Row(0), "Review aid: hen and chick, ewe and lamb, cow and calf, mare and foal, all facing south. The grown animals are the approved drawings."),
+            new(Family, "families.E", Row(6), "The same pairs facing east."),
+            new(Family, "chick.turnaround", AnimalsProposal.TurnaroundOf(f => AnimalsProposal.Chick(f, 32)),
+                "A chick: a ball of yellow down with wing stubs and a tiny beak; no comb or tail fan yet. S, SW, W, NW, N, NE, E, SE."),
+            new(Family, "lamb.turnaround", AnimalsProposal.TurnaroundOf(f => AnimalsProposal.Lamb(f, 32)),
+                "A lamb: tight small curls, no top-knot, the black face with big ears."),
+            new(Family, "calf.turnaround", AnimalsProposal.TurnaroundOf(f => AnimalsProposal.Calf(f, 32)),
+                "A calf: the patched cream hide, big head and ears, a pink muzzle, no horns."),
+            new(Family, "foal.turnaround", AnimalsProposal.TurnaroundOf(f => AnimalsProposal.Foal(f, 32)),
+                "A foal: one Timber step lighter than its mother, short mane and brush tail, the pale blaze, never saddled."),
+            new(Family, "horse.bare.turnaround", AnimalsProposal.TurnaroundOf(f => AnimalsProposal.Horse(f, false, 32, saddled: false)),
+                "A horse without a saddle, for wild horses and tamed ones with no saddle on: the approved horse with its back left bare."),
+            new(Family, "horse.saddled.turnaround", AnimalsProposal.TurnaroundOf(f => AnimalsProposal.Horse(f, false, 32)),
+                "For comparison: the approved horse with its saddle, unchanged."),
+        };
+        foreach (var facing in new[] { 0, 6 })
+        {
+            entries.Add(new(Family, $"chick.{names[facing]}.16", Over16(AnimalsProposal.Chick(facing, 16)), facing == 0 ? "16 px: a yellow dot with a beak." : null));
+            entries.Add(new(Family, $"lamb.{names[facing]}.16", Over16(AnimalsProposal.Lamb(facing, 16)), facing == 0 ? "16 px: a small cream fleece with a dark head." : null));
+            entries.Add(new(Family, $"calf.{names[facing]}.16", Over16(AnimalsProposal.Calf(facing, 16)), facing == 0 ? "16 px: a small patched block with a pink nose." : null));
+            entries.Add(new(Family, $"foal.{names[facing]}.16", Over16(AnimalsProposal.Foal(facing, 16)), facing == 0 ? "16 px: a small light-brown body." : null));
+        }
+        return entries;
+    }
+
+    private static Image Over16(Image sprite) => Bitmap.Over(TerrainTextures.Tile(TerrainStyle.Grass, 0, 16), sprite, 0, 0);
+
+    /// <summary>The four parent-and-young pairs in one strip, all facing <paramref name="facing"/>.</summary>
+    private static Image Row(int facing)
+    {
+        var pairs = new (Func<int, Image> Parent, Func<int, Image> Young)[]
+        {
+            (f => AnimalsProposal.Chicken(f, 32), f => AnimalsProposal.Chick(f, 32)),
+            (f => AnimalsProposal.Sheep(f, false, 32), f => AnimalsProposal.Lamb(f, 32)),
+            (f => AnimalsProposal.Cow(f, 32), f => AnimalsProposal.Calf(f, 32)),
+            (f => AnimalsProposal.Horse(f, false, 32, saddled: false), f => AnimalsProposal.Foal(f, 32)),
+        };
+        var image = Bitmap.Empty(64 * pairs.Length, 32);
+        for (var k = 0; k < pairs.Length; k++)
+            image.BlitRect(AnimalsProposal.ParentAndYoung(pairs[k].Parent, pairs[k].Young, facing), new Rect2I(0, 0, 64, 32), new Vector2I(k * 64, 0));
+        return image;
     }
 }

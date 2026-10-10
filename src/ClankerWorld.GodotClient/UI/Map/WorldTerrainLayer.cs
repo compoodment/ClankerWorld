@@ -13,6 +13,8 @@ public partial class WorldTerrainLayer : Control
 
     private WorldTerrainMap? world;
     private Texture2D? paletteTexture;
+    private readonly Dictionary<LandscapeSeason, Texture2D> seasonalPalettes = [];
+    public LandscapeSeason Season { get; private set; } = LandscapeSeason.Summer;
     private ImageTexture? townSiteGuidanceTexture;
     private TownSiteGuidance? currentTownSiteGuidance;
     private Rect2 visibleTiles;
@@ -36,13 +38,20 @@ public partial class WorldTerrainLayer : Control
     private readonly HashSet<string> marketStallBuildingIds = new(StringComparer.Ordinal);
     // Saved bridge decks, true when the deck runs east-west.
     private readonly Dictionary<Vector2I, bool> bridgeDecks = [];
+    // Bridges in abandoned Towns, each from the bank tile before its deck to the one after it.
+    private readonly List<(Rect2I Strip, bool EastWest, BuildingNeglect Neglect)> weatheredBridges = [];
+    private readonly Dictionary<Vector2I, BuildingNeglect> weatheredBridgeTiles = [];
     private readonly Dictionary<Vector2I, string> householdPropertyTiles = [];
     private readonly HashSet<Vector2I> townLandTitleTiles = [];
     private readonly Dictionary<Vector2I, string[]> householdLandUseTiles = [];
     private readonly HashSet<Vector2I> pendingLandUseTiles = [];
     private readonly HashSet<Vector2I> disputedLandTiles = [];
-    private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door)> buildings = [];
+    private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door, BuildingNeglect Neglect)> buildings = [];
     private readonly HashSet<Vector2I> buildingTiles = [];
+    private readonly HashSet<Vector2I> constructionTiles = [];
+    private readonly List<(Rect2I Footprint, BuildingKind Kind, BuildingDoor Door, int Stage)> constructionSites = [];
+    // A street lantern's own tile, where its materials lie while the fitting goes up on the Road edge.
+    private readonly List<(Vector2I Tile, int Stage)> lanternSites = [];
     // Road tiles in front of a door, and the side of the tile the door is on.
     private readonly Dictionary<Vector2I, RoadLinks> doorsteps = [];
     private readonly Dictionary<Vector2I, OwnerWorldFarmField> fields = [];
@@ -91,6 +100,8 @@ public partial class WorldTerrainLayer : Control
 
     public int WeatherRegionSize => weatherRegionSize;
 
+    internal IReadOnlyDictionary<Vector2I, string> WeatherRegions => weatherRegions;
+
     /// <summary>Changes whenever the map or its weather regions change, for layers that cache weather.</summary>
     public int WeatherVersion { get; private set; }
 
@@ -109,6 +120,8 @@ public partial class WorldTerrainLayer : Control
     public void SetWorld(WorldTerrainMap map)
     {
         world = map;
+        ResetGroundSnow();
+        ResetResourceAppearanceInputs();
         ResetRelief();
         townSiteGuidanceTexture = null;
         currentTownSiteGuidance = null;
@@ -120,10 +133,22 @@ public partial class WorldTerrainLayer : Control
             for (var x = 0; x < map.Width; x++)
                 image.SetPixel(x, y, map.DisplayColorAt(x, y));
         paletteTexture = ImageTexture.CreateFromImage(image);
+        PrepareSeasonalPalettes(map, image);
+        // Prepare the small shared atlases at load, so a season change only
+        // selects existing resources. Terrain relief remains unchanged.
+        foreach (var season in Enum.GetValues<LandscapeSeason>())
+            foreach (var size in new[] { 16, 32 })
+            {
+                _ = TerrainTextures.Atlas(size, season);
+                _ = NatureSprites.Atlas(size, season);
+            }
         trees = new byte[checked(map.Width * map.Height)];
         naturalObjects = new byte[checked(map.Width * map.Height)];
         campResources.Clear();
         fields.Clear();
+        constructionSites.Clear();
+        lanternSites.Clear();
+        constructionTiles.Clear();
         naturalStages = new byte[checked(map.Width * map.Height)];
         weatherRegions.Clear();
         HasActiveWeather = false;
@@ -135,6 +160,47 @@ public partial class WorldTerrainLayer : Control
         bridgeDecks.Clear();
         householdPropertyTiles.Clear();
         QueueRedraw();
+    }
+
+    public void SetSeason(string? observed)
+    {
+        var next = LandscapePalette.Season(observed);
+        if (next == Season) return;
+        Season = next;
+        QueueRedraw();
+    }
+
+    private void PrepareSeasonalPalettes(WorldTerrainMap map, Image baseline)
+    {
+        seasonalPalettes.Clear();
+        seasonalPalettes[LandscapeSeason.Summer] = paletteTexture!;
+        var styles = Enum.GetValues<TerrainStyle>();
+        foreach (var season in new[] { LandscapeSeason.Spring, LandscapeSeason.Autumn, LandscapeSeason.Winter })
+        {
+            // Flat and hill colours come from a small lookup; the map-sized
+            // loop copies bytes rather than making native image calls.
+            var colours = new Color[styles.Length * 2];
+            foreach (var style in styles)
+            {
+                var colour = TerrainTextures.BaseColor(style);
+                colours[(int)style * 2] = LandscapePalette.Ground(colour, style, season);
+                colours[(int)style * 2 + 1] = LandscapePalette.Ground(TerrainTextures.HillColor(colour), style, season);
+            }
+            var pixels = baseline.GetData();
+            for (var y = 0; y < map.Height; y++)
+                for (var x = 0; x < map.Width; x++)
+                {
+                    var style = map.StyleAt(x, y);
+                    if (!LandscapePalette.HasGrass(style)) continue;
+                    var colour = colours[(int)style * 2 + (map.IsHillAt(x, y) ? 1 : 0)];
+                    var offset = (y * map.Width + x) * 4;
+                    pixels[offset] = (byte)(colour.R * 255);
+                    pixels[offset + 1] = (byte)(colour.G * 255);
+                    pixels[offset + 2] = (byte)(colour.B * 255);
+                }
+            using var image = Image.CreateFromData(map.Width, map.Height, false, Image.Format.Rgba8, pixels);
+            seasonalPalettes[season] = ImageTexture.CreateFromImage(image);
+        }
     }
 
     /// <summary>Shows provisional Town-site advice over open land; this never gates a map click.</summary>
@@ -328,19 +394,65 @@ public partial class WorldTerrainLayer : Control
     }
 
     /// <summary>Draws the same saved bridge decks that movement uses; a deck is not drawn from terrain alone.</summary>
-    public void SetBridges(IReadOnlyList<OwnerWorldBridge> bridges)
+    /// <summary>
+    /// Saved bridge decks. A straight bridge in an abandoned Town (its deck or
+    /// either end inside the Town's land) is drawn weathered as one picture,
+    /// neglected and then falling apart after a full season.
+    /// </summary>
+    public void SetBridges(IReadOnlyList<OwnerWorldBridge> bridges, IReadOnlyList<OwnerWorldTown>? towns = null)
     {
         ArgumentNullException.ThrowIfNull(bridges);
         var next = new Dictionary<Vector2I, bool>();
         foreach (var bridge in bridges)
             foreach (var tile in bridge.Span)
                 next[new Vector2I(tile.X, tile.Y)] = bridge.Axis == "east_west";
+        var abandoned = (towns ?? []).Where(town => town.IsAbandoned)
+            .Select(town => (Land: town.BorderTiles.Select(tile => new Vector2I(tile.X, tile.Y)).ToHashSet(),
+                Neglect: town.FallingApart ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected))
+            .ToList();
+        var weathered = new List<(Rect2I Strip, bool EastWest, BuildingNeglect Neglect)>();
+        foreach (var bridge in bridges)
+        {
+            var span = bridge.Span.Select(tile => new Vector2I(tile.X, tile.Y)).ToList();
+            if (span.Count == 0) continue;
+            var ends = bridge.Entrances.Select(tile => new Vector2I(tile.X, tile.Y));
+            var town = abandoned.FirstOrDefault(item => span.Concat(ends).Any(item.Land.Contains));
+            if (town.Land is null) continue;
+            var eastWest = bridge.Axis == "east_west";
+            if (eastWest && world is { WrapsEastWest: true })
+            {
+                var first = span[0].X;
+                span = span.Select(tile => new Vector2I(first + Mod(tile.X - first, world.Width), tile.Y)).ToList();
+            }
+            int left = span.Min(tile => tile.X), right = span.Max(tile => tile.X);
+            int top = span.Min(tile => tile.Y), bottom = span.Max(tile => tile.Y);
+            // Only a straight, unbroken run shares one weathered picture; any other keeps its plain deck.
+            if (eastWest ? top != bottom || right - left + 1 != span.Count : left != right || bottom - top + 1 != span.Count)
+                continue;
+            weathered.Add((eastWest ? new Rect2I(left - 1, top, span.Count + 2, 1) : new Rect2I(left, top - 1, 1, span.Count + 2),
+                eastWest, town.Neglect));
+        }
         if (next.Count == bridgeDecks.Count && next.All(entry =>
-                bridgeDecks.TryGetValue(entry.Key, out var eastWest) && eastWest == entry.Value)) return;
+                bridgeDecks.TryGetValue(entry.Key, out var eastWest) && eastWest == entry.Value) &&
+            weathered.SequenceEqual(weatheredBridges)) return;
         bridgeDecks.Clear();
         foreach (var entry in next) bridgeDecks.Add(entry.Key, entry.Value);
+        weatheredBridges.Clear();
+        weatheredBridges.AddRange(weathered);
+        weatheredBridgeTiles.Clear();
+        foreach (var (strip, eastWest, neglect) in weathered)
+            for (var k = 1; k < (eastWest ? strip.Size.X : strip.Size.Y) - 1; k++)
+            {
+                var tile = strip.Position + (eastWest ? new Vector2I(k, 0) : new Vector2I(0, k));
+                if (world is { WrapsEastWest: true }) tile.X = Mod(tile.X, world.Width);
+                weatheredBridgeTiles[tile] = neglect;
+            }
         QueueRedraw();
     }
+
+    /// <summary>How the bridge deck on a tile has weathered, or <see cref="BuildingNeglect.None"/>.</summary>
+    public BuildingNeglect BridgeNeglectAt(Vector2I tile) =>
+        weatheredBridgeTiles.GetValueOrDefault(tile, BuildingNeglect.None);
 
     public void SetHouseholdProperties(IReadOnlyList<OwnerWorldPlacedBuilding> buildings,
         IReadOnlyList<OwnerWorldFarmField>? fieldTiles = null)
@@ -360,11 +472,18 @@ public partial class WorldTerrainLayer : Control
         QueueRedraw();
     }
 
-    /// <summary>Placed buildings and legacy camp objects that have a building look.</summary>
-    public void SetBuildings(IReadOnlyList<OwnerWorldPlacedBuilding> placed, IReadOnlyList<OwnerWorldObject> objects)
+    /// <summary>
+    /// Placed buildings and legacy camp objects that have a building look.
+    /// Buildings in an abandoned Town look neglected, and falling apart once
+    /// it has stood empty for a full season.
+    /// </summary>
+    public void SetBuildings(IReadOnlyList<OwnerWorldPlacedBuilding> placed, IReadOnlyList<OwnerWorldObject> objects,
+        IReadOnlyList<OwnerWorldTown>? towns = null)
     {
         ArgumentNullException.ThrowIfNull(placed);
         ArgumentNullException.ThrowIfNull(objects);
+        var neglectByTown = (towns ?? []).Where(town => town.IsAbandoned).ToDictionary(town => town.Id,
+            town => town.FallingApart ? BuildingNeglect.FallingApart : BuildingNeglect.Neglected, StringComparer.Ordinal);
         var next = placed.Where(building => !StreetLanternLight.IsLantern(building.Tags)).Select(building =>
             {
                 var footprint = new Rect2I(building.Position.X, building.Position.Y,
@@ -377,22 +496,23 @@ public partial class WorldTerrainLayer : Control
                 if (kind == BuildingKind.MarketStall && footprint.Size == Vector2I.One &&
                     marketStallBuildingIds.Contains(building.InstanceId) && marketPlazaTiles.Contains(footprint.Position))
                     door = door with { Tile = null };
-                return (footprint, kind, door);
+                var neglect = building.TownId is { } town ? neglectByTown.GetValueOrDefault(town) : BuildingNeglect.None;
+                return (footprint, kind, door, neglect);
             })
             .Concat(objects.Where(item => BuildingSprites.KindForObject(item.Kind) is not null)
                 .Select(item => (new Rect2I(item.Position.X, item.Position.Y, 1, 1), BuildingSprites.KindForObject(item.Kind)!.Value,
-                    BuildingDoor.Default)))
+                    BuildingDoor.Default, BuildingNeglect.None)))
             .ToList();
         if (next.SequenceEqual(buildings)) return;
         buildings.Clear();
         buildings.AddRange(next);
         buildingTiles.Clear();
-        foreach (var (footprint, _, _) in buildings)
+        foreach (var (footprint, _, _, _) in buildings)
             for (var y = footprint.Position.Y; y < footprint.End.Y; y++)
                 for (var x = footprint.Position.X; x < footprint.End.X; x++)
                     buildingTiles.Add(new Vector2I(wrapsEastWest && world is not null ? Mod(x, world.Width) : x, y));
         doorsteps.Clear();
-        foreach (var (footprint, _, door) in buildings)
+        foreach (var (footprint, _, door, _) in buildings)
         {
             if (door.Tile is not { } along) continue;
             var (tile, toward) = door.Side switch
@@ -410,6 +530,49 @@ public partial class WorldTerrainLayer : Control
 
     public int BuildingSpriteCount => buildings.Count;
 
+    /// <summary>
+    /// Buildings under construction, each at the approved stage its work has
+    /// reached. Household plans have no entrance yet, so they face south; a
+    /// street lantern shows only its materials here, and its fitting on the
+    /// Road edge in <see cref="NightLightsLayer"/>.
+    /// </summary>
+    public void SetConstructionSites(IReadOnlyList<OwnerWorldConstructionSite> sites)
+    {
+        ArgumentNullException.ThrowIfNull(sites);
+        var next = sites.Where(site => !StreetLanternLight.IsLantern(site.Tags)).Select(site =>
+            {
+                var footprint = new Rect2I(site.Site.X, site.Site.Y, Math.Max(1, site.Width), Math.Max(1, site.Height));
+                var entrance = site.Entrance is { } tile ? new Vector2I(tile.X, tile.Y) : (Vector2I?)null;
+                return (footprint, BuildingSprites.KindFor(site.Tags), BuildingDoor.Facing(footprint, entrance), site.DrawnStage);
+            })
+            .ToList();
+        var lanterns = sites.Where(site => StreetLanternLight.IsLantern(site.Tags))
+            .Select(site => (new Vector2I(site.Site.X, site.Site.Y), site.DrawnStage)).ToList();
+        if (next.SequenceEqual(constructionSites) && lanterns.SequenceEqual(lanternSites)) return;
+        constructionSites.Clear();
+        constructionSites.AddRange(next);
+        lanternSites.Clear();
+        lanternSites.AddRange(lanterns);
+        constructionTiles.Clear();
+        foreach (var site in sites)
+            for (var y = site.Site.Y; y < site.Site.Y + Math.Max(1, site.Height); y++)
+                for (var x = site.Site.X; x < site.Site.X + Math.Max(1, site.Width); x++)
+                    constructionTiles.Add(new Vector2I(world is { WrapsEastWest: true } ? Mod(x, world.Width) : x, y));
+        QueueRedraw();
+    }
+
+    public int ConstructionSiteCount => constructionSites.Count + lanternSites.Count;
+
+    /// <summary>The construction stage drawn on a tile, or 0 when nothing is being built there.</summary>
+    public int ConstructionStageAt(Vector2I tile) =>
+        constructionSites.FirstOrDefault(site => site.Footprint.HasPoint(tile)).Stage is var stage and > 0
+            ? stage
+            : lanternSites.FirstOrDefault(site => site.Tile == tile).Stage;
+
+    /// <summary>How the building on a tile has weathered, or <see cref="BuildingNeglect.None"/> when nothing stands there.</summary>
+    public BuildingNeglect NeglectAt(Vector2I tile) =>
+        buildings.FirstOrDefault(building => building.Footprint.HasPoint(tile)).Neglect;
+
     public string WeatherAt(int x, int y)
     {
         if (world is null || y < 0 || y >= world.Height || (!wrapsEastWest && (x < 0 || x >= world.Width)))
@@ -421,6 +584,8 @@ public partial class WorldTerrainLayer : Control
     public void SetTrees(IReadOnlyList<OwnerWorldResource> resources)
     {
         if (world is null) return;
+        ArgumentNullException.ThrowIfNull(resources);
+        if (TreeAppearanceMatches(resources)) return;
         var next = new byte[checked(world.Width * world.Height)];
         foreach (var resource in resources)
         {
@@ -430,9 +595,7 @@ public partial class WorldTerrainLayer : Control
             if (resource.TreeKind is not { } species) continue;
             // The host sends the stage it read from the saved growth state.
             // Older hosts sent it only for orchards, so derive the rest.
-            var stage = resource.TreeStage ?? (species == "orchard" ? "fruiting"
-                : resource.IsPlanted ? "sapling"
-                : resource.Quantity == 0 || resource.State != "available" ? "stump" : "mature");
+            var stage = VisibleTreeStage(resource);
             if (TreeArtManifest.For(species, stage) is not { Code: > 0 } art) continue;
             var index = y * world.Width + x;
             if (next[index] != 0)
@@ -440,6 +603,7 @@ public partial class WorldTerrainLayer : Control
             next[index] = art.Code;
         }
         trees = next;
+        treeAppearanceInputs = resources.Where(resource => resource.TreeKind is not null && ResourceInBounds(resource)).ToArray();
         QueueRedraw();
     }
 
@@ -517,25 +681,43 @@ public partial class WorldTerrainLayer : Control
     {
         if (world is null) return;
         ArgumentNullException.ThrowIfNull(resources);
-        var next = new byte[checked(world.Width * world.Height)];
-        var stages = new byte[next.Length];
-        foreach (var resource in resources)
+        var changed = !NaturalAppearanceMatches(resources);
+        if (changed)
         {
-            var kind = NatureSprites.NaturalObjectCode(resource.NaturalObjectKind);
-            if (kind == 0) continue;
-            var x = resource.Position.X;
-            var y = resource.Position.Y;
-            if (x < 0 || x >= world.Width || y < 0 || y >= world.Height) continue;
-            var index = y * world.Width + x;
-            if (trees[index] != 0 || next[index] != 0)
-                throw new InvalidDataException("Generated natural objects cannot overlap another tree or natural object.");
-            next[index] = kind;
-            stages[index] = resource.Quantity == 0 || resource.State != "available"
-                ? resource.IsRenewable ? (byte)2 : (byte)1
-                : (byte)0;
+            var next = new byte[checked(world.Width * world.Height)];
+            var stages = new byte[next.Length];
+            foreach (var resource in resources)
+            {
+                var kind = NatureSprites.NaturalObjectCode(resource.NaturalObjectKind);
+                if (kind == 0) continue;
+                var x = resource.Position.X;
+                var y = resource.Position.Y;
+                if (x < 0 || x >= world.Width || y < 0 || y >= world.Height) continue;
+                var index = y * world.Width + x;
+                if (trees[index] != 0 || next[index] != 0)
+                    throw new InvalidDataException("Generated natural objects cannot overlap another tree or natural object.");
+                next[index] = kind;
+                stages[index] = VisibleNaturalStage(resource);
+            }
+            naturalObjects = next;
+            naturalStages = stages;
+            naturalAppearanceInputs = resources.Where(resource => NatureSprites.NaturalObjectCode(resource.NaturalObjectKind) > 0 &&
+                ResourceInBounds(resource)).ToArray();
         }
-        naturalObjects = next;
-        naturalStages = stages;
+        else if (!ReferenceEquals(naturalAppearanceTrees, trees))
+        {
+            // A new tree must not hide a previously indexed natural site.
+            foreach (var resource in naturalAppearanceInputs!)
+                if (trees[resource.Position.Y * world.Width + resource.Position.X] != 0)
+                    throw new InvalidDataException("Generated natural objects cannot overlap another tree or natural object.");
+        }
+        naturalAppearanceTrees = trees;
+        if (ReferenceEquals(campAppearanceTrees, trees) && ReferenceEquals(campAppearanceNaturalObjects, naturalObjects) &&
+            CampAppearanceMatches(resources))
+        {
+            if (changed) QueueRedraw();
+            return;
+        }
         // Older camp resources carry only a resource kind; draw them with the
         // matching site's sprite where no generated site already stands.
         campResources.Clear();
@@ -548,9 +730,12 @@ public partial class WorldTerrainLayer : Control
             var y = resource.Position.Y;
             if (x < 0 || x >= world.Width || y < 0 || y >= world.Height) continue;
             var index = y * world.Width + x;
-            if (trees[index] != 0 || next[index] != 0) continue;
+            if (trees[index] != 0 || naturalObjects[index] != 0) continue;
             campResources[index] = sprite;
         }
+        campAppearanceInputs = resources.Where(resource => CampAppearance(resource) is not null && ResourceInBounds(resource)).ToArray();
+        campAppearanceTrees = trees;
+        campAppearanceNaturalObjects = naturalObjects;
         QueueRedraw();
     }
 
@@ -561,14 +746,14 @@ public partial class WorldTerrainLayer : Control
 
     /// <summary>
     /// The cactus drawn on a tile: only on cactus cover, and never under a
-    /// Road, bridge, doorstep, field or building.
+    /// Road, bridge, doorstep, field, building or construction site.
     /// </summary>
     public NatureSprite? CactusAt(int x, int y)
     {
         if (world is null || !world.IsCactusCoverAt(x, y)) return null;
         var tile = new Vector2I(x, y);
         if (roadTiles.Contains(tile) || marketPlazaTiles.Contains(tile) || bridgeDecks.ContainsKey(tile) || doorsteps.ContainsKey(tile) ||
-            fields.ContainsKey(tile) || buildingTiles.Contains(tile))
+            fields.ContainsKey(tile) || buildingTiles.Contains(tile) || constructionTiles.Contains(tile))
             return null;
         return CactusSprites.ForTile(x, y);
     }
@@ -613,6 +798,7 @@ public partial class WorldTerrainLayer : Control
 
     private void DrawMapContents()
     {
+        AutumnLeafDrawCount = 0;
         OverviewNaturalObjectDrawCount = 0;
         BeginReliefDraw();
         if (world is null) return;
@@ -625,7 +811,7 @@ public partial class WorldTerrainLayer : Control
             {
                 var sourceX = wrapsEastWest ? Mod(x, world.Width) : x;
                 var width = Math.Min(end - x, world.Width - sourceX);
-                DrawTextureRectRegion(paletteTexture,
+                DrawTextureRectRegion(seasonalPalettes.GetValueOrDefault(Season, paletteTexture),
                     new Rect2(x * stride, bounds.Top * stride, width * stride, bounds.Height * stride),
                     new Rect2(sourceX, bounds.Top, width, bounds.Height));
                 x += width;
@@ -637,7 +823,7 @@ public partial class WorldTerrainLayer : Control
             // pixel-art ground, then soft edges where a neighboring land
             // surface reaches into it, or a rounded shore on water tiles.
             var atlasSize = TerrainTextures.AtlasTileSize(tileSize);
-            var atlas = TerrainTextures.Atlas(atlasSize);
+            var atlas = TerrainTextures.Atlas(atlasSize, Season);
             var edges = TerrainTransitions.Atlas(atlasSize);
             var coasts = CoastEdges.Atlas(atlasSize);
             var water = WaterTextures.Atlas(atlasSize);
@@ -666,7 +852,8 @@ public partial class WorldTerrainLayer : Control
                     DrawTextureRectRegion(atlas, tile, TerrainTextures.Region(style, TerrainTextures.VariantAt(mapX, y), atlasSize));
                     TerrainTransitions.Collect(world, mapX, y, wrapsEastWest, transitionPieces);
                     foreach (var (over, piece) in transitionPieces)
-                        DrawTextureRectRegion(edges, tile, TerrainTransitions.Region(over, piece, atlasSize));
+                        DrawTextureRectRegion(edges, tile, TerrainTransitions.Region(over, piece, atlasSize),
+                            LandscapePalette.GroundTint(over, Season));
                     // Hills are relief over the tile's own ground, not a
                     // separate surface, so grass or snow still shows through.
                     // The relief layer shades them once its chunk is ready;
@@ -687,7 +874,9 @@ public partial class WorldTerrainLayer : Control
         DrawFields(bounds, stride);
         DrawTownSiteGuidance(bounds, stride);
         DrawRoads(bounds, stride);
+        DrawGroundSnow(bounds, stride);
         DrawBridges(bounds, stride);
+        DrawAutumnLeaves(bounds, stride);
         DrawBuildings(bounds, stride);
         // Trees are objects, not baked ground colors: keep them visible both
         // above full-size tiles and above the small-tile palette cache.
@@ -791,7 +980,7 @@ public partial class WorldTerrainLayer : Control
                 DrawTextureRectRegion(coasts, tile, CoastEdges.Region(CoastEdges.FoamRow, piece, atlasSize), CoastEdges.Foam);
         foreach (var (land, piece) in transitionPieces)
             DrawTextureRectRegion(coasts, tile, CoastEdges.Region(CoastEdges.LandRow, piece, atlasSize),
-                TerrainTextures.BaseColor(land));
+                LandscapePalette.Ground(TerrainTextures.BaseColor(land), land, Season));
     }
 
     private void DrawNaturalObject(Vector2 position, byte kind, byte stage)
@@ -1081,27 +1270,54 @@ public partial class WorldTerrainLayer : Control
     /// <summary>
     /// Building roofs at their footprints (a flat roof color when zoomed out),
     /// drawn again one world-width away when the map wraps so a building on
-    /// the seam stays whole.
+    /// the seam stays whole. Construction sites follow at their stage, as
+    /// cleared earth when zoomed out.
     /// </summary>
     private void DrawBuildings((int Left, int Top, int Width, int Height) bounds, int stride)
     {
-        if (world is null || buildings.Count == 0 || tileSize <= 0) return;
+        DrawnSnowRoofCount = 0;
+        DrawnSnowRoofRegionCount = 0;
+        if (world is null || buildings.Count == 0 && constructionSites.Count == 0 && lanternSites.Count == 0 || tileSize <= 0) return;
         var visible = new Rect2I(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
         var atlasSize = BuildingSprites.AtlasTileSize(tileSize);
-        foreach (var (footprint, kind, door) in buildings)
+        var shifts = wrapsEastWest ? new[] { -world.Width, 0, world.Width } : [0];
+        Rect2? Placed(Rect2I footprint, int shift)
         {
-            foreach (var shift in wrapsEastWest ? new[] { -world.Width, 0, world.Width } : [0])
+            var placed = footprint with { Position = footprint.Position + new Vector2I(shift, 0) };
+            if (!placed.Intersects(visible)) return null;
+            return new Rect2(placed.Position.X * stride, placed.Position.Y * stride,
+                placed.Size.X * stride - tileGap, placed.Size.Y * stride - tileGap);
+        }
+        foreach (var (footprint, kind, door, neglect) in buildings)
+            foreach (var shift in shifts)
             {
-                var placed = footprint with { Position = footprint.Position + new Vector2I(shift, 0) };
-                if (!placed.Intersects(visible)) continue;
-                var rect = new Rect2(placed.Position.X * stride, placed.Position.Y * stride,
-                    placed.Size.X * stride - tileGap, placed.Size.Y * stride - tileGap);
+                if (Placed(footprint, shift) is not { } rect) continue;
                 if (tileSize < SpriteTileMinimum)
                     DrawRect(rect, BuildingSprites.RoofColor(kind));
                 else
-                    DrawTextureRect(BuildingSprites.Texture(kind, footprint.Size.X, footprint.Size.Y, atlasSize, door), rect, false);
+                {
+                    DrawTextureRect(BuildingSprites.Texture(kind, footprint.Size.X, footprint.Size.Y, atlasSize, door, neglect), rect, false);
+                    DrawRoofSnow(footprint, kind, door, neglect, atlasSize, shift, rect, stride);
+                }
             }
-        }
+        foreach (var (footprint, kind, door, stage) in constructionSites)
+            foreach (var shift in shifts)
+            {
+                if (Placed(footprint, shift) is not { } rect) continue;
+                if (tileSize < SpriteTileMinimum)
+                    DrawRect(rect, BuildingSprites.SiteColor(kind));
+                else
+                    DrawTextureRect(BuildingSprites.ConstructionTexture(kind, footprint.Size.X, footprint.Size.Y, atlasSize, door, stage), rect, false);
+            }
+        foreach (var (tile, stage) in lanternSites)
+            foreach (var shift in shifts)
+                if (Placed(new Rect2I(tile, Vector2I.One), shift) is { } rect)
+                {
+                    if (tileSize < SpriteTileMinimum)
+                        DrawRect(rect, BuildingSprites.SiteColor(BuildingKind.House));
+                    else if (BuildingSprites.LanternSiteTexture(atlasSize, stage) is { } materials)
+                        DrawTextureRect(materials, rect, false);
+                }
     }
 
     /// <summary>
@@ -1217,7 +1433,8 @@ public partial class WorldTerrainLayer : Control
                 var tile = new Rect2(x * stride, y * stride, tileSize, tileSize);
                 if (tileSize >= SpriteTileMinimum)
                 {
-                    DrawTextureRect(RoadSprites.BridgeTexture(eastWest, atlasSize), tile, false);
+                    if (!weatheredBridgeTiles.ContainsKey(new Vector2I(mapX, y)))
+                        DrawTextureRect(RoadSprites.BridgeTexture(eastWest, atlasSize), tile, false);
                     continue;
                 }
                 var center = tile.GetCenter();
@@ -1235,6 +1452,19 @@ public partial class WorldTerrainLayer : Control
                     DrawLine(rect.Position, rect.Position + new Vector2(0, rect.Size.Y), rail, railWidth);
                     DrawLine(rect.End - new Vector2(0, rect.Size.Y), rect.End, rail, railWidth);
                 }
+            }
+        if (tileSize < SpriteTileMinimum) return;
+        // A bridge in an abandoned Town, weathered as one picture from bank to bank.
+        var visible = new Rect2I(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
+        foreach (var (strip, eastWest, neglect) in weatheredBridges)
+            foreach (var shift in wrapsEastWest ? new[] { -world.Width, 0, world.Width } : [0])
+            {
+                var placed = strip with { Position = strip.Position + new Vector2I(shift, 0) };
+                if (!placed.Intersects(visible)) continue;
+                var deckTiles = (eastWest ? strip.Size.X : strip.Size.Y) - 2;
+                DrawTextureRect(BuildingSprites.NeglectedBridgeTexture(eastWest, deckTiles, atlasSize, neglect),
+                    new Rect2(placed.Position.X * stride, placed.Position.Y * stride,
+                        placed.Size.X * stride - tileGap, placed.Size.Y * stride - tileGap), false);
             }
     }
 
@@ -1262,9 +1492,16 @@ public partial class WorldTerrainLayer : Control
     private void DrawNatureSprite(Vector2 position, NatureSprite sprite)
     {
         var size = NatureSprites.AtlasTileSize(tileSize);
-        DrawTextureRectRegion(NatureSprites.Atlas(size), new Rect2(position, new Vector2(tileSize, tileSize)),
+        DrawTextureRectRegion(NatureSprites.Atlas(size, Season), new Rect2(position, new Vector2(tileSize, tileSize)),
             NatureSprites.Region(sprite, size));
     }
+
+    /// <summary>
+    /// Whether the far-zoom shape for a tree code is the small young orchard:
+    /// every stage drawn with the growing orchard sprite, including a planted
+    /// sapling.
+    /// </summary>
+    internal static bool DrawsAsYoungOrchard(byte tree) => NatureSprites.ForTree(tree) == NatureSprite.OrchardGrowing;
 
     private void DrawTree(Vector2 position, byte tree)
     {
@@ -1274,11 +1511,11 @@ public partial class WorldTerrainLayer : Control
             return;
         }
         var center = position + new Vector2(tileSize * 0.5f, tileSize * 0.5f);
-        if (tree == 9)
+        if (DrawsAsYoungOrchard(tree))
         {
             DrawCircle(center, Math.Max(2f, tileSize * 0.12f), new Color("795539"));
             DrawCircle(center - new Vector2(0, tileSize * 0.08f), Math.Max(2f, tileSize * 0.19f),
-                new Color("6F9749"));
+                LandscapePalette.Apply(new Color("6F9749"), Season));
             return;
         }
         if (tree is 3 or 4)
@@ -1291,16 +1528,16 @@ public partial class WorldTerrainLayer : Control
         {
             DrawCircle(center, Math.Max(2f, tileSize * 0.11f), new Color("735036"));
             DrawCircle(center - new Vector2(0, tileSize * 0.09f), Math.Max(2f, tileSize * 0.17f),
-                tree == 6 ? new Color("7BA88B") : new Color("94B465"));
+                LandscapePalette.Apply(tree == 6 ? new Color("7BA88B") : new Color("94B465"), Season));
             return;
         }
-        DrawCircle(center, Math.Max(2f, tileSize * 0.32f), new Color("273F2E"));
+        DrawCircle(center, Math.Max(2f, tileSize * 0.32f), LandscapePalette.Apply(new Color("273F2E"), Season));
         var canopy = tree == 2 ? new Color("3E705D") : new Color("5F8744");
         DrawCircle(center - new Vector2(tileSize * 0.04f, tileSize * 0.05f),
-            Math.Max(2f, tileSize * 0.27f), canopy);
+            Math.Max(2f, tileSize * 0.27f), LandscapePalette.Apply(canopy, Season));
         if (tileSize >= 20)
             DrawCircle(center - new Vector2(tileSize * 0.1f, tileSize * 0.12f),
-                tileSize * 0.09f, tree == 2 ? new Color("7BA88B") : new Color("94B465"));
+                tileSize * 0.09f, LandscapePalette.Apply(tree == 2 ? new Color("7BA88B") : new Color("94B465"), Season));
         if (tree == 7 && tileSize >= 14)
         {
             var fruitColor = new Color("DE8B4E");

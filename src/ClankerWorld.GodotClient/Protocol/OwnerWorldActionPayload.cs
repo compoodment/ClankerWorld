@@ -38,6 +38,13 @@ public static class OwnerWorldActionPayload
         $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
         $"created-utc={action.ExpectedCreatedUtc?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture) ?? "-"}");
 
+    public static string RecoveryCleanup(OwnerRecoveryCleanupAction action) => string.Join(
+        '\n', "clankerworld.owner-recovery-cleanup.v1",
+        $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"keep-count={action.KeepCount.ToString(CultureInfo.InvariantCulture)}",
+        $"expected-digest={EncodeOptional(action.ExpectedDigest)}");
+
     public static string ManualSave(OwnerManualSaveAction action) => string.Join(
         '\n',
         "clankerworld.owner-manual-save.v1",
@@ -46,6 +53,16 @@ public static class OwnerWorldActionPayload
 
     public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v3";
     public const string AgentPlacementPayloadDomain = "clankerworld.owner-agent-placement.v2";
+
+    /// <summary>
+    /// A host that advertises this accepts Anthropic models and a thinking
+    /// line. Hosts that don't are asked to update instead of failing a signature.
+    /// </summary>
+    public const string ModelThinkingPayloadDomain = "clankerworld.owner-model-thinking.v1";
+
+    /// <summary>Whether a request names Anthropic or a thinking level, which older hosts don't accept.</summary>
+    public static bool NeedsModelThinkingHost(string? provider, string? thinking = null) =>
+        thinking is not null || provider?.Trim().ToLowerInvariant() is "anthropic" or "claude";
 
     public static string WorldCreation(OwnerWorldCreationAction action) => string.Join(
         '\n',
@@ -87,11 +104,25 @@ public static class OwnerWorldActionPayload
         $"amount={action.Amount.ToString(CultureInfo.InvariantCulture)}",
         $"other-agent-id={EncodeOptional(action.OtherAgentId)}");
 
-    public static string LifePace(OwnerLifePaceAction action) =>
-        "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
+    public const string LifePacePayloadDomain = "clankerworld.owner-life-pace.v2";
+    public const string JevAssistancePayloadDomain = "clankerworld.owner-jev-assistance.v2";
 
-    public static string JevAssistance(OwnerJevAssistanceAction action) =>
-        "clankerworld.owner-jev-assistance.v1\nenabled=" + action.Enabled.ToString().ToLowerInvariant();
+    public static string LifePace(OwnerLifePaceAction action) => string.Join('\n',
+        LifePacePayloadDomain,
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"rate={action.Rate.ToString(CultureInfo.InvariantCulture)}");
+
+    public static string JevAssistance(OwnerJevAssistanceAction action) => string.Join('\n',
+        JevAssistancePayloadDomain,
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"enabled={action.Enabled.ToString().ToLowerInvariant()}");
+
+    public static string RoutineHelper(OwnerRoutineHelperAction action) => string.Join(
+        '\n', "clankerworld.owner-routine-helper.v1",
+        $"world-id={EncodeRequired(action.WorldId, nameof(action.WorldId))}",
+        $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+        $"model={EncodeOptional(action.Model)}",
+        $"credential-slot-id={EncodeOptional(action.CredentialSlotId)}");
 
     public static string PairingApproval(OwnerPairingApprovalAction action) => string.Join(
         '\n',
@@ -156,8 +187,9 @@ public static class OwnerWorldActionPayload
     {
         ArgumentNullException.ThrowIfNull(action);
         var provider = action.Provider?.Trim().ToLowerInvariant();
-        if (provider is not ("openai" or "ollama-cloud"))
-            throw new ArgumentException("Choose OpenAI or Ollama Cloud for a personal model check.", nameof(action));
+        if (provider == "claude") provider = "anthropic";
+        if (provider is not ("openai" or "ollama-cloud" or "anthropic"))
+            throw new ArgumentException("Choose OpenAI, Ollama Cloud or Anthropic for a personal model check.", nameof(action));
         ArgumentException.ThrowIfNullOrWhiteSpace(action.Model);
         if (action.Model.Length > 200 || action.Model.Any(char.IsControl))
             throw new ArgumentException("Model names must be 200 characters or fewer and contain no control characters.", nameof(action));
@@ -170,11 +202,14 @@ public static class OwnerWorldActionPayload
         var apiKeyDigest = action.ApiKey is null
             ? "-"
             : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
-        return string.Join('\n', "clankerworld.owner-provider-setup-check.v1",
+        var payload = string.Join('\n', "clankerworld.owner-provider-setup-check.v1",
             $"provider={EncodeRequired(provider, nameof(action.Provider))}",
             $"model={EncodeRequired(action.Model.Trim(), nameof(action.Model))}",
             $"credential-slot={EncodeOptional(action.CredentialSlotId)}",
             $"api-key-sha256={apiKeyDigest}");
+        if (action.Thinking is not null)
+            payload += "\nthinking=" + EncodeRequired(action.Thinking, nameof(action.Thinking));
+        return payload;
     }
 
     public static string ProviderConfiguration(OwnerProviderConfigurationAction action)
@@ -197,6 +232,8 @@ public static class OwnerWorldActionPayload
             payload += "\ncredential-slot=" + EncodeRequired(action.CredentialSlotId, nameof(action.CredentialSlotId));
         if (action.NewCredentialLabel is not null)
             payload += "\ncredential-label=" + EncodeRequired(action.NewCredentialLabel, nameof(action.NewCredentialLabel));
+        if (action.Thinking is not null)
+            payload += "\nthinking=" + EncodeRequired(action.Thinking, nameof(action.Thinking));
         return payload;
     }
 

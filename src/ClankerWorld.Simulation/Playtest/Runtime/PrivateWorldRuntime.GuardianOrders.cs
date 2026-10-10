@@ -18,8 +18,9 @@ public sealed partial class PrivateWorldRuntime
         // Bind the complete, unique name (or exact ID) once. Renames cannot
         // redirect a queued order, and leftover words are never guessed away.
         var named = active.Where(person => person.Id == target).ToArray();
-        if (named.Length == 0)
-            named = active.Where(person => string.Equals(person.Name, target, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (named.Length == 0 && InhabitantNameRules.CanonicalKey(target) is { } targetName)
+            named = active.Where(person => string.Equals(InhabitantNameRules.CanonicalKey(person.Name), targetName,
+                StringComparison.OrdinalIgnoreCase)).ToArray();
         if (named.Length != 1 || !NeedsCaregiver(named[0].Id) || inhabitants[named[0].Id].GuardianSearch is null)
             return null;
         return new("accept_guardianship", "queued", 1, 0, "guardianships", false, TargetAgentId: named[0].Id);

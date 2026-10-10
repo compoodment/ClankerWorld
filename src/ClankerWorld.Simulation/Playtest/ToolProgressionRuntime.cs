@@ -87,7 +87,7 @@ public sealed partial class PrivateWorldRuntime
     {
         return ToolProgressionRules.All
             .Where(definition => definition.Family == required.Family && definition.Tier >= required.Tier)
-            .Select(definition => (Definition: definition, Lot: SharedItem(definition.ItemKind, actor)))
+            .Select(definition => (Definition: definition, Lot: SharedPreparationItem(definition.ItemKind, actor)))
             .Where(item => item.Lot is { ContainerLotId: null, ConditionBasisPoints: > 0, FreshnessBasisPoints: > 0 })
             .OrderByDescending(item => item.Definition.Tier)
             .ThenByDescending(item => item.Lot!.ConditionBasisPoints)
@@ -192,7 +192,7 @@ public sealed partial class PrivateWorldRuntime
         var tools = inventory.Lots.Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
                 (lot.OwnerId == actor || lot.OwnerId == householdId) &&
                 ToolProgressionRules.Find(lot.ItemKind) is not null &&
-                lot.ConditionBasisPoints < 10_000 && UnreservedQuantity(inventory, lot) > 0)
+                lot.ConditionBasisPoints is > 0 and < 10_000 && UnreservedQuantity(inventory, lot) > 0)
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Where(tool => ToolProgressionRules.RepairMaterials(tool.ItemKind) is { Count: > 0 } materials &&
                 CanPrepareRepairInputs(actor, tool.Id, materials, protectedToolIds)).ToArray();
@@ -208,7 +208,6 @@ public sealed partial class PrivateWorldRuntime
         if (!inhabitants.TryGetValue(actor, out var state)) return false;
 
         var inventory = society.Checkpoint.Inventory;
-        var protectedMaterials = CarriedRepairMaterialLotIds(actor, repairMaterials);
         var harvestToolIds = new List<string>();
         var requiredCarryUnits = 0;
         foreach (var input in repairMaterials)
@@ -219,7 +218,7 @@ public sealed partial class PrivateWorldRuntime
             var missing = Math.Max(0, input.Amount - carried);
             if (missing == 0) continue;
 
-            if (SharedItem(input.ResourceId, actor) is { } shared)
+            if (SharedPreparationItem(input.ResourceId, actor) is { } shared)
             {
                 if (AvailableLotQuantity(shared) < missing)
                     return false;
@@ -242,22 +241,37 @@ public sealed partial class PrivateWorldRuntime
         if (missingCarryUnits <= 0)
             return true;
 
-        var protectedLotIds = protectedMaterials.Append(repairToolId).Concat(harvestToolIds).Concat(protectedToolIds ?? [])
-            .Distinct(StringComparer.Ordinal).ToArray();
-        var primaryProtectedLotId = harvestToolIds.FirstOrDefault() ?? repairToolId;
-        var cargo = SpareCargoForFood(actor, missingCarryUnits, primaryProtectedLotId,
-            protectedLotIds.Where(id => id != primaryProtectedLotId).ToArray());
+        var cargo = SpareCargoForToolRepair(actor, missingCarryUnits, repairToolId, repairMaterials,
+            harvestToolIds.Concat(protectedToolIds ?? []).Distinct(StringComparer.Ordinal).ToArray());
         return cargo.Count > 0 && SpareCargoDestination(actor, state,
             cargo.Sum(move => move.PhysicalQuantity)) is not null;
     }
 
-    private string[] CarriedRepairMaterialLotIds(string actor, IReadOnlyList<ContentQuantity> repairMaterials)
+    private Dictionary<string, int> CarriedRepairMaterialQuantities(string actor, IReadOnlyList<ContentQuantity> repairMaterials)
     {
-        var kinds = repairMaterials.Select(input => input.ResourceId).ToHashSet(StringComparer.Ordinal);
-        return society.Checkpoint.Inventory.Lots.Where(lot =>
-                ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) && lot.OwnerId == actor && kinds.Contains(lot.ItemKind) &&
-                AvailableLotQuantity(lot) > 0)
-            .Select(lot => lot.Id).ToArray();
+        var retained = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var input in repairMaterials)
+        {
+            var remaining = input.Amount;
+            foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot =>
+                         ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) && lot.OwnerId == actor && lot.ItemKind == input.ResourceId)
+                         .OrderBy(lot => lot.Id, StringComparer.Ordinal))
+            {
+                var quantity = Math.Min(remaining, AvailableLotQuantity(lot));
+                if (quantity > 0) retained.Add(lot.Id, quantity);
+                remaining -= quantity;
+                if (remaining == 0) break;
+            }
+        }
+        return retained;
+    }
+
+    private List<SpareCargoMove> SpareCargoForToolRepair(string actor, int missing, string repairToolId,
+        IReadOnlyList<ContentQuantity> repairMaterials, IReadOnlyList<string>? protectedToolIds)
+    {
+        var cargo = OrdinarySpareCargo(actor, missing, repairToolId, protectedToolIds,
+            CarriedRepairMaterialQuantities(actor, repairMaterials));
+        return cargo.Sum(move => move.PhysicalQuantity) >= missing ? cargo : [];
     }
 
     private bool MakeRoomForToolRepairInput(string actor, PlaytestInhabitantState state,
@@ -266,10 +280,9 @@ public sealed partial class PrivateWorldRuntime
     {
         var missing = checked(requiredUnits - FreeCarryCapacity(actor));
         if (missing <= 0) return false;
-        var protectedMaterials = CarriedRepairMaterialLotIds(actor, repairMaterials).Append(repairToolId).Concat(protectedToolIds ?? [])
-            .Where(id => id != harvestToolId).ToArray();
         return StoreSpareCargo(actor, state, HouseholdFor(actor)!,
-            SpareCargoForFood(actor, missing, harvestToolId ?? repairToolId, protectedMaterials));
+            SpareCargoForToolRepair(actor, missing, repairToolId, repairMaterials,
+                (protectedToolIds ?? []).Concat(harvestToolId is null ? [] : new[] { harvestToolId }).ToArray()));
     }
 
     private string? RepairTool(string actor, PlaytestInhabitantState state, string lotId,
@@ -279,7 +292,7 @@ public sealed partial class PrivateWorldRuntime
         var tool = inventory.Lots.FirstOrDefault(lot => lot.Id == lotId &&
             ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) &&
             (lot.OwnerId == actor || lot.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId) &&
-            ToolProgressionRules.Find(lot.ItemKind) is not null && lot.ConditionBasisPoints < 10_000 &&
+            ToolProgressionRules.Find(lot.ItemKind) is not null && lot.ConditionBasisPoints is > 0 and < 10_000 &&
             UnreservedQuantity(inventory, lot) > 0);
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         var blacksmith = householdId is null ? null : HouseholdBuildingWithTag(householdId, "blacksmith");
@@ -290,20 +303,20 @@ public sealed partial class PrivateWorldRuntime
         foreach (var input in materialNeeds)
         {
             if (HasCarriedMaterial(actor, input.ResourceId, input.Amount)) continue;
-            if (SharedItem(input.ResourceId, actor) is not null)
+            if (SharedPreparationItem(input.ResourceId, actor, blacksmith.Position) is not null)
             {
                 if (MakeRoomForToolRepairInput(actor, state, lotId, input.Amount, null, materialNeeds, protectedToolIds))
                     return null;
-                CollectEquipment(actor, state, input.ResourceId);
+                CollectEquipment(actor, state, input.ResourceId, blacksmith.Position);
                 return null;
             }
-            if (MaterialSource(input.ResourceId, actor) is { } source)
+            if (MaterialSource(input.ResourceId, actor, blacksmith.Position) is { } source)
             {
                 if (ProjectMaterialHarvest(actor, input.ResourceId, source) is { } plan &&
                     MakeRoomForToolRepairInput(actor, state, lotId,
                         checked(plan.Quantity + plan.TreeSeedQuantity), plan.ToolLotId, materialNeeds, protectedToolIds))
                     return null;
-                GatherProjectMaterial(actor, state, input.ResourceId, source);
+                GatherProjectMaterial(actor, state, input.ResourceId, source, returnTo: blacksmith.Position);
                 return null;
             }
             return null;
@@ -366,11 +379,7 @@ public sealed partial class PrivateWorldRuntime
 
     private static int UnreservedQuantity(InventoryCheckpoint inventory, InventoryLot lot)
     {
-        var reserved = inventory.Reservations.Where(reservation => reservation.LotId == lot.Id &&
-                reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or
-                    InventoryReservationState.Committed)
-            .Sum(reservation => reservation.Quantity);
-        return Math.Max(0, lot.Quantity - reserved);
+        return Math.Max(0, InventoryRules.UnreservedQuantity(InventoryIndex.For(inventory), lot));
     }
 
 }

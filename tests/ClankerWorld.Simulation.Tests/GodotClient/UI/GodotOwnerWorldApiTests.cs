@@ -7,6 +7,7 @@ using ServerOrderCancelAction = ClankerWorld.Viewer.Control.OwnerOrderCancelActi
 using ServerPairingApprovalAction = ClankerWorld.Viewer.Control.OwnerPairingApprovalAction;
 using ServerProviderConfigurationAction = ClankerWorld.Viewer.Control.OwnerProviderConfigurationAction;
 using ServerProviderModelListAction = ClankerWorld.Viewer.Control.OwnerProviderModelListAction;
+using ServerProviderSetupCheckAction = ClankerWorld.Viewer.Control.OwnerProviderSetupCheckAction;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -170,8 +171,8 @@ public sealed class GodotOwnerWorldApiTests
     [InlineData(1_460)]
     public void LifePacePayloadMatchesTheHostExactly(int rate)
     {
-        Assert.Equal(OwnerHttpBinding.LifePacePayload(new ClankerWorld.Viewer.Control.OwnerLifePaceAction(rate)),
-            OwnerWorldActionPayload.LifePace(new OwnerLifePaceAction(rate)));
+        Assert.Equal(OwnerHttpBinding.LifePacePayload(new ClankerWorld.Viewer.Control.OwnerLifePaceAction(rate, "world-é")),
+            OwnerWorldActionPayload.LifePace(new OwnerLifePaceAction(rate, "world-é")));
     }
 
     [Theory]
@@ -179,8 +180,8 @@ public sealed class GodotOwnerWorldApiTests
     [InlineData(false)]
     public void JevAssistancePayloadMatchesTheHostExactly(bool enabled)
     {
-        Assert.Equal(OwnerHttpBinding.JevAssistancePayload(new ClankerWorld.Viewer.Control.OwnerJevAssistanceAction(enabled)),
-            OwnerWorldActionPayload.JevAssistance(new OwnerJevAssistanceAction(enabled)));
+        Assert.Equal(OwnerHttpBinding.JevAssistancePayload(new ClankerWorld.Viewer.Control.OwnerJevAssistanceAction(enabled, "world-é")),
+            OwnerWorldActionPayload.JevAssistance(new OwnerJevAssistanceAction(enabled, "world-é")));
     }
 
     [Fact]
@@ -370,6 +371,30 @@ public sealed class GodotOwnerWorldApiTests
         Assert.Equal(serverPayload, clientPayload);
         Assert.DoesNotContain(secret, clientPayload, StringComparison.Ordinal);
         Assert.Equal(OwnerHttpBinding.ProviderStatusPayload(), OwnerWorldActionPayload.ProviderStatus());
+    }
+
+    [Theory]
+    [InlineData("anthropic", null)]
+    [InlineData("anthropic", "low")]
+    [InlineData("openai", "high")]
+    [InlineData("ollama-cloud", "medium")]
+    public void ThinkingAndAnthropicPayloadsMatchViewerOwnerProtocol(string provider, string? thinking)
+    {
+        var slot = "0123456789abcdef0123456789abcdef";
+        var clientAction = new OwnerProviderConfigurationAction(
+            "personal", provider, "model-name", "pasted-provider-secret", false, "agent-a", slot, "My key", thinking);
+        var serverAction = new ServerProviderConfigurationAction(
+            clientAction.Role, clientAction.Provider, clientAction.Model, clientAction.ApiKey, clientAction.ForgetCredential,
+            clientAction.InhabitantId, clientAction.CredentialSlotId, clientAction.NewCredentialLabel, thinking);
+        var clientCheck = OwnerWorldActionPayload.ProviderSetupCheck(new OwnerProviderSetupCheckAction(provider, "model-name", slot, Thinking: thinking));
+        var serverCheck = OwnerHttpBinding.ProviderSetupCheckPayload(new ServerProviderSetupCheckAction(provider, "model-name", slot, Thinking: thinking));
+
+        Assert.Equal(OwnerHttpBinding.ProviderConfigurationPayload(serverAction), OwnerWorldActionPayload.ProviderConfiguration(clientAction));
+        Assert.Equal(serverCheck, clientCheck);
+        Assert.Equal(thinking is not null, clientCheck.Contains("\nthinking=", StringComparison.Ordinal));
+        Assert.Equal(OwnerHttpBinding.ModelThinkingPayloadDomain, OwnerWorldActionPayload.ModelThinkingPayloadDomain);
+        // Only requests an older host can't read ask it for the newer format.
+        Assert.Equal(provider == "anthropic" || thinking is not null, OwnerWorldActionPayload.NeedsModelThinkingHost(provider, thinking));
     }
 
     [Theory]

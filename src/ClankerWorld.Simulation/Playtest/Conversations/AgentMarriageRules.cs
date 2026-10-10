@@ -18,6 +18,13 @@ public sealed record AgentMarriage(string Id, [property: JsonRequired] SocietyRe
 
     public AgentConversation? SurnameReceipt { get; init; }
 
+    /// <summary>The committed partnership ending, retained even if a former partner later dies.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SocietyRelationship? EndReceipt { get; init; }
+
+    [JsonIgnore]
+    public long? EndedTick => EndReceipt?.EffectiveTick;
+
     [JsonIgnore]
     public string InitiatorId => Consent.InitiatorId;
 
@@ -54,7 +61,8 @@ public static class AgentMarriageRules
         InhabitantNameRules.CanonicalKey(invitee.Name) is { Length: <= 48 } &&
         InhabitantNameRules.SurnameKey(initiator.Name) is not null && InhabitantNameRules.SurnameKey(invitee.Name) is not null &&
         Partnership(society, first, second) is not null &&
-        !marriages.Any(marriage => HasParticipant(marriage, first) || HasParticipant(marriage, second));
+        !marriages.Any(marriage => marriage.EndReceipt is null &&
+            (HasParticipant(marriage, first) || HasParticipant(marriage, second)));
 
     public static bool HasParticipant(AgentMarriage marriage, string agentId) =>
         marriage.InitiatorId == agentId || marriage.InviteeId == agentId;
@@ -63,6 +71,10 @@ public static class AgentMarriageRules
     {
         var otherId = agentId == marriage.InitiatorId ? marriage.InviteeId : marriage.InitiatorId;
         var other = society.GetInhabitant(otherId).Name;
+        if (marriage.EndReceipt is { } ending)
+            return ending.State == SocietyRelationshipState.EndedByDeath
+                ? $"Marriage with {other} ended after a partner died."
+                : $"Marriage with {other} ended by separation.";
         return marriage.CompletedTick is null
             ? $"Marriage agreed with {other}; the shared surname is still undecided." +
                 (marriage.SurnameReceipt?.Outcome == "participant_unavailable" ? " The surname conversation stopped because a participant is unavailable." : string.Empty)

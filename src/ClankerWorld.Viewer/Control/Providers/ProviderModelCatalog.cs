@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Anthropic.Exceptions;
+using Anthropic.Models.Models;
 
 namespace ClankerWorld.Viewer.Control;
 
@@ -32,6 +34,8 @@ public sealed class ProviderModelCatalog(
     public static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> Curated =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
         {
+            [PlayerDecisionProviders.Jev] = [PlayerDecisionProviders.DefaultJevModel],
+            [PlayerDecisionProviders.Decisions] = [PlayerDecisionProviders.DefaultOpenAiModel],
             [PlayerDecisionProviders.OpenAi] = ["gpt-6.1-sol", "gpt-6-astra", "gpt-6-sol", "gpt-6-luna"],
             [PlayerDecisionProviders.OllamaCloud] =
             [
@@ -43,6 +47,7 @@ public sealed class ProviderModelCatalog(
                 "kimi-k3:cloud",
                 "gemma4:31b",
             ],
+            [PlayerDecisionProviders.Anthropic] = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
         };
 
     /// <summary>How long a key's check is reused before the provider is asked again.</summary>
@@ -60,13 +65,13 @@ public sealed class ProviderModelCatalog(
         ArgumentNullException.ThrowIfNull(action);
         var provider = PlayerDecisionProviders.Normalize(action.Provider);
         if (!Curated.TryGetValue(provider, out var curated))
-            throw new ArgumentException("Only OpenAI and Ollama Cloud offer a model list.", nameof(action));
+            throw new ArgumentException("This provider has no model list.", nameof(action));
         var defaultModel = PlayerDecisionProviders.DefaultModel(provider);
         var name = DisplayName(provider);
         OwnerProviderModelList Unchecked(string? error) =>
             new(provider, [.. curated.Select(model => new OwnerProviderModelChoice(model, true))], defaultModel, error);
 
-        if (!action.CheckKey) return Unchecked(null);
+        if (!action.CheckKey || provider == PlayerDecisionProviders.Jev) return Unchecked(null);
         if (ResolveKey(provider, action) is not { } apiKey)
             return Unchecked($"Add an API key for {name} first.");
 
@@ -122,6 +127,7 @@ public sealed class ProviderModelCatalog(
     private string? ResolveKey(string provider, OwnerProviderModelListAction action)
     {
         if (!string.IsNullOrWhiteSpace(action.ApiKey)) return action.ApiKey.Trim();
+        if (provider == PlayerDecisionProviders.Decisions) provider = PlayerDecisionProviders.OpenAi;
         var runtime = configuration.CaptureRuntimeConfiguration();
         if (action.CredentialSlotId is { } slotId)
         {
@@ -129,19 +135,52 @@ public sealed class ProviderModelCatalog(
                 ? slotKey
                 : throw new ArgumentException("That named key no longer exists for this provider.", nameof(action));
         }
-        var stored = provider == PlayerDecisionProviders.OpenAi ? runtime.OpenAi : runtime.OllamaCloud;
+        var stored = provider switch
+        {
+            PlayerDecisionProviders.OpenAi => runtime.OpenAi,
+            PlayerDecisionProviders.OllamaCloud => runtime.OllamaCloud,
+            _ => ProviderConfigurationStore.AnthropicCredential(runtime.Anthropic),
+        };
         return string.IsNullOrWhiteSpace(stored.ApiKey) ? null : stored.ApiKey;
     }
 
     private async Task<IReadOnlyList<string>> FetchAsync(string provider, string apiKey, CancellationToken cancellationToken)
     {
-        if (provider == PlayerDecisionProviders.OpenAi)
+        if (provider is PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.Decisions)
             return await GetListAsync(OpenAiModels, apiKey, cancellationToken).ConfigureAwait(false) ??
                 throw new HttpRequestException("OpenAI has no model list endpoint.");
+        if (provider == PlayerDecisionProviders.Anthropic)
+            return await GetAnthropicListAsync(apiKey, cancellationToken).ConfigureAwait(false);
         // Ollama Cloud lists its models natively; the OpenAI-style route is the fallback.
         return await GetListAsync(OllamaCloudModels, apiKey, cancellationToken).ConfigureAwait(false) ??
             await GetListAsync(OllamaCloudCompatibleModels, apiKey, cancellationToken).ConfigureAwait(false) ??
             throw new HttpRequestException("Ollama Cloud has no model list endpoint.");
+    }
+
+    /// <summary>Anthropic's model list, read through its official client with its own key header.</summary>
+    private async Task<IReadOnlyList<string>> GetAnthropicListAsync(string apiKey, CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(RequestTimeout);
+        var client = AnthropicModelClient.Create(
+            httpClientFactory.CreateClient("model"), apiKey, PlayerDecisionProviders.AnthropicEndpoint, RequestTimeout);
+        try
+        {
+            var page = await client.Models.List(new ModelListParams { Limit = 1000 }, timeout.Token).ConfigureAwait(false);
+            return [.. page.Items.Select(model => model.ID)];
+        }
+        catch (Exception exception) when (exception is AnthropicUnauthorizedException or AnthropicForbiddenException)
+        {
+            throw new ProviderRefusedKeyException();
+        }
+        catch (AnthropicApiException exception)
+        {
+            throw new HttpRequestException("Anthropic could not list its models.", exception, exception.StatusCode);
+        }
+        catch (AnthropicException exception)
+        {
+            throw new HttpRequestException("Anthropic could not list its models.", exception);
+        }
     }
 
     /// <summary>The models at one endpoint, or null when the provider has no such route.</summary>
@@ -217,7 +256,14 @@ public sealed class ProviderModelCatalog(
         return models;
     }
 
-    private static string DisplayName(string provider) => provider == PlayerDecisionProviders.OpenAi ? "OpenAI" : "Ollama Cloud";
+    private static string DisplayName(string provider) => provider switch
+    {
+        PlayerDecisionProviders.Jev => "Jev",
+        PlayerDecisionProviders.Decisions => "OpenAI Decisions",
+        PlayerDecisionProviders.OpenAi => "OpenAI",
+        PlayerDecisionProviders.Anthropic => "Anthropic",
+        _ => "Ollama Cloud",
+    };
 
     private sealed class ProviderRefusedKeyException : Exception;
 }

@@ -21,6 +21,8 @@ public sealed class WorldSelectionCoordinator(
     Func<string, IDecisionProvider> providerFactory)
 {
     private readonly object gate = providers.WorldMutationGate;
+    // Bound read-only generation without blocking the current world's transactions.
+    private readonly object previewGate = new();
     private readonly Func<GeographyOptions, GeographyCandidateSelection> selectGeographyCandidates =
         GeographyCandidateSelector.Select;
     // Concurrent because WarmUp adds results without the world-mutation gate.
@@ -43,7 +45,8 @@ public sealed class WorldSelectionCoordinator(
     }
 
     private sealed record CachedCheckpoint(string WorldId, string Seed, string Digest,
-        string? HistoryArchiveHead, bool Restorable, WorldThumbnail? Thumbnail);
+        string? HistoryArchiveHead, IReadOnlyList<RetiredBoatRequestRange> RetiredRequests,
+        bool Restorable, WorldThumbnail? Thumbnail);
 
     public WorldCatalogSnapshot List(CancellationToken cancellationToken = default)
     {
@@ -193,7 +196,7 @@ public sealed class WorldSelectionCoordinator(
                 return Incompatible(world);
             // History files and provider credentials can change without a
             // checkpoint rewrite; never reuse their previous assessment.
-            stateFile.VerifyRequiredHistory(checkedCheckpoint.HistoryArchiveHead);
+            stateFile.VerifyRequiredHistory(checkedCheckpoint.HistoryArchiveHead, checkedCheckpoint.RetiredRequests);
             if (!providers.CanRestoreWorldAssignments(world.Assignments))
                 return world with
                 {
@@ -231,12 +234,12 @@ public sealed class WorldSelectionCoordinator(
             // provider routing. Credentials and assignments are checked in Assess.
             using var verified = PrivateWorldRuntime.Restore(checkpoint);
             return new CachedCheckpoint(world.WorldId, world.Seed, digest,
-                checkpoint.HistoryArchiveHead, true, thumbnail);
+                checkpoint.HistoryArchiveHead, checkpoint.BoatTransport.RetiredRequestRanges, true, thumbnail);
         }
         catch (Exception exception) when (exception is InvalidDataException or ArgumentException or
             System.Text.Json.JsonException or FormatException or InvalidOperationException)
         {
-            return new CachedCheckpoint(world.WorldId, world.Seed, digest, null, false, thumbnail);
+            return new CachedCheckpoint(world.WorldId, world.Seed, digest, null, [], false, thumbnail);
         }
     }
 
@@ -251,7 +254,7 @@ public sealed class WorldSelectionCoordinator(
         ArgumentNullException.ThrowIfNull(geography);
         if (geography.Size is not (WorldSizePreset.Small or WorldSizePreset.Medium))
             throw new ArgumentException("Only Small and Medium are playable yet.", nameof(geography));
-        lock (gate)
+        lock (previewGate)
         {
             // Preview is read-only. The title screen can preview a new map while
             // the currently selected world is running or waiting for a client;
@@ -342,7 +345,7 @@ public sealed class WorldSelectionCoordinator(
             stateFile.Save(runtime);
             providers.RestoreWorldAssignments(entry.Assignments);
             autosave.SelectWorld(entry.WorldId, entry.AutosaveSettings);
-            jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+            jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision, runtime.RoutineHelper);
             catalog.Select(entry.Id);
         }
         catch
@@ -352,7 +355,7 @@ public sealed class WorldSelectionCoordinator(
             stateFile.Save(runtime);
             providers.RestoreWorldAssignments(oldAssignments);
             autosave.SelectWorld(oldEntry.WorldId, oldAutosave);
-            jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+            jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision, runtime.RoutineHelper);
             catalog.Select(oldEntry.Id);
             throw;
         }

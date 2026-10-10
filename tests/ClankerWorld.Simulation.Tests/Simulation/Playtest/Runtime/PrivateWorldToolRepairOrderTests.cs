@@ -460,6 +460,63 @@ public sealed class PrivateWorldToolRepairOrderTests
         Assert.Equal(3_000, world.Society.Inventory.GetLot("target").ConditionBasisPoints);
     }
 
+    [Theory]
+    [InlineData(true, false, false, true)]
+    [InlineData(true, true, false, true)]
+    [InlineData(false, false, false, true)]
+    [InlineData(true, false, true, false)]
+    public async Task SurplusRepairIngredientsCanMakeRoomWhileRequiredAndReservedQuantitiesStayProtected(
+        bool surplusWood, bool split, bool reserved, bool expected)
+    {
+        var state = Prepared();
+        var actor = Actor(state);
+        var household = Household(state);
+        var house = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == House(state));
+        var inventory = AddTool(state.Society.Society.Inventory, actor, "target", "stone_axe");
+        inventory = InventoryFixture.AddLot(inventory, "a-carried-wood", "wood", actor, surplusWood ? split ? 2 : 7 : 1);
+        if (split) inventory = InventoryFixture.AddLot(inventory, "b-carried-wood", "wood", actor, 5);
+        if (!surplusWood) inventory = InventoryFixture.AddLot(inventory, "ballast", "fiber", actor, 6);
+        if (reserved) inventory = InventoryFixture.Reserve(inventory, "held-wood", actor, "a-carried-wood", 6, "other_work", 1000);
+        inventory = InventoryFixture.AddLot(inventory, "shared-stone", "stone", household, 1, storageBuildingId: house.InstanceId);
+        state = WithInventory(state, inventory) with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor ? person with
+            { Position = house.Position } : person).ToArray(),
+        };
+        using var world = Restore(state);
+        world.Validate();
+        var receipt = Submit(world, actor, "surplus-repair", "repair stone axe");
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.True(Quantity(world, actor, "wood") >= 1);
+        Assert.Equal(actor, world.Society.Inventory.GetLot("target").OwnerId);
+        using var replay = Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        for (var tick = 1; tick < 40 && Order(world, receipt).Status != "finished"; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        Assert.Equal(expected ? "finished" : "blocked", Order(world, receipt).Status);
+        Assert.Equal(expected ? 1 : 0, Order(world, receipt).CompletedUnits);
+        Assert.Equal(expected ? 10_000 : 3_000, world.Society.Inventory.GetLot("target").ConditionBasisPoints);
+        Assert.Equal(actor, world.Society.Inventory.GetLot("target").OwnerId);
+        Assert.Equal(expected ? 0 : 1, Quantity(world, household, "stone"));
+        Assert.Equal((surplusWood ? 7 : 1) - (expected ? 1 : 0),
+            world.Society.Inventory.Lots.Where(lot => lot.ItemKind == "wood").Sum(lot => lot.Quantity));
+        if (expected) Assert.Contains(world.ExportState().Events, item => item.Kind == "spare_cargo_stored");
+        else
+        {
+            Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "spare_cargo_stored");
+            Assert.Equal((6, InventoryReservationState.Reserved),
+                (world.Society.Inventory.GetReservation("held-wood").Quantity, world.Society.Inventory.GetReservation("held-wood").State));
+        }
+        world.Validate();
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        restored.Validate();
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+    }
+
     private static PrivateWorldRuntimeState PreparedForPickup()
     {
         var state = Prepared();

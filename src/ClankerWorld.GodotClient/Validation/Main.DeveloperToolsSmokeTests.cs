@@ -5,6 +5,53 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private async Task VerifyAuthoringCoordinatesAsync(OwnerWorldSnapshot source)
+    {
+        var large = source with
+        {
+            WorldId = "authoring-coordinate-large",
+            PackedTerrain = new(256, 128, "terrain-kind-v1", Convert.ToBase64String(new byte[256 * 128])),
+            PackedMapLayers = null,
+            Tiles = [],
+        };
+        try
+        {
+            Render(large, []);
+            authoringX.Value = 125;
+            authoringY.Value = 65;
+            if (authoringX.Value != 125 || authoringY.Value != 65)
+                throw new InvalidOperationException($"Paused authoring must accept valid coordinates above 99: ({authoringX.Value}, {authoringY.Value}).");
+            var input = authoringX.GetLineEdit();
+            input.Text = "255";
+            input.EmitSignal(LineEdit.SignalName.TextSubmitted, input.Text);
+            // SpinBox handles text submission through a deferred native callback.
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            authoringY.Value = 127;
+            if (authoringX.Value != 255 || authoringY.Value != 127 || authoringX.MaxValue != 255 || authoringY.MaxValue != 127)
+                throw new InvalidOperationException("Typed authoring coordinates must reach the actual map's last tile on each axis.");
+            authoringX.Value = 256;
+            authoringY.Value = 128;
+            if (authoringX.Value != 255 || authoringY.Value != 127)
+                throw new InvalidOperationException("Authoring coordinates must clamp at the map's actual edges.");
+            Render(source, []);
+            var (width, height) = MapDimensions(source);
+            if (authoringX.MaxValue != width - 1 || authoringY.MaxValue != height - 1 ||
+                authoringX.Value != width - 1 || authoringY.Value != height - 1)
+                throw new InvalidOperationException("Switching to a smaller world must refresh authoring bounds and clamp old coordinates.");
+            Render(large, []);
+            if (authoringX.MaxValue != 255 || authoringY.MaxValue != 127)
+                throw new InvalidOperationException("Returning to a larger world must restore its authoring bounds.");
+            authoringX.Value = -1;
+            authoringY.Value = -1;
+            if (authoringX.Value != 0 || authoringY.Value != 0)
+                throw new InvalidOperationException("Authoring coordinates must stay nonnegative.");
+            Render(source with { PackedTerrain = null, PackedMapLayers = null, Tiles = [] }, []);
+            if (authoringX.MaxValue != 0 || authoringY.MaxValue != 0)
+                throw new InvalidOperationException("Without a map, authoring coordinates must not retain the previous world's bounds.");
+        }
+        finally { Render(source, []); }
+    }
+
     /// <summary>
     /// F12 opens and closes Developer tools over a running world without the
     /// Pause Menu. The panel holds every older tool, fits the screen at 100%
@@ -99,12 +146,13 @@ public partial class Main
             // Choosing an agent selects them and moves the camera to them.
             cameraZoom = maximumCameraZoom;
             RenderMap(world);
-            CenterCameraAt(new Vector2(3.5f, 0.5f));
+            SetCameraAtImmediately(new Vector2(3.5f, 0.5f));
             var names = Enumerable.Range(0, developerAgentList.ItemCount).Select(developerAgentList.GetItemText).ToArray();
             if (!names.SequenceEqual(new[] { "Mira", "Rowan" }))
                 throw new InvalidOperationException($"The agent list must name each living agent: {string.Join(", ", names)}.");
             var before = cameraCenterTiles.DistanceTo(new Vector2(0.5f, 3.5f));
             developerAgentList.EmitSignal(ItemList.SignalName.ItemSelected, 0);
+            AdvanceCameraMotion(CameraEasing.MoveSeconds);
             var after = cameraCenterTiles.DistanceTo(new Vector2(0.5f, 3.5f));
             if (selectedInhabitantId != other.Id || after >= before || after > 1)
                 throw new InvalidOperationException($"Choosing an agent must select them and move the camera to them: selected={selectedInhabitantId} distance {before} → {after}.");
@@ -115,8 +163,8 @@ public partial class Main
             if (!developerEditApply.Disabled)
                 throw new InvalidOperationException("Direct edits must be unavailable in a running world.");
             RenderDeveloperEdits(paused, actionDisabled: false);
-            if (developerEditApply.Disabled || developerEditAgent.Text != "Selected: Mira" || developerEditKind.ItemCount != 7)
-                throw new InvalidOperationException("Paused Developer tools must offer all seven edits for the selected agent.");
+            if (developerEditApply.Disabled || developerEditAgent.Text != "Selected: Mira" || developerEditKind.ItemCount != 8)
+                throw new InvalidOperationException("Paused Developer tools must offer all eight edits for the selected agent.");
             developerEditKind.Select(5);
             ConfigureDeveloperEdit();
             RenderDeveloperEdits(paused, actionDisabled: false);
@@ -127,6 +175,11 @@ public partial class Main
             ConfigureDeveloperEdit();
             if (developerEditValue.ItemCount != 4 || developerEditOther.Visible || developerEditAmount.Visible)
                 throw new InvalidOperationException("Skill edits must offer the four supported skills without quantity or partner fields.");
+            developerEditKind.Select(7);
+            ConfigureDeveloperEdit();
+            if (developerEditValue.ItemCount != 8 || !developerEditValue.Visible || developerEditOther.Visible || developerEditAmount.Visible ||
+                !Enumerable.Range(0, 8).Select(index => developerEditValue.GetItemMetadata(index).AsString()).Contains("horse:male"))
+                throw new InvalidOperationException("Animal placement must offer the species and sex without quantity or partner fields.");
             developerEditKind.Select(0);
             ConfigureDeveloperEdit();
             RenderDeveloperEdits(paused with { Inhabitants = [other with { Lifecycle = "dead" }] }, actionDisabled: false);

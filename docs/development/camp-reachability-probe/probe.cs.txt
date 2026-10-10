@@ -1,0 +1,110 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text.Json;
+using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.World;
+using ClankerWorld.Viewer.Observation;
+using Xunit.Abstractions;
+
+namespace ClankerWorld.Simulation.Tests;
+
+public sealed class CheckpointCampCostProbe(ITestOutputHelper output)
+{
+    [Theory]
+    [InlineData(WorldSizePreset.Small)]
+    [InlineData(WorldSizePreset.Medium)]
+    public async Task NativeCheckpointCampReachabilityCost(WorldSizePreset size)
+    {
+        var options = new GeographyOptions("checkpoint-reachability-cost-audit", size);
+        var inputDirectory = Environment.GetEnvironmentVariable("CLANKERWORLD_CAMP_INPUT_ROOT")!;
+        Directory.CreateDirectory(inputDirectory);
+        var inputPath = Path.Combine(inputDirectory, size + "-paused.bin");
+        PrivateWorldRuntime world;
+        if (File.Exists(inputPath)) world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(inputPath)));
+        else
+        {
+            world = PrivateWorldRuntime.Restore(GeographyGeneratorTests.StartedGeneratedWorld(options));
+            for (var tick = 0; tick < 5; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            world.Pause();
+            File.WriteAllBytes(inputPath, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        }
+        using var runtime = world;
+        var initial = runtime.ExportState();
+        Assert.Equal(5, runtime.WorldTick);
+        Assert.Equal(4, runtime.Inhabitants.Count);
+        Assert.True(runtime.Society.IsPaused);
+        var map = initial.Map;
+        var origin = map.CampObjects.SingleOrDefault(item => item.Kind == "founder")?.Position ??
+            map.CampObjects.FirstOrDefault(item => item.Id == "storage")?.Position ??
+            map.Resources.First(item => item.Id == "berry-patch").Position;
+        var required = map.Resources.Where(item => item.Id is "berry-patch" or "timber-tree" or "grain-seed-patch" or "wild-greens-patch" or "medicinal-herb-patch")
+            .Select(item => item.Position).Concat(map.CampObjects.Select(item => item.Position)).ToArray();
+        var reachable = MapAcceptance.ReachableFrom(map, origin);
+        Assert.All(required, point => Assert.True(reachable.Contains(point)));
+        var acceptance = Measure(20, () => Assert.True(MapAcceptance.Validate(map, allowEmptyCamp: true).IsValid));
+        var traversal = Measure(20, () => Assert.Equal(reachable.Count, MapAcceptance.ReachableFrom(map, origin).Count));
+        Assert.All(required, point => Assert.Equal(reachable.Contains(point), map.IsReachableFromCampOnFoot(point)));
+        var cachedChecks = Measure(20, () => { foreach (var point in required) Assert.True(map.IsReachableFromCampOnFoot(point)); });
+        var checkpoint = File.ReadAllBytes(inputPath);
+        Assert.Equal(checkpoint, PrivateWorldRuntimeCodec.Encode(initial));
+        var captureDirectory = Environment.GetEnvironmentVariable("CLANKERWORLD_CAMP_PROBE_ROOT")!;
+        Directory.CreateDirectory(captureDirectory);
+        var directory = Directory.CreateTempSubdirectory("clankerworld-camp-cost-");
+        object[] saves;
+        try
+        {
+            var file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"));
+            file.Save(runtime);
+            saves = Measure(10, () => file.Save(runtime), () =>
+            {
+                Assert.Same(map, runtime.ExportState().Map);
+                Assert.Equal(checkpoint, File.ReadAllBytes(file.Path));
+            });
+            Assert.Same(map, runtime.ExportState().Map);
+            Assert.Equal(checkpoint, File.ReadAllBytes(file.Path));
+            using var loaded = file.LoadOrCreate(options.Seed);
+            Assert.Equal(checkpoint, PrivateWorldRuntimeCodec.Encode(loaded.ExportState()));
+            file.Save(loaded);
+            Assert.Equal(checkpoint, File.ReadAllBytes(file.Path));
+        }
+        finally { directory.Delete(recursive: true); }
+        File.WriteAllBytes(Path.Combine(captureDirectory, size + "-checkpoint.bin"), checkpoint);
+        runtime.Resume();
+        var beforePreparedRefusal = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
+        Assert.False((await runtime.AdvanceOneTickAsync(() => false)).Advanced);
+        Assert.Equal(beforePreparedRefusal, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+        for (var tick = 0; tick < 15; tick++) Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+        var continued = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
+        File.WriteAllBytes(Path.Combine(captureDirectory, size + "-continued.bin"), continued);
+        using var repeated = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(checkpoint));
+        repeated.Resume();
+        for (var tick = 0; tick < 15; tick++) Assert.True((await repeated.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(continued, PrivateWorldRuntimeCodec.Encode(repeated.ExportState()));
+        output.WriteLine("CAMP_COST " + JsonSerializer.Serialize(new
+        {
+            size = size.ToString(), tiles = map.Tiles.Count, resources = map.Resources.Count,
+            inhabitants = initial.Inhabitants.Count, tick = initial.WorldSystems!.WorldTick, required = required.Length,
+            reachable = reachable.Count, acceptance, traversal, cachedChecks, saves,
+            checkpointSha256 = Convert.ToHexStringLower(SHA256.HashData(checkpoint)),
+            continuedSha256 = Convert.ToHexStringLower(SHA256.HashData(continued)),
+            exactReplay = true, exactReload = true, refusedPreparedTick = true, sameMap = true,
+        }));
+    }
+
+    private static object[] Measure(int count, Action work, Action? verify = null)
+    {
+        var samples = new List<object>();
+        for (var sample = -5; sample < count; sample++)
+        {
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var started = Stopwatch.GetTimestamp();
+            work();
+            var elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            verify?.Invoke();
+            if (sample >= 0) samples.Add(new { elapsedMs, allocatedBytes });
+        }
+        return samples.ToArray();
+    }
+}

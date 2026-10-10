@@ -241,7 +241,8 @@ public sealed partial class PrivateWorldRuntimeService(
             if (compacted && logger is not null)
             {
                 var checkpoint = runtime.ExportState();
-                LogHistoryCompacted(logger, result.WorldTick, checkpoint.EventHistoryFloor, checkpoint.Events.Count);
+                LogHistoryCompacted(logger, result.WorldTick, checkpoint.EventHistoryFloor, checkpoint.Events.Count,
+                    checkpoint.BoatTransport.Requests.Count, checkpoint.BoatTransport.RetiredRequestRanges.Count);
             }
             try
             {
@@ -660,6 +661,10 @@ public sealed partial class PrivateWorldRuntimeService(
         {
             "town_resident_joined" => TownTransitionKind.ResidentJoined,
             "town_resident_left" => TownTransitionKind.ResidentLeft,
+            "town_abandoned" => TownTransitionKind.Abandoned,
+            "town_revived" => TownTransitionKind.Revived,
+            "town_resettled" => TownTransitionKind.Resettled,
+            "town_stock_salvaged" => TownTransitionKind.StockSalvaged,
             "town_membership_evaluated" => TownTransitionKind.ResidentUnaffiliated,
             "town_founded" => TownTransitionKind.Founded,
             "town_building_assigned" => TownTransitionKind.BuildingAssigned,
@@ -670,7 +675,8 @@ public sealed partial class PrivateWorldRuntimeService(
         var townId = worldEvent.Kind == "town_membership_evaluated"
             ? "none"
             : runtime.Towns.OrderByDescending(item => item.Id.Length).FirstOrDefault(item =>
-                worldEvent.Detail == item.Id || worldEvent.Detail.StartsWith(item.Id + ":", StringComparison.Ordinal))?.Id;
+                worldEvent.Detail == item.Id || worldEvent.Detail.StartsWith(item.Id + ":", StringComparison.Ordinal) ||
+                worldEvent.Detail.StartsWith(item.Id + "|", StringComparison.Ordinal))?.Id;
         if (townId is null) return;
         var town = runtime.Towns.FirstOrDefault(item => item.Id == townId);
         TownTelemetry.Transition(logger, worldEvent.WorldTick, townId, kind.Value,
@@ -809,8 +815,9 @@ public sealed partial class PrivateWorldRuntimeService(
     private static partial void LogSettlementTrade(ILogger logger, long worldTick, string eventKind);
 
     [LoggerMessage(EventId = 2203, Level = LogLevel.Information,
-        Message = "world_history_compacted tick={WorldTick} event_floor={EventFloor} recent_events={RecentEvents}")]
-    private static partial void LogHistoryCompacted(ILogger logger, long worldTick, long eventFloor, int recentEvents);
+        Message = "world_history_compacted tick={WorldTick} event_floor={EventFloor} recent_events={RecentEvents} boat_requests={BoatRequests} retired_boat_ranges={RetiredBoatRanges}")]
+    private static partial void LogHistoryCompacted(ILogger logger, long worldTick, long eventFloor, int recentEvents,
+        int boatRequests, int retiredBoatRanges);
 
     [LoggerMessage(EventId = 2204, Level = LogLevel.Information,
         Message = "settlement_activity tick={WorldTick} event={EventKind} inhabitant={InhabitantId} stage={Stage} work={WorkDone} blocked={Blocked}")]

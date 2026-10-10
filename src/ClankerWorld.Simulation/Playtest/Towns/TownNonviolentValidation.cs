@@ -344,8 +344,11 @@ public static class TownNonviolentValidation
             complete &= quantity == term.Quantity;
         }
         Check(agreement.Status == (complete ? "completed" : tick > agreement.DeadlineTick ? "overdue" : "pending"), "Compliance must reflect actual physical performance and the agreed deadline.");
+        var previousOffer = TownRemedyRules.ReplacedAgreementOffer(state, offer);
+        Check(agreement.ReplacesAgreementId == previousOffer?.AgreementId,
+            "An agreement must retain its exact predecessor through the counteroffer history.");
         if (agreement.ReplacesAgreementId is { } replaced)
-            Check(replaced != agreement.Id && state.Agreements.TakeWhile(a => a.Id != agreement.Id).Any(a => a.Id == replaced && a.AcceptedTick <= agreement.AcceptedTick && offer.ReplacesOfferId == a.OfferId) &&
+            Check(replaced != agreement.Id && state.Agreements.TakeWhile(a => a.Id != agreement.Id).Any(a => a.Id == replaced && a.AcceptedTick <= agreement.AcceptedTick && previousOffer!.Id == a.OfferId) &&
                 state.Agreements.Count(a => a.ReplacesAgreementId == replaced) == 1, "Renegotiation must retain one exact earlier agreement.");
     }
     private static bool MissingConsent(TownRemedyOffer offer) =>

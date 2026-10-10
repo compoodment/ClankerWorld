@@ -38,7 +38,11 @@ public partial class Main
             if (GetViewport().GetVisibleRect().Size != new Vector2(1280, 720))
                 throw new InvalidOperationException("Handcart zoom checks must run in a real 720p viewport.");
             VerifyHandcartMotionAndZoom();
+            VerifyPeopleInside();
             VerifyBoatPresentation();
+            VerifyAnimalPresentation();
+            VerifyAbandonedBuildingLooks();
+            await VerifyConstructionSitesAsync();
         }
         finally
         {
@@ -147,6 +151,7 @@ public partial class Main
 
         TextureRect Expect(int facing, bool loaded, bool pulled, string phase, bool sameMarker = true)
         {
+            AdvanceMapMarkers(WalkingMotion.GlideSeconds);
             var marker = mapObjectVisuals["handcart:" + cart.Id];
             var sprite = marker.GetNode<TextureRect>("HandcartSprite");
             using var image = sprite.Texture.GetImage();

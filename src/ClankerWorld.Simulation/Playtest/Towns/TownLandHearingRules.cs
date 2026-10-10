@@ -26,14 +26,14 @@ public static class TownLandHearingRules
         state with { Cases = state.Cases.Select(c => c.Id == item.Id ? item : c).ToArray() };
 
     public static bool IsValidOutcome(TownLandRequestedOutcome outcome, long tick) =>
-        outcome is not null && outcome.Kind is "confirm" or "renew" or "amend" or "end" or "reject" &&
+        outcome is not null && outcome.Kind is "confirm" or "renew" or "amend" or "end" or "reject" or "reclaim" or "grant" &&
         (outcome.Kind is "confirm" or "reject" ? outcome.HouseholdId is null && outcome.AgreedEndTick is null :
-            ValidText(outcome.HouseholdId, 128) && (outcome.Kind == "end" ? outcome.AgreedEndTick is null :
+            ValidText(outcome.HouseholdId, outcome.Kind is "reclaim" or "grant" ? 256 : 128) && (outcome.Kind is "end" or "reclaim" or "grant" ? outcome.AgreedEndTick is null :
                 outcome.AgreedEndTick is null || outcome.AgreedEndTick > tick));
 
     public static TownLandHearingState File(TownLandHearingState state, string townId,
         TownLandCaseFiling filing, IReadOnlyList<GridPoint> tiles, IReadOnlyList<HouseholdLandUseRight> currentRights,
-        IReadOnlyList<TownLandCaseParty> parties, long tick, int day, string noticeId)
+        IReadOnlyList<TownLandCaseParty> parties, long tick, int day, string noticeId, TownPropertyCase? property = null)
     {
         if (filing.Kind is not ("dispute" or "expiry" or "town") || !ValidText(filing.Text) || !IsValidOutcome(filing.RequestedOutcome, tick) ||
             filing.Tick != tick || day <= 0 || !ValidText(noticeId, 128) || tiles.Count == 0 ||
@@ -42,15 +42,25 @@ public static class TownLandHearingRules
             filing.Kind == "expiry" && !currentRights.Any(r => r.Id == filing.AuthorityId && r.AgreedEndTick is { } end && end <= tick && r.Tiles.Any(tiles.Contains)) ||
             filing.Kind != "expiry" && !parties.Any(p => p.AdultIds.Contains(filing.AgentId!, StringComparer.Ordinal) || p.RepresentativeId == filing.AgentId))
             throw new InvalidOperationException("A land filing requires an identified plot, eligible filer and bounded requested outcome.");
-        var kind = filing.Kind == "expiry" ? "expiry" : "dispute";
+        if (property is null ? filing.RequestedOutcome.Kind is "reclaim" or "grant" :
+            filing.Kind != "town" || filing.AuthorityId is null || !TownPropertyRules.IsValid(property.Request) ||
+            filing.RequestedOutcome != TownPropertyRules.Outcome(property.Request) || property.Snapshots is not { Count: 1 } ||
+            property.Snapshots[0].Revision != 1 || property.Snapshots[0].Tick != tick)
+            throw new InvalidOperationException("A physical property filing needs the Town's exact authorized request and assets.");
+        var kind = property is not null ? "property" : filing.Kind == "expiry" ? "expiry" : "dispute";
         var key = CaseKey(townId, kind, tiles);
-        if (FilingRefusal(state, townId, tiles, currentRights, filing.Kind == "expiry" ? filing.AuthorityId : null) is { } refusal)
+        if ((property is not null ? TownPropertyRules.FilingRefusal(state, tiles, property) :
+                FilingRefusal(state, townId, tiles, currentRights, filing.Kind == "expiry" ? filing.AuthorityId : null)) is { } refusal)
             throw new InvalidOperationException(refusal);
         if (state.Cases.SingleOrDefault(c => c.TownId == townId && c.Status == "pending" && CurrentRevision(c).Tiles.SequenceEqual(tiles)) is { } existing)
+        {
+            if (existing.Property is not null)
+                throw new InvalidOperationException("A property hearing cannot silently join a different permission request.");
             return Replace(state, existing with { Filings = existing.Filings.Contains(filing) ? existing.Filings : existing.Filings.Append(filing).ToArray() });
+        }
         var id = "land-case:" + townId + ":" + (state.Sequence + 1).ToString(CultureInfo.InvariantCulture);
         var revision = Revision(1, tiles, currentRights, parties, noticeId, tick, day, filing.RequestedOutcome);
-        var item = new TownLandCase(id, key, kind, tick, "pending", [revision], [filing], [], [], [], null, [], [], null, [], []) { TownId = townId };
+        var item = new TownLandCase(id, key, kind, tick, "pending", [revision], [filing], [], [], [], null, [], [], null, [], []) { TownId = townId, Property = property };
         return state with { Sequence = state.Sequence + 1, Cases = state.Cases.Append(item).ToArray() };
     }
 
@@ -79,11 +89,11 @@ public static class TownLandHearingRules
 
     public static TownLandHearingState Revise(TownLandHearingState state, string caseId,
         IReadOnlyList<HouseholdLandUseRight> currentRights, IReadOnlyList<TownLandCaseParty> parties,
-        IReadOnlyList<GridPoint> tiles, long tick, int day, string noticeId)
+        IReadOnlyList<GridPoint> tiles, long tick, int day, string noticeId, bool assetsChanged = false)
     {
         var item = Pending(state, caseId);
         var old = CurrentRevision(item);
-        if (!RequiresNewNotice(old, tiles, currentRights, parties)) return state;
+        if (!assetsChanged && !RequiresNewNotice(old, tiles, currentRights, parties)) return state;
         var next = Revision(old.Number + 1, tiles, currentRights, parties, noticeId, tick, day, old.RequestedOutcome);
         return Replace(state, item with { Revisions = item.Revisions.Append(next).ToArray() });
     }
@@ -124,7 +134,7 @@ public static class TownLandHearingRules
     public static TownLandHearingState Inspect(TownLandHearingState state, string caseId, int revision, string actor, long tick)
     {
         var item = Exact(state, caseId, revision);
-        if (tick < CurrentRevision(item).PublishedTick || !ValidText(actor, 128)) throw new InvalidOperationException("The current case file must actually be inspected.");
+        if (tick < CurrentRevision(item).PublishedTick || !TownHearingProcedure.Id(actor)) throw new InvalidOperationException("The current case file must actually be inspected.");
         var read = new TownLandCaseRead(revision, actor, tick, Ordered(item.Evidence.Select(e => e.Id)))
         { ReopenRequestIds = Ordered(item.ReopenRequests.Select(r => r.Id)) };
         return Replace(state, item with { Reads = item.Reads.Append(read).ToArray() });
@@ -177,7 +187,7 @@ public static class TownLandHearingRules
     }
 
     internal static bool ValidEvidence(TownLandEvidence e) => e is not null && ValidText(e.Id, 128) &&
-        e.Revision > 0 && ValidText(e.Text) && ValidText(e.SourceAgentId, 128) && ValidText(e.SubmittedByAgentId, 128) &&
+        e.Revision > 0 && ValidText(e.Text) && TownHearingProcedure.Id(e.SourceAgentId) && TownHearingProcedure.Id(e.SubmittedByAgentId) &&
         e.ObservedTick >= 0 && e.SubmittedTick >= e.ObservedTick &&
         (e.Kind == "allegation" && e.Acquisition is "statement" or "relay" && e.SourceRecordId is null && e.SourceVersion is null ||
             e.Kind == "observation" && e.Acquisition == "firsthand" && e.SourceAgentId == e.SubmittedByAgentId && e.SourceRecordId is null && e.SourceVersion is null ||
@@ -201,7 +211,7 @@ public static class TownLandHearingRules
     public static TownLandHearingState AssignJudge(TownLandHearingState state, string caseId, TownLandCaseJudge judge)
     {
         var item = state.Cases.Single(c => c.Id == caseId);
-        if (judge.Kind is not ("land_mayor" or "case_elected") || !ValidText(judge.AgentId, 128) || !ValidText(judge.AuthorityId, 128))
+        if (judge.Kind is not ("land_mayor" or "case_elected") || !TownHearingProcedure.Id(judge.AgentId) || !ValidText(judge.AuthorityId, 128))
             throw new InvalidOperationException("A case needs a recorded land mandate.");
         item = TownLandCaseJudgeRules.CancelContest(item, judge.AssignedTick, "authorized_judge_available");
         return Replace(state, item with { Judge = judge });
@@ -232,7 +242,15 @@ public static class TownLandHearingRules
                 item.Evidence.All(e => e.SubmittedTick <= r.ReadTick && r.EvidenceIds.Contains(e.Id, StringComparer.Ordinal))) ||
             evidenceIds.Any(id => !item.Evidence.Any(e => e.Id == id)) || lawIds.Any(id => !ValidText(id, 128)))
             throw new InvalidOperationException("The current authorized judge must inspect the file and revalidate the hearing before ruling.");
-        var changesRights = outcome.Kind is "renew" or "amend" or "end";
+        var transfersProperty = outcome.Kind is "reclaim" or "grant";
+        if (item.Property is null ? transfersProperty : outcome.Kind != "reject" &&
+                (outcome != TownPropertyRules.Outcome(item.Property.Request) || !TownPropertyRules.HasAllConsent(item, tick)))
+            throw new InvalidOperationException("A property ruling requires every living owner's exact personal consent.");
+        if (transfersProperty && !evidenceIds.Any(id => item.Evidence.Any(evidence => evidence.Id == id && evidence.Kind == "record" &&
+                evidence.SourceRecordId == TownPropertyRules.RecordId(item, revision) &&
+                evidence.SourceVersion == RecordVersion(item.Property!.Snapshots.Single(snapshot => snapshot.Revision == revision)))))
+            throw new InvalidOperationException("The judge must cite the actual noticed property record.");
+        var changesRights = outcome.Kind is "renew" or "amend" or "end" || transfersProperty;
         if (changesRights && (evidenceIds.Count == 0 || evidenceIds.All(id => item.Evidence.Single(e => e.Id == id).Kind == "allegation")))
             throw new InvalidOperationException("Unsupported evidence cannot change formal use permissions.");
         var rulingId = "land-ruling:" + item.TownId + ":" + (state.Sequence + 1).ToString(CultureInfo.InvariantCulture);
@@ -240,15 +258,16 @@ public static class TownLandHearingRules
         // Free tiles join a ruling only where a noticed household's pending request for them is being heard.
         var requested = pendingRequests?.Where(r => r.TownId == item.TownId && r.Status == "pending" && r.RequestedTick <= tick &&
             currentParties.Any(p => p.HouseholdId == r.HouseholdId)).SelectMany(TownLandRightsRules.UnresolvedRequestTiles).ToHashSet();
-        var result = changesRights ? BoundedOutcome(map, prior, notice.Tiles, outcome, rulingId, tick,
+        var result = transfersProperty ? TownPropertyRules.BoundedRights(map, prior, notice.Tiles, item.Property!.Request, rulingId, tick, item.TownId) :
+            changesRights ? BoundedOutcome(map, prior, notice.Tiles, outcome, rulingId, tick,
             item.TownId, requested) : prior;
-        if (result.Any(r => r.AgreedEndTick <= tick && r.Tiles.Any(notice.Tiles.Contains)))
+        if (item.Property is null && result.Any(r => r.AgreedEndTick <= tick && r.Tiles.Any(notice.Tiles.Contains)))
             throw new InvalidOperationException("A permission past its agreed end stays provisional until the ruling renews, amends or ends it.");
-        if (currentParties.Any(p => p.Kind == "household" && p.AdultIds.Count == 0 && IsAdverseChange(prior, result, p.HouseholdId!)))
+        if (!transfersProperty && currentParties.Any(p => p.Kind == "household" && p.AdultIds.Count == 0 && IsAdverseChange(prior, result, p.HouseholdId!)))
             throw new InvalidOperationException("An unrepresented household cannot lose its current or provisional permission.");
         var adjustmentIds = changesRights ? new[] { "land-adjustment:" + item.TownId + ":" + (state.Sequence + 1).ToString(CultureInfo.InvariantCulture) } : [];
         if (changesRights)
-            state = RecordAdjustment(state, new(adjustmentIds[0], "ruling", tick, prior.Select(Snapshot).ToArray(), result,
+            state = RecordAdjustment(state, new(adjustmentIds[0], transfersProperty ? "property_ruling" : "ruling", tick, prior.Select(Snapshot).ToArray(), result,
                 notice.Tiles, item.Id, rulingId));
         var ruling = new TownLandRuling(rulingId, revision, judge, tick, outcome, Ordered(evidenceIds), Ordered(lawIds), reasons, adjustmentIds)
         { Parties = currentParties.OrderBy(p => p.Id, StringComparer.Ordinal).ToArray() };
@@ -439,7 +458,7 @@ public static class TownLandHearingRules
         var knownFacts = item.Evidence.Where(e => e.SubmittedTick <= ruling.Tick).ToArray();
         var priorPermissions = item.Revisions.Single(r => r.Number == ruling.Revision).RightVersions;
         var cases = state?.Cases ?? [item];
-        var courtPermissions = state?.Adjustments.Where(a => a.Kind == "ruling").SelectMany(a => a.ResultRights).ToArray() ?? [];
+        var courtPermissions = state?.Adjustments.Where(a => a.Kind is "ruling" or "property_ruling").SelectMany(a => a.ResultRights).ToArray() ?? [];
         return request.EvidenceIds.Any(id => item.Evidence.Any(e => e.Id == id && ValidEvidence(e) &&
             e.Kind is "record" or "observation" && e.SubmittedTick > ruling.Tick && e.SubmittedTick <= request.Tick &&
             !knownFacts.Any(old => old.Kind == e.Kind && FactText(old.Text) == FactText(e.Text)) &&
