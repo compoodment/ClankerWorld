@@ -5,6 +5,7 @@ using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
+using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -554,7 +555,7 @@ public sealed partial class AnimalPipelineTests
     [Fact]
     public async Task OrdinaryPaidOrdersBuildAndExpandTheHouseholdsAnimalYard()
     {
-        using var generated = NormalPathWorld.CreateGenerated("animal-native-yard", _ => new AnimalChooser());
+        using var generated = NormalPathWorld.CreateGenerated("animal-native-yard-2", _ => new AnimalChooser());
         var state = generated.ExportState();
         var actor = state.Inhabitants[0].InhabitantId;
         var home = state.Society.Society.GetInhabitant(actor).HouseholdId!;
@@ -629,6 +630,38 @@ public sealed partial class AnimalPipelineTests
         Assert.Equal((home, 1, actor), (replay.Society.Inventory.GetLot("reuse-jug").OwnerId,
             replay.Society.Inventory.GetLot("fresh-milk").Quantity, replay.Society.Inventory.GetLot("fresh-milk").CarrierId));
         replay.Validate();
+    }
+
+    [Fact]
+    public async Task ViewerSendsProductCycleSoOnlyHouseholdSheepLookShornEarlyInTheirWoolCycle()
+    {
+        // A 2×2 yard holds four animals.
+        var (prepared, actor, home, yard) = CreateYard("animal-wool-growth");
+        var day = prepared.WorldSystems!.Config.TicksPerDay;
+        var tick = prepared.Society.Society.WorldTick;
+        var sheep = AnimalRules.Definition("sheep");
+        var wool = sheep.ProductDays * day;
+        var grown = -(long)sheep.AdultDays * day;
+        AnimalState Owned(string id, string species, long born, int progress) =>
+            new(id, id, species, "female", born, yard.Position, "household:" + home, home, yard.InstanceId,
+                CareUntilTick: tick + day, ProductProgressTicks: progress);
+        var state = At(prepared, actor, yard.Position, prepared.Society.Society.Inventory,
+        [
+            Owned("early", "sheep", grown, wool / 2 - 1),
+            Owned("due", "sheep", grown, wool - 1),
+            Owned("lamb", "sheep", tick, 0),
+            Owned("mare", "horse", -(long)AnimalRules.Definition("horse").AdultDays * day, 0),
+            new("wild", "wild", "sheep", "female", grown, yard.Position, "herd:wild"),
+        ]);
+        using var world = PrivateWorldRuntime.Restore(state, _ => new AnimalChooser());
+        int? Progress(string id) => new OwnerWorldObservationStore(world).GetSnapshot().Animals.Single(animal => animal.Id == id).ProductProgressPercent;
+        Assert.Equal(49, Progress("early"));
+        Assert.Null(Progress("lamb"));
+        Assert.Null(Progress("mare"));
+        Assert.Null(Progress("wild"));
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.NotNull(world.Animals.Single(animal => animal.Id == "due").ReadyProductLotId);
+        Assert.Equal(100, Progress("due"));
     }
 
     private static (PrivateWorldRuntimeState State, string Actor, string Home, PlacedBuilding Yard) CreateYard(string seed)

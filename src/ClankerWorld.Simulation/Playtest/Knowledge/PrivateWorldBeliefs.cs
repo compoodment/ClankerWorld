@@ -52,7 +52,7 @@ public sealed partial class PrivateWorldRuntime
             try
             {
                 var updated = update(society.Checkpoint);
-                ValidateBeliefEventSources(updated.Beliefs ?? [], events, eventHistoryFloor);
+                ValidateBeliefEventSources(updated.AllBeliefs(), events, eventHistoryFloor);
                 society.Apply(_ => new SocietyOperationResult(updated));
                 stored = (society.Checkpoint.Beliefs ?? []).Single(item => item.Id == beliefId);
                 checkpointSchemaVersion = StateSchemaVersion;

@@ -133,10 +133,11 @@ public partial class Main
         foreach (var person in snapshot.Inhabitants) names.TryAdd(person.Id, person.DisplayName);
         string? SubjectName(string? id) => id is not null && names.TryGetValue(id, out var name) ? name : null;
         var signature = string.Join("|", inhabitant.Id, UiTheme.Current.Name, displayPreferences.DateStyle, observedCalendarPace, displayPreferences.UseTwelveHourClock,
-            string.Join(",", inhabitant.RecentMemories.Select(item => $"{item.WorldTick}:{item.Summary}:{item.SubjectName}:{item.Visibility}")),
+            string.Join(",", inhabitant.RecentMemories.Select(item => $"{item.WorldTick}:{item.Summary}:{item.SubjectName}:{item.Visibility}:{item.Permanent}")),
             string.Join(",", inhabitant.RecentBeliefs.Select(item => $"{item.WorldTick}:{item.Statement}:{item.Provenance}:{item.ConfidenceBasisPoints}:{item.SourceAgentName}:{item.AboutInhabitantId}:{SubjectName(item.AboutInhabitantId)}:{item.IsCorrected}:{item.CorrectedTick}")),
             string.Join(",", inhabitant.RecentKnowledgeFacts.Select(item => $"{item.WorldTick}:{item.X}:{item.Y}:{item.Terrain}:{string.Join('+', item.ResourceKinds)}:{item.Acquisition}:{item.SourceAgentName}:{item.DiscovererName}")),
-            string.Join(",", inhabitant.KnowledgeArtifacts.Select(item => $"{item.Id}:{item.Title}:{item.CreatorName}:{item.Sites.Count}")));
+            string.Join(",", inhabitant.KnownRecipes.Select(item => $"{item.WorldTick}:{item.Name}:{item.Acquisition}:{item.SourceAgentName}")),
+            string.Join(",", inhabitant.KnowledgeArtifacts.Select(item => $"{item.Id}:{item.Title}:{item.CreatorName}:{item.Sites.Count}:{string.Join('+', item.RecipeNames)}")));
         if (signature == renderedMemoryCards) return;
         renderedMemoryCards = signature;
         memoryCardEntries.Clear();
@@ -147,6 +148,7 @@ public partial class Main
             {
                 var meta = new List<Control> { MetaText($"{DisplayWorldClock(item.WorldTick)} · about {item.SubjectName}") };
                 if (item.Visibility != "public") meta.Add(Tag(Pretty(item.Visibility)));
+                if (item.Permanent) meta.Add(Tag("Permanent"));
                 return MemoryEntry(MemoryKind.Memory, PixelGlyph.Thought, item.Summary, MetaLine([.. meta]));
             }));
         }
@@ -191,6 +193,14 @@ public partial class Main
                 MetaLine(MetaText($"{DisplayWorldClock(item.WorldTick)} · {how}")),
                 MemorySite(item.Terrain, item.X, item.Y, item.ResourceKinds))));
         }
+        foreach (var recipe in inhabitant.KnownRecipes)
+        {
+            var item = recipe;
+            var how = item.Acquisition == "practice" ? "Learned through practice" :
+                $"{Pretty(item.Acquisition)} from {item.SourceAgentName ?? "another agent"}";
+            memoryCardEntries.Add(new(item.WorldTick, MemoryKind.Memory, () => MemoryEntry(MemoryKind.Memory, PixelGlyph.Scroll,
+                $"Recipe: {item.Name}", MetaLine(MetaText($"{DisplayWorldClock(item.WorldTick)} · {how}")))));
+        }
         foreach (var artifact in inhabitant.KnowledgeArtifacts)
         {
             var item = artifact;
@@ -199,6 +209,7 @@ public partial class Main
                 var sites = new VBoxContainer();
                 sites.AddThemeConstantOverride("separation", 2);
                 foreach (var site in item.Sites) sites.AddChild(MemorySite(site.Terrain, site.X, site.Y, site.ResourceKinds));
+                foreach (var recipe in item.RecipeNames) sites.AddChild(new Label { Text = "Recipe: " + recipe });
                 var creation = item.Kind == "field_map" ? "drawn" : "written";
                 return MemoryEntry(MemoryKind.Map, PixelGlyph.Scroll, item.Title,
                     MetaLine(MetaText($"{DisplayWorldClock(item.CreatedTick)} · {GameUiText.ItemName(item.Kind)} {creation} by {item.CreatorName}")), sites);

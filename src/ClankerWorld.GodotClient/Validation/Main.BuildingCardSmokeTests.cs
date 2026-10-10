@@ -23,7 +23,8 @@ public partial class Main
         };
         var house = new OwnerWorldPlacedBuilding("test-house", "sha256:test/house", new(2, 2), 0, "House", ["house"], 2, 1,
             "town:first", "household:one", [new("wood", 4), new("bread", 2), new("never_an_item", 1)], new(2, 3),
-            ResidentLimit: 8, PermanentResidentCount: 2, HasDominantFamily: true, ExpansionState: "running");
+            ResidentLimit: 8, PermanentResidentCount: 2, HasDominantFamily: true, ExpansionState: "running",
+            StorageCapacity: 128, StoredQuantity: 64);
         var axeRecipe = new OwnerWorldProductionRecipe("sha256:test/wooden-axe", "Wooden axe",
             [new("wood", 3)], [new("wooden_axe", 1)]);
         house = house with { AvailableRecipes = [axeRecipe] };
@@ -38,6 +39,12 @@ public partial class Main
                 HeldInputs = [new("wood", 3)],
             }],
         };
+        PixelMeter SpaceMeter(ItemStorage storage) => storage.FindChildren("StorageSpaceMeter", "", owned: false)
+            .OfType<PixelMeter>().Single();
+        string SpaceText(ItemStorage storage) => storage.FindChildren("StorageSpaceText", nameof(Label), owned: false)
+            .OfType<Label>().Single().Text;
+        bool HasSpace(ItemStorage storage) => storage.FindChildren("StorageSpace", nameof(HBoxContainer), owned: false)
+            .OfType<HBoxContainer>().Single().Visible;
         RenderMap(buildingMap);
         HandleMapInput(new InputEventMouseButton
         {
@@ -56,6 +63,8 @@ public partial class Main
             !quickText.Contains("50%", StringComparison.Ordinal) ||
             !quickText.Contains("Oren · ", StringComparison.Ordinal) ||
             buildingQuickStorage.SlotCount != 3 || buildingQuickStorage.Summary != "7 items" ||
+            !HasSpace(buildingQuickStorage) || SpaceMeter(buildingQuickStorage).Percent != 50 ||
+            SpaceText(buildingQuickStorage) != "64 / 128 used" ||
             !mapCanvas.GetGlobalRect().Grow(1).Encloses(buildingQuickCard.GetGlobalRect()))
             throw new InvalidOperationException($"Clicking a building must outline it and open its quick card with its owner, work and stored items: {quickText} / {buildingQuickHeader.OwnerLabel.Text} / {buildingQuickStorage.Summary}.");
 
@@ -77,6 +86,109 @@ public partial class Main
             !mapCanvas.GetGlobalRect().Grow(1).Encloses(buildingDetailsPanel.GetGlobalRect()) ||
             buildingDetailsPanel.Position.X > 14.5f)
             throw new InvalidOperationException($"Details must dock on the left with the building's facts, work, storage and people: {facts} / {buildingPeopleText.Text} / {buildingDetailsPanel.GetGlobalRect()}.");
+
+        // The current owner comes from the host's building record, including
+        // when a later property ruling follows an older recovery in history.
+        var hearingJudge = new OwnerLandHearingJudge("judge-ui", "Judge", "land_mayor", "authority-ui", 10);
+        foreach (var (kind, outcomeKind, settled) in new[]
+                 { ("property", "reclaim", true), ("property", "grant", true), ("property", "reclaim", false),
+                     ("property", "reject", true), ("dispute", "confirm", true), ("expiry", "end", true) })
+        {
+            var outcome = new OwnerLandHearingOutcome(outcomeKind,
+                outcomeKind == "grant" ? house.HouseholdId : null,
+                outcomeKind == "grant" ? "Founder's household" : null, null);
+            var ruling = new OwnerLandHearingRuling("land-ruling:town:first:2", 1, hearingJudge, 25,
+                outcome, [new(2, 2)], [], [], "The recorded case outcome.", []);
+            var earlier = ruling with
+            {
+                Id = "land-ruling:town:first:1",
+                Tick = 20,
+                Outcome = new("reclaim", null, null, null)
+            };
+            var hearing = new OwnerTownLandHearing("land-hearing:town:first:2", kind, settled ? "settled" : "open",
+                outcomeKind == "grant" ? 21 : 10, settled ? 25 : null, 1, [new(2, 2)], [], "notice-ui", outcomeKind == "grant" ? 21 : 10, 24, outcome,
+                [], [], [], [], settled ? [ruling] : [],
+                hearingJudge, [], null, null, []);
+            var recovery = hearing with
+            {
+                Id = "land-hearing:town:first:1",
+                FiledTick = 10,
+                PublishedTick = 10,
+                DeadlineTick = 19,
+                SettledTick = 20,
+                NoticeId = "earlier-notice-ui",
+                RequestedOutcome = earlier.Outcome,
+                Rulings = [earlier]
+            };
+            var currentBuilding = settled && outcomeKind == "reclaim" ? house with { HouseholdId = null } : house;
+            var hearingMap = buildingMap with
+            {
+                PlacedBuildings = [currentBuilding],
+                Towns = buildingMap.Towns.Select(town => town.Id == house.TownId
+                    ? town with { LandHearings = outcomeKind == "grant" ? [recovery, hearing] : [hearing] } : town).ToArray(),
+            };
+            RenderBuildingCard(hearingMap);
+            var hearingFacts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
+            var currentOwner = currentBuilding.HouseholdId is null ? "First Town" : "Founder's household";
+            if (!hearingFacts.Contains("Owner\n" + currentOwner, StringComparison.Ordinal) ||
+                (kind == "property" && (hearingFacts.Contains("This hearing does not change", StringComparison.Ordinal) ||
+                    hearingFacts.Contains("Use permission\n", StringComparison.Ordinal))) ||
+                (kind != "property" && (!hearingFacts.Contains("Use permission\n", StringComparison.Ordinal) ||
+                    !hearingFacts.Contains("This hearing does not change the building's owner or access", StringComparison.Ordinal))) ||
+                (settled && kind == "property" && !hearingFacts.Contains("Property outcome\n" + LandHearingText.Outcome(outcome, DisplayWorldClock), StringComparison.Ordinal)) ||
+                (!settled && hearingFacts.Contains("Property outcome\n", StringComparison.Ordinal)))
+                throw new InvalidOperationException($"Building inspection must distinguish {kind}/{outcomeKind}, retain pending/history state and show the current recorded owner: {hearingFacts}.");
+            if (settled)
+            {
+                var description = WorldEventText.Describe(new(1, 25, "town_civic_result", "town:first|" + ruling.Id + "|Recorded outcome."), hearingMap);
+                if (kind == "property" ? !description.Contains("property ruling", StringComparison.Ordinal) || description.Contains("permission change", StringComparison.Ordinal)
+                    : !description.Contains("permission change", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Ruling event text must describe the same recorded property or use-permission case as its building card.");
+            }
+        }
+        RenderBuildingCard(buildingMap);
+
+        var storageViews = new[] { buildingQuickStorage, buildingDetailsStorage };
+        // Recorded occupancy can include other owners' goods absent from this household's item grid.
+        foreach (var storage in storageViews)
+            if (!HasSpace(storage) || SpaceMeter(storage).Percent != 50 || SpaceText(storage) != "64 / 128 used" ||
+                SpaceMeter(storage).TooltipText != "Storage used: 64 of 128 units.")
+                throw new InvalidOperationException("Building storage must use the host's occupied quantity and limit, rather than guessing from the visible household item grid.");
+        foreach (var (quantity, percent) in new[] { (0, 0), (1, 1), (128, 100), (129, 100) })
+        {
+            RenderBuildingCard(buildingMap with { PlacedBuildings = [house with { StoredQuantity = quantity }] });
+            foreach (var storage in storageViews)
+                if (!HasSpace(storage) || SpaceMeter(storage).Percent != percent || SpaceText(storage) != $"{quantity} / 128 used")
+                    throw new InvalidOperationException("Empty, lightly occupied, full and over-limit storage must retain exact recorded numbers while bounding the meter and keeping nonempty storage visible.");
+        }
+        RenderBuildingCard(buildingMap with
+        {
+            WorldId = "another-storage-world",
+            PlacedBuildings = [house with { StorageCapacity = 256, StoredQuantity = 128 }],
+        });
+        foreach (var storage in storageViews)
+            if (SpaceMeter(storage).Percent != 50 || SpaceText(storage) != "128 / 256 used")
+                throw new InvalidOperationException("Changing worlds and capacities must refresh exact storage counts even when the percentage is unchanged.");
+        foreach (int? limit in new int?[] { null, 0, -1 })
+        {
+            RenderBuildingCard(buildingMap with { PlacedBuildings = [house with { StorageCapacity = limit }] });
+            if (storageViews.Any(HasSpace))
+                throw new InvalidOperationException("Missing or unusable storage limits must hide the bar without inventing a capacity.");
+        }
+        RenderBuildingCard(buildingMap with { PlacedBuildings = [house with { StoredItems = null }] });
+        foreach (var storage in storageViews)
+            if (!storage.Visible || !HasSpace(storage) || SpaceText(storage) != "64 / 128 used" ||
+                storage.SlotCount != 0 || storage.Summary.Length != 0 ||
+                storage.FindChildren("*", nameof(Label), owned: false).OfType<Label>()
+                    .Any(label => label.Visible && label.Text == "Nothing stored here yet."))
+                throw new InvalidOperationException("Recorded occupancy must stay visible without inventing an empty inventory when the owner-specific item list is absent.");
+        var unstored = house with { InstanceId = "no-storage-ui-test", StoredItems = null, StorageCapacity = null };
+        selectedBuildingId = unstored.InstanceId;
+        RenderBuildingCard(buildingMap with { PlacedBuildings = [unstored] });
+        if (storageViews.Any(storage => storage.Visible || HasSpace(storage)))
+            throw new InvalidOperationException("Selecting a building without recorded storage must clear the previous building's storage view.");
+        selectedBuildingId = house.InstanceId;
+        RenderBuildingCard(buildingMap);
 
         string Labels(Node node) => string.Join('\n', node.FindChildren("*", nameof(Label), owned: false)
             .OfType<Label>().Select(label => label.Text));
@@ -143,7 +255,8 @@ public partial class Main
             ProductionJobs = [],
         });
         if (buildingDetailsStorage.Summary != "4 kinds · 11 items" || buildingDetailsStorage.SlotCount != 4 ||
-            buildingWorkSection.Visible)
+            buildingWorkSection.Visible || SpaceMeter(buildingDetailsStorage).Percent != 4 ||
+            SpaceText(buildingDetailsStorage) != "11 / 256 used")
             throw new InvalidOperationException("Building Details must follow the building's latest storage and work.");
         facts = string.Join('\n', buildingFacts.GetChildren().OfType<Label>().Select(label => label.Text));
         if (!facts.Contains("Footprint\n2 × 2 tiles", StringComparison.Ordinal) ||
@@ -238,8 +351,9 @@ public partial class Main
         if (fruitSlot.TooltipText != "Fruit × 3" || fruitSlot.CustomMinimumSize.Y <= fruitSlot.CustomMinimumSize.X - 8)
             throw new InvalidOperationException("A named item slot must leave room for its name and say what it holds.");
         fruitSlot.Free();
-        VerifyBuildingManagementRefresh(baseMap);
+        await VerifyBuildingManagementRefreshAsync(baseMap);
         await VerifyMarketCardsAsync(baseMap);
+        await VerifyBuildingStorageHistoryAsync(baseMap);
     }
 
     private async Task VerifyMarketCardsAsync(OwnerWorldSnapshot baseMap)
@@ -376,7 +490,7 @@ public partial class Main
             "town:first|market-ui|market-ui-north|seller:one|buyer:two|market-ui-offer", north.Position),
             map);
         if (!description.Contains("Sam", StringComparison.Ordinal) || !description.Contains("Lina", StringComparison.Ordinal) ||
-            !description.Contains("exact terms", StringComparison.Ordinal))
+            !description.Contains("a trade at the Market", StringComparison.Ordinal))
             throw new InvalidOperationException("Market event descriptions must retain full pipe-delimited trader identities.");
         ClearBuildingSelection();
         RenderMap(baseMap);
@@ -389,7 +503,7 @@ public partial class Main
                 new(position, [position], [position]), false);
     }
 
-    private void VerifyBuildingManagementRefresh(OwnerWorldSnapshot baseMap)
+    private async Task VerifyBuildingManagementRefreshAsync(OwnerWorldSnapshot baseMap)
     {
         var previousRegistration = registration;
         var previousKey = deviceKey;
@@ -420,6 +534,36 @@ public partial class Main
             OpenBuildingDetails();
             if (!buildingManagementSection.Visible || buildingManagementChoice.ItemCount != 3)
                 throw new InvalidOperationException("A paired owner must receive the host's household choices and the unowned option.");
+            var popup = buildingManagementChoice.GetPopup();
+            async Task KeyAsync(string action)
+            {
+                Input.ParseInputEvent(new InputEventAction { Action = action, Pressed = true });
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                Input.ParseInputEvent(new InputEventAction { Action = action, Pressed = false });
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            }
+            async Task HighlightSecondOwnerAsync()
+            {
+                // Let a preceding popup close finish before opening the next interaction.
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                buildingManagementChoice.Select(0);
+                buildingManagementChoice.ShowPopup();
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                popup.SetFocusedItem(0);
+                await KeyAsync("ui_down");
+                if (!popup.Visible || popup.GetFocusedItem() != 1 || buildingManagementChoice.Selected != 0)
+                    throw new InvalidOperationException($"Down must highlight the second owner without committing it: visible={popup.Visible}, focused={popup.GetFocusedItem()}, selected={buildingManagementChoice.Selected}, world={buildingCardSnapshot?.WorldId}.");
+            }
+            await HighlightSecondOwnerAsync();
+            await KeyAsync("ui_accept");
+            if (popup.Visible || ChosenOwner() != "household:three")
+                throw new InvalidOperationException("Enter must commit the keyboard-highlighted owner and close the menu.");
+            await HighlightSecondOwnerAsync();
+            for (var refresh = 1; refresh <= 3; refresh++)
+                RenderBuildingCard(map with { WorldTick = map.WorldTick + refresh });
+            await KeyAsync("ui_accept");
+            if (popup.Visible || ChosenOwner() != "household:three")
+                throw new InvalidOperationException($"Observation refreshes must preserve the open owner menu's keyboard choice: visible={popup.Visible}, focused={popup.GetFocusedItem()}, selected={buildingManagementChoice.Selected}.");
             buildingManagementChoice.Select(1);
             RenderBuildingCard(map with { WorldTick = map.WorldTick + 1 });
             if (ChosenOwner() != "household:three")
@@ -432,6 +576,30 @@ public partial class Main
             RenderBuildingCard(reordered);
             if (ChosenOwner() != "household:three" || buildingManagementChoice.Selected != 0)
                 throw new InvalidOperationException("Owner choices must survive reordered display names by household ID.");
+            RenderBuildingCard(map);
+            await HighlightSecondOwnerAsync();
+            RenderBuildingCard(reordered);
+            await KeyAsync("ui_accept");
+            if (popup.Visible || ChosenOwner() != "household:three" || buildingManagementChoice.Selected != 0)
+                throw new InvalidOperationException("An open keyboard choice must follow its household identity when names reorder.");
+            RenderBuildingCard(map);
+            await HighlightSecondOwnerAsync();
+            RenderBuildingCard(map with { Stockpiles = map.Stockpiles.Where(item => item.OwnerId != "household:three").ToArray() });
+            await KeyAsync("ui_accept");
+            if (popup.Visible || ChosenOwner() != "household:two")
+                throw new InvalidOperationException("Removing the highlighted owner must close the menu without selecting another household by its old index.");
+            RenderBuildingCard(map);
+            await HighlightSecondOwnerAsync();
+            RenderBuildingCard(map with { WorldId = "changed-popup-world" });
+            if (popup.Visible || ChosenOwner() != "household:two")
+                throw new InvalidOperationException("Changing worlds must close an open owner menu and reset its choice.");
+            RenderBuildingCard(map);
+            await HighlightSecondOwnerAsync();
+            SelectBuilding(second.InstanceId);
+            if (popup.Visible || ChosenOwner() != "household:two")
+                throw new InvalidOperationException("Changing buildings must close an open owner menu and reset its choice.");
+            SelectBuilding(workshop.InstanceId);
+            OpenBuildingDetails();
             buildingManagementChoice.Select(2);
             RenderBuildingCard(map);
             if (ChosenOwner() != string.Empty)

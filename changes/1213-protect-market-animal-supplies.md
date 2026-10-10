@@ -1,0 +1,1 @@
+- Animal-supply errands leave household goods on sale while someone borrows their Market stall. The goods become available for collection after borrowing ends.

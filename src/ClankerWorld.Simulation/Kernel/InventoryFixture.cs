@@ -74,7 +74,13 @@ public sealed record DirectBarterOffer(
     DirectBarterState State,
     IReadOnlyList<string> AcceptedBy);
 
-public sealed record InventoryEvent(long EventId, long WorldTick, string Kind, string Detail);
+public sealed record InventoryStorageChange(string BuildingId, string ItemKind, long QuantityChange);
+
+public sealed record InventoryEvent(long EventId, long WorldTick, string Kind, string Detail)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<InventoryStorageChange>? StorageChanges { get; init; }
+}
 
 public sealed record InventoryCheckpoint(
     long WorldTick,
@@ -934,17 +940,14 @@ public static partial class InventoryFixture
         string expectedOwnerId,
         int requestedQuantity)
     {
-        if (lot.OwnerId != expectedOwnerId || requestedQuantity <= 0 || lot.Quantity < requestedQuantity)
+        if (!InventoryRules.HasOwnedPhysicalQuantity(lot, expectedOwnerId, requestedQuantity))
             throw new InvalidOperationException("The exact owned physical lot quantity is unavailable.");
         EnsureUnreservedQuantity(checkpoint, lot, requestedQuantity);
     }
 
     private static void EnsureUnreservedQuantity(InventoryCheckpoint checkpoint, InventoryLot lot, int requestedQuantity)
     {
-        var reserved = checkpoint.Reservations.Where(reservation => reservation.LotId == lot.Id &&
-                reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed)
-            .Sum(reservation => reservation.Quantity);
-        if (reserved > lot.Quantity - requestedQuantity)
+        if (!InventoryRules.HasUnreservedQuantity(InventoryIndex.For(checkpoint), lot, requestedQuantity))
         {
             throw new InvalidOperationException("An active reservation already consumes the requested lot quantity.");
         }
@@ -955,8 +958,7 @@ public static partial class InventoryFixture
         string expectedOwnerId,
         int requestedQuantity)
     {
-        if (lot.OwnerId != expectedOwnerId || requestedQuantity <= 0 || lot.Quantity < requestedQuantity ||
-            lot.FreshnessBasisPoints == 0 || lot.ConditionBasisPoints == 0)
+        if (!InventoryRules.HasOwnedUsableQuantity(lot, expectedOwnerId, requestedQuantity))
         {
             throw new InvalidOperationException("The exact owned usable lot quantity is unavailable.");
         }
@@ -970,7 +972,7 @@ public static partial class InventoryFixture
 
     private static void EnsureUsableContainer(InventoryLot container)
     {
-        if (!InventoryContainerRules.IsContainer(container.ItemKind) || container.ConditionBasisPoints <= 0)
+        if (!InventoryRules.IsUsableContainer(container))
             throw new InvalidOperationException("A broken or invalid vessel cannot hold, serve, or supply contents.");
     }
 
@@ -1006,7 +1008,7 @@ public static partial class InventoryFixture
             offers ?? checkpoint.Offers,
             events, checkpoint.EventHistoryFloor);
         ValidateCheckpoint(next);
-        return next;
+        return InventoryStorageHistory.RecordTransition(checkpoint, next);
     }
 
     private static void ValidateCheckpoint(InventoryCheckpoint checkpoint)
@@ -1039,28 +1041,24 @@ public static partial class InventoryFixture
         }
     }
 
-    internal static void ValidateCheckpointForCodec(InventoryCheckpoint checkpoint) => ValidateCheckpoint(checkpoint);
+    internal static void ValidateCheckpointForCodec(InventoryCheckpoint checkpoint)
+    {
+        ValidateCheckpoint(checkpoint);
+        InventoryStorageHistory.Validate(checkpoint.Events);
+    }
 
     private static bool IsContainerRelated(InventoryLot lot) =>
         lot.ContainerLotId is not null || InventoryContainerRules.IsContainer(lot.ItemKind);
 
     private static void EnsureContainerOwnerAndLocation(InventoryLot container, InventoryLot content, string ownerId)
     {
-        if (!InventoryContainerRules.IsContainer(container.ItemKind) || container.Quantity != 1 ||
-            container.ContainerLotId is not null || container.OwnerId != ownerId || content.OwnerId != ownerId ||
-            container.StorageBuildingId != content.StorageBuildingId ||
-            container.DeliveryBuildingId != content.DeliveryBuildingId || container.CarrierId != content.CarrierId ||
-            (content.ContainerLotId == container.Id
-                ? content.GroundPosition is not null
-                : container.GroundPosition != content.GroundPosition))
+        if (!InventoryRules.SharesContainerOwnerAndLocation(container, content, ownerId))
             throw new InvalidOperationException("The vessel and contents must share an owner and physical location.");
     }
 
     private static void EnsureNoActiveReservations(InventoryCheckpoint checkpoint, IEnumerable<string> lotIds)
     {
-        var ids = lotIds.ToHashSet(StringComparer.Ordinal);
-        if (checkpoint.Reservations.Any(reservation => ids.Contains(reservation.LotId) &&
-                reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed))
+        if (!InventoryRules.AreUnreserved(InventoryIndex.For(checkpoint), lotIds))
             throw new InvalidOperationException("A vessel or its contents are reserved and cannot be moved.");
     }
 
@@ -1237,6 +1235,7 @@ public static class InventoryCheckpointCodec
                 })
                 .ToArray(),
             document.Events.OrderBy(item => item.EventId).ToArray(), document.EventHistoryFloor);
+        InventoryFixture.ValidateCheckpointForCodec(checkpoint);
         _ = InventoryDigest.State(checkpoint);
         return checkpoint;
     }
@@ -1300,7 +1299,9 @@ public static class InventoryDigest
         return Digest(canonical);
     }
 
-    public static string Events(IEnumerable<InventoryEvent> events) => Digest(string.Join('\n', events.OrderBy(item => item.EventId).Select(item => $"{item.EventId}|{item.WorldTick}|{item.Kind}|{item.Detail}")));
+    public static string Events(IEnumerable<InventoryEvent> events) => Digest(string.Join('\n', events.OrderBy(item => item.EventId)
+        .Select(item => $"{item.EventId}|{item.WorldTick}|{item.Kind}|{item.Detail}" +
+            (item.StorageChanges is { } changes ? "|" + JsonSerializer.Serialize(changes) : string.Empty))));
 
     private static string Digest(string canonical) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
 }

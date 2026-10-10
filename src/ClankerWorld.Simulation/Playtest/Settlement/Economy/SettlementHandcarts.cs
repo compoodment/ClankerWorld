@@ -47,7 +47,7 @@ public sealed partial class PrivateWorldRuntime
                 job.State == WorldProductionJobState.Running))
             return null;
         var shortfall = recipe.Inputs.Select(input => (Kind: input.ResourceId, Missing: input.Amount -
-                CarriedMaterialQuantity(actor, input.ResourceId) - HouseholdMaterialQuantity(household, input.ResourceId)))
+                CarriedMaterialQuantity(actor, input.ResourceId) - HouseholdMaterialQuantity(actor, household, input.ResourceId)))
             .Where(item => item.Missing > 0).ToArray();
         // Town Warehouse stock needs a route, so it is counted last: first without routes, then one route per Warehouse.
         return shortfall.All(item => WarehouseStockLots(actor, item.Kind).Sum(AvailableLotQuantity) >= item.Missing) &&
@@ -58,8 +58,9 @@ public sealed partial class PrivateWorldRuntime
         .Where(lot => ToolProgressionRules.IsTopLevelCarriedLot(lot, actor) && lot.OwnerId == actor && lot.ItemKind == kind)
         .Sum(AvailableLotQuantity);
 
-    private int HouseholdMaterialQuantity(string household, string kind) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.OwnerId == household && lot.CarrierId is null && lot.ContainerLotId is null && lot.ItemKind == kind)
+    private int HouseholdMaterialQuantity(string actor, string household, string kind) => society.Checkpoint.Inventory.Lots
+        .Where(lot => lot.OwnerId == household && lot.CarrierId is null && lot.ContainerLotId is null && lot.ItemKind == kind &&
+            AvailableLotQuantity(lot) > 0 && CanReachSharedItem(actor, lot))
         .Sum(AvailableLotQuantity);
 
     private bool ReachableWarehouseStockCovers(string actor, string kind, int missing)
@@ -92,11 +93,22 @@ public sealed partial class PrivateWorldRuntime
         .FirstOrDefault(hitch => hitch.PullerId == actor) is { } hitch
         ? society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.Id == hitch.CartLotId) : null;
 
-    private InventoryLot? NearbyOwnedHandcart(string actor, GridPoint position) =>
-        AttachedHandcart(actor) ?? society.Checkpoint.Inventory.Lots.Where(lot =>
+    private IEnumerable<InventoryLot> NearbyOwnedHandcarts(string actor, GridPoint position) =>
+        society.Checkpoint.Inventory.Lots.Where(lot =>
                 lot.ItemKind == InventoryContainerRules.Handcart && lot.OwnerId == actor &&
                 lot.GroundPosition == new InventoryGroundPosition(position.X, position.Y))
-            .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
+            .OrderBy(lot => lot.Id, StringComparer.Ordinal);
+
+    private InventoryLot? NearbyOwnedHandcart(string actor, GridPoint position) =>
+        AttachedHandcart(actor) ?? NearbyOwnedHandcarts(actor, position).FirstOrDefault();
+
+    private InventoryLot? HandcartForCargoAt(string actor, GridPoint position, string cargoId)
+    {
+        var cargo = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.Id == cargoId);
+        return cargo?.ContainerLotId is { } cartId
+            ? NearbyOwnedHandcarts(actor, position).FirstOrDefault(cart => cart.Id == cartId)
+            : null;
+    }
 
     private bool CanPullHandcart(InventoryLot cart) => cart.ConditionBasisPoints > 0 &&
         !HasActiveContainerReservation(society.Checkpoint.Inventory, cart.Id);
@@ -106,7 +118,7 @@ public sealed partial class PrivateWorldRuntime
             map.Tiles[to.Y * map.Width + to.X].Terrain is not (TerrainKind.Mountain or TerrainKind.Peak));
 
     private int TravelStepCost(string actor, GridPoint from, GridPoint to) => AttachedHandcart(actor) is null
-        ? RoadStepCost(from, to)
+        ? AgentStepCost(from, to)
         : IsRoadSurface(from) && IsRoadSurface(to)
             ? RoadStepCost(from, to) : checked(RoadStepCost(from, to) + 100);
 
@@ -151,6 +163,7 @@ public sealed partial class PrivateWorldRuntime
              lot.GroundPosition == new InventoryGroundPosition(person.Position.X, person.Position.Y)) ||
          // Household stock someone is borrowing stays the household's.
          lot.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId && lot.CarrierId is null &&
+             (!IsEdibleFood(lot.ItemKind) || MayCollectSharedFood(actor)) &&
              person.Position == HouseholdStockPosition(lot));
 
     private void AddHandcartCandidates(List<CognitionCandidate> candidates, string actor,
@@ -216,12 +229,15 @@ public sealed partial class PrivateWorldRuntime
             foreach (var lot in inventory.Lots.Where(lot => CanLoadCartLot(actor, person, lot)).OrderBy(lot => lot.Id, StringComparer.Ordinal))
                 candidates.Add(new(LoadCartPrefix + lot.Id,
                     $"Load up to {Math.Min(room, AvailableLotQuantity(lot))} nearby {lot.ItemKind.Replace('_', ' ')} into your handcart.", UnassignedCartPriority));
-        foreach (var lot in cargo)
+        foreach (var cart in NearbyOwnedHandcarts(actor, person.Position))
         {
-            if (FreeCarryCapacity(actor) > 0 && !HasActiveContainerReservation(inventory, nearby.Id))
-                candidates.Add(new(UnloadCartPrefix + lot.Id, "Unload cart goods into your carried load, within your carrying limit.", UnassignedCartPriority));
-            if (!HasActiveContainerReservation(inventory, nearby.Id))
+            if (HasActiveContainerReservation(inventory, cart.Id)) continue;
+            foreach (var lot in inventory.Lots.Where(lot => lot.ContainerLotId == cart.Id).OrderBy(lot => lot.Id, StringComparer.Ordinal))
+            {
+                if (FreeCarryCapacity(actor) > 0)
+                    candidates.Add(new(UnloadCartPrefix + lot.Id, "Unload cart goods into your carried load, within your carrying limit.", UnassignedCartPriority));
                 candidates.Add(new(UnloadCartGroundPrefix + lot.Id, "Unload cart goods onto the ground here, keeping your ownership.", UnassignedCartPriority));
+            }
         }
         if (AttachedHandcart(actor) is null && !HasActiveContainerReservation(inventory, nearby.Id))
             foreach (var recipient in inhabitants.Values.Where(item => item.InhabitantId != actor &&
@@ -231,7 +247,7 @@ public sealed partial class PrivateWorldRuntime
                     $"Give your parked handcart and its cargo to {society.Checkpoint.GetInhabitant(recipient.InhabitantId).Name} here.", UnassignedCartPriority));
     }
 
-    private bool ApplyHandcartCandidate(string actor, PlaytestInhabitantState person, string candidateId)
+    private bool ApplyHandcartCandidate(string actor, PlaytestInhabitantState person, string candidateId, string? targetCartId = null, int maximumQuantity = int.MaxValue)
     {
         if (candidateId.StartsWith(CollectCartMaterialPrefix, StringComparison.Ordinal))
         {
@@ -285,9 +301,13 @@ public sealed partial class PrivateWorldRuntime
         var isRepair = candidateId.StartsWith(RepairCartPrefix, StringComparison.Ordinal);
         var isTransfer = candidateId.StartsWith(TransferCartPrefix, StringComparison.Ordinal);
         if (!isLoad && !isUnload && !isRepair && !isTransfer) return false;
-        var cartHere = isRepair ? society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
+        var cartHere = targetCartId is not null
+            ? NearbyOwnedHandcarts(actor, person.Position).FirstOrDefault(cart => cart.Id == targetCartId)
+            : isRepair ? society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
             lot.Id == candidateId[RepairCartPrefix.Length..] && lot.OwnerId == actor &&
-            lot.ItemKind == InventoryContainerRules.Handcart) : NearbyOwnedHandcart(actor, person.Position);
+            lot.ItemKind == InventoryContainerRules.Handcart) : isUnload
+            ? HandcartForCargoAt(actor, person.Position, candidateId[(ontoGround ? UnloadCartGroundPrefix : UnloadCartPrefix).Length..])
+            : NearbyOwnedHandcart(actor, person.Position);
         if (isRepair && cartHere is { GroundPosition: { } repairSite } &&
             person.Position != new GridPoint(repairSite.X, repairSite.Y))
         {
@@ -302,7 +322,10 @@ public sealed partial class PrivateWorldRuntime
             if (lot is null || !CanLoadCartLot(actor, person, lot) || !CanPullHandcart(cartHere)) return true;
             var room = InventoryContainerRules.HandcartCapacity - society.Checkpoint.Inventory.Lots
                 .Where(item => item.ContainerLotId == cartHere.Id).Sum(item => item.Quantity);
-            var quantity = Math.Min(room, AvailableLotQuantity(lot));
+            var available = AvailableLotQuantity(lot);
+            if (lot.OwnerId != actor && IsEdibleFood(lot.ItemKind))
+                available = Math.Min(available, SharedFoodCollectionAllowance(actor));
+            var quantity = Math.Min(maximumQuantity, Math.Min(room, available));
             if (quantity <= 0) return true;
             ApplyInventoryTransition(inventory =>
             {
@@ -324,7 +347,7 @@ public sealed partial class PrivateWorldRuntime
             var prefix = ontoGround ? UnloadCartGroundPrefix : UnloadCartPrefix;
             var cargo = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot => lot.Id == candidateId[prefix.Length..] && lot.ContainerLotId == cartHere.Id);
             if (cargo is null) return true;
-            var quantity = ontoGround ? cargo.Quantity : Math.Min(cargo.Quantity, FreeCarryCapacity(actor));
+            var quantity = Math.Min(maximumQuantity, ontoGround ? cargo.Quantity : Math.Min(cargo.Quantity, FreeCarryCapacity(actor)));
             if (quantity <= 0) return true;
             ApplyInventoryTransition(inventory => InventoryFixture.UnloadHandcart(inventory, $"unload:{WorldTick}:{actor}",
                 actor, cartHere.Id, cargo.Id, quantity, ontoGround));

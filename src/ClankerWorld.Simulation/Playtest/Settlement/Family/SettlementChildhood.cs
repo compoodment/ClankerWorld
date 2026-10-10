@@ -20,10 +20,11 @@ public sealed partial class PrivateWorldRuntime
     {
         var age = society.Checkpoint.GetInhabitant(actor).AgeBand;
         if (age == SocietyAgeBand.Infant) return false;
+        if (candidate == "make_room_for_food" && ChildResident(actor)) return true;
         if (age is SocietyAgeBand.Adult or SocietyAgeBand.Elder)
             return !candidate.StartsWith("child_", StringComparison.Ordinal);
-        return candidate is "safe_idle" or "consume_food" or "collect_shared_food" or
-            "seek_food" or "harvest_food" or "move_to" or "wear_clothing" or "seek_warmth" or "seek_shelter" or "inspect_shelter_site" ||
+        return candidate is "safe_idle" or "consume_food" or "drink_milk" or "collect_shared_food" or
+            "seek_food" or "harvest_food" or "talk_to" or "move_to" or "wear_clothing" or "seek_warmth" or "seek_shelter" or "inspect_shelter_site" ||
             candidate.StartsWith("guardian_accept:", StringComparison.Ordinal) ||
             candidate.StartsWith("guardian_refuse:", StringComparison.Ordinal) ||
             candidate.StartsWith("guardian_end:", StringComparison.Ordinal) ||
@@ -33,7 +34,8 @@ public sealed partial class PrivateWorldRuntime
             candidate.StartsWith("talk:", StringComparison.Ordinal) ||
             candidate.StartsWith("conversation_", StringComparison.Ordinal) ||
             candidate.StartsWith(TownSalvagePrefix, StringComparison.Ordinal) ||
-            candidate == "child_help_food";
+            candidate == "child_help_food" || candidate.StartsWith("child_gather:", StringComparison.Ordinal) ||
+            candidate.StartsWith("child_carry:", StringComparison.Ordinal);
     }
 
     private bool ChildSocialAvailable(string actor, string target, string kind) =>
@@ -45,7 +47,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void AddChildCandidates(List<CognitionCandidate> candidates, string actor, PlaytestInhabitantState state)
     {
-        var reachable = 0;
+        var availableTargets = 0;
         foreach (var target in inhabitants.Keys.Where(id => id != actor &&
                      society.Checkpoint.GetInhabitant(id).AgeBand != SocietyAgeBand.Infant)
                  .OrderBy(id => map.FootDistance(state.Position, inhabitants[id].Position))
@@ -55,18 +57,20 @@ public sealed partial class PrivateWorldRuntime
                 continue;
             if (FindUnoccupiedRoute(actor, state.Position, inhabitants[target].Position, ResourceInteractionRange).Count == 0)
                 continue;
+            var candidateCount = candidates.Count;
             if (ChildSocialAvailable(actor, target, "converse"))
                 candidates.Add(new($"child_converse:{target}", "Talk with a nearby person and remember the encounter.", 38, target));
             if (ChildSocialAvailable(actor, target, "play"))
                 candidates.Add(new($"child_play:{target}", "Play together and build a friendship.", 34, target));
             if (AdultResident(target) && ChildSocialAvailable(actor, target, "learn"))
                 candidates.Add(new($"child_learn:{target}", "Learn a simple observation from an adult without taking an adult work role.", 42, target));
-            if (++reachable == 3) break;
+            if (candidates.Count > candidateCount && ++availableTargets == 3) break;
         }
 
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
+        AddChildHelpingCandidates(candidates, actor, state);
         var house = householdId is null ? null : HouseForHousehold(householdId);
-        if (state.HungerBasisPoints >= 6_000 && PreferredFood(actor, actor).Any(lot => AvailableLotQuantity(lot) > 1) &&
+        if (state.HungerBasisPoints >= 6_000 && PersonalSpareFood(actor) is not null &&
             (house is null || StorageRoomAfterInboundDeliveries(house.InstanceId) > 0) &&
             FindUnoccupiedRoute(actor, state.Position,
                 house?.Position ?? SettlementStoragePosition,
@@ -77,10 +81,16 @@ public sealed partial class PrivateWorldRuntime
     private void ApplyChildCandidate(string actor, PlaytestInhabitantState state, string candidate)
     {
         if (!ChildResident(actor) || NeedsUrgentWarmth(state)) return;
+        if (candidate.StartsWith("child_gather:", StringComparison.Ordinal) ||
+            candidate.StartsWith("child_carry:", StringComparison.Ordinal))
+        {
+            ApplyChildHelpingCandidate(actor, state, candidate);
+            return;
+        }
         if (candidate == "child_help_food")
         {
             if (state.HungerBasisPoints < 6_000 ||
-                PreferredFood(actor, actor).FirstOrDefault(lot => AvailableLotQuantity(lot) > 1) is not { } lot)
+                PersonalSpareFood(actor) is not { } lot)
                 return;
             var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
             var house = householdId is null ? null : HouseForHousehold(householdId);

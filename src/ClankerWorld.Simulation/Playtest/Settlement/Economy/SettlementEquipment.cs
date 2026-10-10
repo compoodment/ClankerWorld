@@ -58,7 +58,8 @@ public sealed partial class PrivateWorldRuntime
         // Borrowed goods, carried by this agent or by another member, are not theirs to take.
         .Where(lot => AvailableLotQuantity(lot) > 0 && lot.DeliveryBuildingId is null &&
             (lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) ||
-                lot.OwnerId == HouseholdFor(actor) && lot.CarrierId is null && CanReachSharedItem(actor, lot)))
+                lot.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId &&
+                lot.CarrierId is null && CanReachSharedItem(actor, lot)))
         .Concat(AvailableWarehouseStock(actor)).DistinctBy(lot => lot.Id);
 
     private InventoryLot? BetterGarment(string actor)
@@ -232,7 +233,7 @@ public sealed partial class PrivateWorldRuntime
         }
         if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, person.Survival?.IllnessBasisPoints ?? 0)) return null;
         var progress = repair.WorkDone + 1;
-        if (progress < PersonalEquipmentRules.RepairWorkTicks)
+        if (progress < SkilledWorkTicks(actor, SettlementSkillKind.Crafting, PersonalEquipmentRules.RepairWorkTicks))
         {
             inhabitants[actor] = person with { Equipment = person.Equipment with { Repair = repair with { WorkDone = progress } } };
             return null;

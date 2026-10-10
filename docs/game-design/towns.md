@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-10-06
+updated: 2026-10-08
 ---
 
 # Towns, buildings and government
@@ -51,21 +51,40 @@ everything that is available in the current build. See [what works today](../wha
   or **2×2** when its household needs more storage or resident places.
   Completed expansion increases storage and the agreed resident limit. A Warehouse starts
   at **2×2** and can expand to **2×3** for more storage. A Store may be **1×1**
-  or **1×2**, likewise tied to storage. Exact storage capacity per footprint, costs,
-  expansion triggers other than the agreed Warehouse rule (any Town resident may
-  plan its expansion once its stock is nearly full), and other building footprints belong in the full content
-  catalogue; do not invent those values yet.
+  or **1×2**, likewise tied to storage. **Agreed on October 8
+  ([#1274](https://github.com/compoodment/ClankerWorld/issues/1274)), with
+  provisional values for playtesting:** Houses, Warehouses, Stores,
+  Blacksmiths, Tailor Shops, Restaurants and Clinics store 64 units per
+  footprint tile, and an animal yard holds 16. A building counts as nearly full
+  at 80% of its storage. Houses, Warehouses and animal yards can expand. A
+  House expansion costs 4 wood per extra tile, a Warehouse expansion 4 wood
+  and 2 stone per extra tile, and a yard stage the [animal
+  pipeline's](#animal-pipeline) 8 wood and 2 rope. Other construction costs and expansion triggers other than the
+  agreed Warehouse rule (any Town resident may plan its expansion once its
+  stock is nearly full) belong in the full content catalogue; do not invent
+  those values yet.
 - Non-residential buildings have distinct physical occupancy, workstation,
   storage, and other type-specific limits. Agents can reserve space when
   practical, queue or choose alternatives when full, and retain the blocked
   goal for later retry. The simulation owns that memory; Jev can help choose an
-  alternative but is not responsible for remembering the task.
+  alternative but is not responsible for remembering the task. **Agreed on
+  October 8 ([#1242](https://github.com/compoodment/ClankerWorld/issues/1242)):**
+  civic buildings, such as the Town Hall, Market and Workshop, are open to
+  everyone, including visitors from other Towns. Shops, such as the Farmhouse,
+  Blacksmith, Store, Tailor Shop, Restaurant and Clinic, serve any customer,
+  visitors included. Each building has one workstation, used first come, first
+  served. Entering a building does not open its stock: Warehouse stock stays
+  resident-only, a Port's boats still need permission and household stock
+  stays private.
 - Building sites should come from understandable legal options considering
   access, terrain, resources, land-use rights, and Town context. A Town holds
   title to its formally claimed land; households can receive recorded rights
   to use particular sites without owning the land itself. Land rights can be
-  disputed; permission, transfers and case procedures are agreed below. Monetary
-  land values and purchase prices become meaningful after currencies exist. Agents
+  disputed; permission, transfers and case procedures are agreed below.
+  **Agreed on October 8 ([#1256](https://github.com/compoodment/ClankerWorld/issues/1256)):**
+  before any currency exists, a household can sell a use right for goods
+  through the ordinary consent-based transfer; money prices come later with a
+  [Town currency](#physical-trade-and-production-safeguards). Agents
   can later buy/sell transferable property or rights through valid processes.
   Roads help travel and influence site choice.
 - The world system must validate hard physical building constraints such as
@@ -85,8 +104,9 @@ everything that is available in the current build. See [what works today](../wha
 - **Town(s)** replaces “settlement” in player-facing terminology. There are
   no village or city place classes: every such place is a Town. The first Town
   already exists during paused New World setup, and its four starting agents
-  are Town residents with access to its Warehouse. Later membership follows the
-  [agreed Town rules](#town-membership). Towns have generated,
+  are Town residents with access to its Warehouse. Agents found later Towns
+  under the [founding rule](#borders-abandoned-towns-and-salvage). Later
+  membership follows the [agreed Town rules](#town-membership). Towns have generated,
   inspectable borders with room to grow. The border follows the
   Town's assigned buildings, includes spare space around them, and expands
   when new buildings join that Town. **Agreed after the September 30 road
@@ -124,7 +144,8 @@ everything that is available in the current build. See [what works today](../wha
   Shop household may build an optional Store; Stores are optional. An agent
   cannot give itself access to a household building its household does not
   hold. The two starting households receive the Farmhouse and Blacksmith
-  automatically, as recorded in the starter economy note below.
+  automatically, as recorded in the [starter Town
+  setup](agents-and-families.md#agreed-starter-town-and-remaining-choices).
 - **Removing or reassigning a building** that holds stock or jobs is refused
   until the stock is moved.
 - **Workshop** is communal and held by the Town. It remains for agent
@@ -140,10 +161,20 @@ everything that is available in the current build. See [what works today](../wha
   held and traded. The Weaving frame and its "Woven clothing" are removed
   outright as soon as the Tailor Shop works, with no legacy transition; old
   alpha saves need not keep loading, and no migration code is written for them
-  (see [Saves](saves.md)). **Leaning toward:** the
-  recipe numbers, costs and work time are provisional and will be tuned in
-  playtests; this chapter does not fix them. The holding household sells clothing
+  (see [Saves](saves.md)). Its recipe numbers, costs
+  and work time are **provisional** and will be tuned in playtests; this chapter
+  does not fix them. The holding household sells clothing
   directly from the building, as the Blacksmith does, and does not need a Store.
+- **Town Hall** is a **3×4** building that the Town raises as a [shared Town
+  project](#shared-town-projects). **Agreed on October 8
+  ([#1274](https://github.com/compoodment/ClankerWorld/issues/1274)):** in
+  government it is only a notice place, where agents post and read notices;
+  every Town governs from its founding, with or without one. **Agreed on
+  October 8 ([#1237](https://github.com/compoodment/ClankerWorld/issues/1237)):**
+  a resident with no House may shelter from a storm in their own Town's Town
+  Hall. Natural cover such as a forest or tree gives only partial protection
+  ([The world](world.md#survival-and-exploration)), so a House stays the best
+  shelter.
 - **Roads and bridges:** the world system generates infrastructure, not the
   player or individual agent. The full agreed road rule is below; the starter
   Path becomes a Road in intended content.
@@ -280,6 +311,8 @@ collection, births, transfers and deaths.
   capacity checks; consent and room are separate requirements.
   An ordinary request is bounded: one refusal, or no answer within the usual
   proposal window, ends it, and that household is not asked again for a while.
+  **Agreed on October 8 ([#1274](https://github.com/compoodment/ClankerWorld/issues/1274)):**
+  the wait after a refusal is two world days, a provisional value.
   Standing nearby grants nothing; a pending request grants no membership or
   access to the household's stock or shelter.
 - An adult may **leave voluntarily without the household's permission**.
@@ -340,6 +373,15 @@ Any move between Towns still follows the admission rules in issue
   who has not accepted. If no home is ready, the housing task remains visible
   while that adult continues care. Parentage is unchanged. The overcrowding
   timer still cannot expel a child alone or remove their only caregiver.
+
+**Agreed on October 8 ([#1241](https://github.com/compoodment/ClankerWorld/issues/1241)):**
+when a household has no members left, its buildings and shared goods stay its
+recorded property; nobody gains them by moving in. The Town may open a land
+case for them under the [land hearing rules](#land-hearings-and-rulings), with
+the usual notice, and a ruling may pass them to the Town, which can then grant
+them onward, for example to a household that needs a House. Former members who
+are still alive keep the property unless they agree: a ruling cannot pass it
+to the Town without their consent.
 
 Adult departure, personal ownership, limited physical collection, the once-only
 food allowance, care-group moves and solo formation are implemented through
@@ -459,7 +501,10 @@ resident counts.
   exception but needs a valid free resident place. A full-house placement
   explains the blocker instead of bypassing capacity or silently evicting
   someone. Placement on a household's other property likewise cannot avoid
-  its House's resident limit.
+  its House's resident limit. **Agreed on October 8
+  ([#1274](https://github.com/compoodment/ClankerWorld/issues/1274)):** Add
+  Agent is also refused on a tile that cannot be built on, is occupied or is
+  disputed, and on top of another agent unless the tile is a House.
 
 | Case | Agreed result |
 | --- | --- |
@@ -587,8 +632,9 @@ election procedures follow separately in
   cannot collect new stock after the Town is occupied unless it now has normal
   resident access.
 - **The Town's existing laws survive abandonment.** The restored council may
-  amend or repeal them through the agreed governing process once that process
-  is defined. Old councillors or offices are not resurrected automatically.
+  amend or repeal them through the agreed [council
+  process](#town-law-scope-and-changes). Old councillors or offices are not
+  resurrected automatically.
   The laws remain social rules that can be broken; their persistence does not
   rewrite fixed world facts or grant agents knowledge they have not learned.
 
@@ -602,6 +648,21 @@ abandoned Towns, physical salvage and resettlement as the next gameplay work
 in [#410](https://github.com/compoodment/ClankerWorld/issues/410). This replaces
 the earlier decision to park that work. See [what works today](../what-works.md)
 for the connected game path and its pending hands-on checks.
+
+**Founding a new Town, agreed on October 8
+([#1238](https://github.com/compoodment/ClankerWorld/issues/1238)):** one adult
+may found a new Town on unclaimed land away from other Towns, in the same way
+one adult may resettle an abandoned Town. The adult must be physically there
+and choose to found it; no minimum group, House or Warehouse is needed first, and their old
+Town's council does not have to approve. The game checks the site before
+recording the Town. The founder's Town membership moves to the new Town, so
+they still belong to only one Town, and dependent children follow them under
+the ordinary care rules. The new Town holds title to the land of its first
+layout, as the first Town does, and starts with an all-adult council; later
+newcomers need that council's approval. Founding creates no free House or
+materials. This also settles a House built outside every Town: it is an
+ordinary household House that belongs to no Town, and its adults may found a
+Town there under this rule.
 
 ### Agreed content and building sizes
 
@@ -641,7 +702,9 @@ and invented content are not silently approved. In particular:
 - The accepted medical goods include **bandages and medicine**. Their cloth
   and herb/water/fuel supply chains are agreed below; detailed recovery rates
   remain provisional. The October 2 decision stages bandage production, storage
-  and trade now; injury causes and bandage treatment wait for the injury stage.
+  and trade now; injury causes and bandage treatment wait for the injury stage,
+  agreed on October 8 in [Clinic supplies and illness
+  care](#clinic-supplies-and-illness-care).
 - Farmhouse **1×1 or 1×2**; adjacent private Silo **1×1**; Blacksmith
   **1×2 or 2×2**; Tailor Shop **1×1 or 2×2**; Workshop **2×2**;
   Restaurant **1×2 or 2×2**; Clinic/healer's shop **1×1 or 1×2**.
@@ -649,8 +712,8 @@ and invented content are not silently approved. In particular:
   **Agreed after the October 1 art review:** the Market building is a hall
   without stalls, and its stalls stand on an open plaza of packed earth around
   it, the same ground as Roads laid as an area rather than as streets. The
-  market need not be as large as the earlier approximately 10×12 reservation;
-  how the plaza grows remains open. For eight stalls computment settled on a
+  market need not be as large as the earlier approximately 10×12 reservation.
+  For eight stalls computment settled on a
   **7×4** plaza in the October 1 art review: 7×5 was "a bit too big for the
   eight stalls", and 5×4 lost the open column on each side that it needed.
   The stalls stand in two back-to-back rows of four, each facing an aisle,
@@ -658,7 +721,10 @@ and invented content are not silently approved. In particular:
   October 1, 2026:** the Town owns the stalls. A new Market comes with a
   starter set; when sellers need more, the Town builds them on the plaza as
   Town building projects, using Town materials. The size of the starter set
-  stays provisional. Town Hall is **3×4**. These are building/plot
+  stays provisional. **Agreed on October 8
+  ([#1274](https://github.com/compoodment/ClankerWorld/issues/1274)):** a
+  Market's plaza stays 7×4 with at most eight stalls; a Town that needs more
+  builds a second Market. Town Hall is **3×4**. These are building/plot
   footprints, not interior rooms.
 - Port is **2×4**, rotatable to all four cardinal directions. One tile of its
   four-tile length rests on land; three extend over water. Keep clear docking
@@ -691,11 +757,18 @@ are now agreed in the pipelines below; numerical balance is provisional.
 Agents identify a building need and do the work. The Town layout system offers
 **several ranked viable sites** rather than letting an agent search every tile.
 The agent can accept or reject; after rejection, they explain what was wrong
-and the layout system re-ranks sites. The retry/stop limit and what happens if
-no acceptable legal site exists remain open. Site ranking should account for
+and the layout system re-ranks sites. Site ranking should account for
 terrain, resources, existing buildings, ownership, access, other Towns, room
 for growth and building purpose. Town appearance/layout should vary by
-Town/culture. Exact weights and when another offer appears are open.
+Town/culture. Exact ranking weights are open.
+
+**Agreed on October 8 ([#1274](https://github.com/compoodment/ClankerWorld/issues/1274)):**
+an offer lists up to five ranked sites, and never more than eight. Not choosing
+counts as rejecting the offer. A blocked project tries again after 60 ticks.
+These numbers are provisional. When no legal site exists, the agent is pointed
+to the ways to get one: a household land request or a Council land claim, as
+described in [Town land and household use
+rights](#town-land-and-household-use-rights).
 
 **Agreed, what a household plans:** a household plans only the buildings it
 needs for itself: a House, or a Farmhouse, Blacksmith, Store or Tailor Shop it
@@ -743,6 +816,9 @@ trial values to tune in playtests: a stone lamp takes stone, and a hanging
 lantern takes wood and a little refined iron. Where lanterns stand is the
 proposer's choice within the ordinary site rules; a suggestion is stone lamps
 at Road junctions and hanging lanterns every few tiles along a Road.
+**Agreed by the owner on October 7, 2026:** a lantern in an abandoned Town
+stays dark at night until someone resettles the Town, and so does the lantern
+on a Port's pier.
 
 The intended building roles now include House, Warehouse, Workshop,
 Farmhouse, farm fields, an adjacent private farm Silo, optional household-run
@@ -752,8 +828,9 @@ agent-founded Restaurant. A
 Farmhouse processes crops; the household that holds it places fertile fields,
 plants seeds, tends, harvests, and sells/trades the produce. Farm count
 responds to **Town population and farm yields**; a shortage or reduced yield can justify
-more farming rather than a hard cap blocking recovery. The exact formula is
-open. Farm work stock
+more farming rather than a hard cap blocking recovery. Farms plan fields for
+the whole Town, as agreed in [Food and replanting](#food-and-replanting); the
+exact numbers are provisional. Farm work stock
 is private to its household; its Silo is distinct from the public Town
 Warehouse. The Blacksmith makes and sells tools on site and can accept
 specific tool-making requests, with stock inside the building. A Store
@@ -762,8 +839,11 @@ to the Store and kept in its own stock before sale; a Store cannot sell from
 a remote House, farm, or Warehouse inventory. A Market admits traders from any
 Town; a Restaurant buys ingredients, cooks and sells potentially better meals.
 Town Hall supports governance and Port supports boats. The physical
-stock and barter rules are now agreed in the pipelines below; ownership edge
-cases, currency rules and later pricing still need their own decisions. See the
+stock and barter rules are now agreed in the pipelines below, currency in
+[Physical trade and production safeguards](#physical-trade-and-production-safeguards)
+and an empty household's property in [Household goods and
+departure](#household-goods-and-departure). Other ownership edge cases and
+later pricing still need their own decisions. See the
 [accepted asset roster](content-list.md) for specific content and
 [current state](../what-works.md) for what exists in the prototype.
 
@@ -772,7 +852,10 @@ Better tools should gate harvesting/mining more advanced resources, creating
 a progression incentive. The agreed initial ladder is **wood tools → stone →
 stone tools → iron → iron tools → rarer materials**. Gold, diamond and other
 materials are extracted with iron pickaxes and used for ornaments or trade,
-as agreed in the pipelines below. Wood and stone should both be useful for House construction;
+as agreed in the pipelines below. **Agreed on October 8
+([#1274](https://github.com/compoodment/ClankerWorld/issues/1274)):** iron is
+the top built-in tool tier; any further tier comes from agents'
+[inventions](inventions-and-mods.md). Wood and stone should both be useful for House construction;
 specific costs are open.
 
 **Clanker's still-open implementation proposal:** use one incremental layout
@@ -881,6 +964,15 @@ on the map, and inspecting a tile lists each household's claim. Household
 grants, individual acceptance, consensual transfers and land hearings work
 ([what works today](../what-works.md)).
 
+**Neighbouring Towns, agreed on October 8
+([#1240](https://github.com/compoodment/ClankerWorld/issues/1240)):** Town
+titles never overlap. The first valid title to a tile wins: a claim cannot
+include land another Town holds, and a Town's border stops at another Town's
+title. Each Town's territorial laws therefore apply only on its own title.
+Later design adds land transfers or treaties that both Towns' Councils
+approve. How a finding reaches another Town is in [Nonviolent law
+enforcement](#nonviolent-law-enforcement).
+
 ### How Roads and bridges appear
 
 The baseline has **one Road type**, with no extra categories required yet.
@@ -944,24 +1036,22 @@ connected banks are compared.
 **Roads and bridges remain permanently** once built. They do not decay or
 disappear automatically when traffic stops, a building is removed or a Town is
 abandoned. There is one Road type; no temporary-versus-permanent class is
-needed. Exact inter-Town route timing, layout and rendering remain open.
-Diagonal travel/Roads remain in scope; diagonal moves
-must not pass through blocked corners. Playable foot movement now uses the strict
-  two-clear-shoulder rule and a 141% diagonal route cost; diagonal Road
-  construction and visuals are agreed above but not built yet.
+needed. The inter-Town timing, layout and rendering are agreed below.
+Diagonal movement must not pass through blocked corners. Playable foot movement
+uses the strict two-clear-shoulder rule and a 141% diagonal route cost. Town
+streets also take diagonal steps where the land allows, and their Road pieces
+join diagonally on the map.
+
+**Agreed on October 8 ([#1239](https://github.com/compoodment/ClankerWorld/issues/1239)):**
+a Road to another Town appears as soon as a new Town's first building is
+complete. It links the new Town to the nearest Town only, not to every Town,
+along the cheapest legal land route, reusing existing Roads where it can. It
+looks like a Town street. This settles the inter-Town route timing, layout and look.
 
 ### Still to decide
 
-Further structure effects; exact configurations and unchosen footprints;
-building
-inspection fields, access to other non-residential
-buildings, reservations and queues;
-changes to claim boundaries; Town borders and
-cross-Town jurisdiction; currency/land pricing;
-transport progression; other terrain eligibility,
-travel effects; advanced resource/tool tiers,
-farming workflow and farm-cap formula, private versus public stock, business
-economics; and later livestock/wildlife detail.
+Further structure effects; exact configurations; changes to claim boundaries;
+and business economics.
 
 ## Town laws and governance
 
@@ -1221,6 +1311,24 @@ These law-scope, visitor, amendment and prospective-application rules are
 settled. A law remains separate from fixed physics, ownership and validated
 action authority.
 
+**Taxes, agreed on October 8
+([#1255](https://github.com/compoodment/ClankerWorld/issues/1255)):** Towns
+collect no taxes for now. Town stock comes from what people donate or salvage
+and from estates left to the Town. The later design lets a Council pass a
+contribution in goods that residents deliver by hand; not paying is handled
+only through the [nonviolent process](#nonviolent-law-enforcement). Goods are
+never deducted automatically, at harvest, at sale or anywhere else.
+
+**Estates, agreed on October 8
+([#1258](https://github.com/compoodment/ClankerWorld/issues/1258)):** a Town
+law can change how an estate is divided only when the dead agent left no valid
+[will](agents-and-families.md#starting-agents-families-and-life-stages). It must
+be a supported inheritance law, not free-form text, and it applies only to
+deaths after its adoption. A valid will always wins. Debts wait until credit
+exists; then a debt is paid from
+the estate before it is divided. A contested estate goes to the existing
+[hearing process](#land-hearings-and-rulings).
+
 ### Government-change procedure and safeguards
 
 **Agreed with the owner on October 1, answers 52A–57A:**
@@ -1247,7 +1355,9 @@ action authority.
   and one elected leader.** A proposal must spell out who makes ordinary
   decisions, how officeholders are selected, their tenure and what happens
   when an office becomes vacant. More custom forms need their own design;
-  ordinary law text cannot create them. Creating a role does not itself grant
+  ordinary law text cannot create them. **Agreed on October 8
+  ([#1274](https://github.com/compoodment/ClankerWorld/issues/1274)):** these
+  three are the only supported forms. Creating a role does not itself grant
   new land powers or authority to confiscate household property. The mayor's
   already agreed land-dispute role and election method remain applicable;
   its office rules are agreed below.
@@ -1269,8 +1379,8 @@ action authority.
   continue under the agreed continuity rules and no valid successor is ready,
   restore the all-adult council. Existing laws, Town membership
   and property records survive a government change or restoration. This does
-  not revive a Town with no living residents or bring abandoned-Town work
-  forward from its parked stage.
+  not revive a Town with no living residents; reviving one follows the
+  [resettlement rule](#borders-abandoned-towns-and-salvage).
 
 The initiative, vote, serialization, supported forms, handover and restoration
 rules are settled. Law and government decisions are recorded through
@@ -1493,10 +1603,25 @@ combat consequences belong to the later combat stage.
 
 Visitors may be reported for local conduct inside jurisdiction, with the same
 notice and hearing safeguards. Requests made to them do not create Town
-membership or reach into another Town's title. Cross-Town enforcement, money
-fines, detention and physical coercion need their later designs.
+membership or reach into another Town's title. **Agreed on October 8
+([#1240](https://github.com/compoodment/ClankerWorld/issues/1240)):** a finding
+in one Town stays local; at most it reaches another Town as a notice. Money
+fines need a [Town currency](#physical-trade-and-production-safeguards) and
+their own later design.
 Implementation of this initial process is tracked in
 [#635](https://github.com/compoodment/ClankerWorld/issues/635).
+
+**Theft and stronger enforcement, agreed on October 8
+([#1257](https://github.com/compoodment/ClankerWorld/issues/1257)):** these come
+in stages. For now enforcement stays nonviolent and theft is not possible:
+access to Warehouses, Houses, shops and other people's goods stays a hard
+check, while breaking a Town law, such as cutting a protected tree, stays
+possible. When crime is designed, an agent may take goods without permission;
+the taking is recorded as an allegation for this nonviolent process, and Towns
+gain civic consequences such as a time-limited loss of Warehouse access.
+Physical enforcement, such as restraint and escort under a Council mandate,
+comes with the [combat](agents-and-families.md#combat) stage. A theft never
+changes who owns the goods.
 
 ### Still to decide
 
@@ -1516,9 +1641,13 @@ Mayor creation, terms, vacancies and elections are agreed in
 Land case procedures are agreed in [Land hearings and rulings](#land-hearings-and-rulings).
 Initial discovery, hearings and consequences are agreed in
 [Nonviolent law enforcement](#nonviolent-law-enforcement).
-Still open: taxes, inheritance, interaction between conflicting Towns and
-later physical enforcement. Agents should know only laws or violations they
-have learned about in-world.
+Taxes and estates are agreed in [Town law scope and
+changes](#town-law-scope-and-changes), land between neighbouring Towns in
+[Town land and household use rights](#town-land-and-household-use-rights), and
+the stages of theft and stronger enforcement in [Nonviolent law
+enforcement](#nonviolent-law-enforcement). Still open: the detailed designs of
+crime and physical enforcement, which come with those later stages. Agents
+should know only laws or violations they have learned about in-world.
 Law and government choices in
 [#619](https://github.com/compoodment/ClankerWorld/issues/619) are settled;
 land case choices in [#630](https://github.com/compoodment/ClankerWorld/issues/630)
@@ -1529,7 +1658,8 @@ are also settled.
 ### Agreed on October 1
 
 The owner approved these complete pipelines on October 1, 2026. They describe
-intended gameplay, including work that is not built yet. Sources, production
+intended gameplay; [what works today](../what-works.md) says how much of it
+the game has. Sources, production
 sites, uses and ownership rules below are agreed. Recipe quantities, yields,
 work times, storage sizes, wear, spoilage and effects are provisional and are
 tuned in playtests. See [what works today](../what-works.md) for current play.
@@ -1556,6 +1686,10 @@ ready and harvested states. Farmers keep enough planting stock for the next
 crop before offering a surplus for sale. Grain seed, cultivated-green seed,
 wood-tree seed and orchard seed are distinct; planting potatoes remain potatoes.
 
+**Agreed on October 8 ([#1248](https://github.com/compoodment/ClankerWorld/issues/1248)):**
+farming does not wear out the soil, and a field keeps the fertility of its
+land. A field that nobody works for a full season goes back to ordinary grass.
+
 | Finished product | Trial recipe | Work site and purpose |
 | --- | --- | --- |
 | Flour | 1 grain → 1 flour | Farmhouse; a real intermediate that can be stored, carried and sold separately. |
@@ -1579,6 +1713,12 @@ Shortages can justify more fields or another farming household. The target for
 playtesting is roughly two substantial meals per agent per day, leaving time
 for other activities; this is not a fixed nutrition or hunger-drain formula.
 
+**Agreed on October 8 ([#1235](https://github.com/compoodment/ClankerWorld/issues/1235)):**
+farms plan fields for the whole Town they feed, not only for their own
+household. The Town's food need, less the food already held in reserve, is
+split across its farming households, so a Town with one farm still grows food
+for everyone. The exact formula and numbers are provisional.
+
 #### Materials and useful destinations
 
 | Material | Source and processing | Uses |
@@ -1591,7 +1731,7 @@ for other activities; this is not a fixed nutrition or hunger-drain formula.
 | Rope | House crafting; trial 3 fiber → 1 rope. | Sacks, carts, boats and later construction recipes. |
 | Clay | Dig a clay bank and carry clay. | Fired storage pots and water jugs. |
 | Pottery | House crafting; trial 2 clay + 1 wood → 1 vessel. | Reusable storage pots and water jugs, with separate item identities. |
-| Fresh water | Collect from a river or lake with a reusable jug and carry it. | Used in current porridge, bread and stew and Clinic medicine-making; animal care remains unfinished. |
+| Fresh water | Collect from a river or lake with a reusable jug and carry it. | Used in current porridge, bread and stew, Clinic medicine-making and animal care. |
 | Gold | Extract gold ore from a gold-bearing outcrop with an iron pickaxe, carry it to the Blacksmith and refine it with fuel. Ore and refined gold remain separate goods. | Ornaments, gifts and trade goods. |
 | Diamond | Extract from a diamond-bearing outcrop with an iron pickaxe. | Trade goods or a stone set into an ornament. |
 
@@ -1624,8 +1764,8 @@ Adults dig clay from a finite clay bank
 and make either vessel at a household House. Houses and Restaurants consume
 fresh water from these jugs for porridge,
 bread and stew, leaving the jug ready for refilling. The Clinic also consumes
-delivered fresh water to make medicine and leaves the jug reusable. Animal-care
-consumers remain unfinished.
+delivered fresh water to make medicine and leaves the jug reusable. Animal care
+also uses jug water, as the [animal pipeline](#animal-pipeline) describes.
 
 #### Tools, clothing and transport
 
@@ -1689,6 +1829,12 @@ carrying space or set them down as owned ground goods, including when the cart
 or contents are damaged. One carried wood, fitting and rope repair the cart
 where it stands. These recipes, limits and rates remain provisional.
 
+**Agreed on October 8 ([#1274](https://github.com/compoodment/ClankerWorld/issues/1274)):**
+the built-in transport is the handcart, the saddled
+[horse](#horse-travel-and-inspection) and the [first
+boat](world.md#first-boat-and-port-travel); nothing else is built in.
+Horse-drawn carts are reconsidered after the horse playtest.
+
 The current equipment trial allows 8 cargo units without an aid, 16 with a
 basket and 24 with a sack. The equipped garment and aid each occupy their own
 slot; other goods, delivery loads and vessel contents count as cargo. Stored
@@ -1739,9 +1885,19 @@ detailed actions. See [combat](agents-and-families.md#combat) and
 This stage makes, stores and trades bandages, but does not create injuries or
 apply bandages to a patient. Medicine uses the existing illness system and
 supports recovery gradually. The Clinic implements this scope in the normal
-private-world path; its Windows playtest is pending, and the later injury stage
-stays tracked in [#565](https://github.com/compoodment/ClankerWorld/issues/565). See
+private-world path; its Windows playtest is pending, and the injury stage is
+agreed below. See
 [current availability](../what-works.md#life-work-and-society).
+
+**Injuries, agreed on October 8
+([#1267](https://github.com/compoodment/ClankerWorld/issues/1267)):** the injury
+stage uses injury states rather than simple health-point damage; how fights
+cause them is in [Combat](agents-and-families.md#combat). At first injuries
+come only from fights; rare work accidents come later. Bandages and the Clinic
+treat injuries through the agreed [Clinic treatment](#care-and-later-goods)
+path: a patient visits, or a caregiver carries supplies to them, and treatment
+consumes the goods. Only an untreated or repeated severe injury can kill.
+Recovery rates are provisional.
 
 The first Clinic is a household-held 1×2 building. Trial construction uses
 10 wood and 4 stone. At a House or Tailor Shop, 1 cloth makes 2 bandages in
@@ -1786,9 +1942,10 @@ actual incoming deliveries and supplies an adult can physically collect reduce
 the shortage. Supplying one workplace must preserve the ingredients another
 still needs. An adult pays only with their personally owned carried goods, and
 cannot spend a needed Restaurant ingredient in a way that increases its
-shortage. Restaurant adults may visit ingredient shops in their Town, and
-adult residents may visit its Restaurants for meals. The trip reveals no
-remote private stock. Exact goods and
+shortage. Restaurant adults may visit ingredient shops, and any adult may visit
+a Restaurant for meals, including in another Town
+([#1242](https://github.com/compoodment/ClankerWorld/issues/1242)). The trip
+reveals no remote private stock. Exact goods and
 terms are checked after arrival, and both traders must meet before settlement.
 The House remains the heating hearth; Restaurant wood is a cooking input.
 Meal prices remain provisional barter terms tied to the recipe.
@@ -1803,10 +1960,18 @@ borrow. The Town adds stalls when sellers need them, using Town materials.
 
 Initial trade uses barter offers naming exact goods and quantities. Both sides
 bring their goods to the transaction. The buyer receives purchased goods
-personally; payment becomes seller-household stock at that location. Later
-agent-created currencies use the same transaction system, with issuer and
-acceptance rules designed alongside governance. No universal starting money
-or gold standard is chosen.
+personally; payment becomes seller-household stock at that location. No
+universal starting money or gold standard is chosen.
+
+**Currency and land prices, agreed on October 8
+([#1256](https://github.com/compoodment/ClankerWorld/issues/1256)):** money
+comes in two steps. First, a household can sell a land use right for goods
+through the existing consent-based transfer, so land has a price in goods
+before money exists. Later, a Council may approve a Town currency as a
+[shared Town project](#shared-town-projects), minted from real metal. Coins are
+physical goods that the game checks like any other item, they use the same
+transaction system, and accepting them stays voluntary. No world starts with
+money, so the unused starting Copper wallet is removed.
 
 Ownership and physical location remain inspectable across every transfer.
 Production reserves actual inputs and output space. Full storage, missing
@@ -1821,28 +1986,10 @@ These remain open; they are not new decisions.
 - **Later law and property interactions.** Adoption, law scope, land hearings
    and initial nonviolent enforcement are agreed above. Agent-created laws
    remain breakable while the simulation protects physical facts and validated
-   ownership changes. Cross-Town enforcement, conflicting inheritance rules
-   and later physical responses to illegal occupation still need their designs.
-
-- **Starter economy and tool bootstrap.** The first Town guarantees two
-   Houses, a Warehouse, Farmhouse and Blacksmith. Each House starts with eight
-   food portions; the communal Warehouse holds at least one usable wooden axe
-   and one usable wooden pickaxe, and each starting agent has one garment kept
-   in their House. The Farmhouse and Blacksmith are assigned
-   automatically to the two starting households, one each, without player
-   selection. There are no optional extra starter supplies for now. Without a
-   Blacksmith, households make crude wooden tools at their House, as agreed in
-   [Tools, clothing and transport](#tools-clothing-and-transport).
-   Farm planning responds to population, yield and stored reserves as agreed
-   above; the exact formula is provisional.
-
-- **Automatic infrastructure details.** Towns connect by Road where a legal
-   land route exists and can remain disconnected otherwise. A generated Road
-   may bridge a legal crossing immediately. The trial traffic threshold, the
-   two-tile width limit, the spacing rule and the no-materials rule are given
-   above, and permanence, including after building loss or Town abandonment,
-   is already agreed. What remains open is exact inter-Town route timing,
-   layout and rendering.
+   ownership changes. Findings between Towns, Town inheritance law and the
+   stages of theft and stronger enforcement were agreed on October 8. The
+   detailed designs of crime and physical enforcement, including physical
+   responses to illegal occupation, still wait for their stages.
 
 - **Homes, membership and family growth.** The [membership
    rules](#household-membership) settle one household at a time, unanimous
@@ -1854,20 +2001,17 @@ These remain open; they are not new decisions.
    adult's departure. [Town membership](#town-membership) settles recorded
    affiliation, homeless residents, ordinary newcomer approval and dependent
    children. [Borders, abandonment and salvage](#borders-abandoned-towns-and-salvage)
-   settle the empty-Town exception and communal access. Cross-Town dependent
-   moves still follow admission rules in issue
-   [#602](https://github.com/compoodment/ClankerWorld/issues/602); private
-   abandoned-property transfers and remaining border assignment or dispute
-   cases stay open.
-
-- **Physical stocks and trade.** Store goods must be transported there and
-    stored on site before sale. Decide transport and ownership-transfer details
-    for Stores, Restaurants and Markets; location-specific inventories cannot
-    be an invisible shared pool.
+   settle the empty-Town exception, communal access and founding new Towns,
+   and the goods and departure rules settle an empty household's property.
+   Cross-Town dependent moves still follow admission rules in issue
+   [#602](https://github.com/compoodment/ClankerWorld/issues/602); remaining
+   border assignment or dispute cases stay open.
 
 - **Building storage catalogue.** Houses start at 1×1 and may expand to
     1×2 or 2×2, Warehouses 2×2 → 2×3, and Stores may be 1×1 or 1×2. These
     choices raise storage and House resident capacity under the agreed
     footprint table above. The other chosen building
-    footprints are in the accepted roster above. Decide storage capacities, costs,
-    other expansion triggers.
+    footprints are in the accepted roster above. Storage sizes and expansion
+    costs are agreed as provisional values in [Buildings, land, Towns, and
+    animals](#buildings-land-towns-and-animals). Decide other construction
+    costs and expansion triggers.

@@ -32,7 +32,16 @@ public sealed record ViewerHandcart(string Id, string OwnerId, string OwnerName,
 public sealed record ViewerAnimal(string Id, string Name, string Species, string Sex, int AgeDays, string LifeStage,
     ViewerPosition Position, string? HouseholdId, string? HouseholdName, string CareStatus, string? ProductKind,
     int ProductQuantity, double? BirthDaysRemaining, string? RiderId, string? RiderName, string? LeaderId,
-    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions);
+    bool Saddled, IReadOnlyList<string> CarePermissions, IReadOnlyList<string> RidingPermissions,
+    int? ProductProgressPercent = null);
+
+/// <summary>
+/// A building under construction: a household's planned building or an
+/// approved Town project, where it will stand and how far the work has got.
+/// </summary>
+public sealed record ViewerConstructionSite(string Id, string DefinitionId, string DisplayName, IReadOnlyList<string> Tags,
+    ViewerPosition Site, int Width, int Height, ViewerPosition? Entrance, int WorkDone, int WorkRequired, string Stage,
+    string? TownId, string? HouseholdId);
 
 public sealed record ViewerBoat(string Id, string TownId, string TownName, ViewerPosition Position,
     string? DockedPortId, string? PassengerId, string? PassengerName, string? DestinationPortId,
@@ -120,7 +129,7 @@ public sealed record ViewerInhabitantRelationship(
     string? Direction = null);
 
 public sealed record ViewerPrivateThought(long WorldTick, string Text);
-public sealed record ViewerAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility);
+public sealed record ViewerAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility, bool Permanent = false);
 public sealed record ViewerAgentBelief(
     long WorldTick,
     string Statement,
@@ -141,6 +150,7 @@ public sealed record ViewerAgentKnowledgeFact(
     string DiscovererName,
     string Acquisition,
     string? SourceAgentName);
+public sealed record ViewerAgentRecipe(long WorldTick, string Name, string Acquisition, string? SourceAgentName);
 public sealed record ViewerKnowledgeSite(int X, int Y, string Terrain, IReadOnlyList<string> ResourceKinds, string DiscovererName);
 public sealed record ViewerAgentKnowledgeArtifact(
     string Id,
@@ -148,7 +158,10 @@ public sealed record ViewerAgentKnowledgeArtifact(
     string Title,
     long CreatedTick,
     string CreatorName,
-    IReadOnlyList<ViewerKnowledgeSite> Sites);
+    IReadOnlyList<ViewerKnowledgeSite> Sites)
+{
+    public IReadOnlyList<string> RecipeNames { get; init; } = [];
+}
 /// <summary>
 /// The world's saved calendar, including its season lengths and clock offset,
 /// so the game names the season and day of any tick the same way the world does.
@@ -204,6 +217,7 @@ public sealed record ViewerInhabitant(
     public IReadOnlyList<ViewerAgentBelief> RecentBeliefs { get; init; } = [];
 
     public IReadOnlyList<ViewerAgentKnowledgeFact> RecentKnowledgeFacts { get; init; } = [];
+    public IReadOnlyList<ViewerAgentRecipe> KnownRecipes { get; init; } = [];
 
     public IReadOnlyList<ViewerAgentKnowledgeArtifact> KnowledgeArtifacts { get; init; } = [];
 
@@ -265,7 +279,13 @@ public sealed record ViewerInstructionOrder(
     string? TargetOutputKind = null,
     string? TargetItemKind = null,
     string? TargetBuildingKind = null,
-    string? TargetAnimalId = null);
+    string? TargetAnimalId = null,
+    string? TargetKnowledgeKind = null,
+    string? TargetCartLotId = null,
+    string? TalkConversationId = null,
+    string? TalkStatus = null,
+    string? TalkOutcome = null,
+    string? TargetKnowledgeArtifactId = null);
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
@@ -348,8 +368,11 @@ public sealed record ViewerPlacedBuilding(
     public IReadOnlyList<ViewerBusinessTrade> Trades { get; init; } = [];
     public IReadOnlyList<ViewerToolMakingRequest> ToolMakingRequests { get; init; } = [];
     public bool AllowsHouseholdOwner { get; init; }
+    public IReadOnlyList<ViewerBuildingStorageChange>? RecentStorageChanges { get; init; }
     public IReadOnlyList<ViewerProductionRecipe>? AvailableRecipes { get; init; }
 }
+
+public sealed record ViewerBuildingStorageChange(long EventId, long WorldTick, string ItemKind, long QuantityChange);
 
 public sealed record ViewerToolMakingRequest(string Id, string RequesterName, string RecipeId,
     string RecipeName, string ItemKind, string Status, string? Blocker, string? OfferId = null);
@@ -408,6 +431,9 @@ public sealed record ViewerTown(
 {
     public bool IsAbandoned => FoundingState == "founded" && ResidentIds.Count == 0;
 
+    /// <summary>An abandoned Town that has stood empty for a full season; its buildings look falling apart.</summary>
+    public bool FallingApart { get; init; }
+
     public ViewerTownGovernance? Governance { get; init; }
     public IReadOnlyList<ViewerTownProject> Projects { get; init; } = [];
     public ViewerTownGovernment? Government { get; init; }
@@ -429,7 +455,14 @@ public sealed record ViewerLandTransfer(string Id, string FilerId, string FilerN
     string TargetHouseholdName, IReadOnlyList<ViewerPosition> Tiles, IReadOnlyList<ViewerLandHearingRightVersion> RightVersions,
     IReadOnlyList<ViewerLandTransferParty> Parties, string NoticeId, long ProposedTick,
     IReadOnlyList<ViewerLandTransferResponse> Responses, string Status, long? SettledTick, string? Reason,
-    string? ReceiptAdjustmentId);
+    string? ReceiptAdjustmentId)
+{
+    public ViewerLandSalePrice? Price { get; init; }
+    public ViewerLandSalePayment? Payment { get; init; }
+}
+public sealed record ViewerLandSalePrice(string SellerHouseholdId, string SellerHouseholdName, string ItemKind, int Quantity);
+public sealed record ViewerLandSalePayment(string BuyerAgentId, string BuyerName, string SellerAgentId, string SellerName,
+    ViewerPosition Position, long Tick);
 
 public sealed record ViewerLandHearingOutcome(string Kind, string? HouseholdId, string? HouseholdName, long? AgreedEndTick);
 public sealed record ViewerLandHearingProposal(IReadOnlyList<ViewerPosition> Tiles,
@@ -478,6 +511,7 @@ public sealed record ViewerTownLandHearing(string Id, string Kind, string Status
     ViewerLandHearingElection? JudgeElection, ViewerLandHearingElection? LatestJudgeElection,
     IReadOnlyList<ViewerLandHearingReopenRequest> ReopenRequests)
 {
+    public IReadOnlyList<string> PropertyDetails { get; init; } = [];
     public IReadOnlyList<ViewerLandHearingRead> Reads { get; init; } = [];
     public IReadOnlyList<ViewerLandHearingParty> CurrentParties { get; init; } = [];
 }
@@ -541,6 +575,7 @@ public sealed record ViewerTownProject(string Id, string ProposalId, string Name
 {
     public IReadOnlyList<string> Tags { get; init; } = [];
     public string? CompletedBoatId { get; init; }
+    public long? RemovedTick { get; init; }
 }
 public sealed record ViewerCivicCandidate(string Id, string Name, int Votes);
 public sealed record ViewerTownElection(string Id, string Kind, string Stage, int Seats, long DeadlineTick,
@@ -608,6 +643,9 @@ public sealed record ViewerConversation(
     public string? ChosenSurname { get; init; }
 }
 
+public sealed record ViewerWorldGeneration(string Seed, string Size, string ClimateMode,
+    string SelectedClimate, bool LatitudeCooling, bool WrapEastWest);
+
 public sealed record ViewerWorldSnapshot(
     string WorldId,
     long WorldTick,
@@ -622,10 +660,12 @@ public sealed record ViewerWorldSnapshot(
     public ViewerPackedMapLayers? PackedMapLayers { get; init; }
     public string? MapLayersDigest { get; init; }
     public bool WrapsEastWest { get; init; }
+    public ViewerWorldGeneration? Generation { get; init; }
     public IReadOnlyList<ViewerFarmField> Fields { get; init; } = [];
     public IReadOnlyList<ViewerGroundStock> GroundStocks { get; init; } = [];
     public IReadOnlyList<ViewerHandcart> Handcarts { get; init; } = [];
     public IReadOnlyList<ViewerAnimal> Animals { get; init; } = [];
+    public IReadOnlyList<ViewerConstructionSite> ConstructionSites { get; init; } = [];
     public IReadOnlyList<ViewerBoat> Boats { get; init; } = [];
     public IReadOnlyList<ViewerBoatTripRequest> BoatRequests { get; init; } = [];
     public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];

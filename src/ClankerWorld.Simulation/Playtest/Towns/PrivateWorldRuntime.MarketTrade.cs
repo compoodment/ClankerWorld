@@ -25,8 +25,10 @@ public sealed partial class PrivateWorldRuntime
         .Where(market => market.RemovedTick is null).SelectMany(market => MarketContent.SiteTiles(market.Site));
 
     /// <summary>Household goods stay on sale while one of the household's members borrows the stall they lie on.</summary>
-    private bool OnBorrowedMarketStall(InventoryLot lot) => lot.GroundPosition is { } ground &&
-        towns.Any(town => town.Markets.Any(market => market.Occupancies.Any(occupancy =>
+    private bool OnBorrowedMarketStall(InventoryLot lot) => OnBorrowedMarketStall(lot, towns);
+
+    private static bool OnBorrowedMarketStall(InventoryLot lot, IReadOnlyList<TownRuntimeState> townStates) => lot.GroundPosition is { } ground &&
+        townStates.Any(town => town.Markets.Any(market => market.Occupancies.Any(occupancy =>
             occupancy.EndedTick is null && occupancy.SellerHouseholdId == lot.OwnerId &&
             market.Stalls.Any(stall => stall.BuildingId == occupancy.StallBuildingId &&
                 MarketContent.StallSite(market.Site, stall.SlotIndex) == new GridPoint(ground.X, ground.Y)))));
@@ -181,9 +183,11 @@ public sealed partial class PrivateWorldRuntime
                     foreach (var lot in MarketTradeRules.StockAt(market, stall.BuildingId, position, inventory)
                                  .Where(lot => (MarketTradeRules.IsLoose(lot) || lot.ItemKind == InventoryContainerRules.WaterJug &&
                                          VesselFits(lot, FreeCarryCapacity(actor)) && !HasActiveContainerReservation(inventory, lot.Id)) && OwnMarketGoods(actor, lot) &&
-                                     AvailableLotQuantity(lot) > 0 && CanCarryMarketGoods(actor, lot)))
+                                     (lot.OwnerId == actor || occupancy is null || occupancy.SellerHouseholdId != lot.OwnerId ||
+                                         occupancy.SellerAgentId == actor) &&
+                                     PhysicalUnreservedQuantity(lot) > 0 && CanCarryMarketGoods(actor, lot)))
                     {
-                        var quantity = Math.Min(MarketTradeRules.LoadQuantity, Math.Min(AvailableLotQuantity(lot), FreeCarryCapacity(actor)));
+                        var quantity = Math.Min(MarketTradeRules.LoadQuantity, Math.Min(PhysicalUnreservedQuantity(lot), FreeCarryCapacity(actor)));
                         if (quantity > 0 && CanReachMarketPoint(actor, position, ResourceInteractionRange))
                             yield return new(MarketChoiceId("collect", market.Id, stall.BuildingId, lot.Id,
                                 quantity.ToString(CultureInfo.InvariantCulture), MarketPlaceMode(actor, position, ResourceInteractionRange)),
@@ -251,10 +255,18 @@ public sealed partial class PrivateWorldRuntime
                 }
     }
 
+    private bool IsMarketFoodCandidate(string actor, string candidateId) =>
+        candidateId.StartsWith("market_collect:", StringComparison.Ordinal) && MarketChoices(actor).Any(choice =>
+            choice.Id == candidateId && choice.Kind == "collect" && choice.Lot is { } lot && IsEdibleFood(lot.ItemKind));
+
     private void AddMarketCandidates(List<CognitionCandidate> candidates, string actor)
     {
+        var urgentFood = NeedsUrgentFood(inhabitants[actor]);
         // Trade answers and leaving come first, so the limit never hides them behind stock choices.
-        foreach (var choice in MarketChoices(actor).OrderBy(item => item.Kind is "continue" or "cancel" or "leave" ? 0 : 1)
+        foreach (var choice in MarketChoices(actor)
+                     .Where(item => !urgentFood || item.Kind == "collect" && IsEdibleFood(item.Lot!.ItemKind) &&
+                         AvailableLotQuantity(item.Lot) > 0)
+                     .OrderBy(item => item.Kind is "continue" or "cancel" or "leave" ? 0 : 1)
                      .Take(MarketCandidateLimit))
         {
             var offer = choice.Trade is { } trade ? society.Checkpoint.Inventory.GetOffer(trade.OfferId) : null;

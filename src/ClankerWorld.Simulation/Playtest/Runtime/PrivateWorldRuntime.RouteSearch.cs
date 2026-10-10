@@ -17,11 +17,11 @@ public sealed partial class PrivateWorldRuntime
     /// search while the map, Roads and occupied tiles are unchanged.
     /// </summary>
     private List<GridPoint> SharedUnoccupiedRoute(GridPoint origin, HashSet<GridPoint> occupied,
-        GridPoint destination, int interactionRange)
+        GridPoint destination, int interactionRange, bool swimming = false)
     {
         lock (routeSearches)
         {
-            var index = routeSearches.FindIndex(item => item.Matches(this, origin, occupied));
+            var index = routeSearches.FindIndex(item => item.Matches(this, origin, occupied, swimming));
             SharedRouteSearch shared;
             if (index >= 0)
             {
@@ -30,8 +30,9 @@ public sealed partial class PrivateWorldRuntime
             }
             else
             {
-                shared = new SharedRouteSearch(new UnoccupiedRouteSearch(map, origin, occupied, RoadStepCost),
-                    roadTiles, roadTiles.Count, roadBridgeDecks);
+                shared = new SharedRouteSearch(new UnoccupiedRouteSearch(map, origin, occupied, swimming ? AgentStepCost : LegalRoadStepCost,
+                    swimming ? point => SwimmingRules.Neighbors(map, point) : null),
+                    roadTiles, roadTiles.Count, roadBridgeDecks, swimming);
                 if (routeSearches.Count == SharedRouteSearchLimit)
                 {
                     routeSearches[^1].Search.Dispose();
@@ -69,9 +70,10 @@ public sealed partial class PrivateWorldRuntime
     /// with the same count means the same Roads.
     /// </summary>
     private sealed record SharedRouteSearch(UnoccupiedRouteSearch Search, HashSet<GridPoint> Roads, int RoadCount,
-        HashSet<GridPoint> RoadDecks)
+        HashSet<GridPoint> RoadDecks, bool Swimming)
     {
-        public bool Matches(PrivateWorldRuntime runtime, GridPoint origin, HashSet<GridPoint> occupied) =>
+        public bool Matches(PrivateWorldRuntime runtime, GridPoint origin, HashSet<GridPoint> occupied, bool swimming) =>
+            Swimming == swimming &&
             Search.Origin == origin && ReferenceEquals(runtime.map, Search.Map) &&
             ReferenceEquals(runtime.roadTiles, Roads) && runtime.roadTiles.Count == RoadCount &&
             ReferenceEquals(runtime.roadBridgeDecks, RoadDecks) && occupied.SetEquals(Search.Occupied);

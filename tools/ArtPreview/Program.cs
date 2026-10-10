@@ -16,11 +16,32 @@ switch (command)
     case "scene":
         SceneRunner.Run(Path.Combine(outRoot, "scene"));
         break;
+    case "animate":
+        Animations.Run(Path.Combine(outRoot, "animated"), args.Length > 2 ? args[2] : null);
+        break;
+    case "seasons":
+        SeasonalScenes.Run(Path.Combine(outRoot, "seasons"));
+        break;
+    case "movement":
+        MovementPreview.Run(Path.Combine(outRoot, "baseline", "movement"));
+        break;
+    case "completion":
+        BuildingCompletionPreview.Run(Path.Combine(outRoot, "baseline", "completion"));
+        break;
+    case "goldenhour":
+        GoldenHourPreview.Run(Path.Combine(outRoot, "baseline", "goldenhour"));
+        break;
+    case "snow":
+        SnowMarksPreview.Run(Path.Combine(outRoot, "baseline", "snow"));
+        break;
+    case "roof-snow":
+        RoofSnowReview.Run(Path.Combine(outRoot, "baseline", "roof-snow"));
+        break;
     case "check":
         ArtContractChecks.Run();
         break;
     default:
-        Console.Error.WriteLine("usage: baseline|proposed|scene <out dir> [proposal family] | check");
+        Console.Error.WriteLine("usage: baseline|proposed|scene|seasons|movement|animate|completion|snow|roof-snow|goldenhour <out dir> [proposal family] | check");
         return 2;
 }
 return 0;
@@ -32,6 +53,13 @@ static class Baseline
     {
         Directory.CreateDirectory(root);
         var families = new List<(string Family, List<Entry> Entries, Color? Backdrop, int Columns)>();
+
+        families.Add(("graves", new[] { 16, 32 }.SelectMany(size => new[] { false, true }.Select(headstone =>
+            new Entry("graves", $"{(headstone ? "b-headstone" : "a-cross")}-{size}", GraveClientPreview.Frame(headstone, size)))).ToList(), null, 2));
+        families.Add(("smoke", new SmokeClientPreview().Render().ToList(), null, 2));
+        families.Add(("stock", new StoredStockClientPreview().Render().ToList(), null, 3));
+        families.Add(("weatherfade", new[] { 0.0, 1.4, 2.4, 3.9, 4.8 }
+            .Select(time => new Entry("weatherfade", $"b-fade-{time:0.0}", WeatherFadeClientPreview.Frame(time))).ToList(), null, 5));
 
         // Ground tiles: both variants at 32 px and at the 16 px mid-zoom atlas.
         var terrain = new List<Entry>();
@@ -253,11 +281,37 @@ static class Baseline
     }
 }
 
-/// <summary>Proposed art: any class implementing <see cref="IArtProposal"/> under Proposed/ is rendered.</summary>
+/// <summary>Proposed art: any class implementing <see cref="IArtProposal"/> is rendered, including archived review drawings.</summary>
 public interface IArtProposal
 {
     string Family { get; }
     IEnumerable<Entry> Render();
+}
+
+/// <summary>A proposal that moves, such as weather: <c>animate</c> writes each of its loops as numbered frames.</summary>
+public interface IAnimatedArtProposal
+{
+    string Family { get; }
+    IEnumerable<(string Id, IReadOnlyList<Image> Frames)> Animate();
+}
+
+static class Animations
+{
+    public static void Run(string root, string? family = null)
+    {
+        foreach (var proposal in typeof(IAnimatedArtProposal).Assembly.GetTypes()
+                     .Where(type => typeof(IAnimatedArtProposal).IsAssignableFrom(type) && !type.IsAbstract && !type.IsInterface)
+                     .Select(type => (IAnimatedArtProposal)Activator.CreateInstance(type)!)
+                     .Where(proposal => family is null || proposal.Family == family))
+            foreach (var (id, frames) in proposal.Animate())
+            {
+                var dir = Path.Combine(root, proposal.Family, id);
+                Directory.CreateDirectory(dir);
+                for (var frame = 0; frame < frames.Count; frame++)
+                    File.WriteAllBytes(Path.Combine(dir, $"{frame:D2}.png"), frames[frame].SavePngToBuffer());
+                Console.WriteLine($"{proposal.Family}/{id}: {frames.Count} frames");
+            }
+    }
 }
 
 static class Proposals

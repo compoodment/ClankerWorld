@@ -146,12 +146,13 @@ public partial class Main
             // Choosing an agent selects them and moves the camera to them.
             cameraZoom = maximumCameraZoom;
             RenderMap(world);
-            CenterCameraAt(new Vector2(3.5f, 0.5f));
+            SetCameraAtImmediately(new Vector2(3.5f, 0.5f));
             var names = Enumerable.Range(0, developerAgentList.ItemCount).Select(developerAgentList.GetItemText).ToArray();
             if (!names.SequenceEqual(new[] { "Mira", "Rowan" }))
                 throw new InvalidOperationException($"The agent list must name each living agent: {string.Join(", ", names)}.");
             var before = cameraCenterTiles.DistanceTo(new Vector2(0.5f, 3.5f));
             developerAgentList.EmitSignal(ItemList.SignalName.ItemSelected, 0);
+            AdvanceCameraMotion(CameraEasing.MoveSeconds);
             var after = cameraCenterTiles.DistanceTo(new Vector2(0.5f, 3.5f));
             if (selectedInhabitantId != other.Id || after >= before || after > 1)
                 throw new InvalidOperationException($"Choosing an agent must select them and move the camera to them: selected={selectedInhabitantId} distance {before} → {after}.");

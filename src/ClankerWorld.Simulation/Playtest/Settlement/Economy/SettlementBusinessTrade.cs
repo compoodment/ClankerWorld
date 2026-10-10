@@ -64,7 +64,8 @@ public sealed partial class PrivateWorldRuntime
                  ContainerFamilyQuantity(inventory, containerId) <= WorkstationDeliveryRoom(inventory, building.InstanceId))))
             .Sum(lot => UsableWorkstationQuantity(inventory, lot));
         var householdStock = inventory.Lots.Where(lot => lot.OwnerId == householdId && lot.ItemKind == itemKind &&
-                lot.CarrierId is null && lot.DeliveryBuildingId is null && UsableWorkstationQuantity(inventory, lot) > 0 &&
+                lot.CarrierId is null && !OnBorrowedMarketStall(lot) &&
+                lot.DeliveryBuildingId is null && UsableWorkstationQuantity(inventory, lot) > 0 &&
                 (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                     building.InstanceId == lot.StorageBuildingId && worldContent.Buildings.Any(definition =>
                         definition.CanonicalId == building.DefinitionId &&
@@ -194,10 +195,9 @@ public sealed partial class PrivateWorldRuntime
                 !AgentKnowledgeRules.IsArtifactKind(lot.ItemKind));
     }
 
-    private bool MayVisitTownBusiness(string buyer, PlacedBuilding building)
+    private bool MayVisitBusiness(string buyer, PlacedBuilding building)
     {
         if (!AdultResident(buyer) || NeedsUrgentWarmth(inhabitants[buyer]) ||
-            TownForResident(buyer) is not { } townId || building.TownId != townId ||
             building.HouseholdId is not { } seller || seller == HouseholdFor(buyer) ||
             !society.Checkpoint.Households.Any(household => household.Id == seller) ||
             !inhabitants.Keys.Any(actor => AdultResident(actor) && HouseholdFor(actor) == seller) ||
@@ -209,13 +209,12 @@ public sealed partial class PrivateWorldRuntime
 
     private bool RestaurantIngredientShopTrip(string buyer, PlacedBuilding building)
     {
-        if (!MayVisitTownBusiness(buyer, building) || HouseholdFor(buyer) is not { } householdId) return false;
-        var townId = TownForResident(buyer);
+        if (!MayVisitBusiness(buyer, building) || HouseholdFor(buyer) is not { } householdId) return false;
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         if (BusinessRules.KindOf(definition) is not { } kind) return false;
         // A Town shop's location and kind can motivate a visit. Its private
         // stock and exact terms are inspected only after the buyer arrives.
-        var inputs = worldSimulation.Buildings.Where(site => site.HouseholdId == householdId && site.TownId == townId &&
+        var inputs = worldSimulation.Buildings.Where(site => site.HouseholdId == householdId &&
                 worldContent.Buildings.Any(item => item.CanonicalId == site.DefinitionId &&
                     item.Tags.Contains("restaurant", StringComparer.Ordinal)))
             .SelectMany(site => worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == site.DefinitionId)
@@ -228,7 +227,7 @@ public sealed partial class PrivateWorldRuntime
 
     private bool RestaurantMealShopTrip(string buyer, PlacedBuilding building)
     {
-        if (!MayVisitTownBusiness(buyer, building)) return false;
+        if (!MayVisitBusiness(buyer, building)) return false;
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         if (BusinessRules.KindOf(definition) != "restaurant") return false;
         // The menu describes possible meals, never whether the private shelf
@@ -276,6 +275,21 @@ public sealed partial class PrivateWorldRuntime
             }
         }
         return null;
+    }
+
+    private bool IsBusinessFoodCandidate(string actor, string candidateId)
+    {
+        // Only the buyer's ready food can interrupt an order. Raw ingredients,
+        // equipment and a seller's response still follow ordinary work rules.
+        if (candidateId.StartsWith("business_continue:", StringComparison.Ordinal))
+            return OpenBusinessTrades().Any(pair => pair.Trade.BuyerId == actor &&
+                candidateId == "business_continue:" + pair.Offer.Id && IsEdibleFood(pair.Trade.GoodsKind));
+        if (!candidateId.StartsWith("business_shop:", StringComparison.Ordinal)) return false;
+        var building = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == candidateId[14..]);
+        if (building is null) return false;
+        if (BusinessOpportunity(actor, building) is { } quote)
+            return IsEdibleFood(quote.Goods.ItemKind) && WantsTradeFoodKind(actor, quote.Goods.ItemKind);
+        return RestaurantMealShopTrip(actor, building);
     }
 
     private void AddBusinessCandidates(List<CognitionCandidate> candidates, string actor)

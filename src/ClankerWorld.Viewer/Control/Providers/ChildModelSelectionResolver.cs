@@ -47,6 +47,7 @@ internal static class ChildModelSelectionResolver
             PlayerDecisionProviders.Deterministic => PrivateWorldRuntime.DeterministicModelEndpointIdentity,
             PlayerDecisionProviders.OpenAi => PrivateWorldRuntime.OpenAiModelEndpointIdentity,
             PlayerDecisionProviders.OllamaCloud => PrivateWorldRuntime.OllamaCloudModelEndpointIdentity,
+            PlayerDecisionProviders.Anthropic => PrivateWorldRuntime.AnthropicModelEndpointIdentity,
             _ => null,
         };
         if (endpoint is null) return null;

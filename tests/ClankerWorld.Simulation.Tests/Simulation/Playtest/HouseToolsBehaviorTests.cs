@@ -7,7 +7,7 @@ using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class HouseToolsBehaviorTests
+public sealed partial class HouseToolsBehaviorTests
 {
     [Fact]
     public async Task CrudePickWearsOutThroughRealStoneHarvestsAndStaysBrokenAfterReload()

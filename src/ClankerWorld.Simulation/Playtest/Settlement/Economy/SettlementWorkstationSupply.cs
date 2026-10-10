@@ -143,7 +143,7 @@ public sealed partial class PrivateWorldRuntime
                         WorkstationPickupQuantity(actor, inventory, lot, building.InstanceId, int.MaxValue) > 0 &&
                         (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
                          DeliveryResourceQuantity(lot, input.Key) <= maximumResourceQuantity));
-                var source = carried is not null || stock is not null ? null : MaterialSource(input.Key, actor);
+                var source = carried is not null || stock is not null ? null : MaterialSource(input.Key, actor, building.Position);
                 if (source is not null && (deliveryRoom <= 0 ||
                     ProjectMaterialCarryUnits(actor, input.Key, source) > FreeCarryCapacity(actor)))
                     source = null;
@@ -165,7 +165,9 @@ public sealed partial class PrivateWorldRuntime
     private int WorkstationPickupQuantity(string actor, InventoryCheckpoint inventory, InventoryLot stock,
         string destinationId, int missing)
     {
-        var capacity = Math.Min(FreeCarryCapacity(actor), WorkstationDeliveryRoom(inventory, destinationId));
+        var destination = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == destinationId);
+        var capacity = destination is null ? 0 : Math.Min(PickupCarryCapacity(actor, stock, destination.Position),
+            WorkstationDeliveryRoom(inventory, destinationId));
         if (capacity <= 0)
             return 0;
         return InventoryContainerRules.IsContainer(stock.ItemKind)
@@ -205,10 +207,16 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
     }
 
+    private bool CanReachWorkstation(string actor, PlacedBuilding building)
+    {
+        var position = inhabitants[actor].Position;
+        return position == building.Position || FindUnoccupiedRoute(actor, position, building.Position, 0).Count > 0;
+    }
+
     private void AddWorkstationSupplyCandidate(List<CognitionCandidate> candidates, string actor)
     {
         if (!AdultResident(actor) || CarriedHouseDelivery(actor) is not null ||
-            WorkstationSupplyNeeds(actor).FirstOrDefault() is not { } need)
+            WorkstationSupplyNeeds(actor).FirstOrDefault(need => CanReachWorkstation(actor, need.Building)) is not { } need)
             return;
         candidates.Add(new CognitionCandidate(SupplyWorkstationPrefix + need.ItemKind,
             $"Bring {need.ItemKind} into the household {need.Definition.DisplayName} for its work.",
@@ -218,7 +226,8 @@ public sealed partial class PrivateWorldRuntime
     private void SupplyWorkstation(string actor, PlaytestInhabitantState state, string itemKind)
     {
         if (!AdultResident(actor) || society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
-            WorkstationSupplyNeeds(actor).FirstOrDefault(item => item.ItemKind == itemKind) is not { } need)
+            WorkstationSupplyNeeds(actor).FirstOrDefault(item => item.ItemKind == itemKind &&
+                CanReachWorkstation(actor, item.Building)) is not { } need)
             return;
         var building = need.Building;
         if (need.Carried is { } carried)
@@ -261,7 +270,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         if (need.Source is { } source)
-            GatherProjectMaterial(actor, state, itemKind, source);
+            GatherProjectMaterial(actor, state, itemKind, source, returnTo: building.Position);
     }
 
     private DeliveryOrderPlan? GetWorkstationOrderPlan(string actor, PlaytestInhabitantState person,
