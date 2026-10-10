@@ -85,17 +85,17 @@ night-lights rule for when a building is lit.
 ## 7 · Weather that leaves a mark (`weathermarks`)
 
 Ground snow A and footprints are implemented in `Implemented/Snow.cs`, using
-the client’s `GroundSnowSprites`. `dotnet run -- snow out` writes the approved
-stills and loops. Roof dusting in the still remains review context; client roof
-snow is separate. Cover follows observed regional snowfall and melts afterwards;
-footprints fade within a game hour.
+the client's `GroundSnowSprites` pixel rules. `dotnet run -- snow out` writes
+the approved stills and loops; the still's roof dusting is retained as review
+context. Roof snow A2 is now implemented in [Implemented/RoofSnow.cs](../Implemented/RoofSnow.cs),
+sharing the live slope/tint rules; `dotnet run -- roof-snow out` writes its
+approved 32/16px references. The client applies it to actual roof geometry
+with the same region history, leaving flues, outlines, shadows and yards clear. Ground cover follows
+observed snowfall in each region and melts afterwards; footprints fade within
+a game hour. The other comparisons remain below.
 
-The snow mockups compare cover after snowfall with permanent snow terrain.
-The remaining proposals would follow the weather the world records for each
-region, and fade after it passes.
-
-- **Ground snow A, implemented:** open ground covered, grass tips and trodden Roads
-  showing. **Ground snow B:** patchy cover that thins and melts unevenly.
+- **Ground snow A, implemented:** open ground covered, grass tips and trodden
+  Roads showing. **Ground snow B:** patchy cover that thins and melts unevenly.
 - **Roof snow A:** snow on the north half of each roof. **B:** roofs covered,
   edges and chimneys still dark.
 - **Puddles A:** small puddles on Roads and bare ground. **B:** puddles and

@@ -87,6 +87,14 @@ public partial class WorldTerrainLayer
         if (world is null || y < 0 || y >= world.Height || (!wrapsEastWest && (x < 0 || x >= world.Width))) return 0;
         x = wrapsEastWest ? Mod(x, world.Width) : x;
         if (!CanSnowAt(x, y)) return 0;
+        return SnowCoverAt(x, y);
+    }
+
+    /// <summary>The same observed region cover, including tiles occupied by a roof.</summary>
+    internal float SnowCoverAt(int x, int y)
+    {
+        if (world is null || y < 0 || y >= world.Height || (!wrapsEastWest && (x < 0 || x >= world.Width))) return 0;
+        x = wrapsEastWest ? Mod(x, world.Width) : x;
         return groundSnowRegions.GetValueOrDefault(new Vector2I(x / weatherRegionSize, y / weatherRegionSize));
     }
 

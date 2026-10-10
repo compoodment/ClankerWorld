@@ -135,12 +135,16 @@ still open normally.
    site before placing the founders, including after removing an empty starter
    Farmhouse or Blacksmith. **Redo Town site** replaces the starter layout and
    its Roads together.
-4. Configure and place **four starting agents**. Choose each agent's provider,
-   key and model. A saved key can be reused, or you can add another for the same
-   provider. Then pick the model from the game's short list for that
-   provider, newest at the top. Models your key can't use are greyed out; if
+4. Configure and place **four starting agents**. Choose each agent's provider
+   (OpenAI, Ollama Cloud or Anthropic), key and model. A saved key can be
+   reused, or you can add another for the same provider. Then pick the model
+   from the game's short list for that provider, newest at the top; Anthropic
+   starts on Claude Haiku 5.5. Models your key can't use are greyed out; if
    it can't use the model shown, the picker asks you to choose another.
-   **Type a model name...** covers any other model. The agents start in two
+   **Type a model name...** covers any other model. **Thinking** sets how much
+   the model thinks before it answers: **Model default** leaves the provider's
+   own setting, and **Low**, **Medium** or **High** asks for that much. More
+   thinking takes longer and uses more paid tokens. The agents start in two
    households, not two forced couples or biological families.
 5. Press **Start World** when all four are ready. Placing the fourth agent does
    not start time automatically. Before starting, placements can be moved or
@@ -157,15 +161,15 @@ and wills still use each person's own model. Decisions currently offers `gpt-6-l
 model name...** also remains available.
 
 To save keys before placing any agents, open **Settings → Game → API keys**.
-Choose OpenAI or Ollama Cloud, name the key, paste it and press **Save API key**.
-You can save both providers' keys from Main Menu Settings once this device is
+Choose OpenAI, Ollama Cloud or Anthropic, name the key, paste it and press
+**Save API key**. You can save each provider's keys from Main Menu Settings once this device is
 connected and paired. Saving a key does not run a model or place an agent.
 Choose the saved key later in **Add Agent** or an agent's **Model** panel.
 **Open model settings** in that panel opens the agent's model in World
 Settings, where you can also delete a saved key.
 
 To check a selected model, press **Test model · 1 paid call** in Add Agent or
-an agent's Model panel. This sends one real request and counts toward the
+an agent's Model panel. It uses the chosen **Thinking** setting too. This sends one real request and counts toward the
 model-call limit, even if the provider times out or rejects it.
 A key pasted for this check is not saved. The result tells you whether the
 provider returned a reply the game can use; it does not show provider error
@@ -202,7 +206,10 @@ Snowfall gradually covers open ground in the regions you watch, with grass
 tips and greyer, trodden Roads still showing. Walking agents and animals leave
 prints that fade within a game hour. Cover melts after snow stops, and pausing
 holds it still. Reopening a world starts this local weather history again;
-permanent snowy ground keeps its usual picture.
+permanent snowy ground keeps its usual picture. Roofs share that snow history:
+shaded north/east slopes stay covered, while sunny south/west slopes keep snow
+near the ridge and a thin dusting below. Outlines, flues and open yards stay clear.
+Roof snow shows at close and mid zoom and melts with the ground cover.
 
 **Filters** turns map overlays on and off: Town borders, household property,
 Town land title, household land use and disputed land. Each one says what it
@@ -1208,7 +1215,7 @@ horses near wild greens and fresh water.
 
 Click an animal's tile for its name, age, household, care, ready product and
 permissions. If the animal is inside a building, open that building's **Details**
-to see the animals standing there. Use its exact unique name or ID in a Must do order, for example
+to see the animals standing there. Use its exact unique name or ID in an Order, for example
 **Tame Moss**, **Lead home Moss**, **Care for Moss**, or **Collect from Moss**.
 **Repeat care for Moss** and **Repeat collect from Moss** keep the task active
 until cancelled. When the animal is elsewhere in the yard, the adult picks up

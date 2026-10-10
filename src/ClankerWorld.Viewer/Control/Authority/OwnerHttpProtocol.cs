@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
+using ClankerWorld.Simulation.Cognition;
 
 namespace ClankerWorld.Viewer.Control;
 
@@ -94,11 +96,12 @@ public sealed record OwnerProviderModelListAction(
 
 /// <summary>
 /// Explicitly tests one hosted model with either a saved provider key, a named
-/// key slot, or a key pasted for this request only. This action does not change
-/// provider configuration and always represents one metered model call.
+/// key slot, or a key pasted for this request only, at the chosen thinking
+/// level (<see langword="null"/> for the model default). This action does not
+/// change provider configuration and always represents one metered model call.
 /// </summary>
 public sealed record OwnerProviderSetupCheckAction(
-    string Provider, string Model, string? CredentialSlotId = null, string? ApiKey = null);
+    string Provider, string Model, string? CredentialSlotId = null, string? ApiKey = null, string? Thinking = null);
 
 /// <summary>A bounded result for an owner-triggered, metered model setup check.</summary>
 public sealed record OwnerProviderSetupCheckResult(string Outcome, string Message, bool IsReady);
@@ -123,15 +126,22 @@ public sealed record OwnerProviderConfigurationAction(
     bool ForgetCredential,
     string? InhabitantId = null,
     string? CredentialSlotId = null,
-    string? NewCredentialLabel = null);
+    string? NewCredentialLabel = null,
+    string? Thinking = null);
 
+/// <summary>
+/// One agent's model for one role. <see cref="Thinking"/> is how much a hosted
+/// model reasons before answering: low, medium or high, or
+/// <see langword="null"/> for the model's own default, which saved files leave out.
+/// </summary>
 public sealed record InhabitantProviderAssignment(
     string InhabitantId,
     string Role,
     string Provider,
     string? Model = null,
     string? CredentialSlotId = null,
-    string? SelectionReason = null);
+    string? SelectionReason = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Thinking = null);
 
 public sealed record OwnerProviderCredentialStatus(string Id, string Provider, string Label);
 
@@ -273,6 +283,13 @@ public static class OwnerHttpBinding
     public const string WorldCreationPayloadDomain = "clankerworld.owner-world-creation.v3";
     public const string AgentPlacementPayloadDomain = "clankerworld.owner-agent-placement.v2";
 
+    /// <summary>
+    /// Advertised by hosts that accept Anthropic models and a thinking line in
+    /// provider configuration, setup check and placement payloads, so a newer
+    /// client can ask an older host to update instead of failing a signature.
+    /// </summary>
+    public const string ModelThinkingPayloadDomain = "clankerworld.owner-model-thinking.v1";
+
     public static string WorldCreationPayload(OwnerWorldCreationAction action) => string.Join(
         '\n',
         WorldCreationPayloadDomain,
@@ -395,9 +412,10 @@ public static class OwnerHttpBinding
     public static string ProviderSetupCheckPayload(OwnerProviderSetupCheckAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
+        _ = ModelThinking.Normalize(action.Thinking);
         var provider = PlayerDecisionProviders.Normalize(action.Provider);
-        if (provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
-            throw new ArgumentException("Choose OpenAI or Ollama Cloud for a personal model check.", nameof(action));
+        if (!PlayerDecisionProviders.IsHosted(provider))
+            throw new ArgumentException("Choose OpenAI, Ollama Cloud or Anthropic for a personal model check.", nameof(action));
         ArgumentException.ThrowIfNullOrWhiteSpace(action.Model);
         if (action.Model.Length > 200 || action.Model.Any(char.IsControl))
             throw new ArgumentException("Model names must be 200 characters or fewer and contain no control characters.", nameof(action));
@@ -410,11 +428,14 @@ public static class OwnerHttpBinding
         var apiKeyDigest = action.ApiKey is null
             ? "-"
             : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
-        return string.Join('\n', "clankerworld.owner-provider-setup-check.v1",
+        var payload = string.Join('\n', "clankerworld.owner-provider-setup-check.v1",
             $"provider={EncodeRequired(provider, nameof(action.Provider))}",
             $"model={EncodeRequired(action.Model.Trim(), nameof(action.Model))}",
             $"credential-slot={EncodeOptional(action.CredentialSlotId)}",
             $"api-key-sha256={apiKeyDigest}");
+        if (action.Thinking is not null)
+            payload += "\nthinking=" + EncodeRequired(action.Thinking, nameof(action.Thinking));
+        return payload;
     }
 
     public static string ProviderConfigurationPayload(OwnerProviderConfigurationAction action)
@@ -437,6 +458,8 @@ public static class OwnerHttpBinding
             payload += "\ncredential-slot=" + EncodeRequired(action.CredentialSlotId, nameof(action.CredentialSlotId));
         if (action.NewCredentialLabel is not null)
             payload += "\ncredential-label=" + EncodeRequired(action.NewCredentialLabel, nameof(action.NewCredentialLabel));
+        if (action.Thinking is not null)
+            payload += "\nthinking=" + EncodeRequired(action.Thinking, nameof(action.Thinking));
         return payload;
     }
 

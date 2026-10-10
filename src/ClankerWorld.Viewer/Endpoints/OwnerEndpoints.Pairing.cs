@@ -190,6 +190,7 @@ internal static partial class OwnerEndpoints
                     OwnerHttpBinding.LifePacePayloadDomain,
                     OwnerHttpBinding.JevAssistancePayloadDomain,
                     "clankerworld.owner-routine-helper.v1",
+                    OwnerHttpBinding.ModelThinkingPayloadDomain,
                 ],
             });
         });

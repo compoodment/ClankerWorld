@@ -19,6 +19,7 @@ dotnet run -- movement out   # implemented glide/bob reference frames from the c
 dotnet run -- completion out # approved building-finish C stills and loops, sharing native pixel spans
 dotnet run -- goldenhour out # implemented rose dawn and gold dusk references
 dotnet run -- snow out       # implemented ground snow A and footprints, using the client pixel rules
+dotnet run -- roof-snow out  # implemented roof snow A2, using the live slope and tint rules
 dotnet run -- check          # current scene contract checks in memory; writes no pictures
 python3 build_review.py --baseline out/baseline --proposed out/proposed --scene out/scene \
   --style ../../docs/development/art-style.md --notes Proposed --out out/art-review.html

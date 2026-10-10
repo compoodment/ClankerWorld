@@ -5,4 +5,4 @@
 - Hover over the Send button in an agent's message box. The tooltip reads "Send an instruction to this agent." ([#443](https://github.com/compoodment/ClankerWorld/issues/443))
 - Press Speak on an agent's card, choose Order and send something the game can't act on, such as "build a house". The Event Log says the agent didn't understand your order, and the order does not stay waiting. ([#503](https://github.com/compoodment/ClankerWorld/issues/503))
 - Send the order "heat the house". It gets the same "didn't understand" line instead of being taken as an order to eat. ([#503](https://github.com/compoodment/ClankerWorld/issues/503))
-- With a cloud model, order an agent to eat when it has no food. The order keeps waiting, but the model-call count in World Settings does not climb every second. ([#503](https://github.com/compoodment/ClankerWorld/issues/503))
+- With a cloud model, order an agent to eat when it has no food. The order keeps waiting, but the model-call count in **Settings → Game → Model calls** does not climb every second. ([#503](https://github.com/compoodment/ClankerWorld/issues/503), [#700](https://github.com/compoodment/ClankerWorld/pull/700))

@@ -49,7 +49,10 @@ Loading a named save requires both its seed and saved world identity to match
 the selected world. A save from a different same-seed map is refused before
 creating a backup or changing its timeline, runtime or settings.
 Installation state includes device authority, provider credentials and usage
-accounting. Saves store slot IDs and model choices, never API-key bytes.
+accounting. Saves store slot IDs and model choices, never API-key bytes. An
+agent's model choice can carry a thinking level, written only when one is
+chosen. Provider files from before Anthropic was added load with an empty
+Anthropic record; the provider file's schema stays 3.
 
 New-world genesis no longer seeds Copper, a 100-unit household wallet or the
 legacy `camp-no-theft` fine. Currency and faction-law collections start empty.
@@ -195,6 +198,16 @@ original owner instructions. Loading validates these records together so an
 unrelated action or a stale order cannot advance a replacement task. Alpha saves
 must use the current checkpoint schema; older saves are refused without
 migration and remain unchanged.
+
+Private-world schema 121 records each Town's first completed building time,
+including a completed building incorporated at founding. The time remains
+after removal, abandonment and reload, so constructing a replacement cannot
+repeat the first-building Road link. Loading checks it against the Town's
+founding time and world clock and requires it when a Town has buildings.
+Inter-Town Road tiles and bridges use their existing saved records. Current
+roundtrips and replay preserve the time, complete Road network and original
+Town/household land; older alpha schemas are refused and preserved without
+migration.
 
 Food consumption progress keeps a fixed-length SHA-256 receipt derived from
 the actual consumption's world time, actor and complete lot identity. Valid
@@ -499,6 +512,9 @@ Earlier alpha checkpoints are refused and preserved without migration.
 
 Schema 33 records a child's personal-model role at birth, provider endpoint, model
 ID, installation-local key-slot ID for a hosted model, and selection reason.
+An Anthropic birth choice uses the endpoint identity `anthropic-messages-v1`
+in the same record, with no schema change. The birth record has no thinking
+level, so the child's model starts at its default.
 Matching parent assignments are disclosed as agreement; when they differ, the
 parent who began the family plan is the tie-break. The provider store preserves that
 choice if its key is unavailable after moving a save or deleting a key, so the

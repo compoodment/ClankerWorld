@@ -69,9 +69,13 @@ public partial class Main
 
     private async Task VerifyNewWorldCompatibilityMessageAsync()
     {
+        var previousRefreshing = isRefreshing;
         var previousRegistration = registration;
         var previousKey = deviceKey;
         var previousUrl = worldUrlInput.Text;
+        var previousModel = founderModelPicker.Model;
+        var previousCheckDisabled = founderModelSetupCheckButton.Disabled;
+        var previousCheckText = founderModelSetupCheckStatus.Text;
         var previousCi = System.Environment.GetEnvironmentVariable("CI");
         System.Environment.SetEnvironmentVariable("CI", "true");
         using var signer = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
@@ -85,6 +89,7 @@ public partial class Main
         listener.Start();
         try
         {
+            isRefreshing = true;
             var authority = new OwnerAuthorityIdentity("compatibility-smoke", "compatibility-world");
             registration = new(authority, "compatibility-device", signer.PublicKeyFingerprint, origin);
             deviceKey = signer;
@@ -93,28 +98,46 @@ public partial class Main
             worldSeedInput.Text = "compatibility-smoke";
             var response = Task.Run(async () =>
             {
-                var context = await listener.GetContextAsync().WaitAsync(TimeSpan.FromSeconds(5));
-                if (context.Request.Url!.AbsolutePath != OwnerPairingEndpoints.ChallengeIssue)
-                    throw new InvalidOperationException("New World must check an authenticated challenge first.");
-                context.Response.ContentType = "application/json";
-                await System.Text.Json.JsonSerializer.SerializeAsync(context.Response.OutputStream,
-                    new OwnerChallenge(authority, registration.DeviceId, "challenge-smoke", "nonce-smoke",
-                        DateTimeOffset.UtcNow.AddMinutes(1)), CompatibilitySmokeJsonOptions);
-                context.Response.Close();
+                for (var index = 0; index < 3; index++)
+                {
+                    var context = await listener.GetContextAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                    if (context.Request.Url!.AbsolutePath != OwnerPairingEndpoints.ChallengeIssue)
+                        throw new InvalidOperationException("Unsupported New World/model actions must stop after an authenticated challenge.");
+                    context.Response.ContentType = "application/json";
+                    await System.Text.Json.JsonSerializer.SerializeAsync(context.Response.OutputStream,
+                        new OwnerChallenge(authority, registration.DeviceId, $"challenge-smoke-{index}", "nonce-smoke",
+                            DateTimeOffset.UtcNow.AddMinutes(1)), CompatibilitySmokeJsonOptions);
+                    context.Response.Close();
+                }
             });
             await PreviewWorldAsync();
-            await response;
             if (!worldPreviewStatus.Text.Contains("matching updates", StringComparison.Ordinal) ||
                 !worldPreviewStatus.Text.Contains("pairing can stay", StringComparison.Ordinal) ||
                 worldPreviewStatus.Text.Contains("not allowed", StringComparison.Ordinal) ||
                 !worldCreateButton.Disabled || worldPreviewButton.Disabled || registration is null)
                 throw new InvalidOperationException("New World must show the update remedy, keep pairing and leave Create unavailable without a preview.");
+            await LoadModelListAsync(founderModelPicker, "anthropic", null, null);
+            if (!founderModelPicker.Problem.Contains("matching updates", StringComparison.Ordinal) ||
+                !founderModelPicker.Problem.Contains("pairing can stay", StringComparison.Ordinal))
+                throw new InvalidOperationException("An older host must leave update guidance in the Anthropic model picker.");
+            founderModelSetupCheckButton.Disabled = false;
+            await RunModelSetupCheckAsync(founderModelSetupCheckButton, founderModelSetupCheckStatus,
+                "openai", "test-model", new OwnerProviderSetupCheckAction("openai", "test-model", Thinking: "low"), () => 0);
+            await response;
+            if (!founderModelSetupCheckStatus.Text.Contains("matching updates", StringComparison.Ordinal) ||
+                !founderModelSetupCheckStatus.Text.Contains("Nothing was sent", StringComparison.Ordinal) ||
+                founderModelSetupCheckStatus.Text.Contains("Check paid-call usage", StringComparison.Ordinal) || registration is null)
+                throw new InvalidOperationException("Test model must explain the host update and that no paid request was sent, keeping pairing.");
         }
         finally
         {
+            isRefreshing = previousRefreshing;
             registration = previousRegistration;
             deviceKey = previousKey;
             worldUrlInput.Text = previousUrl;
+            founderModelPicker.SetModel(previousModel);
+            founderModelSetupCheckButton.Disabled = previousCheckDisabled;
+            founderModelSetupCheckStatus.Text = previousCheckText;
             System.Environment.SetEnvironmentVariable("CI", previousCi);
             listener.Stop();
         }
@@ -1913,7 +1936,7 @@ public partial class Main
             for (var frame = 0; frame < 3; frame++)
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var placementFields = new Control[] { founderProviderChoice, founderCredentialChoice,
-                founderKeyLabelInput, founderApiKeyInput, founderModelPicker };
+                founderKeyLabelInput, founderApiKeyInput, founderModelPicker, founderThinkingChoice };
             var placementFieldRects = placementFields.Select(field => field.GetGlobalRect()).ToArray();
             void HoverPlacementTile(int x, int y)
             {
@@ -3081,6 +3104,7 @@ public partial class Main
             await VerifyDesertAndSnowArtAsync();
             await VerifyCameraMotionAsync(sample);
             await VerifyGroundSnowAsync();
+            await VerifyRoofSnowAsync();
             await VerifyAutumnLeavesAsync();
             VerifyOrchardSaplingAppearance(sample);
             var crowded = sample with

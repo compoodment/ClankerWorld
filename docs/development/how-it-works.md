@@ -1181,13 +1181,53 @@ fallback does not erase the previous accepted choice. Pause/disconnect records
 cancellation; refreshed views and current-format reload preserve it. Exception
 messages, provider bodies and keys do not enter these fields.
 
-The personal adapter sends JSON-object response mode and omits temperature and
-output-token limits. The owner's 16-call sample in
+For OpenAI and Ollama Cloud, the personal adapter sends JSON-object response
+mode and omits temperature and output-token limits. The owner's 16-call sample in
 [#457](https://github.com/compoodment/ClankerWorld/issues/457) used 44,285 output
 tokens (about 2,768 per call), nearly its 43,576 input tokens. This does not
 establish a safe universal output cap, so the cap stays unset; output billing
 and truncation remain model-dependent. There is no smaller candidate list or
 wider Jev role in this change.
+
+**Claude models.** An agent whose provider is Anthropic gets the same prompts
+and the same reply validation. `AnthropicModelClient` in the host sends them to
+Anthropic's Messages API through Anthropic's official C# client
+(`IHostedModelClient` is the seam in the simulation). The game's instructions
+are the system prompt, marked for prompt caching: calls that repeat them cost
+less once they are long enough for the model to cache, and a shorter prompt is
+simply not cached. The observation is the one user message. The Messages API
+requires an output limit, so the client allows 16,000 tokens, room for the
+model's thinking as well as the short JSON reply; an older model typed by name
+with a smaller output limit refuses the request. There is no JSON response mode in these
+requests: the prompt's "Return JSON only" asks for JSON, and one surrounding
+Markdown code fence is removed before the game reads the text.
+- Only text blocks come back. Thinking blocks are dropped and never logged or
+  saved.
+- A refusal, or a reply cut off at the limit, is an unusable reply. An HTTP
+  error keeps its status, so a 400 is an unsupported request, as on the
+  chat-completions path.
+- The client never retries, because a retry is another paid call. It sends
+  only the owner's key: it never falls back to the host's own Anthropic token
+  or login profile.
+- A refused or cut-off conversation turn still records its token counts as a
+  failed call.
+- Usage counts every input token the model read, cached ones included, and the
+  output tokens, which include thinking.
+- The short list is `claude-opus-5-5`, `claude-sonnet-5-5` and the default
+  `claude-haiku-5-5`. Conversations use the same client and the same strict
+  turn validation. Claude is not a routine helper.
+
+**Thinking.** Each hosted agent assignment can carry a thinking level: `low`,
+`medium` or `high` (`ModelThinking`), or none for the model's own default.
+OpenAI and Ollama Cloud receive it as `reasoning_effort`, and Anthropic as
+`output_config.effort`. With no level nothing is sent, so those requests are
+unchanged. The game offers only the levels every hosted provider accepts:
+`none`, `xhigh` and `max` are refused by some current models, so there is no
+Off. A model that refuses the setting fails the call like any other
+unsupported request, and Test model then suggests Model default. The level is
+set per agent with its model; world defaults have none. A personal choice's
+routine and planning rows share it, and a child born in the world starts with
+the model default.
 
 Each agent retains up to eight private thoughts and exposes up to sixteen recent
 non-forgotten social memories to owner inspection, including deceased profiles.
@@ -1477,7 +1517,8 @@ The owner's model picker shows the game's own list for each provider,
 `ProviderModelCatalog.Curated`: newest generation first and, within a generation,
 larger models first. Add new models there in their place. When a key is known,
 the host checks it against the provider's model-list route (OpenAI
-`/v1/models`; Ollama Cloud `/api/tags`, then `/v1/models`) using
+`/v1/models`; Ollama Cloud `/api/tags`, then `/v1/models`; Anthropic
+`/v1/models` through its official client, with its own key header) using
 the saved key, a named key slot, or a key pasted for that check only, which is
 not stored. Keys never return to the client. Listed models the key's route
 doesn't include are marked unavailable; names are compared without Ollama's
@@ -1495,9 +1536,11 @@ Checks are cached per key for ten minutes, time out after eight seconds and are
 not model calls, so they do not count toward the usage cap below.
 
 **Test model** is a separate owner action in Add Agent and an agent's Model
-panel. It sends one request through the same OpenAI-compatible personal
-decision adapter used in play, including the required JSON response format.
-It sends no temperature or output-token limit. The host durably reserves a
+panel. It sends one request through the same personal decision adapter used in
+play, at the chosen thinking level: chat completions with the required JSON
+response format for OpenAI and Ollama Cloud, and the Messages API for
+Anthropic. It sends no temperature, and an output-token limit only to
+Anthropic, which requires one. The host durably reserves a
 paid-call allowance before sending; every result after that point, including a
 timeout or rejected format, counts as one attempt. The check never tries an
 alternate request format, changes provider settings, or saves a pasted key.
@@ -1580,6 +1623,15 @@ cached, independent of map area; overview uses up to 256 small 32-tile chunk
 textures instead of a draw command per snowy tile. Changes to buildings,
 construction, bridges and Roads invalidate that overview cache. Cover itself
 is indexed by weather region.
+
+Roofs read that same observed region cover, including tiles blocked from the
+ground overlay. The building pass draws a cached transparent snow texture over
+actual roof planes at close/mid zoom. It shares the approved A2 slope and tint
+rules; comparison with an undecorated roof excludes flues, signs and other
+fittings. Roof outlines, open yards and grass shadows remain clear. Each roof
+is clipped by weather region before drawing, including wrapped copies, so a
+snowy side does not whiten a dry neighbour. At most 256 textures are cached;
+cover changes reuse them. No extra node, host field, event or saved state is added.
 
 Small and Medium generated maps are connected to the normal world path. The
 older tiny map remains a compatibility fixture/world; generation is no longer
@@ -2234,6 +2286,12 @@ The owner projection shows readable asset and consent details in the existing
 Town, plot and property hearing views. Personal owners keep limited entrance
 collection access after recovery and onward granting.
 
+Building inspection labels property rulings separately from permission-only
+cases and keeps the current building owner above the historical outcome.
+Result-event text resolves the exact ruling ID within the event's Town to choose
+property or permission wording. Missing case context uses a neutral land-ruling
+description; event prose does not establish ownership or case kind.
+
 `TownRuntimeState.Nonviolent` records non-land allegations, notice revisions,
 sources, responses and civil findings separately from permission adjustments.
 `TownHearingProcedure` supplies shared response, conflict and case-election
@@ -2427,7 +2485,35 @@ corner tiles are clear, and pays extra for each tile beside an existing Road,
 so it meets streets rather than running alongside them. Then every dead end
 fewer than three tiles past its nearest door carries on in its own direction
 where the land allows (`town_road_extended`). The border grows around all the
-new Road tiles.
+new local Road tiles. Local streets join Roads within their own Town's border;
+they do not choose another Town's network as their destination.
+
+When a Town gains its first completed building, `GenerateRoadBetweenTowns`
+selects the nearest other Town by wrapped foot distance between recorded
+origins, breaking equal distances by Town ID. A completed household building
+incorporated during founding triggers the same link. `RoadRoutePlanner` searches
+from the building's legal entrances to Roads in the selected Town, or to
+building entrances inside its border or its unoccupied origin when it has no
+Roads. The route uses
+the existing Road movement discount, without the local side-street adjacency
+penalty. It may reuse existing Roads and bridges, including Roads subsequently
+overlapped by household land. Existing diagonal Road edges retain their land
+access, while physical corner obstructions still refuse the step. New tiles
+and bridge banks still avoid held land, pending requests, resources and
+building footprints. The complete route
+and any new one- or two-tile river crossings validate before commitment.
+Inter-Town search uses admissible distance bounds to direct it toward the
+selected Town within the existing 32,768-tile search budget; local side streets
+keep Dijkstra ordering.
+`town_road_linked` records the selected pair; `town_road_link_unconnected`
+records a refused route. A failed link does not choose a farther Town. These
+inter-Town Roads use the ordinary saved Road tiles and bridge records, keep the
+same rendering and persistence, and never expand either Town's title or border.
+The Town's saved `FirstBuildingCompletedTick` prevents a replacement building
+from repeating the link after removal or reload, including a failed first link.
+Reassigning a completed Warehouse to an empty Town uses the same first-building
+trigger. When that Warehouse stands outside the receiving Town, the Road starts
+at the receiving Town's origin and leaves the remote building's entrance alone.
 
 Street neighbours, headings, diagonal corners and clearance use the map's
 east-west wrap. A Road across the seam counts toward the distance to the last

@@ -11,7 +11,7 @@ public partial class Main
     private string? cognitionModelContext;
     private string? cognitionModelLookup;
 
-    private static bool HasModelList(string provider) => provider is "openai" or "ollama-cloud" or "jev" or "decisions";
+    private static bool HasModelList(string provider) => IsHostedProvider(provider) || provider is "jev" or "decisions";
 
     private const string PasteKeyNote = "Paste the key to check which of these it can use.";
 
@@ -44,6 +44,11 @@ public partial class Main
             if (!IsCurrentWorldRequest(generation) || !picker.IsLatest(lookup)) return;
             if (checkKey) picker.ShowList(list.Models, list.DefaultModel, list.Error);
             else picker.ShowList(list.Models, list.DefaultModel, PasteKeyNote, canRetry: false);
+        }
+        catch (ClankerWorld.GodotClient.Pairing.OwnerActionCompatibilityException exception)
+        {
+            if (IsCurrentWorldRequest(generation) && picker.IsLatest(lookup))
+                picker.ShowError(FriendlyFailure(exception), defaultModel, canRetry: false);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {

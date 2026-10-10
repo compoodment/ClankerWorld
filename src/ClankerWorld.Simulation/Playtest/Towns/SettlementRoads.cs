@@ -47,38 +47,28 @@ public sealed partial class PrivateWorldRuntime
     /// (<see cref="ExtendStreetsPastDoors"/>). Each proposal is validated whole
     /// before any Road tile or bridge is saved.
     /// </summary>
-    private List<GridPoint> GenerateRoadToBuilding(PlacedBuilding building, IReadOnlySet<GridPoint>? border = null)
+    private List<GridPoint> GenerateRoadToBuilding(PlacedBuilding building, HashSet<GridPoint>? border = null)
     {
         var laid = new List<GridPoint>();
         if (building.TownId is null) return laid;
-        var buildingDesign = BuildingStorageRules.EffectiveDefinition(
-            worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId), building);
         // A lantern's Road edge is part of its paid Council approval. It is a
         // fitting beside an existing street, not a door that grows or turns it.
         if (StreetLanternContent.IsLantern(building.DefinitionId)) return laid;
-        var footprint = WorldContentSimulationRules.Footprint(buildingDesign, building).ToHashSet();
         var occupied = RoadBlockedTiles();
-        var entrances = footprint.SelectMany(point => map.FootNeighbors(point)
-                .Where(next => !map.IsDiagonalFootStep(point, next)))
-            .Where(point => (!occupied.Contains(point) || roadTiles.Contains(point)) && map.IsBuildable(point) &&
-                WorldContentSimulationRules.IsEntrance(buildingDesign, building.Position, point) &&
-                (!buildingDesign.Tags.Contains(TownHallContent.HallTag, StringComparer.Ordinal) ||
-                 point == TownHallContent.Entrance(building.Position)) &&
-                (!buildingDesign.Tags.Any(tag => tag is MarketContent.HallTag or MarketContent.StallTag) ||
-                 point == building.Entrance) &&
-                (!PortNavigationRules.IsPort(buildingDesign) || point == building.Entrance))
-            .Distinct().OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
+        var entrances = BuildingRoadEntrances(building, occupied);
         if (entrances.Length == 0)
         {
             AppendEvent("town_road_unconnected", $"{building.TownId}:{building.InstanceId}:{RoadRouteOutcomes.NoEntrance}");
             return laid;
         }
-        var network = roadTiles.Count > 0 ? roadTiles.ToHashSet() : map.CampObjects
-            .Where(item => item.Id == "storage")
+        var network = roadTiles.Where(point => border is null || border.Contains(point)).ToHashSet();
+        if (network.Count == 0)
+            network.UnionWith(map.CampObjects
+            .Where(item => item.Id == "storage" && (border is null || border.Contains(item.Position)))
             .SelectMany(item => map.FootNeighbors(item.Position)
                 .Where(point => !map.IsDiagonalFootStep(item.Position, point)))
             .Where(point => map.IsBuildable(point) && !occupied.Contains(point))
-            .ToHashSet();
+            .ToHashSet());
         if (network.Count == 0) network.Add(entrances[0]);
 
         var request = new RoadRouteRequest(map, entrances, network, occupied, Bridges, roadTiles, border);
@@ -137,8 +127,10 @@ public sealed partial class PrivateWorldRuntime
         var doors = worldSimulation.Buildings.Where(item => item.Entrance is not null &&
                 !StreetLanternContent.IsLantern(item.DefinitionId))
             .Select(item => item.Entrance!.Value).ToHashSet();
-        var ordered = working.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
-        var streets = new TownStreets(map, occupied, ordered);
+        var townBorder = building.TownId is { } townId ? towns.Single(item => item.Id == townId).BorderTiles.ToHashSet() : null;
+        var ordered = working.Where(point => townBorder is null || townBorder.Contains(point))
+            .OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
+        var streets = new TownStreets(map, occupied, working);
         var random = Pcg32XshRrV1.Create(worldSeed, $"town-streets/{building.InstanceId}");
         foreach (var end in ordered)
         {

@@ -34,11 +34,14 @@ switch (command)
     case "snow":
         SnowMarksPreview.Run(Path.Combine(outRoot, "baseline", "snow"));
         break;
+    case "roof-snow":
+        RoofSnowReview.Run(Path.Combine(outRoot, "baseline", "roof-snow"));
+        break;
     case "check":
         ArtContractChecks.Run();
         break;
     default:
-        Console.Error.WriteLine("usage: baseline|proposed|scene|seasons|movement|animate|completion|snow|goldenhour <out dir> [proposal family] | check");
+        Console.Error.WriteLine("usage: baseline|proposed|scene|seasons|movement|animate|completion|snow|roof-snow|goldenhour <out dir> [proposal family] | check");
         return 2;
 }
 return 0;
