@@ -2,7 +2,7 @@
 title: The interface, art and audio
 type: game-design
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # The interface, art and audio
@@ -596,6 +596,31 @@ provide a UI drawing.
   computment chose look B, crisp pixel streaks: straight one-pixel rain that
   lands as a small burst, sharp storm streaks in gusts, and small snowflake
   crosses blown by the wind. No cloud shadows.
+- **Agreed on October 9 (direct owner request,
+  [visual polish review](../../tools/ArtPreview/Proposed/Polish.md)):** the
+  map gets touches that only show, more clearly, what the world already
+  records:
+  - agents and animals glide between tiles, with a small bob on each step,
+    instead of jumping;
+  - Houses with someone inside and a working forge send up a column of
+    smoke that leans with the wind;
+  - after snowfall the open ground turns white, with grass tips and trodden
+    Roads showing, and anyone crossing it leaves footprints that fade; in
+    autumn a few leaves lie under broadleaf and orchard trees;
+  - dawn has a rose glow and dusk a gold one;
+  - stores show piles of logs, crates and sacks beside the door that grow
+    with what they hold;
+  - the camera eases when **Find** moves it or the view zooms;
+  - a finished building gets a ring of dust and a few twinkles;
+  - after snowfall roofs keep snow on their shaded side and a dusting on
+    their sunny side, following each roof's shape;
+  - where someone died, a grave marked by a wooden cross or a headstone
+    stays for a year of game time, then fades;
+  - weather fades in and out instead of switching at once.
+
+  Puddles after rain are postponed: none of the three rounds of drawings
+  matched what computment has in mind, and whether puddles belong in the
+  game at all is left open for later.
 - Ground remains square-tiled, but permanent **black tile-border grid lines**
   are not part of the intended presentation; they would clash with textures.
 - **Agreed on October 8

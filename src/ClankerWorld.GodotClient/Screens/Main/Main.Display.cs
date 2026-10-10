@@ -215,6 +215,7 @@ public partial class Main
         FillFamilyLegend();
         RefreshHudIcons();
         renderedTownList = null;
+        renderedRosterPresentation = null;
         renderedEventLog = null;
         if (observationSession.Current is { } current)
             Render(current.Baseline.Snapshot, []);

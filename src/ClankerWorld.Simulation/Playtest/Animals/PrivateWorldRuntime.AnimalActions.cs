@@ -72,8 +72,6 @@ public sealed partial class PrivateWorldRuntime
         AddAnimalSupplyCandidates(candidates, actor);
         AddAnimalPermissionAndTradeCandidates(candidates, actor);
         AddMilkCandidates(candidates, actor);
-        if (CarriedMilk(actor) is not null && inhabitants[actor].HungerBasisPoints < ComfortableFullness)
-            candidates.Add(new("drink_milk", "Drink one portion of carried jug milk, leaving the reusable jug intact.", 0));
     }
     private bool ApplyAnimalCandidate(string actor, string candidateId)
     {
