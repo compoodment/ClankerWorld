@@ -7,6 +7,56 @@ public sealed class WorldEventTextTests
     private const string FounderId = "founder:00000000000000000000000000000001";
     private const string AgentId = "agent:00000000000000000000000000000099";
     private const string ChildId = "world:inhabitant:birth:" + FounderId + ":" + AgentId + ":1";
+    private const string Digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    [Theory]
+    [InlineData("building_placed", "building/clinic-1x2@1.0.0", "A new Clinic was built.")]
+    [InlineData("build_started", "building/house-2x2@1.0.0", "Work began on a new House.")]
+    [InlineData("build_completed", "building/house-2x2@1.0.0", "The new House is finished.")]
+    [InlineData("build_started", "recipe/wooden-axe@1.2.0", "Work began on a new Wooden axe.")]
+    [InlineData("recipe_started", "recipe/wooden-axe@1.2.0", "Work began on wooden axe.")]
+    [InlineData("recipe_completed", "recipe/wooden-axe@1.2.0", "A batch of wooden axe was made.")]
+    public void HistoricalContentEventsKeepDigestAndColonContainingPrefixTogether(string kind, string content, string expected)
+    {
+        var detail = $"{ChildId}:{Digest}/{content}:first-town-blacksmith:household=household:camp-alpha";
+        var worldEvent = new OwnerWorldEvent(1, 1, kind, detail);
+        Assert.Equal(expected, WorldEventText.Describe(worldEvent, null));
+        Assert.Equal(expected, WorldEventText.Describe(worldEvent, Snapshot()));
+        Assert.Equal(detail, worldEvent.Detail);
+    }
+
+    [Fact]
+    public void ContentEventsPreferExactDefinitionNamesAndKeepAvailableRecipesAfterJobsDisappear()
+    {
+        var buildingId = Digest + "/building/clinic-1x2@1.0.0";
+        var recipeId = Digest + "/recipe/wooden-axe@1.2.0";
+        var snapshot = Snapshot() with
+        {
+            PlacedBuildings = [new("clinic", buildingId, new(0, 0), 0, "Village Clinic")
+            {
+                AvailableRecipes = [new(recipeId, "Workshop axe", [], [])],
+            }],
+            ProductionJobs = [new("job", recipeId, "smith", AgentId, 1, 2, "completed")
+            {
+                Recipe = new(recipeId, "Smith's wooden axe", [], []),
+            }],
+        };
+        Assert.Equal("A new Village Clinic was built.", WorldEventText.Describe(new(1, 1, "building_placed", "clinic:" + buildingId), snapshot));
+        var completed = new OwnerWorldEvent(2, 2, "recipe_completed", "job:" + recipeId);
+        Assert.Equal("A batch of smith's wooden axe was made.", WorldEventText.Describe(completed, snapshot));
+        Assert.Equal("A batch of workshop axe was made.", WorldEventText.Describe(completed, snapshot with { ProductionJobs = [] }));
+        Assert.Equal("A batch of wooden axe was made.", WorldEventText.Describe(completed,
+            snapshot with { ProductionJobs = [], PlacedBuildings = [] }));
+    }
+
+    [Theory]
+    [InlineData("building_placed", "legacy:clinic", "A new Clinic was built.")]
+    [InlineData("recipe_completed", "job:wooden-axe", "A batch of wooden axe was made.")]
+    [InlineData("weather_changed", "region:rain", "The weather turned to rain.")]
+    [InlineData("recipe_completed", "job:sha256:bad/recipe/wooden-axe@1.2.0", "A batch of sha256 was made.")]
+    [InlineData("recipe_completed", "job:" + Digest + "/recipe/wooden-axe", "A batch of sha256 was made.")]
+    public void LegacyAndMalformedDetailsKeepTheirSafeExistingBehavior(string kind, string detail, string expected) =>
+        Assert.Equal(expected, WorldEventText.Describe(new(1, 1, kind, detail), null));
 
     [Fact]
     public void FamilyLinesNameThePeopleTheRecordsHoldAtThatMoment()

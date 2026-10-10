@@ -1643,6 +1643,9 @@ Grass and tree canopies use the approved seasonal colours: brighter in spring,
 base colours in summer, warmer in autumn and desaturated in winter. Existing
 snow follows the world state; changing season adds no snow by itself.
 
+The Event Log names buildings and recipes when construction or crafting starts
+or finishes, including older recorded work.
+
 Observed snowfall now leaves white cover on open ground in that region,
 keeping grass tips and trodden Roads visible. Cover builds over a game hour
 and melts over two hours after snow stops. Walking agents and animals leave
