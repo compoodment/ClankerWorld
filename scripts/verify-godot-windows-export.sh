@@ -219,4 +219,4 @@ printf 'Writing export manifest\n'
     sha256sum --check --quiet --strict "${manifest_path##*/}"
 )
 
-printf 'Windows 11 x64 release export verified: %s\n' "${output_dir}"
+printf '%s release export verified: %s\n' "${EXPORT_PRESET}" "${output_dir}"

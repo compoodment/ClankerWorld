@@ -40,6 +40,21 @@ the server. Your saves, keys and model-call count are kept in
 `clankerworld-windows-11-x64-portable` build from CI
 ([#468](https://github.com/ClankerWorldOrg/ClankerWorld/issues/468)).
 
+The **launcher**, `ClankerWorldLauncher.exe`, installs and starts these game
+versions for you. **Play** installs the newest published version if needed and
+opens its Main Menu; you still choose worlds in the game's **Load World**.
+**Versions** lists each installed version with its size and the worlds it last
+saved, with **Repair** (checks every file against the release) and **Remove**
+(keeps your worlds), plus the versions you can install. **Settings** has
+**Developer mode** and buttons for the saves and logs folders. The game does
+not read Developer mode yet, so F12 Developer tools still open in every build. The launcher checks each download against the
+release's published SHA-256 before unpacking it, never installs anything
+without your click, and never updates itself: it tells you when a newer
+launcher is published. If it can't reach GitHub, you can still play an
+installed version. Until the first alpha release, it is the
+`clankerworld-launcher-windows-11-x64` build from CI
+([#1566](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1566)).
+
 If the server changes, forget the old registration and pair again.
 [Device pairing](development/device-pairing.md) has the operator instructions.
 

@@ -275,6 +275,21 @@ restores in locked mode. CI uploads the zip as the
 `clankerworld-windows-11-x64-portable` artifact. It is unsigned, and a built
 zip is not a Windows playtest.
 
+### Windows launcher
+
+The launcher ([#1566](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1566))
+is the same Godot project exported with the `launcher` feature, which makes
+`run/main_scene.launcher` open `res://Launcher/Launcher.tscn` instead of the
+game. `bash scripts/verify-godot-windows-export.sh --launcher` exports it to
+`export/launcher-windows-x64/ClankerWorldLauncher.exe`, and
+`bash scripts/package-windows.sh --launcher` zips it, without a host, as
+`ClankerWorld-Launcher-<launcher version>-windows-x64.zip`. The launcher's own
+version is `Launcher.Version` in `Launcher/Launcher.cs`, separate from the game
+version. CI uploads it as the `clankerworld-launcher-windows-11-x64` artifact.
+`bash scripts/verify-godot-client.sh` also opens the launcher scene headlessly
+with `--launcher-smoke-test`. Its install, hash-check, repair and remove logic
+lives in plain C# under `Launcher/` and is tested in `LauncherTests`.
+
 The program icon, `src/ClankerWorld.GodotClient/icon.ico`, is generated from
 the logo art in `UI/MenuLogo.cs` and embedded in the exported `.exe`. After
 changing that art, rebuild the icon with
