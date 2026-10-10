@@ -110,7 +110,8 @@ the client files its `<Compile Include>` lines name, so no other client file
 can change a test result. A change to one of those files, to anything under
 `tests/`, or to anything outside the client folder runs everything.
 
-Pushes to main always run everything. A newer push to a pull request cancels
+Pushes to main always run everything, and so does each batch the merge queue
+tests on top of main before merging it. A newer push to a pull request cancels
 its older run.
 
 The test jobs split the tests by how long each took on main, so new slow tests

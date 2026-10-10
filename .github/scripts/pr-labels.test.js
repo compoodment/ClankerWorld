@@ -669,7 +669,7 @@ test('a priority added earlier in the same run counts as the workflow\'s even be
   assert.deepEqual(priorities(state.pr.labels), ['priority:p1']);
 });
 
-test('closing a PR or sending it back to draft ends its merge turn', async () => {
+test('closing a PR or sending it back to draft clears its review labels', async () => {
   const closed = scenario({
     action: 'closed', live: { state: 'closed', labels: ['status:needs-review', 'status:reviewing'] },
     issueLabels: ['priority:p2', 'status:has-pr'],

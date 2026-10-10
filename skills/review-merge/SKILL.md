@@ -76,8 +76,8 @@ Several reviewers may be merging at the same time, so:
   that search are stacked or wait on another pull request; if that one is
   ready and unclaimed, review it instead.
 - **One review claim at a time.** A claim is not a place in the queue. Take a
-  second pull request only while the first waits on CI or for its merging
-  turn, and review it in that time, so it is ready when the first merges
+  second pull request only while the first waits on CI or in the merge
+  queue, and review it in that time, so it is ready when the first merges
   ([Keep two pull requests moving](#keep-two-pull-requests-moving)).
 - **Priority decides what you claim, not when you merge.** Once your pull
   request passes the checks [before merging](#before-merging), merge it. Don't

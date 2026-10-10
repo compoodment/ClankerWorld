@@ -33,5 +33,5 @@
     { "name": "regression", "color": "e11d21", "description": "Something that used to work broke.", "aliases": [] },
     { "name": "from:playtest", "color": "5ebeff", "description": "Found while playing the game.", "aliases": [] }
   ],
-  "retired": ["good first issue", "help wanted", "question", "invalid", "wontfix", "duplicate", "area:kernel", "status:needs-playtest", "type:playtest"]
+  "retired": ["good first issue", "help wanted", "question", "invalid", "wontfix", "duplicate", "area:kernel", "status:needs-playtest", "type:playtest", "status:merging"]
 }

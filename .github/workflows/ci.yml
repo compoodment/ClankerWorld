@@ -5,6 +5,9 @@ on:
     branches: [main]
   # Every base branch, so a pull request stacked on another one's branch gets CI too.
   pull_request:
+  # The merge queue tests each batch of queued pull requests on top of main before
+  # merging it, and waits for the required checks below to report on that batch.
+  merge_group:
 
 permissions:
   contents: read
@@ -50,6 +53,7 @@ jobs:
         run: |
           # A pull request's checkout merges it into its base, so the first parent is the base.
           # --no-renames lists a file moved from code to Markdown under both names.
+          # A merge-queue batch, like a push to main, gets an empty list and runs everything.
           if [ "$EVENT" = pull_request ]; then
             git diff --no-renames --name-only HEAD^1 HEAD > "$RUNNER_TEMP/changed.txt"
           else
