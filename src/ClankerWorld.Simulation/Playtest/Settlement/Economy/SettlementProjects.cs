@@ -684,7 +684,7 @@ public sealed partial class PrivateWorldRuntime
             }
             else
             {
-                SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "No legal Town construction site is currently available." });
+                SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "No legal Town construction site is currently available. " + HousingBlockers.LandRecoveryGuidance });
                 return;
             }
         }
