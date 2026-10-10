@@ -51,6 +51,12 @@ creating a backup or changing its timeline, runtime or settings.
 Installation state includes device authority, provider credentials and usage
 accounting. Saves store slot IDs and model choices, never API-key bytes.
 
+New-world genesis no longer seeds Copper, a 100-unit household wallet or the
+legacy `camp-no-theft` fine. Currency and faction-law collections start empty.
+This changes initial world state without adding checkpoint fields or changing
+the schema. Restore uses saved world systems through the existing path; no
+migration or extra compatibility logic is added.
+
 The October 1 terrain tuning changes deterministic generation for new worlds.
 Loading retains the saved map and current weather episode; it does not replace
 either with a freshly generated map or a new weather roll. Earlier alpha maps
@@ -699,6 +705,17 @@ saved. A valid will wins, and adoption, later amendment or repeal cannot change
 an earlier death's division. The number is provisional until merge; schema 117
 and older alpha saves are refused and preserved without migration.
 
+Private-world schema 119 adds the `Permanent` flag to private self-subject
+experience records for player renames. Each keeps the accepted name, original
+world tick and world-day wording. Same-tick rename IDs include a saved world-event ordinal,
+so repeated changes and retries remain distinct and deterministic after reload.
+Loading refuses a rename record whose permanent marker is missing or false,
+that is tombstoned, public, cross-owned or dated in the future. The source
+history remains saved independently of bounded model/UI lists and compaction
+scores. Name and memory publish together, including both changed spouses;
+refusal and retry preserve checkpoint bytes. This number is provisional until
+merge. Earlier alpha schemas are refused and preserved without migration.
+
 Private-world schema 84 adds required marriage records and conversation kinds.
 Each marriage retains its accepted partnership snapshot and the ordinary
 conversation's separate mutual marriage consent. Its surname session admits
@@ -1162,6 +1179,7 @@ current alpha cutoff.
 | Schema 114 | Required person-owned recipe accounts and recipe lists on written goods and writing projects retain completed-production evidence, actual read/shared sources and copied provenance. Reading grants no skill. Owner read completions retain sorted actual learned site and recipe identities, bound to their source and effect. Earlier alpha saves are refused and preserved without migration. |
 | Schema 108 | Owner Port-travel orders bind the exact destination Port and latest native boat request. Requests retain their originating instruction; sequential retry and actual destination-arrival receipts are validated. Cancellation preserves underway recovery, and return to departure supplies no completion. Earlier alpha saves are refused and preserved without migration. |
 | Schema 115 | Scouting requires an explicit nullable bounded resource or terrain purpose and optional gathering-order link. Loading checks supported targets and the instruction's owner, action and requested kind. Native discovery hands back only to a usable task without awarding harvest credit; return, abort and cancellation retain their existing rules. Purpose, knowledge, orders and actual movement continue across strict reload and replay. Earlier alpha saves are refused and preserved without migration. |
+| Schema 119 | Player renames retain dated private permanent experiences. Model retrieval and the Memories panel prioritize them without discarding source history; compaction cannot fade them. Missing permanence, tombstoning, public or cross-owned records and future dates are refused. Name and memory commit together; older alpha checkpoints are refused and preserved without migration. |
 | Schema 105 | Attach/pull and park orders retain optional stable cart identities and native completion receipts. Strict validation checks cart references, task shape and receipt identity; owner/Godot projections retain the target. Queue, cancellation/replacement, urgent food, ownership changes, refused-tick rollback and paired replay/reload preserve actual cart and cargo state. Earlier alpha saves are refused and preserved without migration. |
 | Schema 104 | Scouting can continue beyond eight steps and explicitly return. Loop-free outward paths are bounded by map tile count; visited tiles and recent discoveries retain their 256-entry limits. Current-format saves retain longer outward and returning paths, original origins, actual knowledge and historical bridge validation. Replay includes chosen return, occupied-corner detours, interruption and refused-tick rollback. Earlier alpha saves are refused and preserved without migration. |
 | Schema 103 | Boat transport requires compact retired-request sequence ranges. Checkpoint compaction durably archives full older closed requests before retaining all active requests and the latest 40 closed requests. Ranges and live requests cover each issued sequence exactly once, including gaps around older active travelers. Loading verifies that the reachable archive contains exactly those retired closed requests. Earlier alpha saves are refused and preserved without migration. |
@@ -1398,7 +1416,9 @@ The once-per-world-day native rule moves eligible old, low-importance ordinary
 sources into `ArchivedMemories` and `ArchivedBeliefs`, retaining their complete
 record and `ArchivedTick`. Each live or archived source ID appears exactly once.
 The source's required `Kind` protects life events, relationships, skills and
-commitments. Validation also protects durable cooperation/final-word receipts
+commitments. The `Permanent` marker also keeps player-rename experiences active.
+Loading refuses archived rename records, including records whose marker was
+changed to false. Validation also protects durable cooperation/final-word receipts
 and world-event-backed beliefs. Salience entries and correction chains may
 reference archived records and are validated against the same owner's complete
 ledger. Correcting an archived belief keeps the old record archived and adds

@@ -153,7 +153,14 @@ Player renames follow the same rule. An agent may keep their own first name
 while changing the rest of their name. The Profile explains that the name is taken and
 keeps the name field open with your attempt in it until you change it, close
 it or choose another agent. This makes no model request. Renaming keeps the
-same person and leaves past spoken lines as they were.
+same person and leaves past spoken lines as they were. Each actual player rename
+adds a private, permanent memory with the world day and accepted name. A
+married surname change records it for both spouses whose names change; other
+agents are not told. Memories marks it Permanent. The model and Memories list
+keep the latest permanent records as ordinary experiences accumulate, and earlier
+rename history remains saved. Refusal and an unchanged-name retry add nothing.
+This has automated runtime, signed HTTP, save/replay and native UI checks;
+three [Windows checks](../playtest/1330-permanent-rename-memory.md) remain pending.
 
 A newborn starts with a temporary name. A chosen child's name must use one
 biological parent's surname and an unused first name. The player can name the

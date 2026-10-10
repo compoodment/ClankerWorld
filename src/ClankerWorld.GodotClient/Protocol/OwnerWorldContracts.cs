@@ -129,7 +129,7 @@ public sealed record OwnerWorldInhabitantRelationship(
     string? Direction = null);
 
 public sealed record OwnerWorldPrivateThought(long WorldTick, string Text);
-public sealed record OwnerWorldAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility);
+public sealed record OwnerWorldAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility, bool Permanent = false);
 public sealed record OwnerWorldAgentBelief(
     long WorldTick,
     string Statement,

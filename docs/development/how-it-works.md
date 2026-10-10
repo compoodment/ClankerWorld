@@ -168,6 +168,12 @@ its saved world systems. It does not generate a disposable initial ecology,
 chunk set or weather state. New worlds still generate those systems normally;
 ordinary loads still validate saved data and check deterministic map identity.
 
+New worlds start with no currency definitions, accounts or transfers. The
+legacy faction-law list is empty too: genesis creates no `camp-no-theft` rule
+or money fine. Physical goods, ownership/access checks and actual Town laws
+use their existing systems. The generic currency and faction contracts remain
+available to the kernel, but native world creation supplies no money or fines.
+
 The current host aims for one tick per real second. New worlds save 360 ticks
 per day and a 40-day year with four ten-day seasons; lifecycle thresholds are
 3/15/45/60 days. Newly created playable worlds start at 06:00 on Spring 1,
@@ -999,6 +1005,18 @@ it a chosen name and reserves its first token. No name check rewrites saved
 dialogue or identity references, and player choices still supersede late model
 naming replies.
 
+A changed player rename and its permanent memory publish in the same Society
+operation. `RenameFromPlayer` records the accepted normalized name and current
+world day as a private self-subject experience. A stable, bounded ID combines
+the saved world-event ordinal and an actor hash, distinguishing several renames at
+one tick and preserving their order across reload. Married surname changes
+record a memory only for each actually changed spouse, inside the existing
+all-or-nothing operation. Long descendant IDs keep their full saved ownership
+while the model excerpt uses the existing bounded subject alias. Automatic naming and marriage surname choices do not
+create player-rename memories. A refused or unchanged-name request creates no
+memory. Deceased rename history remains inspectable. Undoing a founder before
+the world starts removes that person and their setup history.
+
 Native births omit a chosen name and retain a placeholder with `NeedsName`.
 Infants remain excluded from personal-model dispatch. Once ordinary eligibility
 allows a naming request, bounded `self.allowed_child_surnames` lists only the
@@ -1118,9 +1136,15 @@ the same public wrap-up and proposed effect before accepting. Lessons wait while
 either participant is talking. Conversation logs record only purpose, bounded
 turn count, latency and usage totals, including reported usage for rejected speech.
 
-Personal requests retrieve at most four relevant own-memory/belief excerpts and
-sixteen recent own-map facts. An existing Jev routine call may score up to twelve
-previously unassessed records; only linked salience/confidence values are saved.
+Personal requests retrieve at most four own-memory/belief excerpts and sixteen
+recent own-map facts. Permanent rename experiences take precedence, newest first,
+including before the 256-source scan limit; ordinary sources retain their
+relevance and salience ranking. The owner's bounded 16-entry Memories projection
+also keeps permanent entries first and marks them Permanent. All rename source
+records remain saved; bounded lists do not archive or delete them.
+An existing Jev routine call may score up to twelve previously unassessed
+ordinary records; permanent entries are excluded from scoring and cannot fade
+through a low assessment. Only linked salience/confidence values are saved.
 It adds no separate paid request or generated prose. Local retrieval works with
 Jev off. On an unpaused world-day boundary, `SocietyMemoryArchiveRules` moves
 ordinary experiences and beliefs at least three world days old and below 2,500
@@ -1128,7 +1152,7 @@ importance basis points out of the active ledger into required owner-private
 archive lists. Unscored records count as zero. These constants are provisional.
 Archive entries retain the complete original record and archive tick; ordinary
 recall and memory-scoring candidates read only the active ledger. Typed life,
-relationship, skill and commitment records, durable cooperation/final-word
+relationship, skill and commitment records, records marked `Permanent`, durable cooperation/final-word
 receipts and world-event-backed beliefs stay active. Active orders, projects,
 lessons (including their teachers), requested or preparing parenthood plans,
 relationship proposals, barter,
