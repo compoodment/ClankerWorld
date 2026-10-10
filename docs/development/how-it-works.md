@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-09
+updated: 2026-10-10
 ---
 
 # How the game works
@@ -181,8 +181,16 @@ Animal-supply sources use Collect and recheck before pickup; care permission,
 feed reserves, product capacity, destination room and workstation surplus
 remain feature-specific filters. These are the first household pickup callers
 of [#1370](https://github.com/compoodment/ClankerWorld/issues/1370). Personal
-recovery, birth food, material counts and the remaining Warehouse/Town paths
-still use their existing helpers.
+recovery and birth food still use their existing helpers.
+
+Warehouse stock uses Holdings before route checks and ReachableHoldings
+for reachable stock, keeping the resident-Town/abandoned-Town and Warehouse
+ordering. Handcart household material counts use the same reachable query.
+Preparation still permits making cargo room first; actual cart and construction
+material pickups recheck the selected lot with Collect. Town access, top-level
+stock, the intended return route and delivery quantities remain native filters.
+Other Town-stock and personal-recovery callers remain in
+[#1370](https://github.com/compoodment/ClankerWorld/issues/1370).
 
 With `Explain`, exclusions retain their first failure in this fixed order:
 owner, kind, building, damage, spoilage, vessel, empty stock, reservation,
