@@ -357,6 +357,11 @@ public sealed partial class PrivateWorldRuntime
                     (state, government) = TownLawRules.ProposeBoatAccess(state, government, town.Id, actor,
                         visitorId, TownAdults(town), WorldTick, CivicDay);
                     break;
+                case "estate_default":
+                    if (!int.TryParse(parts[4], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var townShare)) return;
+                    (state, government) = TownLawRules.ProposeEstateDefault(state, government, town.Id, actor,
+                        townShare, TownAdults(town), WorldTick, CivicDay);
+                    break;
                 case "boat_project":
                     var boatPort = Port(parts[3]);
                     if (boatPort is null || boatPort.TownId != town.Id) return;

@@ -154,7 +154,7 @@ public sealed record CognitionWillContext(
 
 /// <summary>
 /// A provider's untrusted will reply. With no heirs the estate keeps the
-/// household default; final words are optional either way.
+/// default inheritance rules; final words are optional either way.
 /// </summary>
 public sealed record CognitionWillChoice(
     IReadOnlyList<string> HeirKeys,
@@ -367,6 +367,7 @@ public sealed record InhabitantObservation(
                         "park the selected attached handcart here with its cargo intact" or
                         "repair the selected owned handcart with real carried supplies" or
                         "attempt to talk with the named person; agreement and resumption remain each participant's choice" or
+                        "attempt marriage with your current partner; both people keep their consent and surname choices" or
                         "care for the named animal with real feed and jug water" or
                         "collect the named animal's ready products locally" or
                         "tame the named wild animal for your household" or
@@ -1330,7 +1331,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 role = "system",
                 content = "You are an agent who has just died. This is your one final will, not an ordinary action, and it cannot be changed later. " +
                     "Your estate lists the belongings you personally owned. Return JSON only, with fields " +
-                    "selected_candidate_id (\"will:household\" to leave everything to your household, or \"will:heirs\" to name heirs) and confidence (number 0..1). " +
+                    "selected_candidate_id (\"will:household\" to use the default inheritance rules described by the offered choice, or \"will:heirs\" to name heirs) and confidence (number 0..1). " +
                     "With will:heirs, also include heirs (a list of one to three ids from possible_heirs) and split: " +
                     "\"equal\" shares every item equally between your heirs, while \"items\" gives each item to one heir through items, " +
                     "an object mapping item ids from estate to one of your heir ids; items you leave out are shared equally. " +
@@ -1381,7 +1382,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
 
     /// <summary>
     /// Reads the optional will fields. Malformed fields make the reply invalid,
-    /// so the server keeps the household default; unusable final words are dropped.
+    /// so the server uses default inheritance; unusable final words are dropped.
     /// </summary>
     private static CognitionWillChoice? ParseWillChoice(JsonElement answer, string? selected)
     {
