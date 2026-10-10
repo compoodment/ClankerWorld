@@ -45,9 +45,10 @@ public sealed partial class PrivateWorldRuntime
         return learned.Take(kind == "field_record" ? 1 : AgentKnowledgeRules.MaximumFactsPerArtifact).ToArray();
     }
 
-    private bool AlreadyWrote(string actor, string kind, AgentKnowledgeFact[] facts) =>
+    private bool AlreadyWrote(string actor, string kind, AgentKnowledgeFact[] facts, AgentRecipeKnowledge[] recipes) =>
         knowledge.Artifacts.Any(artifact => artifact.CreatorId == actor && artifact.Kind == kind &&
-            artifact.Facts.Count == facts.Length && artifact.Facts.All(fact => facts.Any(other => AgentKnowledgeRules.SameDiscovery(fact, other))));
+            artifact.Facts.Count == facts.Length && artifact.Facts.All(fact => facts.Any(other => AgentKnowledgeRules.SameDiscovery(fact, other))) &&
+            artifact.Recipes.Count == recipes.Length && artifact.Recipes.All(recipe => recipes.Any(other => AgentKnowledgeRules.SameRecipe(recipe, other))));
 
     private IEnumerable<InventoryLot> CarriedWritingMaterials(string actor, string kind) => society.Checkpoint.Inventory.Lots
         .Where(lot => lot.OwnerId == actor && lot.ItemKind == kind && PersonalEquipmentRules.IsCarried(lot, actor) &&
@@ -75,12 +76,13 @@ public sealed partial class PrivateWorldRuntime
         }
         foreach (var artifact in HeldKnowledgeArtifacts(actor))
         {
-            if (knowledge.Facts.Count(fact => fact.OwnerId == actor) < AgentKnowledgeRules.MaximumFactsPerAgent &&
-                artifact.Facts.Any(fact => !KnowsMapFact(actor, fact.Position)))
-                candidates.Add(new(KnowledgeReadPrefix + artifact.Id, $"Read {artifact.Title} and learn only the sites actually written in it.", 53));
+            if (HasUnknownArtifactContents(actor, artifact))
+                candidates.Add(new(KnowledgeReadPrefix + artifact.Id, $"Read {artifact.Title} and learn only the sites and recipes actually written in it.", 53));
             if (!MayMakeKnowledgeArtifact(actor)) continue;
             var facts = FactsToWrite(actor, artifact.Kind, artifact);
-            if (facts.Length > 0 && !AlreadyWrote(actor, artifact.Kind, facts) && CanSupplyWriting(actor, artifact.Kind))
+            var recipes = RecipesToWrite(actor, artifact.Kind, artifact);
+            if (facts.Length + recipes.Length > 0 && HasCompleteCopyContents(actor, artifact, facts, recipes) &&
+                !AlreadyWrote(actor, artifact.Kind, facts, recipes) && CanSupplyWriting(actor, artifact.Kind))
                 candidates.Add(new(KnowledgeCopyPrefix + artifact.Id,
                     $"Copy {artifact.Title} using real paper{(artifact.Kind == "book" ? " and a cloth cover" : "")}; keep its original discovery sources.", 58));
         }
@@ -88,10 +90,11 @@ public sealed partial class PrivateWorldRuntime
         foreach (var kind in new[] { "field_record", "field_map", "book" })
         {
             var facts = FactsToWrite(actor, kind);
-            if (facts.Length == 0 || AlreadyWrote(actor, kind, facts) || !CanSupplyWriting(actor, kind)) continue;
+            var recipes = RecipesToWrite(actor, kind);
+            if (facts.Length + recipes.Length == 0 || AlreadyWrote(actor, kind, facts, recipes) || !CanSupplyWriting(actor, kind)) continue;
             var materials = string.Join(" and ", AgentKnowledgeRules.WritingMaterials(kind).Select(input => $"{input.Quantity} {input.Kind}"));
             candidates.Add(new(KnowledgeWritePrefix + kind,
-                $"Write a {kind.Replace('_', ' ')} containing {facts.Length} personally learned site(s), using {materials} and {AgentKnowledgeRules.WritingWork(kind)} work (trial amounts).", 56));
+                $"Write a {kind.Replace('_', ' ')} containing {facts.Length} personally learned site(s) and {recipes.Length} recipe(s), using {materials} and {AgentKnowledgeRules.WritingWork(kind)} work (trial amounts).", 56));
         }
     }
 
@@ -122,7 +125,9 @@ public sealed partial class PrivateWorldRuntime
         else return;
         if (!AgentKnowledgeRules.IsArtifactKind(kind)) return;
         var facts = FactsToWrite(actor, kind, source);
-        if (facts.Length == 0 || AlreadyWrote(actor, kind, facts) || !CanSupplyWriting(actor, kind)) return;
+        var recipes = RecipesToWrite(actor, kind, source);
+        if (facts.Length + recipes.Length == 0 || source is not null && !HasCompleteCopyContents(actor, source, facts, recipes) ||
+            AlreadyWrote(actor, kind, facts, recipes) || !CanSupplyWriting(actor, kind)) return;
         foreach (var input in AgentKnowledgeRules.WritingMaterials(kind))
         {
             var missing = input.Quantity - CarriedWritingMaterials(actor, input.Kind).Sum(AvailableLotQuantity);
@@ -154,7 +159,8 @@ public sealed partial class PrivateWorldRuntime
         knowledge = knowledge with
         {
             WritingProjects = knowledge.WritingProjects.Append(new AgentKnowledgeWritingProject(
-                id, actor, kind, candidate, source?.Id, facts, WorldTick, WorldTick, 0, materials)).ToArray(),
+                id, actor, kind, candidate, source?.Id, facts, WorldTick, WorldTick, 0, materials)
+            { Recipes = recipes }).ToArray(),
         };
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("agent_knowledge_writing_started", $"{actor}|{kind}|{id}");
@@ -217,7 +223,8 @@ public sealed partial class PrivateWorldRuntime
         var artifactId = $"knowledge-artifact-{sequence:D6}";
         var lotId = $"knowledge-lot-{sequence:D6}";
         var title = (project.Kind == "book" ? "Book" : project.Kind == "field_map" ? "Field map" : "Field record") +
-            $" · {project.Facts.Count} site{(project.Facts.Count == 1 ? "" : "s")}";
+            (project.Facts.Count == 0 ? "" : $" · {project.Facts.Count} site{(project.Facts.Count == 1 ? "" : "s")}") +
+            (project.Recipes.Count == 0 ? "" : $" · {project.Recipes.Count} recipe{(project.Recipes.Count == 1 ? "" : "s")}");
         var inventory = society.Checkpoint.Inventory;
         foreach (var input in project.Materials) inventory = InventoryFixture.ConsumeReservation(inventory, input.ReservationId);
         inventory = InventoryFixture.AddLot(inventory, lotId, project.Kind, actor, 1, WorldTick);
@@ -228,6 +235,7 @@ public sealed partial class PrivateWorldRuntime
             Artifacts = knowledge.Artifacts.Append(new AgentKnowledgeArtifact(
                 artifactId, actor, lotId, project.Kind, title, WorldTick, project.Facts)
             {
+                Recipes = project.Recipes,
                 WritingProjectId = project.Id,
                 Materials = project.Materials,
                 SourceArtifactId = project.SourceArtifactId,
