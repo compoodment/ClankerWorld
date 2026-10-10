@@ -951,6 +951,21 @@ active, **Space** or **P** pauses, **N** selects the next agent, **Shift+N** the
 previous one, **C** centers the selected agent and **H** returns to the opening
 Town view. **Escape** closes the newest panel or mode, then opens the Pause Menu.
 
+Use **Tab** and **Shift+Tab** to move between controls in the open panel, with a
+visible focus outline. **Enter** activates the focused control; arrow keys
+browse lists and choices. Focus stays in menus and returns to the control that
+opened a panel when you close it. Numeric fields and scrollable readers are
+also reachable with Tab. In a text field, Escape leaves the field first;
+press it again to close the panel. The Agents list keeps focus while you browse with
+arrows; Enter opens the selected Profile.
+
+Press **K** to focus a tile on the world map. Arrows move one tile, or ten with
+**Shift**; the camera follows when the tile leaves the view. **Enter** selects
+an agent, building or ground tile there. During founder, first Town or new-agent
+placement, Enter uses the same placement action as clicking that tile. Move
+the pointer to return to mouse browsing. In **World Map**, Tab to the atlas and
+use arrows to move the camera. Key remapping is not available.
+
 Press **F12** in a world to open **Developer tools** at the right edge of the
 screen, and again to close them; **Escape** closes them once nothing newer is
 open. Time keeps running. The panel shows the coordinates and facts of the last

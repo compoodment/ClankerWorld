@@ -146,6 +146,18 @@ public partial class Main
     /// </summary>
     private void RenderEventRows((long EventId, bool Located, string Clock, string Text)[] entries, bool offersNewcomer)
     {
+        const string actionKey = "keyboard_event_action";
+        var focused = GetViewport().GuiGetFocusOwner();
+        var focusedAction = focused is not null && eventRows.IsAncestorOf(focused) && focused.HasMeta(actionKey)
+            ? focused.GetMeta(actionKey).AsString() : null;
+        void RestoreActionFocus()
+        {
+            if (focusedAction is null) return;
+            var replacement = KeyboardControls(eventRows).FirstOrDefault(control =>
+                control.HasMeta(actionKey) && control.GetMeta(actionKey).AsString() == focusedAction);
+            if (replacement is not null) replacement.GrabFocus();
+            else FocusKeyboardPanel(eventsPanel);
+        }
         foreach (var child in eventRows.GetChildren())
         {
             eventRows.RemoveChild(child);
@@ -165,6 +177,7 @@ public partial class Main
                 eventRows.AddChild(new Label { Text = "Nothing notable has happened yet.", ThemeTypeVariation = "DimLabel" });
             FitHudLists();
             QueueHudListsFit();
+            RestoreActionFocus();
             return;
         }
         string? day = null;
@@ -208,15 +221,16 @@ public partial class Main
                 var find = new Button
                 {
                     TooltipText = "Show where this happened",
-                    FocusMode = Control.FocusModeEnum.None,
+                    FocusMode = Control.FocusModeEnum.All,
                     Flat = true,
                     Icon = PixelIcons.Themed(PixelGlyph.Find, UiTheme.Current.Primary, 1),
                     MouseDefaultCursorShape = Control.CursorShape.PointingHand,
                 };
-                foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "focus" })
+                foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed" })
                     find.AddThemeStyleboxOverride(state, new StyleBoxEmpty { ContentMarginLeft = 2, ContentMarginRight = 2 });
                 find.AddThemeColorOverride("icon_hover_color", UiTheme.Current.Link);
                 var id = entry.EventId.ToString(CultureInfo.InvariantCulture);
+                find.SetMeta(actionKey, id);
                 find.Pressed += () => JumpToEvent(id);
                 find.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
                 row.AddChild(find);
@@ -225,6 +239,7 @@ public partial class Main
         }
         FitHudLists();
         QueueHudListsFit();
+        RestoreActionFocus();
     }
 
     /// <summary>
@@ -249,10 +264,11 @@ public partial class Main
         {
             Text = "Add a newcomer",
             TooltipText = "Open Add Agent to place another adult.",
-            FocusMode = Control.FocusModeEnum.None,
+            FocusMode = Control.FocusModeEnum.All,
             SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
         };
         add.Pressed += () => _ = HandleEventLogActionAsync("add-newcomer");
+        add.SetMeta("keyboard_event_action", "add-newcomer");
         offer.AddChild(add);
         eventRows.AddChild(offer);
     }
@@ -317,6 +333,7 @@ public partial class Main
             (["+", "−"], "Zoom in or out"),
             (["H"], "Back to the first Town"),
             (["M"], "World Map"),
+            (["K"], "Focus a tile: arrows move, Enter selects"),
         ]),
         ("Time and agents", false, [
             (["Space"], "Pause or resume (or P)"),
@@ -328,6 +345,11 @@ public partial class Main
             (["Click"], "Select an agent or inspect a tile"),
             (["Wheel"], "Zoom toward the pointer"),
             (["Middle-drag"], "Move the map"),
+        ]),
+        ("Keyboard focus", false, [
+            (["Tab"], "Next control"),
+            (["Shift", "Tab"], "Previous control"),
+            (["Enter"], "Use the focused control"),
         ]),
         ("Panels", true, [
             (["F"], "Map filters"),

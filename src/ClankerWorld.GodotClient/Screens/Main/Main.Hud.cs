@@ -753,6 +753,6 @@ public partial class Main
             if (snapshot.WrapsEastWest && Math.Abs(dx) > width / 2) dx -= Math.Sign(dx) * width;
             sum += new Vector2(anchor.X + dx, tile.Y);
         }
-        CenterCameraAt(sum / town.BorderTiles.Count + new Vector2(0.5f, 0.5f));
+        CenterKeyboardCameraAt(sum / town.BorderTiles.Count + new Vector2(0.5f, 0.5f));
     }
 }
