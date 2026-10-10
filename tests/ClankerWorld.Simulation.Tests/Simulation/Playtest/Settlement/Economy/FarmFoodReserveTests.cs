@@ -31,10 +31,17 @@ public sealed class FarmFoodReserveTests
         Assert.True(tilling.StartFieldWork(actor, point, FarmWorkKind.Till).Accepted);
         for (var tick = 0; tick < 4; tick++) Assert.True((await tilling.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(FarmFieldStage.Prepared, Assert.Single(tilling.Fields).Stage);
-        state = FarmFieldTests.FeedHouseholdFromAvailableStock(tilling.ExportState(), household);
+        // A four-resident Town needs sixteen meals. Leave eight ordinary meals
+        // outside the tested vessel so its eight usable servings decide planting.
+        state = FarmFieldTests.FeedFarmTownFromAvailableStock(tilling.ExportState(), household);
         var house = state.WorldSimulation!.Buildings.Single(building => building.HouseholdId == household &&
             state.WorldContent!.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId && definition.Tags.Contains("house")));
-        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "reserve-planting-seed", "grain_seed", actor, 1);
+        var neighbor = state.Society.Society.Households.Single(item => item.Id != household).Id;
+        var neighborHouse = state.WorldSimulation.Buildings.Single(building => building.HouseholdId == neighbor &&
+            state.WorldContent!.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId && definition.Tags.Contains("house")));
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "reserve-town-meals", "food", neighbor, 8,
+            storageBuildingId: neighborHouse.InstanceId);
+        inventory = InventoryFixture.AddLot(inventory, "reserve-planting-seed", "grain_seed", actor, 1);
         if (pot != "absent")
         {
             if (pot != "loose")
@@ -68,6 +75,9 @@ public sealed class FarmFoodReserveTests
             Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
         }
+        var baselineFood = world.Society.Inventory.GetLot("reserve-town-meals");
+        Assert.Equal((neighbor, 8, neighborHouse.InstanceId),
+            (baselineFood.OwnerId, baselineFood.Quantity, baselineFood.StorageBuildingId));
         var field = Assert.Single(world.Fields);
         Assert.Equal(shouldPlant, choice.Offered);
         Assert.Equal(shouldPlant ? FarmFieldStage.Growing : FarmFieldStage.Prepared, field.Stage);

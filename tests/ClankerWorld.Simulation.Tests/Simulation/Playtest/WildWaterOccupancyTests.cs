@@ -15,9 +15,9 @@ public sealed class WildWaterOccupancyTests
         using var initial = NormalPathWorld.CreateGenerated("wild-forage-occupancy-audit", _ => new ActionCoverageRecorder(chooseIdle: true));
         Assert.True((await initial.AdvanceOneTickAsync()).Advanced);
         var state = ShelterOrderTestFixture.WithClearWeather(initial.ExportState());
-        var origin = new GridPoint(255, 6);
-        var preferred = new GridPoint(4, 0);
-        var alternate = new GridPoint(5, 1);
+        var origin = new GridPoint(0, 9);
+        var preferred = new GridPoint(249, 9);
+        var alternate = new GridPoint(248, 6);
         foreach (var shore in new[] { preferred, alternate })
         {
             Assert.Equal(WaterKind.Land, state.Map.HydrologyAt(shore));
@@ -28,12 +28,12 @@ public sealed class WildWaterOccupancyTests
                 return state.Map.Contains(neighbor) && state.Map.HydrologyAt(neighbor) is WaterKind.River or WaterKind.Lake;
             });
         }
-        GridPoint[] blockedApproaches = [new(4, 1), new(3, 0), new(3, 1)];
+        GridPoint[] blockedApproaches = [new(249, 8), new(250, 8), new(250, 9), new(249, 10), new(250, 10)];
         var day = state.WorldSystems!.Config.TicksPerDay;
         var until = state.Society.Society.WorldTick + day;
         var cow = new AnimalState("water-cow", "Moss", "cow", "female", -7L * day,
             origin, "water-cow-herd", WildFedUntilTick: until);
-        var blockers = blockedApproaches.Where(point => !openApproach || point != new GridPoint(4, 1))
+        var blockers = blockedApproaches.Where(point => !openApproach || point != new GridPoint(250, 9))
             .Concat(occupyPreferredShore ? [preferred] : Array.Empty<GridPoint>())
             .Select((point, index) => new AnimalState("water-blocker-" + index, "Ash", "horse", "female", -7L * day,
                 point, "water-blocker-herd", CareUntilTick: until)).ToArray();

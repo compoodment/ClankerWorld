@@ -29,6 +29,7 @@ public partial class Main
         BuildDeveloperTools(uiLayer);
         FitFloatingPanelsToContents();
         BuildStatusToast(uiLayer);
+        BuildSaveDiskWarning(uiLayer);
         AddChild(menuLayer);
         BuildMainMenu();
         BuildManualSavesPanel();
@@ -184,7 +185,7 @@ public partial class Main
         BuildAgentCards();
         BuildBuildingCards();
 
-        worldOverview.CenterRequested += CenterCameraAt;
+        worldOverview.CenterRequested += CenterKeyboardCameraAt;
         var overviewBody = new VBoxContainer();
         overviewBody.AddThemeConstantOverride("separation", 6);
         overviewBody.AddChild(worldOverview);
@@ -195,8 +196,16 @@ public partial class Main
         worldOverviewPanel.Hide();
         uiLayer.AddChild(worldOverviewPanel);
         mapCanvas.GuiInput += HandleMapInput;
+        mapCanvas.FocusMode = FocusModeEnum.All;
+        mapCanvas.FocusEntered += BeginKeyboardMapSelection;
+        mapCanvas.FocusExited += () =>
+        {
+            terrainLayer.SetHoveredTile(null);
+            UpdateHoverReadout(null, null);
+        };
         mapCanvas.MouseExited += () =>
         {
+            if (mapCanvas.HasFocus()) return;
             terrainLayer.SetHoveredTile(null);
             UpdateHoverReadout(null, null);
             if (placingAddedAgent) ResetAddAgentPlacementHint();
@@ -527,6 +536,9 @@ public partial class Main
         label.BbcodeEnabled = false;
         label.FitContent = false;
         label.ScrollActive = true;
+        // The built-in scrollbar defaults to accessibility-only focus.
+        // Long readers need ordinary Tab/arrow navigation as well.
+        ConfigureKeyboardScrollBar(label.GetVScrollBar());
         label.SetMeta(TextPanelLimit, maximumHeight);
         // A new width rewraps the text, but only after the resized signal, so
         // measure it once this frame's layout is done.

@@ -78,7 +78,7 @@ public partial class PixelBadge : Control
         var size = font.GetStringSize(text, HorizontalAlignment.Left, -1, UiFonts.Body);
         var baseline = Mathf.Floor((diameter - font.GetHeight(UiFonts.Body)) / 2) + font.GetAscent(UiFonts.Body);
         DrawString(font, new Vector2(Mathf.Floor((width - size.X) / 2), baseline), text,
-            fontSize: UiFonts.Body, modulate: palette.SealInk);
+            fontSize: UiFonts.Body, modulate: UiTheme.ReadableInk(palette, palette.SealInk, fill));
     }
 
     /// <summary>Whether a pixel's centre lies within the circle, or the pill it stretches into.</summary>

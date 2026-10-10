@@ -30,12 +30,12 @@ public sealed class ChildhoodMemoryRecallTests
         {
             Inventory = InventoryFixture.AddLot(checkpoint.Inventory, "recall-birth-food", "food", household.Id, 4),
         };
-        var birth = SocietyFixture.CommitBirth(checkpoint, new($"family:{parent}:{checkpoint.WorldTick}", 1,
+        var birth = SocietyFixture.CommitBirth(checkpoint, new($"family:{parent}:{checkpoint.WorldTick}:" + new string('x', 96), 1,
             parent, partner, household.Id, household.MemberIds, [parent, partner], "recall-birth-food", 4,
             checkpoint.WorldTick, ChildName: ChosenBirthNameTestFixture.ChildName(checkpoint, parent, "Recall"),
             PrimaryCaregiverId: parent));
         var child = Assert.IsType<string>(birth.CreatedId);
-        Assert.True(child.Length > 80);
+        Assert.True(child.Length > 128);
         checkpoint = birth.Checkpoint;
         var age = Assert.IsType<SocietyDayLifecycle>(checkpoint.Config.DayLifecycle).ChildStartDay;
         var birthLifeTick = checkpoint.LifeTickAt(checkpoint.WorldTick) - age * checkpoint.Config.TicksPerLifecycleAge;
@@ -78,6 +78,11 @@ public sealed class ChildhoodMemoryRecallTests
         while (replay.WorldTick < world.WorldTick)
             Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
         Assert.Equal(memory, Assert.Single(replay.Society.Memories, item => item.OwnerId == child));
+        var chosen = ChosenBirthNameTestFixture.ChildName(world.Society, parent, "Remi");
+        Assert.True(world.RenameAgent(child, chosen));
+        var rename = Assert.Single(world.Society.Memories, item => item.OwnerId == child && item.Permanent);
+        Assert.Equal(child, rename.SubjectId);
+        Assert.InRange(rename.Id.Length, 1, 128);
         var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         var recall = new SocialProvider("safe_idle");
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved),
@@ -92,6 +97,12 @@ public sealed class ChildhoodMemoryRecallTests
         var recalled = Assert.Single(observed.RetrievedMemories!, item => item.Id == memory.Id);
         Assert.Equal((child, parent, memory.Summary, memory.SourceTick),
             (recalled.OwnerId, recalled.SubjectId, recalled.Summary, recalled.SourceTick));
+        var recalledRename = Assert.Single(observed.RetrievedMemories!, item => item.Id == rename.Id);
+        Assert.Equal(child, recalledRename.OwnerId);
+        Assert.Equal(rename.Summary, recalledRename.Summary);
+        Assert.InRange(recalledRename.SubjectId.Length, 1, 128);
+        Assert.StartsWith("agent-sha256:", recalledRename.SubjectId);
+        Assert.Equal(rename, Assert.Single(restored.Society.Memories, item => item.Id == rename.Id));
         Assert.DoesNotContain(observed.Candidates, candidate => candidate.Id == choice);
         Assert.Equal(memory, Assert.Single(restored.Society.Memories, item => item.Id == memory.Id));
         var again = PrivateWorldRuntimeCodec.Encode(restored.ExportState());

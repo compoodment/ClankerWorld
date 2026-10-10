@@ -57,7 +57,7 @@ public sealed partial class PrivateWorldRuntime
                 stock.ItemKind == lot.ItemKind && stock.FreshnessBasisPoints > 0 &&
                 stock.ConditionBasisPoints > 0).Sum(stock => stock.Quantity);
             var quantity = Math.Min(Math.Min(surplus, StoreShelfTarget - shelf), Math.Min(HouseHaulLoadQuantity, room));
-            if (lot.OwnerId != actor) quantity = Math.Min(quantity, FreeCarryCapacity(actor));
+            if (lot.OwnerId != actor) quantity = Math.Min(quantity, PickupCarryCapacity(actor, lot, store.Position));
             if (quantity <= 0) continue;
             if (!CanStockFrom(lot)) continue;
             return new(store, lot, quantity);

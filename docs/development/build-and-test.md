@@ -66,8 +66,11 @@ local checks should fit the change. List checks you could not run and why.
 
 ### How CI runs
 
-The Protect main ruleset requires three checks: `verify`,
-`windows-documentation` and `windows-provider-storage`. `verify` passes only
+The Protect main ruleset merges pull requests only through GitHub's merge
+queue, by squash, and requires three checks: `verify`,
+`windows-documentation` and `windows-provider-storage`. They must pass on a
+pull request's head before it joins the queue, and again on each batch the
+queue builds on top of main. `verify` passes only
 when every part of the Verify workflow passes:
 
 - **scope** decides which of the other jobs the change needs.
@@ -107,8 +110,13 @@ the client files its `<Compile Include>` lines name, so no other client file
 can change a test result. A change to one of those files, to anything under
 `tests/`, or to anything outside the client folder runs everything.
 
-Pushes to main always run everything. A newer push to a pull request cancels
-its older run.
+Each batch the merge queue tests on top of main runs everything. The queue then
+moves main to the very commit it tested, so the push to main finds that green
+run and runs nothing more, and main's green runs on this page are the queue's.
+A push the queue didn't test runs everything. When a pull request in the queue
+fails, the queue rebuilds the ones behind it, and each rebuilt run cancels its
+pull request's older queue runs. A newer push to a pull request cancels its
+older run.
 
 The test jobs split the tests by how long each took on main, so new slow tests
 spread out on their own and nobody needs to rebalance them by hand. Each test

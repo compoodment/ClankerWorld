@@ -1,6 +1,6 @@
 ---
 name: review-merge
-description: Review and merge ClankerWorld pull requests by the repository's review rules, as fast as they allow, keeping two pull requests moving so the merging turn is never idle, with independent review, checks on the exact head and follow-through after each merge. Use when asked to review and merge pull requests, when your job is Review and merge, or when resuming a review claim this session still holds.
+description: Review and merge ClankerWorld pull requests by the repository's review rules, as fast as they allow, keeping reviewed pull requests flowing into the merge queue, with independent review, checks on the exact head and follow-through after each merge. Use when asked to review and merge pull requests, when your job is Review and merge, or when resuming a review claim this session still holds.
 ---
 
 # Review and merge
@@ -18,7 +18,7 @@ are closed or updated, and what waited on it is unblocked.
 
 The rules are in [Claim a pull request](#claim-a-pull-request),
 [Review the change](#review-the-change),
-[Take turns for the final run](#take-turns-for-the-final-run),
+[Add it to the merge queue](#add-it-to-the-merge-queue),
 [Before merging](#before-merging),
 [Merge and follow through](#merge-and-follow-through) and
 [Hand back or close](#hand-back-or-close). The other sections, and the tips
@@ -26,18 +26,16 @@ marked as ways to work quickly, are advice.
 
 ## What limits the speed
 
-- **CI, not the number of reviewers.** GitHub refuses a merge unless the pull
-  request includes the latest main and CI passed on that head, and only one
-  pull request at a time takes its final run, shared by every merging session.
-  So once one pull request merges, the next has to take in the new main and
-  run CI again before it can merge. The best the repository can do is about
-  one merge per CI run. Read how long CI takes from recent runs on main.
-- **Your job is to keep the merging turn busy.** When one pull request merges,
-  the next should already be reviewed, green and free of conflicts with main,
-  so its final run is only a catch-up.
-- **What raises the limit:** a faster CI, and fewer final runs that fail or
-  stall. More merging sessions help only while reviews, rather than CI, are
-  what everyone is waiting on.
+- **Reviews, now that the merge queue does the merging.** A pull request
+  merges only through GitHub's merge queue. The queue tests each batch of
+  queued pull requests on top of main, several batches at once, and merges a
+  batch when CI passes on it. Reviewers no longer take turns: each one adds
+  its reviewed pull requests to the queue and goes back to reviewing.
+- **Your job is to keep reviewed pull requests flowing into the queue.** Add
+  each one as soon as it is reviewed and green, so the queue always has work.
+- **What slows the queue:** batches that fail. A failing pull request is taken
+  out and the batches behind it are tested again, which costs everyone a CI
+  run. Catch problems in review, not in the queue.
 
 ## Set up once
 
@@ -56,7 +54,7 @@ marked as ways to work quickly, are advice.
   downloads and package caches between worktrees.
 - If `git fetch` fails to authenticate, this repository is public: try an
   anonymous read for that one command, with credential helpers turned off,
-  such as `git -c credential.helper= fetch https://github.com/compoodment/ClankerWorld.git main`.
+  such as `git -c credential.helper= fetch https://github.com/ClankerWorldOrg/ClankerWorld.git main`.
   Check separately that your GitHub tools can do the writes you need. If
   a route is broken, spend a few minutes on it, then report what is missing.
   Never print credentials.
@@ -78,8 +76,8 @@ Several reviewers may be merging at the same time, so:
   that search are stacked or wait on another pull request; if that one is
   ready and unclaimed, review it instead.
 - **One review claim at a time.** A claim is not a place in the queue. Take a
-  second pull request only while the first waits on CI or for its merging
-  turn, and review it in that time, so it is ready when the first merges
+  second pull request only while the first waits on CI or in the merge
+  queue, and review it in that time, so it is ready when the first merges
   ([Keep two pull requests moving](#keep-two-pull-requests-moving)).
 - **Priority decides what you claim, not when you merge.** Once your pull
   request passes the checks [before merging](#before-merging), merge it. Don't
@@ -123,36 +121,27 @@ doesn't already make the same change.
 
 ## Keep two pull requests moving
 
-This loop keeps one pull request in review while the other waits on CI, so a
-reviewed, green pull request is ready the moment the turn frees.
+This loop keeps one pull request in review while another waits on CI or in
+the queue.
 
 1. **Claim and review the first.** Review it, fix what you find and push.
 2. **While its CI runs, claim and review a second.** Claim it when you start on
    it, not earlier: an early claim only keeps others away.
-3. **Take the turn for the first** once its CI is green and main merges into
-   it cleanly. Its final run is the last catch-up with main, CI on that head,
-   and the merge.
-4. **Take the turn again for your second.** The moment the first merges, the
-   turn is free. If your second is green and main merges into it cleanly,
-   take the turn for it at once, with the usual search, label, comment and
-   second search ([how](#take-turns-for-the-final-run)): merge main in, push
-   and let its CI run while
-   main's CI runs on your first merge. Merge the second only once main's CI
-   has passed too. If main's CI fails, follow the
-   [flaky-test or real-break steps](#after-merging); on a real break, release
-   the turn so the revert or fix can go first.
-5. **Follow through on the first** while the second's CI runs. The second is
-   now your first; claim a new second when it starts waiting.
-6. **Repeat** until nothing ready is left, the owner says stop, or you hit a
+3. **Add the first to the queue** once its CI is green
+   ([how](#add-it-to-the-merge-queue)), and go back to the second.
+4. **Follow through on the first** when the queue merges it
+   ([after merging](#after-merging)). The second is now your first; claim a
+   new second when it starts waiting.
+5. **Repeat** until nothing ready is left, the owner says stop, or you hit a
    blocker you have to report.
 
 | Your situation | Do this next |
 | --- | --- |
-| Your fix or catch-up is building | Read the contracts it touches or write review notes. Don't edit that checkout. |
+| Your fix is building | Read the contracts it touches or write review notes. Don't edit that checkout. |
 | Your pushed head waits for CI | Finish the review and any fix checks; start your second review. |
-| Your head is green, but another pull request holds the turn | Keep reviewing your second; watch for the turn to free. |
-| You hold the turn | Merge main in, check what changed, push, wait for CI, merge. |
-| You just merged; main's CI is running on it | Take the turn for your next green pull request and start its final run; do the follow-through; merge again only once main's CI passes. |
+| Your head is green and reviewed | Post the review record and add it to the queue. |
+| It is in the queue | Keep reviewing your second; act if the queue takes it out. |
+| The queue merged it | Do the follow-through while you review the next one. |
 
 In Claude Code, `/loop` keeps a session going, for example
 `/loop review and merge ready pull requests with the review-merge skill`.
@@ -187,9 +176,11 @@ In Claude Code, `/loop` keeps a session going, for example
   other version number in an unmerged pull request is provisional, and nobody
   reserves one, in a comment or anywhere else. Git merges two identical number
   changes without a conflict, so a clean merge does not prove the number is
-  still free. If main has taken yours, move this pull request to the next free
-  number (above its base's number if it is stacked), update its replay checks,
-  save docs and description, and run CI again
+  still free, and nor does a batch the queue built without a conflict. Before
+  you add a pull request to the queue, check main and the pull requests
+  already queued for the same number. If one has taken yours, move this pull
+  request to the next free number (above its base's number if it is stacked),
+  update its replay checks, save docs and description, and run CI again
   ([Saves and replay](../../docs/development/saves-and-replay.md)).
 
 ### Fix what you find
@@ -251,45 +242,39 @@ Check that the CI run and required checks belong to the current head,
 including which commit the workflow checked out. A green run on an older head
 doesn't cover a new push, and a passing export is not a Windows playtest.
 
-## Take turns for the final run
+## Add it to the merge queue
 
-GitHub's Protect main ruleset refuses a merge unless the branch includes the
-latest main and `verify`, `windows-documentation` and
-`windows-provider-storage` have passed on its head, and it allows only squash
-merges. Two pull requests can each pass alone and still break main together,
-so after merging main in, look for clashes git cannot see.
+GitHub's Protect main ruleset merges pull requests only through its merge
+queue, and only by squash. A pull request can join the queue once `verify`,
+`windows-documentation` and `windows-provider-storage` have passed on its head.
+The queue then builds it on top of main and the pull requests ahead of it,
+runs CI on that batch and merges the batch when CI passes. Two pull requests
+can each pass alone and still break main together; the queue catches that
+before either merges.
 
-Only one pull request at a time may be in its final run: merging main in for
-the last time, waiting for CI on that head and merging. Get CI green and
-conflicts resolved first, so the final run is only a catch-up.
-
-- Before you start, search `is:pr is:open label:"status:merging"`. If another
-  pull request has the label, keep reviewing and wait; merging main in again
-  after it merges is a push that keeps your review claim. If a pull request
-  seems to hold the turn, check that it is still open and still labelled.
-- Otherwise add `status:merging` to yours, comment, and search again; if
-  another pull request also has the label, the one whose `status:merging`
-  comment came first keeps the turn, and the other removes its label and waits.
-- Remove the label when you merge, when CI fails or when you stop. The turn is
-  free the moment a pull request merges, so the next one may start its final
-  run while main's CI runs on that merge; it merges once both pass (check 2).
-- A merging turn is not a claim: one taken more than 30 minutes ago has
-  lapsed, unless CI is still running on its head, and anyone may then remove
-  the label with a comment.
-
-Ways to keep the turn from stalling (advice):
-
-- Before you take the turn, check that main merges in cleanly, for example
-  with `git merge-tree --write-tree HEAD origin/main`, and look for version
-  numbers main has taken since. A final run that conflicts or fails costs
-  everyone a turn.
-- If your head already includes the latest main and CI passed on it, the final
-  run is only the merge: take the turn and merge.
-- Release the turn the moment your final run fails or you stop, so the next
-  pull request can go.
-- Don't catch up with main again and again while you wait for the turn.
-  Catch up when there is a conflict or a change that interacts with yours, or
-  when your claim needs a push, and push every catch-up you make.
+- **Before you add it,** finish [Before merging](#before-merging). You don't
+  need to merge main in first, because the queue tests it on top of main. Merge
+  main in only when GitHub reports a conflict, or when a change on main
+  interacts with this one and you need to check that by hand.
+- **Post the review record** as a signed comment, because the squash commit
+  takes only the pull request's title, with `(#<number>)` added:
+  `Review: <tool> session <id> reviewed <sha>; checked <what>`, each reviewer
+  fix or "none", and each author as `Author: <tool> session <id>`.
+- **Add it** by enabling squash auto-merge with your GitHub tools, or with
+  GitHub's "Merge when ready" button; GitHub adds it to the queue once its
+  checks pass. GraphQL's `enqueuePullRequest` mutation also works. Never merge
+  it directly, even if your tools offer to. Keep `status:reviewing` on while it
+  is queued; the claim ends when it merges.
+- **While it is queued,** don't push to it: a push takes it out of the queue.
+  Push only a fix you need, then add it again.
+- **If the queue takes it out,** because its batch failed, a conflict appeared
+  or a check timed out, read the batch's CI run (the Verify run for the
+  `merge_group` event on a `gh-readonly-queue/main/...` branch). If the
+  failure is this pull request's, fix it, push and add it again. If a pull
+  request ahead of it caused the failure, add it again as it is. Flaky and
+  broken-main failures follow [after merging](#after-merging).
+- **Priority decides what you review, not the queue's order.** The queue is
+  first come, first served.
 
 ## Before merging
 
@@ -299,11 +284,11 @@ Check that:
    pushed since it was last marked ready as part of the head, and say in your
    review who pushed them if it was not you or an earlier reviewer whose claim
    has ended.
-2. CI is green on the current head, and that head includes the latest main.
-   Main's own CI has passed on that main commit, or failed only on a known
-   flaky test ([after merging](#after-merging)); a pull request whose CI skips
-   the tests proves nothing about main. If main was merged in or the branch
-   changed after review, review and check the new head.
+2. CI is green on the current head; the queue then tests it on top of the
+   latest main. Main's own CI has passed on its latest commit, or failed only
+   on a known flaky test ([after merging](#after-merging)): while main is
+   broken, every batch fails. If main was merged in or the branch changed
+   after review, review and check the new head.
 3. A session that is not one of its authors reviewed that exact head. The
    authors' own subagents may check the work, but they are not this review.
    The one exception is a pure revert of a commit that broke main.
@@ -323,13 +308,10 @@ Check that:
 
 ## Merge and follow through
 
-Squash-merge with `<PR title> (#<number>)` as the subject. Write the body
-yourself, never GitHub's list of branch commit messages: what changed and why;
-the pull request's own `Closes` and `Refs` lines, or "Direct owner request; no
-issue"; `Author: <tool> session <id>` for each author;
-`Review: <tool> session <id> reviewed <sha>; checked <what>`; and each reviewer
-fix, or "none". Use no other closing keywords. With command-line tools, put a
-multi-line body in a file. GitHub then deletes the branch and moves pull
+The queue squash-merges with `<PR title> (#<number>)` as the commit message;
+the review record lives in your signed comment on the pull request. Make sure
+the title says what the change does before you add it. The description's own
+`Closes` lines close its issues. GitHub then deletes the branch and moves pull
 requests stacked on it to main. Never delete a branch by hand while open pull
 requests target it: GitHub closes them. If that happens, restore the branch
 from the merged pull request's page, reopen those pull requests and change
@@ -338,18 +320,19 @@ their base to main.
 ### After merging
 
 - Fetch main and confirm the squash commit is there, and watch main's CI on
-  that commit, not a run on the pull request or on a later commit. Meanwhile
-  you may start your next review, or take the merging turn for your next pull
-  request and start its final run, which merges only once main's CI passes
-  (check 2). CI that is still running is not a break. If main's CI fails:
+  that commit, not a run on the pull request or on a later commit. The queue
+  merged it only after its run on that exact commit passed, so the push run
+  on main only finds that run and passes within minutes; don't wait for it
+  before queueing your next pull request. CI that is still running is not a
+  break. If main's CI fails:
   - **Known flaky test:** if only one test failed and it has an open Bug issue
     for intermittent failures, add the run link to that issue and carry on. If
     you think a test is flaky but it has no such issue, re-run the failed job
     if you can and open a P1 Bug with both runs; if you can't re-run it, treat
     it as a real break.
   - **Real break:** whoever merged the first failing commit owns it as a P0,
-    even if others have merged since. Whoever holds the merging turn releases
-    it, so the revert or fix takes the next turn. Comment on that pull
+    even if others have merged since. Add nothing else to the queue until the
+    revert or fix has merged, so it goes first. Comment on that pull
     request, then open a pull request that reverts its squash commit, or a fix
     if that is quicker, with `priority:p0` and the failing run's link. A pure
     revert may be merged by its author once its CI passes. When a revert
@@ -413,7 +396,7 @@ whoever closes a pull request:
   them. Otherwise check at a modest interval, without fetching the same logs
   again and again.
 - Tell the owner what you are actually waiting on: CI queueing, tests running,
-  or another reviewer's turn.
+  or the merge queue.
 - Never cancel and restart CI to look busy, and never push an empty or
   pointless commit to keep a claim. A real catch-up with main is a fine push.
 
@@ -422,13 +405,13 @@ whoever closes a pull request:
 - Report each merge as [AGENTS](../../AGENTS.md#report-your-result) asks: the
   squash commit, its issues closed and main's CI result. Add how long it took
   from claim to merge, and what it mostly waited on (review, fixes, CI, the
-  turn, or main's CI).
+  queue, or main's CI).
 - Give a full timing breakdown only when the owner asks, or when you are
   working out why merging is slow. Then separate active work from waiting,
   and don't add up waits that overlapped.
 - When the owner says stop, stop where they said. Claim nothing new. If asked
   to finish the current pull request first, take it through main's CI and the
-  issue follow-through. Release any other claim or turn with a signed comment
+  issue follow-through. Release any other claim with a signed comment
   naming the pushed head, the checks run and what remains. Stop watching pull
   requests once they merge or your claim ends.
 

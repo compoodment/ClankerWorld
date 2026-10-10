@@ -49,6 +49,9 @@ public sealed partial class ViewerHttpTests
             var renamed = await api.RenameAgentAsync(uri, authority, device.DeviceId,
                 new Client.OwnerAgentRenameAction(second, "Marin Lake"), signer, default);
             Assert.True(renamed.Changed);
+            var remembered = Assert.Single(runtime.Society.Memories, item => item.OwnerId == second);
+            Assert.True(remembered.Permanent);
+            Assert.Equal("I was renamed on day 1 to Marin Lake.", remembered.Summary);
             var retry = await api.RenameAgentAsync(uri, authority, device.DeviceId,
                 new Client.OwnerAgentRenameAction(second, "Marin Lake"), signer, default);
             Assert.False(retry.Changed);
@@ -56,6 +59,7 @@ public sealed partial class ViewerHttpTests
             Assert.Equal("Marin Lake", restored.Society.GetInhabitant(second).Name);
             Assert.True(restored.Society.GetInhabitant(second).HasChosenName);
             Assert.Equal(second, restored.Society.GetInhabitant(second).Id);
+            Assert.Equal(remembered, Assert.Single(restored.Society.Memories, item => item.OwnerId == second));
         }
         finally { directory.Delete(recursive: true); }
     }

@@ -19,8 +19,8 @@
 //   ("Refactor or tooling" gives type:tooling), or type:docs when no box is
 //   ticked and every changed file is documentation.
 // - status:needs-review while a PR is open and not a draft. When the PR closes
-//   or goes back to draft, status:needs-review, a reviewer's status:reviewing
-//   claim and a status:merging turn are removed.
+//   or goes back to draft, status:needs-review and a reviewer's
+//   status:reviewing claim are removed.
 // - A priority label, worked out again on every event: the highest priority of
 //   the open issues the PR closes; if none of them has one, of the open issues
 //   it names with "Refs" ("Refs #N", or a list such as "Refs #N, #M and #K");
@@ -58,7 +58,6 @@
 
 const NeedsReview = 'status:needs-review';
 const Reviewing = 'status:reviewing';
-const Merging = 'status:merging';
 const HasPr = 'status:has-pr';
 const Ready = 'status:needs-pr';
 const InProgress = 'status:in-progress';
@@ -424,7 +423,7 @@ async function clearInactiveReviewLabels(github, repo, number) {
   const read = async () => (await github.rest.pulls.get({ ...repo, pull_number: number })).data;
   let live = await read();
   let fresh = true;
-  for (const name of [NeedsReview, Reviewing, Merging]) {
+  for (const name of [NeedsReview, Reviewing]) {
     if (!labelNames(live.labels).includes(name)) continue;
     if (!fresh) live = await read();
     if (live.state === 'open' && !live.draft) return;
