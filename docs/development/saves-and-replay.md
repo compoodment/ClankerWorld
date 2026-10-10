@@ -335,7 +335,9 @@ every required adult's informed acceptance and the unchanged original grant term
 declined, withdrawn or invalidated transfers cannot carry a completed adjustment.
 Pending consent requirements are derived from living adults, so a new adult must
 personally accept before completion. These records preserve original Council
-grant receipts without transferring title or physical property.
+grant receipts and Town title. A goods sale also retains its immutable price
+and actual payment receipt; only the agreed goods payment changes physical
+property ownership.
 
 These records share prepared-tick rollback with permissions, requests, civic
 receipts and events. Current-format reload and continuation retain pending
