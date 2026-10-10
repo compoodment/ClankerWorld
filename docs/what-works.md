@@ -717,7 +717,11 @@ off. Life, relationship, skill and commitment records stay active; open work
 and conversations postpone archiving. Only requested or preparing parenthood plans
 postpone it; completed, postponed and cancelled plans keep their saved history without
 protecting otherwise eligible old records. These age and importance limits are
-provisional. Original evidence and corrections survive saves. Agents can also start a nearby
+provisional. Original evidence and corrections survive saves. With the routine helper on,
+an existing call can choose a shorter extract of four to twelve old private
+records. Its saved summary keeps exact source links and can be recalled alongside
+active memories, even after switching the helper off. Sources retain who said
+something, hearsay and uncertainty; no other agent receives those private records. Agents can also start a nearby
 public conversation: each speaker uses their own assigned planning model,
 accepted speech is saved with the people who could hear it, and only those
 listeners receive a hearsay memory, including descendants with long generated
@@ -727,8 +731,8 @@ structured effect applies. These conversation and daily-call limits are still
 provisional and need a Windows playtest. Private thoughts are never shared as
 conversation history. Every unfinished conversation remains visible to the game,
 including after a reconnect or reload; recent closed history shows up to 16
-conversations. Other automatic experience capture and generated memory summaries
-remain unfinished.
+conversations. Other automatic experience capture remains unfinished. Summary timing and
+usefulness still need a Windows playtest.
 
 Partnered adults can propose marriage through that conversation's wrap-up.
 Each partner separately accepts or declines with their selected personal model.

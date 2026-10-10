@@ -1,0 +1,1 @@
+- Routine helpers can choose shorter summaries of an agent’s old private experiences during an existing call. Summaries keep their original sources, hearsay and uncertainty, survive saves, and remain available for recall when the helper is off. Older alpha saves are refused and preserved.

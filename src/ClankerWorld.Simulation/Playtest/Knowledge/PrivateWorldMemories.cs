@@ -12,6 +12,23 @@ public sealed record PrivateWorldMemoryCompactionTransition(
 
 public sealed partial class PrivateWorldRuntime
 {
+    private void ApplyMemorySummary(string ownerId, CognitionMemorySummaryOption summary)
+    {
+        // Recheck the source batch after an awaited reply: corrections or another
+        // accepted summary may have changed it while the helper was working.
+        var current = PrivateWorldMemoryRetrieval.SummaryOptions(society.Checkpoint, ownerId)
+            .SingleOrDefault(option => option.Choice == summary.Choice && option.Text == summary.Text &&
+                option.OwnerId == summary.OwnerId && option.Sources.SequenceEqual(summary.Sources));
+        if (current is null) return;
+        var sources = summary.Sources.Select(source => new SocietyMemorySummarySource(source.Id,
+            source.Kind == "experience" ? SocietyMemorySourceKind.Experience : SocietyMemorySourceKind.Belief, source.SourceTick)).ToArray();
+        var next = SocietyFixture.RecordAgentMemorySummary(society.Checkpoint, ownerId,
+            new SocietyMemorySummaryOption(summary.Choice, summary.Text, sources));
+        society.Apply(_ => new SocietyOperationResult(next));
+        checkpointSchemaVersion = StateSchemaVersion;
+        AppendEvent("agent_memories_summarized", ownerId + ":" + sources.Length);
+    }
+
     private void ApplyMemoryCompaction(
         string ownerId,
         IReadOnlyList<CognitionMemoryCompactionScore> scores)

@@ -61,7 +61,13 @@ public sealed record CognitionMemoryExcerpt(
     long? SourceEventId = null,
     bool IsCorrected = false,
     int ImportanceBasisPoints = 0,
-    int ImportanceConfidenceBasisPoints = 0);
+    int ImportanceConfidenceBasisPoints = 0,
+    IReadOnlyList<CognitionMemorySummarySource>? SummarySources = null);
+
+public sealed record CognitionMemorySummarySource(string Id, string Kind, long SourceTick, string SubjectId,
+    string? Provenance, int? ConfidenceBasisPoints, string? SourceAgentId, long? SourceEventId, bool IsCorrected);
+public sealed record CognitionMemorySummaryOption(string OwnerId, string Choice, string Text,
+    IReadOnlyList<CognitionMemorySummarySource> Sources);
 
 /// <summary>
 /// A source record a routine helper may rate while it is already choosing a routine action.
@@ -305,6 +311,9 @@ public sealed record InhabitantObservation(
     public const int MaximumObserverGuidanceCount = 8;
     public const int MaximumObserverGuidanceTextLength = 512;
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<CognitionMemorySummaryOption>? MemorySummaryOptions { get; init; }
+
     /// <summary>The opaque current world identity used to bind observer input and its reply.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? WorldId { get; init; }
@@ -488,13 +497,24 @@ public sealed record InhabitantObservation(
                 memory.Id.Length > 128 || memory.SubjectId.Length > 128 ||
                 string.IsNullOrWhiteSpace(memory.Summary) || memory.Summary.Length > 160 ||
                 memory.SourceTick < 0 || memory.SourceTick > WorldTick ||
-                !IsMemoryKind(memory.Kind) || !IsOptionalBounded(memory.Visibility, 32) ||
+                memory.Kind is not ("experience" or "belief" or "summary") || !IsOptionalBounded(memory.Visibility, 32) ||
                 memory.Provenance is not (null or "firsthand" or "hearsay" or "inference") ||
                 memory.ConfidenceBasisPoints is < 0 or > 10_000 ||
                 !IsOptionalBounded(memory.SourceAgentId, 128) || memory.SourceEventId is <= 0 ||
                 memory.ImportanceBasisPoints is < 0 or > 10_000 ||
                 memory.ImportanceConfidenceBasisPoints is < 0 or > 10_000)
                 throw new ArgumentException("Memory context must be bounded and owned by the actor.", nameof(RetrievedMemories));
+            ValidateSummarySources(memory.SummarySources, WorldTick, memory.Kind == "summary");
+        }
+
+        if (MemorySummaryOptions is { Count: > 3 }) throw new ArgumentException("Too many private summary choices.");
+        var summaryChoices = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var option in MemorySummaryOptions ?? [])
+        {
+            if (option is null || option.OwnerId != InhabitantId || option.Choice is not ("recent" or "earliest" or "varied") ||
+                !summaryChoices.Add(option.Choice) || string.IsNullOrWhiteSpace(option.Text) || option.Text.Length > 160)
+                throw new ArgumentException("Private summary choices must be bounded and owned by the actor.");
+            ValidateSummarySources(option.Sources, WorldTick, required: true);
         }
 
         if (MemoryCompactionCandidates is { Count: > 12 })
@@ -532,6 +552,20 @@ public sealed record InhabitantObservation(
     }
 
     private static bool IsMemoryKind(string kind) => kind is "experience" or "belief";
+
+    private static void ValidateSummarySources(IReadOnlyList<CognitionMemorySummarySource>? sources, long tick, bool required)
+    {
+        if (!required && sources is null) return;
+        if (sources is null || sources.Count is < 4 or > 12) throw new ArgumentException("Invalid private summary sources.");
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var source in sources)
+            if (source is null || string.IsNullOrWhiteSpace(source.Id) || source.Id.Length > 128 ||
+                !ids.Add(source.Kind + ":" + source.Id) || !IsMemoryKind(source.Kind) || source.SourceTick < 0 || source.SourceTick > tick ||
+                string.IsNullOrWhiteSpace(source.SubjectId) || source.SubjectId.Length > 128 ||
+                source.Provenance is not (null or "firsthand" or "hearsay" or "inference") ||
+                source.ConfidenceBasisPoints is < 0 or > 10_000 || !IsOptionalBounded(source.SourceAgentId, 128) || source.SourceEventId is <= 0)
+                throw new ArgumentException("Invalid private summary source attribution.");
+    }
 
     private static bool IsOptionalBounded(string? value, int maximumLength) =>
         value is null || value.Length <= maximumLength && !value.Any(char.IsControl);
@@ -589,7 +623,8 @@ public sealed record CognitionDecisionResponse(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionWillChoice? Will = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionLandTile>? CivicLandTiles = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionLandHearingChoice? CivicLandHearing = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionNonviolentChoice? CivicNonviolent = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionNonviolentChoice? CivicNonviolent = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? MemorySummaryChoice = null)
 {
     public const int MaximumCivicLandTiles = 64;
     public const int MaximumPrivateThoughtLength = 160;
@@ -695,6 +730,8 @@ public sealed record CognitionDecisionResponse(
                 throw new ArgumentOutOfRangeException(nameof(MemoryCompactionScores));
         }
 
+        if (MemorySummaryChoice is not (null or "recent" or "earliest" or "varied"))
+            throw new ArgumentException("Unknown private memory summary choice.");
         Will?.Validate();
         Usage?.Validate();
     }
@@ -882,6 +919,12 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 MemoryImportanceCriteria);
         }
 
+        if (request.Observation.MemorySummaryOptions is { Count: > 0 } summaryOptions)
+            questions["memory_summary"] = new JevQuestion("choice",
+                "Choose a shorter extract of this agent's own old experiences, or keep_records. Preserve source attribution and uncertainty.",
+                summaryOptions.ToDictionary(option => option.Choice, option => option.Text, StringComparer.Ordinal)
+                    .Append(new KeyValuePair<string, string>("keep_records", "Keep the original records without a new summary."))
+                    .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal));
         var payload = new JevRequest(BuildState(request.Observation, needFormat), model, questions);
 
         var json = JsonSerializer.Serialize(payload, JsonOptions);
@@ -954,7 +997,8 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 confidence,
                 probabilities,
                 usage,
-                MemoryCompactionScores: memoryCompactionScores);
+                MemoryCompactionScores: memoryCompactionScores,
+                MemorySummaryChoice: ReadMemorySummaryChoice(root.GetProperty("answers"), request.Observation));
         }
         catch (JsonException exception)
         {
@@ -964,6 +1008,18 @@ public sealed class JevDecisionProvider : IDecisionProvider
         {
             throw new InvalidDataException("Jev returned an incomplete choice response.", exception);
         }
+    }
+
+    private static string? ReadMemorySummaryChoice(JsonElement answers, InhabitantObservation observation)
+    {
+        if (!answers.TryGetProperty("memory_summary", out var answer)) return null;
+        if (observation.MemorySummaryOptions is not { Count: > 0 }) throw new InvalidDataException("Unrequested private summary.");
+        if (answer.GetProperty("type").GetString() == "refusal") return null;
+        if (answer.GetProperty("type").GetString() != "choice") throw new InvalidDataException("Invalid private summary answer type.");
+        var choice = answer.GetProperty("choice").GetString();
+        if (choice == "keep_records") return null;
+        if (!observation.MemorySummaryOptions.Any(option => option.Choice == choice)) throw new InvalidDataException("Unknown private summary choice.");
+        return choice;
     }
 
     private static List<CognitionMemoryCompactionScore>? ReadMemoryCompactionScores(
@@ -1025,6 +1081,7 @@ public sealed class JevDecisionProvider : IDecisionProvider
                 description = candidate.Description,
                 destination = candidate.DestinationName,
             }).ToArray(),
+            memory_summary_options = observation.MemorySummaryOptions,
             memory_compaction_candidates = (observation.MemoryCompactionCandidates ?? [])
                     .Select((candidate, index) => new
                     {
@@ -1287,6 +1344,18 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                             source_agent_id = memory.SourceAgentId,
                             source_event_id = memory.SourceEventId,
                             is_corrected = memory.IsCorrected,
+                            summary_sources = memory.SummarySources?.Select(source => new
+                            {
+                                id = source.Id,
+                                kind = source.Kind,
+                                source_tick = source.SourceTick,
+                                subject_id = source.SubjectId,
+                                provenance = source.Provenance,
+                                confidence_basis_points = source.ConfidenceBasisPoints,
+                                source_agent_id = source.SourceAgentId,
+                                source_event_id = source.SourceEventId,
+                                is_corrected = source.IsCorrected,
+                            }).ToArray(),
                         }).ToArray(),
                         known_map_facts = request.Observation.KnownMapFacts?.Select(fact => new
                         {
@@ -1402,6 +1471,18 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         source_agent_id = memory.SourceAgentId,
                         source_event_id = memory.SourceEventId,
                         is_corrected = memory.IsCorrected,
+                        summary_sources = memory.SummarySources?.Select(source => new
+                        {
+                            id = source.Id,
+                            kind = source.Kind,
+                            source_tick = source.SourceTick,
+                            subject_id = source.SubjectId,
+                            provenance = source.Provenance,
+                            confidence_basis_points = source.ConfidenceBasisPoints,
+                            source_agent_id = source.SourceAgentId,
+                            source_event_id = source.SourceEventId,
+                            is_corrected = source.IsCorrected,
+                        }).ToArray(),
                     }).ToArray(),
                 }, JsonOptions));
 
