@@ -1732,7 +1732,11 @@ checkpoint a host run writes also records that build in
 `<checkpoint>.build.json` beside the active save, so it can be read without
 loading the world. When startup refuses a checkpoint, the recovery status
 includes `savedByVersion` from that file, and the game names that version in
-its "different save format" message. These records are diagnostic only: they
+its "different save format" message. Each world catalog entry in
+`catalog.json` records the build that last wrote or opened that world in the
+same two fields, so any version can list who saved a world without restoring
+it; the host stamps an entry when it creates, archives, selects or starts with
+that world. These records are diagnostic only: they
 never change world state, replay digests or whether a save loads
 ([releasing](releasing.md#save-and-content-compatibility)). They let the
 planned launcher offer the version that last saved a world
