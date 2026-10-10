@@ -386,6 +386,13 @@ grant receipts and Town title. A goods sale also retains its immutable price
 and actual payment receipt; only the agreed goods payment changes physical
 property ownership.
 
+Voluntary-transfer filers and the person rosters in proposals, individual
+responses and completed receipts retain complete known person identities,
+including later-generation adults with ancestry-based IDs longer than 256
+characters. These rosters still require canonical order and unique, known,
+well-formed people. Transfer keys, permission keys and other bounded fields
+keep their limits. This validation repair changes no schema or saved field.
+
 These records share prepared-tick rollback with permissions, requests, civic
 receipts and events. Current-format reload and continuation retain pending
 windows, rulings and transfers without applying a decision twice. Reopening

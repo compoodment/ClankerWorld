@@ -1,0 +1,1 @@
+- In a world with later-generation adult residents, let one offer an existing household land-use permission to another household. Confirm the world keeps running and saving while each affected adult reads and accepts separately; save and reload both a pending offer and the completed transfer, checking the same people, plot and original permission terms remain.
