@@ -82,7 +82,10 @@ everything that is available in the current build. See [what works today](../wha
   published releases, checks that each download is exactly the published file
   before running it, and keeps earlier versions installed. When a newer
   version cannot load a world, the launcher offers the version that last saved
-  it, so an alpha update never strands a world. In a later alpha, a **per-user
+  it, so an alpha update never strands a world. With **Developer mode** on, it
+  also offers a nightly build of main (the owner's choice in chat, October 10,
+  [#1566](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1566)). In a
+  later alpha, a **per-user
   installer** that needs no administrator rights installs the launcher, adds a
   Start-menu and desktop shortcut and can uninstall it without removing saves.
   Code signing still comes later, so Windows may warn about an unknown

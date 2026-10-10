@@ -46,8 +46,9 @@ opens its Main Menu; you still choose worlds in the game's **Load World**.
 **Versions** lists each installed version with its size and the worlds it last
 saved, with **Repair** (checks every file against the release) and **Remove**
 (keeps your worlds), plus the versions you can install. **Settings** has
-**Developer mode**, which turns on F12 Developer tools in the game, and buttons
-for the saves and logs folders. Started without the launcher, the game turns
+**Developer mode**, which turns on F12 Developer tools in the game and lists
+the nightly builds of main under **Versions**, and buttons for the saves and
+logs folders. Started without the launcher, the game turns
 Developer mode on with the `--developer-mode` start option
 (`ClankerWorld.exe -- --developer-mode`); runs from the Godot editor always
 have it. A game the launcher started has **Quit to Launcher** on its Main Menu,

@@ -46,6 +46,17 @@ public sealed class LauncherTests
     }
 
     [Fact]
+    public void NightlyBuildsAreOfferedOnlyInDeveloperMode()
+    {
+        var feed = GameReleaseFeed.Read([Release("v0.1.0-nightly.20261011.4") with { PreRelease = true }, Release("v0.1.0-alpha.1")]);
+
+        Assert.True(feed.Games[0].Version.IsNightly);
+        Assert.False(feed.Games[1].Version.IsNightly);
+        Assert.Equal(["0.1.0-alpha.1"], GameReleaseFeed.Offered(feed.Games, developerMode: false).Select(release => release.Version.ToString()));
+        Assert.Equal(2, GameReleaseFeed.Offered(feed.Games, developerMode: true).Count);
+    }
+
+    [Fact]
     public async Task InstallChecksTheDownloadAndRepairAndRemoveNeverTouchSaves()
     {
         var root = Directory.CreateTempSubdirectory("launcher-install-");
