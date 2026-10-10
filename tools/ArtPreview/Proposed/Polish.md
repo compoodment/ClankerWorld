@@ -91,7 +91,9 @@ weather the world records for each region, and fade after it passes.
 - **Puddles A:** small puddles on Roads and bare ground. **B:** puddles and
   darker, wet-looking ground.
 - **Leaves A:** a few fallen leaves under each broadleaf and orchard tree in
-  autumn. **B:** a carpet of leaves around them.
+  autumn. Its approved drawing is now in the client and the completed
+  [autumn leaf review](../AutumnLeavesReview.md). **B:** a carpet of leaves
+  around them, retained here as an unchosen comparison.
 - **Footprints:** an agent crossing snow leaves prints that fade.
 
 ## 8 · Golden hour (`goldenhour`)

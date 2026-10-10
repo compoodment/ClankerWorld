@@ -1581,6 +1581,15 @@ reachable area (see [Material gathering](#material-gathering)). Boat transport u
 described in [Ports and communal boats](#ports-and-communal-boats). Trees and planting are described in
 [Trees and planting](#trees-and-planting).
 
+Autumn ground leaves use the shared `AutumnLeaves` drawing promoted from the
+approved October 9 art review. The observed season enables the leaf pass,
+using authoring data first and the world summary when it is absent, as the
+landscape colors do. No clock, saved cover or resource is added. At sprite zoom it visits
+only visible trees and one neighboring tile, draws at most fourteen sparse
+leaves per eligible tree, and rejects Roads, Market plazas, bridges, building
+footprints and water. The pass runs beneath buildings and nature sprites.
+Overview zoom skips the leaf commands. Wrapped copies use the same map seeds.
+
 Godot draws camera-visible tiles from a compact terrain index and samples it
 for the overview. It does not create a Control per tile. Generated terrain uses
 row-major packed bytes, with separate layer digests. Signed cache claims omit
@@ -1624,6 +1633,16 @@ the older three-day daily-weather estimate in this first experiment; it is not
 a saved moisture grid or an episode-integrated rainfall model. Existing saves
 keep their active weather when loaded; the first resumed tick imports it into
 an episode. See [save handling](saves-and-replay.md#regional-weather-episodes).
+
+The client renders the approved pixel-streak overlay through `WeatherStreaks`:
+straight rain and three-pixel landing bursts, two-down-one-across storm streaks
+in eastward gusts, and wind-blown snowflake crosses. The review tool uses the
+same geometry, timing and ink. `WeatherLayer` caches seven tiny nearest-filtered
+textures and submits one command per particle, bounded by the camera. Its
+precipitation timing and particle count describe synchronous command creation;
+they exclude later layout, drawing and GPU work. Weather fields, soft regional
+edges, cloud haze, storm flashes, settings and the pause clock remain unchanged.
+Nothing new is saved or sent by the host.
 
 The generator vendors [FastNoiseLite](../../src/ClankerWorld.Simulation/ThirdParty/FastNoiseLite/README.md).
 Its drainage approach draws on [Red Blob's noise guide](https://www.redblobgames.com/maps/terrain-from-noise/),

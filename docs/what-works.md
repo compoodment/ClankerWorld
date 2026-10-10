@@ -1498,6 +1498,12 @@ selected agent's quick card follow the drawing, while the host still decides
 actual travel and position. [Windows movement checks](../playtest/1461-gliding-map-markers.md)
 remain pending.
 
+In autumn, a few fallen leaves lie beneath mature broadleaf and fruiting or
+picked orchard trees at close and mid zoom. Their warm colours follow the
+approved leaf drawing. Conifers, saplings, Roads and water have none; leaves
+stay beneath trees and other sprites and disappear outside autumn. They are
+a visual detail, with no harvest or effect on work.
+
 Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
 diagonal steps and slower mountain travel. Agents wade straight across rivers
@@ -1572,9 +1578,12 @@ region keeps its weather for a spell of a quarter of a day to a full day. A
 storm lasts at most three-quarters of a day, and that region then gets at least
 half a day without another. Rain nearby makes rain a little more likely. These
 values are a prototype for playtesting ([#204](https://github.com/compoodment/ClankerWorld/issues/204)).
-Recent rain gives a modest soil-moisture estimate. The map shows rain, snow, storms and optional
-haze/flashes, and darkens gently at night. Drifting visual edges do not mean weather fronts actually move
-between regions yet.
+Recent rain gives a modest soil-moisture estimate. The map draws the approved
+pixel-streak weather: straight rain with small landing bursts, stepped storm
+streaks in eastward gusts, and snowflake crosses blown sideways. Cooler tints
+keep the map visible; cloud haze and soft flashes remain optional, and the map
+darkens gently at night. Drifting visual edges do not mean weather fronts
+actually move between regions yet.
 
 Grass and tree canopies use the approved seasonal colours: brighter in spring,
 base colours in summer, warmer in autumn and desaturated in winter. Existing
