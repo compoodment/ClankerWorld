@@ -10,6 +10,7 @@
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <VersionPrefix>0.1.0</VersionPrefix>
-    <VersionSuffix>dev</VersionSuffix>
+    <!-- The nightly workflow sets VersionSuffix=nightly.<date>.<run> in the environment. -->
+    <VersionSuffix Condition="'$(VersionSuffix)' == ''">dev</VersionSuffix>
   </PropertyGroup>
 </Project>

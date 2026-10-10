@@ -70,6 +70,10 @@ public sealed class GameReleaseFeed(HttpClient http, Uri? releasesApi = null)
         return new ReleaseFeedResult(games, launcher);
     }
 
+    /// <summary>The releases a player is offered: nightly builds of main only in Developer mode.</summary>
+    public static IReadOnlyList<GameRelease> Offered(IEnumerable<GameRelease> games, bool developerMode) =>
+        games.Where(release => developerMode || !release.Version.IsNightly).ToArray();
+
     /// <summary>Only the project's own release downloads are accepted.</summary>
     public static bool IsTrustedDownload(Uri url) =>
         url.Scheme == Uri.UriSchemeHttps && Hosts.Contains(url.Host, StringComparer.OrdinalIgnoreCase);

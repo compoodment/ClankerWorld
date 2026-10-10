@@ -1,0 +1,93 @@
+name: Nightly
+
+# Publishes a nightly build of main as a GitHub pre-release tagged
+# v<version>-nightly.<date>.<run>, which the launcher offers only in Developer
+# mode (#1566; the owner's choice in chat, October 10). It skips a day when main
+# hasn't changed or main's CI hasn't passed on its newest commit, and keeps the
+# seven newest nightly releases. See docs/development/releasing.md#nightly-builds.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  KEEP_NIGHTLIES: 7
+
+jobs:
+  nightly:
+    if: github.repository == 'ClankerWorldOrg/ClankerWorld'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Decide whether main needs a new nightly build
+        id: decide
+        run: |
+          sha="$(git rev-parse HEAD)"
+          echo "sha=${sha}" >> "${GITHUB_OUTPUT}"
+          last="$(gh api "repos/${GH_REPO}/releases?per_page=50" \
+            --jq '[.[] | select(.tag_name | test("^v[0-9.]+-nightly\\."))] | sort_by(.created_at) | last | .target_commitish // ""')"
+          if [[ "${last}" == "${sha}" ]]; then
+            echo "The newest nightly build already has ${sha}."
+            echo "build=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          ci="$(gh run list --workflow ci.yml --branch main --commit "${sha}" --event push --limit 1 \
+            --json conclusion --jq '.[0].conclusion // ""')"
+          if [[ "${ci}" != "success" ]]; then
+            echo "Main's CI hasn't passed on ${sha} (${ci:-no finished run}), so there is no nightly build today."
+            echo "build=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          echo "build=true" >> "${GITHUB_OUTPUT}"
+      - uses: actions/setup-dotnet@v5
+        if: steps.decide.outputs.build == 'true'
+        with:
+          global-json-file: global.json
+      - if: steps.decide.outputs.build == 'true'
+        run: dotnet restore --locked-mode
+      - name: Restore pinned Godot downloads
+        if: steps.decide.outputs.build == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/clankerworld/tools/downloads
+          key: godot-downloads-${{ hashFiles('scripts/verify-godot-client.sh', 'scripts/verify-godot-windows-export.sh') }}
+      - name: Export and package the nightly build
+        if: steps.decide.outputs.build == 'true'
+        run: |
+          export VersionSuffix="nightly.$(date -u +%Y%m%d).${GITHUB_RUN_NUMBER}"
+          bash scripts/verify-godot-windows-export.sh
+          bash scripts/package-windows.sh
+      - name: Publish the nightly pre-release
+        if: steps.decide.outputs.build == 'true'
+        run: |
+          zip="$(find export/package -maxdepth 1 -name 'ClankerWorld-*-windows-x64.zip' -print -quit)"
+          name="$(basename "${zip}" .zip)"
+          version="${name#ClankerWorld-}"
+          version="${version%-windows-x64}"
+          sha="${{ steps.decide.outputs.sha }}"
+          notes="Nightly build of main at ${sha}, for Developer mode in the launcher. It is not a release: it may not open worlds other versions saved, and it is removed after ${KEEP_NIGHTLIES} newer nightly builds."
+          gh release create "v${version}" --prerelease --latest=false --target "${sha}" \
+            --title "Nightly ${version}" --notes "${notes}" "${zip}" "${zip}.sha256"
+      - name: Remove older nightly builds
+        if: steps.decide.outputs.build == 'true'
+        run: |
+          gh api "repos/${GH_REPO}/releases?per_page=100" \
+            --jq "[.[] | select(.tag_name | test(\"^v[0-9.]+-nightly\\\\.\"))] | sort_by(.created_at) | reverse | .[${KEEP_NIGHTLIES}:] | .[].tag_name" |
+          while IFS= read -r tag; do
+            echo "Removing ${tag}"
+            gh release delete "${tag}" --yes --cleanup-tag
+          done

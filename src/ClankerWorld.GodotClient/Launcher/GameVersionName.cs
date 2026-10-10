@@ -25,6 +25,10 @@ public sealed partial record GameVersionName(int Major, int Minor, int Patch, st
 
     public bool IsPreRelease => PreRelease is not null;
 
+    /// <summary>A nightly build of main, such as <c>0.1.0-nightly.20261010.3</c>, offered only in Developer mode.</summary>
+    public bool IsNightly => PreRelease is not null &&
+        (PreRelease == "nightly" || PreRelease.StartsWith("nightly.", StringComparison.Ordinal));
+
     public override string ToString() =>
         string.Create(CultureInfo.InvariantCulture, $"{Major}.{Minor}.{Patch}") +
         (PreRelease is null ? "" : "-" + PreRelease);

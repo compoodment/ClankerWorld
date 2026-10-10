@@ -185,6 +185,7 @@ public partial class Launcher : Control
             settings = settings with { DeveloperMode = on };
             SaveSettings();
             UpdateDeveloperHint();
+            RefreshInstalled();
         };
         settingsPage.AddChild(developerMode);
         developerHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -293,11 +294,18 @@ public partial class Launcher : Control
         RebuildVersionRows();
     }
 
-    /// <summary>Installed versions first, newest first; the newest release if it isn't installed yet.</summary>
+    private IReadOnlyList<GameRelease> Offered() => GameReleaseFeed.Offered(releases.Games, settings.DeveloperMode);
+
+    /// <summary>
+    /// Installed versions first, newest first; the newest release if it isn't
+    /// installed yet. Play suggests a nightly build only when nothing else is published.
+    /// </summary>
     private IEnumerable<string> Choices()
     {
-        var newest = releases.Games.FirstOrDefault(release => !release.PreRelease) ??
-            (releases.Games.Count > 0 ? releases.Games[0] : null);
+        var offered = Offered();
+        var newest = offered.FirstOrDefault(release => !release.PreRelease) ??
+            offered.FirstOrDefault(release => !release.Version.IsNightly) ??
+            (offered.Count > 0 ? offered[0] : null);
         if (newest is not null && installed.All(version => version.Version != newest.Version))
             yield return newest.Version.ToString();
         // A version the game asked for, to open a world it saved, can be installed from here too.
@@ -336,10 +344,11 @@ public partial class Launcher : Control
                 ("Repair", () => _ = RepairAsync(version)), ("Remove", () => Remove(version, needing.Length))));
         }
         if (installed.Count == 0) installedRows.AddChild(new Label { Text = "No versions installed yet." });
-        var available = releases.Games.Where(release => installed.All(version => version.Version != release.Version)).ToArray();
+        var available = Offered().Where(release => installed.All(version => version.Version != release.Version)).ToArray();
         foreach (var release in available)
             availableRows.AddChild(VersionRow(release.Version.ToString(),
-                FormatSize(release.Package.Size) + (release.PreRelease ? " · Pre-release" : ""),
+                FormatSize(release.Package.Size) +
+                (release.Version.IsNightly ? " · Nightly build of main" : release.PreRelease ? " · Pre-release" : ""),
                 ("Install", () => _ = InstallAsync(release, playAfter: false))));
         if (available.Length == 0)
             availableRows.AddChild(new Label
@@ -504,6 +513,7 @@ public partial class Launcher : Control
             Expect(playButton.Disabled && playButton.Text == "Play", "Play waits for a version");
             releases = GameReleaseFeed.Read(
             [
+                SmokeRelease("v0.1.0-nightly.20261011.1", prerelease: true),
                 SmokeRelease("v0.1.0-alpha.2", prerelease: true),
                 SmokeRelease("v0.1.0-alpha.1", prerelease: true),
                 new GitHubRelease("launcher-v9.0.0", "https://github.com/ClankerWorldOrg/ClankerWorld/releases/tag/launcher-v9.0.0", false, false, []),
@@ -522,6 +532,8 @@ public partial class Launcher : Control
             settingsTab.EmitSignal(BaseButton.SignalName.Pressed);
             developerMode.ButtonPressed = true;
             Expect(LauncherSettings.Load(layout).DeveloperMode, "Developer mode is remembered");
+            Expect(availableRows.GetChildCount() == 3, "Developer mode lists the nightly build");
+            Expect(playButton.Text == "Install and Play 0.1.0-alpha.1", "Developer mode keeps the chosen version");
         }
         catch (Exception exception)
         {
@@ -532,7 +544,7 @@ public partial class Launcher : Control
             try { Directory.Delete(layout.Root, recursive: true); }
             catch (DirectoryNotFoundException) { }
         }
-        if (failures.Count == 0) GD.Print("Launcher checks passed: pages, version choice, release list, launcher notice, the version a world needs and Developer mode.");
+        if (failures.Count == 0) GD.Print("Launcher checks passed: pages, version choice, release list, launcher notice, the version a world needs, Developer mode and nightly builds.");
         else GD.PrintErr("Launcher checks failed: " + string.Join("; ", failures));
         GetTree().Quit(failures.Count == 0 ? 0 : 1);
     }

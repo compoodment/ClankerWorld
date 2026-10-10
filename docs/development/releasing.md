@@ -115,6 +115,24 @@ Before publishing:
    when the launcher changed. Players download it themselves: the launcher
    never updates itself, it only says that a newer launcher exists.
 
+## Nightly builds
+
+The [Nightly workflow](../../.github/workflows/nightly.yml) publishes a build of
+main every night as a GitHub pre-release, so Developer mode can try main
+without a release (the owner's choice, October 10). It is not a release and
+needs no release gate:
+
+- It is tagged `v<version>-nightly.<date>.<run>`, such as
+  `v0.1.0-nightly.20261011.12`, and the game reports that version. It carries
+  the same two assets as an alpha, so the launcher installs and checks it the
+  same way, but lists it only in Developer mode.
+- It runs only when main has a commit the newest nightly doesn't have and
+  main's CI passed on that commit. Run it by hand from Actions to publish one
+  sooner.
+- It keeps the seven newest nightly builds and deletes older ones with their
+  tags, the one exception to never deleting a pushed tag. Never use a nightly
+  tag for anything else.
+
 ### Windows release smoke check
 
 Before each release, the owner checks the actual Windows bundle on an approved

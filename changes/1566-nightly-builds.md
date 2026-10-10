@@ -1,0 +1,1 @@
+- With Developer mode on, the launcher also offers nightly builds of main, published as GitHub pre-releases. The seven newest are kept.
