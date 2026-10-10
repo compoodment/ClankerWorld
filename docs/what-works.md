@@ -2,7 +2,7 @@
 title: What works today
 type: product-status
 status: active
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 
 # What works today
@@ -301,8 +301,7 @@ acceptance, suspension and the actual outcome. Finishing means the talk
 attempt ended, including refusal; it does not mean an agreement was applied.
 Queued work waits for that outcome. An accepted unfinished conversation loads
 stopped and needs both people's fresh resume choices. Unavailable people,
-models, allowances and routes leave useful blockers. Marriage proposals are
-outside this talk adapter. [The Windows check](../playtest/1222-talk-order.md)
+models, allowances and routes leave useful blockers. Marriage uses a separate proposal order. [The Windows check](../playtest/1222-talk-order.md)
 is written, but has not been run.
 
 Reading orders cover personally owned, carried field records, maps and books.
@@ -316,6 +315,19 @@ another person's reading teaches them separately. Queueing, cancellation,
 replacement, urgent survival and saving preserve the task and its actual
 progress. [The Windows reading-order check](../playtest/1223-reading-orders.md)
 is pending.
+
+"Propose marriage" and "Propose marriage to my partner" attempt the existing
+marriage conversation with the adult's eligible current partner. The order
+keeps the selected partner, normal travel and invitation rules, and each
+participant's own model choices. Only the addressed speaker receives the
+requested activity in their conversation context. Refusal and a conversation
+without a proposal finish an attempt with their actual outcome. Accepted
+marriage waits for the separate shared-surname conversation to finish. Pauses,
+failed calls and reload leave it unfinished, with two fresh resume choices
+required. Cancellation removes the task while preserving consent and surname
+progress; it never changes household admission. Missing or changed eligibility
+blocks rather than selecting another person. [The Windows checks](../playtest/1230-marriage-order.md)
+are pending.
 
 Orders currently cover eating carried food, collecting accessible household
 food to eat, going to a known food source or discovering one through ordinary
@@ -1418,9 +1430,13 @@ Small/Medium worlds have generated land, rivers, lakes, separate ground and
 vegetation layers, resource sites and individual trees. Foot travel supports
 diagonal steps and slower mountain travel. Agents wade straight across rivers
 one or two tiles wide, from bank to bank: a one-tile river at half walking
-speed, and a two-tile river at a provisional third of walking speed. Wider
-rivers, lakes and the sea cannot be crossed on foot. Communal boats travel
-between completed Ports over connected water. Wading two-tile rivers has not been checked in hands-on Windows play.
+speed, and a two-tile river at a provisional third of walking speed. Eligible
+agents can swim wider rivers and lakes much more slowly, losing warmth and
+carrying at most four units. Cold, ill or heavily loaded agents do not start
+swimming. Carts and animals stay on their existing land routes; the sea still
+requires a boat. Swimming has its own motion and label on the map. Communal boats
+travel between completed Ports over connected water. Swimming and two-tile
+wading still need hands-on Windows playtesting.
 Peaks are impassable; mountains and peaks cannot hold construction. Town
 streets take diagonals where the land allows.
 

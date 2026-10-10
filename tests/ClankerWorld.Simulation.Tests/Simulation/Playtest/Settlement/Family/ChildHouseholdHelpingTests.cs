@@ -160,7 +160,7 @@ public sealed class ChildHouseholdHelpingTests
                 !state.Inhabitants.Any(person => person.InhabitantId != child && person.Position == tile.Position))
             .OrderBy(tile => tile.Position.Y).ThenBy(tile => tile.Position.X)
             .Select(tile => (IReadOnlyList<GridPoint>)routeMethod.Invoke(locating,
-                [child, tile.Position, house.Position, 0])!)
+                [child, tile.Position, house.Position, 0, true, 0])!)
             .FirstOrDefault(path => path.Count == steps + 1 &&
                 path.All(point => state.Map.FootDistance(point, house.Position) <= 8));
         Assert.NotNull(route);

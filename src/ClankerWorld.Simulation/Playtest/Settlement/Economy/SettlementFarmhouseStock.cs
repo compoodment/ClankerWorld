@@ -180,8 +180,9 @@ public sealed partial class PrivateWorldRuntime
         int maximumQuantity = int.MaxValue)
     {
         var inventory = society.Checkpoint.Inventory;
-        var capacity = Math.Min(HouseHaulLoadQuantity,
-            Math.Min(FreeCarryCapacity(actor), RemainingDeliveryRoom(inventory, destinationId)));
+        var destination = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == destinationId);
+        var capacity = destination is null ? 0 : Math.Min(HouseHaulLoadQuantity,
+            Math.Min(PickupCarryCapacity(actor, choice.Carrier, destination.Position), RemainingDeliveryRoom(inventory, destinationId)));
         if (capacity <= 0)
             return null;
 

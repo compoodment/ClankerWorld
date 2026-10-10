@@ -95,7 +95,9 @@ public sealed partial class PrivateWorldRuntime
             IsWithinInteractionRange(person.Position, building.Position,
                 building.HouseholdId is null ? 2 : 0)) ? 90 : 0;
         var loss = Math.Max(0, OutdoorExposure(person.Position) - protection);
-        return -loss + heat + (loss == 0 ? 20 : 0);
+        return IsSwimming(person.InhabitantId, person.Position)
+            ? -Math.Max(SwimmingRules.WarmthLossPerTick, loss - heat)
+            : -loss + heat + (loss == 0 ? 20 : 0);
     }
 
     private bool IsProtectiveProject(SettlementProject? project) =>
@@ -137,11 +139,12 @@ public sealed partial class PrivateWorldRuntime
         lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
         lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0);
 
-    private InventoryLot? SharedItem(string kind, string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
+    private InventoryLot? SharedItem(string kind, string actor, GridPoint? returnTo = null, int returnRange = 0) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
         lot.OwnerId == HouseholdFor(actor) && lot.CarrierId is null && lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
         (lot.StorageBuildingId is null || society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
-        CanReachSharedItem(actor, lot)) ??
-        (kind == "food" ? null : AvailableWarehouseStock(actor, kind).FirstOrDefault());
+        CanReachSharedItem(actor, lot) && (returnTo is null || CanPrepareSharedPickup(actor, lot, returnTo.Value, returnRange))) ??
+        (kind == "food" ? null : AvailableWarehouseStock(actor, kind).FirstOrDefault(lot =>
+            returnTo is null || CanPrepareSharedPickup(actor, lot, returnTo.Value, returnRange)));
 
     private bool CanReachSharedItem(string actor, InventoryLot lot) =>
         !OnBorrowedMarketStall(lot) && FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
@@ -165,10 +168,10 @@ public sealed partial class PrivateWorldRuntime
         .DistinctBy(building => building.InstanceId);
 
     private bool NearShelter(string actor, GridPoint point) => AccessibleShelters(actor).Any(building =>
-        ShelterBuildingCovers(building, point));
+        ShelterBuildingCovers(actor, building, point));
 
-    private int WarmthDestinationRange(PlacedBuilding building) =>
-        building.HouseholdId is null && !IsTownHall(building) ? ResourceInteractionRange : 0;
+    private int WarmthDestinationRange(string actor, GridPoint origin, PlacedBuilding building) =>
+        !IsSwimming(actor, origin) && building.HouseholdId is null && !IsTownHall(building) ? ResourceInteractionRange : 0;
 
     private GridPoint? ReachableHallShelterPoint(string actor, GridPoint origin, PlacedBuilding hall) =>
         WorldContentSimulationRules.Footprint(worldContent.Buildings.Single(definition => definition.CanonicalId == hall.DefinitionId), hall)
@@ -287,9 +290,12 @@ public sealed partial class PrivateWorldRuntime
         AddEquipmentCandidates(candidates, actor, person);
         AddOrnamentCandidates(candidates, actor);
         var losingWarmth = WarmthChange(person) < 0;
-        if (AdultResident(actor) && losingWarmth && condition.WarmthBasisPoints < ComfortableWarmth && ReachableUnlitHearth(actor, person) is not null &&
-            (HasCarriedOwnItem(actor, "wood") || FreeCarryCapacity(actor) > 0 && SharedItem("wood", actor) is not null ||
-                MaterialSource("wood", actor) is { } firewood && FreeCarryCapacity(actor) >= ProjectMaterialCarryUnits(actor, "wood", firewood)))
+        if (AdultResident(actor) && losingWarmth && condition.WarmthBasisPoints < ComfortableWarmth &&
+            ReachableUnlitHearth(actor, person) is { } hearth &&
+            (HasCarriedOwnItem(actor, "wood") || FreeCarryCapacity(actor) > 0 && SharedItem("wood", actor,
+                hearth.Position, hearth.HouseholdId is null ? ResourceInteractionRange : 0) is not null ||
+                MaterialSource("wood", actor, hearth.Position, hearth.HouseholdId is null ? ResourceInteractionRange : 0) is { } firewood &&
+                FreeCarryCapacity(actor) >= ProjectMaterialCarryUnits(actor, "wood", firewood)))
         {
             candidates.Add(new CognitionCandidate("tend_fire", "Carry wood to an unlit hearth and keep it burning for warmth.", NeedsUrgentWarmth(person) ? 1 : 2));
         }
@@ -305,10 +311,11 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    private void CollectEquipment(string actor, PlaytestInhabitantState person, string kind)
+    private void CollectEquipment(string actor, PlaytestInhabitantState person, string kind,
+        GridPoint? returnTo = null, int returnRange = 0)
     {
         if (FreeCarryCapacity(actor) <= 0 || HasCarriedEquipmentAtLeast(actor, kind) ||
-            SharedItem(kind, actor) is not { ContainerLotId: null } item)
+            SharedItem(kind, actor, returnTo, returnRange) is not { ContainerLotId: null } item)
         {
             return;
         }
@@ -351,10 +358,11 @@ public sealed partial class PrivateWorldRuntime
             return null;
         if (!HasCarriedOwnItem(actor, "wood"))
         {
-            if (SharedItem("wood", actor) is not null)
-                CollectEquipment(actor, person, "wood");
-            else if (MaterialSource("wood", actor) is { } source)
-                GatherProjectMaterial(actor, person, "wood", source);
+            var range = building.HouseholdId is null ? ResourceInteractionRange : 0;
+            if (SharedItem("wood", actor, building.Position, range) is not null)
+                CollectEquipment(actor, person, "wood", building.Position, range);
+            else if (MaterialSource("wood", actor, building.Position, range) is { } source)
+                GatherProjectMaterial(actor, person, "wood", source, returnTo: building.Position, returnRange: range);
             return null;
         }
         var interactionRange = building.HouseholdId is null ? ResourceInteractionRange : 0;
@@ -379,10 +387,10 @@ public sealed partial class PrivateWorldRuntime
         AccessibleHeatingBuildings(actor).Where(IsFireLit).Concat(AccessibleShelters(actor))
             .DistinctBy(building => building.InstanceId)
             .Where(building => !(CanUseLitHearth(actor, building)
-                    ? IsWithinInteractionRange(person.Position, building.Position, WarmthDestinationRange(building))
-                    : ShelterBuildingCovers(building, person.Position)) &&
+                    ? IsWithinInteractionRange(person.Position, building.Position, WarmthDestinationRange(actor, person.Position, building))
+                    : ShelterBuildingCovers(actor, building, person.Position)) &&
                 WarmthDestinationPoint(actor, person, building) is { } target &&
-                FindUnoccupiedRoute(actor, person.Position, target, WarmthDestinationRange(building)).Count > 0)
+                FindUnoccupiedRoute(actor, person.Position, target, WarmthDestinationRange(actor, person.Position, building)).Count > 0)
             .OrderBy(building => CanUseLitHearth(actor, building) ? 0 : 1)
             .ThenBy(building => map.FootDistance(person.Position, building.Position));
 
@@ -410,9 +418,9 @@ public sealed partial class PrivateWorldRuntime
                 MoveToward(actor, person, coverPoint, "storm_cover");
         }
         else if (destination is not null && WarmthDestinationPoint(actor, person, destination) is { } target &&
-                 !IsWithinInteractionRange(person.Position, target, WarmthDestinationRange(destination)))
+                 !IsWithinInteractionRange(person.Position, target, WarmthDestinationRange(actor, person.Position, destination)))
         {
-            MoveToward(actor, person, target, "warmth", WarmthDestinationRange(destination));
+            MoveToward(actor, person, target, "warmth", WarmthDestinationRange(actor, person.Position, destination));
         }
     }
 
