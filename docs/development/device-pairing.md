@@ -71,8 +71,12 @@ existing pairing. Older hosts without this advertisement need an update too.
 Routine helper changes require `clankerworld.owner-routine-helper.v1`, signing
 the observed world ID, helper, model and optional saved OpenAI key-slot ID. The
 host holds the world-selection gate through validation and persistence, and
-refuses a changed world or an unpaused world. Other signed actions, including
-reconnect, keep their existing contracts.
+refuses a changed world or an unpaused world.
+A request that names Anthropic or a thinking level requires
+`clankerworld.owner-model-thinking.v1`: model settings, model lists, saved keys,
+Test model and founder or agent placement. Their payloads gain a final
+`thinking=` line only when a level is chosen, so other requests are unchanged.
+Other signed actions, including reconnect, keep their existing contracts.
 
 The advertisement is compatibility information, not permission to weaken a
 proof. The host still reconstructs the exact action payload and verifies its

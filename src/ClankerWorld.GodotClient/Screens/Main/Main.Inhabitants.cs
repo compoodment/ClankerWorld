@@ -8,11 +8,30 @@ namespace ClankerWorld.GodotClient;
 
 public partial class Main
 {
+    private readonly record struct RosterPresentation(string Id, string Name, bool Living,
+        string Activity, string Fullness, bool Cold, bool Ill, int PortraitStage);
+    private RosterPresentation[]? renderedRosterPresentation;
+    private string? renderedRosterWorldId;
+    private string? renderedRosterTheme;
+
+    private static RosterPresentation RosterPresentationFor(OwnerWorldInhabitant person)
+    {
+        var living = IsLiving(person);
+        var activity = !living ? string.Empty : person.DecisionFactors.Any(factor => factor.Key == "decision-pending")
+            ? "deciding what to do"
+            : GameUiText.ActivityPhrase(person.PublicIntention?.CandidateId, person.PublicIntention?.Summary);
+        var fullness = living ? GameUiText.FullnessState(person.HungerBasisPoints) : string.Empty;
+        return new(person.Id, person.DisplayName, living, activity,
+            fullness is "hungry" or "very hungry" ? fullness : string.Empty,
+            living && person.Survival is { WarmthBasisPoints: < 4_000 },
+            living && person.Survival is { IllnessBasisPoints: >= 1_500 },
+            AgentSprites.StageIndex(person.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail));
+    }
+
     private void RenderInhabitantList(OwnerWorldSnapshot snapshot)
     {
         var previousSelection = selectedInhabitantId;
         var selectionFound = false;
-        inhabitantList.Clear();
         // The living come first, each with what they are doing; the deceased
         // follow under their own heading so history stays inspectable.
         var inhabitants = snapshot.Inhabitants
@@ -20,6 +39,14 @@ public partial class Main
             .OrderBy(inhabitant => IsLiving(inhabitant) ? 0 : 1)
             .ThenBy(inhabitant => inhabitant.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        var presentation = inhabitants.Select(RosterPresentationFor).ToArray();
+        if (renderedRosterWorldId == snapshot.WorldId && renderedRosterTheme == UiTheme.Current.Name &&
+            renderedRosterPresentation is { } previous && presentation.SequenceEqual(previous))
+        {
+            RefreshRosterSelection();
+            return;
+        }
+        inhabitantList.Clear();
         var living = inhabitants.Count(IsLiving);
         var deceased = inhabitants.Length - living;
         var hungry = inhabitants.Count(person => IsLiving(person) &&
@@ -43,7 +70,7 @@ public partial class Main
             inhabitantList.SetItemTooltip(row, rowText + "\n" + (IsLiving(inhabitant)
                 ? "Select to find this agent on the map and open their card."
                 : "Select to open this historical profile."));
-            if (!IsLiving(inhabitant)) inhabitantList.SetItemCustomFgColor(row, UiTheme.Current.InkFaint);
+            if (!IsLiving(inhabitant)) inhabitantList.SetItemCustomFgColor(row, UiTheme.Current.InkMuted);
             if (string.Equals(inhabitant.Id, previousSelection, StringComparison.Ordinal))
             {
                 selectionFound = true;
@@ -64,6 +91,29 @@ public partial class Main
         }
         RenderRosterCards(inhabitants);
         rosterPanel.Size = rosterPanel.GetCombinedMinimumSize();
+        renderedRosterPresentation = presentation;
+        renderedRosterWorldId = snapshot.WorldId;
+        renderedRosterTheme = UiTheme.Current.Name;
+    }
+
+    private void RefreshRosterSelection()
+    {
+        var card = selectedInhabitantId is { } id ? rosterCardIds.IndexOf(id) : -1;
+        if (card < 0) selectedInhabitantId = null;
+        var selectedCards = rosterCards.GetSelectedItems();
+        var cardMatches = card < 0 ? selectedCards.Length == 0 : selectedCards.Length == 1 && selectedCards[0] == card;
+        var selectedRows = inhabitantList.GetSelectedItems();
+        var selectedRowId = selectedRows.Length == 1 ? inhabitantList.GetItemMetadata(selectedRows[0]).AsString() : null;
+        if (cardMatches && selectedRowId == selectedInhabitantId) return;
+        inhabitantList.DeselectAll();
+        if (card >= 0)
+            for (var row = 0; row < inhabitantList.ItemCount; row++)
+                if (inhabitantList.GetItemMetadata(row).AsString() == selectedInhabitantId)
+                {
+                    inhabitantList.Select(row);
+                    break;
+                }
+        if (!cardMatches) rosterCards.Select(card);
     }
 
     private static bool IsLiving(OwnerWorldInhabitant inhabitant) =>
@@ -86,6 +136,6 @@ public partial class Main
         if (renderedMapSnapshot?.Inhabitants.FirstOrDefault(person => person.Id == inhabitantId) is not { } person ||
             person.IsDraft || !IsLiving(person))
             return;
-        CenterCameraAt(new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f));
+        CenterKeyboardCameraAt(new Vector2(person.Position.X + 0.5f, person.Position.Y + 0.5f));
     }
 }

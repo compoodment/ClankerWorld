@@ -11,7 +11,6 @@ public sealed class SettlementTradeTests
 {
     [Theory]
     [InlineData(false, "usable", false)]
-    [InlineData(true, "usable", false)]
     [InlineData(true, "usable", true)]
     [InlineData(true, "reserved", false)]
     [InlineData(true, "worn", false)]

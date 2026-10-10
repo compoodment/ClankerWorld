@@ -3,16 +3,13 @@ using Godot;
 namespace ClankerWorld.GodotClient.UI;
 
 /// <summary>
-/// An animal on the map. Like an agent, it shows the next walking step each
-/// time it moves to a new tile and stands again once it has not moved for
-/// <see cref="AgentMarker.StepSeconds"/>, so an animal that keeps walking
-/// alternates its two steps (walking steps approved October 7).
+/// An animal on the map: its observed appearance and facing, with the approved
+/// quarter-second walk cadence supplied by the map's local glide clock.
 /// </summary>
 public partial class AnimalMapSprite : TextureRect
 {
     private (string Species, int Facing, bool Young, bool Mounted, bool Saddled, bool Shorn, int Size) look;
     private int step;
-    private double stepSecondsLeft;
 
     public AnimalMapSprite()
     {
@@ -35,24 +32,22 @@ public partial class AnimalMapSprite : TextureRect
         if (resetStep)
         {
             step = 0;
-            stepSecondsLeft = 0;
             SetProcess(false);
         }
         else if (stepped)
         {
-            step = step == 1 ? 2 : 1;
-            stepSecondsLeft = AgentMarker.StepSeconds;
-            SetProcess(true);
+            step = 1;
         }
         Refresh();
     }
 
-    public override void _Process(double delta)
+    /// <summary>Walking follows the map's local quarter-second glide clock.</summary>
+    public void ShowMotion(bool moving, double seconds)
     {
-        stepSecondsLeft -= delta;
-        if (stepSecondsLeft > 0) return;
-        step = 0;
+        var frame = moving ? WalkingMotion.StepAt(seconds) : 0;
         SetProcess(false);
+        if (step == frame) return;
+        step = frame;
         Refresh();
     }
 

@@ -37,7 +37,9 @@ public sealed partial class PrivateWorldRuntime
         string.Join("; ", request.RightVersions.Select(version => society.Checkpoint.GetHousehold(version.Right.HouseholdId).Name +
             " (" + version.Right.HouseholdId + "), " + (version.Right.AgreedEndTick is { } end
                 ? "same agreed end on world day " + CivicDayNumber(end) : "no agreed end date"))) +
-        ". Title, household membership, private buildings, crops and goods keep their current records and owners.";
+        (request.Price is { } price ? ". Goods price: " + price.Quantity + " " + price.ItemKind + " paid to " + price.SellerHouseholdId +
+            " at the public notice place before permission changes. " : ". No payment. ") +
+        "Title, household membership, private buildings, crops and other goods keep their current records and owners.";
 
     private void LandTransferEvent(string kind, TownRuntimeState town, TownLandTransferRequest request, string? actor, string status) =>
         AppendEvent("land_transfer_" + kind, $"{town.Id}|{request.Id}|1|{actor ?? ""}|{status}", CivicBoard(town));
@@ -51,15 +53,23 @@ public sealed partial class PrivateWorldRuntime
         var (hearings, rights) = TownLandTransferRules.Advance(before, map, householdLandUseRights,
             parties, householdLandUseRequests, council.Knowledge, WorldTick);
         householdLandUseRights = rights.ToList();
-        foreach (var request in hearings.Transfers.Where(request => request.Status != "pending" &&
+        return (PublishLandTransferResults(town, before, hearings, council), hearings);
+    }
+
+    private TownGovernanceState PublishLandTransferResults(TownRuntimeState town, TownLandHearingState before,
+        TownLandHearingState after, TownGovernanceState council, string? paidRequestId = null, string? buyer = null)
+    {
+        foreach (var request in after.Transfers.Where(request => request.Status != "pending" &&
                      before.Transfers.Any(old => old.Id == request.Id && old.Status == "pending")))
         {
-            var text = request.Status == "transferred" ? "Voluntary household permission transfer completed. " :
+            var paid = request.Id == paidRequestId;
+            var text = paid ? "Goods paid and voluntary household permission transfer completed. " :
+                request.Status == "transferred" ? "Voluntary household permission transfer completed. " :
                 "Voluntary household permission transfer stopped: " + LandTransferFailureText(request.Reason) + ". ";
             council = TownGovernanceRules.PostNotice(council, "result", request.Id, text + LandTransferTerms(request), WorldTick);
-            LandTransferEvent(request.Status == "transferred" ? "settled" : "blocked", town, request, null, request.Status);
+            LandTransferEvent(request.Status == "transferred" ? "settled" : "blocked", town, request, paid ? buyer : null, request.Status);
         }
-        return (council, hearings);
+        return council;
     }
 
     private static string LandTransferFailureText(string? reason) => reason switch
@@ -98,11 +108,17 @@ public sealed partial class PrivateWorldRuntime
                     householdLandUseRights, TownLandTransferRules.PartiesFor(householdLandUseRights, [tile], target.Id, adultHouseholds),
                     householdLandUseRequests, WorldTick))))).Where(option => option.Tiles.Length > 0).ToArray();
             if (eligible.Length > 0)
+            {
                 candidates.Add(new(CivicAction(town.Id, "land_transfer_propose", household, LandTransferSourceToken(town, household)),
                     "Propose transferring only an exact connected plot of existing household permission. Supply exact civic_land_tiles and civic_land_hearing.household_id from these known beneficiary households: " +
                     string.Join("; ", eligible.Select(option => option.Target.Name + "=" + option.Target.Id)) +
                     ". Eligible source coordinates by beneficiary: " + string.Join("; ", eligible.Select(option => option.Target.Id + ": " + TownLandClaimRules.DescribeTiles(option.Tiles))) +
                     ". Existing terms remain; every current adult in each source and beneficiary household must separately learn and accept. Proposing gives no consent, title, building, goods or membership.", 185));
+                candidates.Add(new(CivicAction(town.Id, "land_transfer_sell", household, LandTransferSourceToken(town, household)),
+                    "Offer an exact existing connected permission plot for goods. Supply civic_land_tiles, civic_land_hearing.household_id, payment_item_kind and positive payment_quantity. Known buyers: " +
+                    string.Join("; ", eligible.Select(option => option.Target.Name + "=" + option.Target.Id + ": " + TownLandClaimRules.DescribeTiles(option.Tiles))) +
+                    ". Every affected adult must separately accept this exact goods price; physical payment at the notice place precedes the rights change. No money price or title sale.", 185));
+            }
         }
         foreach (var request in town.LandHearings.Transfers.Where(request => request.Status == "pending"))
         {
@@ -117,6 +133,7 @@ public sealed partial class PrivateWorldRuntime
             if (request.FilerId == actor)
                 candidates.Add(new(CivicAction(town.Id, "land_transfer_withdraw", token), "Withdraw your pending permission transfer proposal. Existing rights remain. " + LandTransferTerms(request), 190));
             if (TownLandTransferRules.PendingFailure(town.LandHearings, request, householdLandUseRights, householdLandUseRequests, WorldTick) is not null) continue;
+            AddTownLandSaleCandidates(candidates, actor, town, request, parties, token);
             var accepted = TownLandTransferRules.AcceptedAdults(request, party, council.Knowledge, WorldTick).Contains(actor, StringComparer.Ordinal);
             if (!accepted)
                 candidates.Add(new(CivicAction(town.Id, "land_transfer_accept", token, party.HouseholdId), "Personally accept these exact permission terms for your current household; no other adult's consent is supplied. " + LandTransferTerms(request), 165));

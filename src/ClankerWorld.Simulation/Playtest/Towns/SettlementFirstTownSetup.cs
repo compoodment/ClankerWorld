@@ -47,6 +47,7 @@ public sealed partial class PrivateWorldRuntime
             town = town with
             {
                 AssignedBuildingIds = placed.Select(building => building.InstanceId).Order(StringComparer.Ordinal).ToArray(),
+                FirstBuildingCompletedTick = 0,
                 BorderTiles = TownBorderRules.Expand(map, town, placed
                     .SelectMany(building => WorldContentSimulationRules.Footprint(definitions[building.DefinitionId], building))
                     .Concat(plan.RoadTiles)),
