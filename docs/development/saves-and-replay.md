@@ -1510,6 +1510,10 @@ Named borrowing records bind actual living adults to a paid stall while they
 remain inside the hall-and-plaza area. Stock receipts keep the personal or
 household owner recorded at deposit, physical lot, quantity and occupancy
 identity; live inventory remains authoritative after inheritance or collection.
+Source and destination lot references retain the full native inventory identity
+without a narrower receipt length limit. Whole and partial deposits from long
+split/move histories remain valid; the receipt hash, owner, quantity, occupancy,
+derived destination and exact retained inventory event still have to agree.
 Another borrower gains no right to sell those goods. Barter records bind the
 exact inventory offer, named seller and buyer, lots, reservations and outcome.
 Completed or cancelled trades retain a recent history without requiring spent
