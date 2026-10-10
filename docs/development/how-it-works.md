@@ -1095,9 +1095,10 @@ validating each indexed source against that owner's existing records.
 Helper score replies retain these owner IDs too; admission requires the exact
 requesting agent and one of its offered source records.
 Private thoughts, provider payloads
-and unaccepted replies never enter that history. Prose has no world effect; the
-only ordinary-dialogue effect is mutual trust, offered during wrap-up and
-applied only after both participants accept the same proposal.
+and unaccepted replies never enter that history. Prose has no world effect.
+Ordinary dialogue can propose mutual trust or, for eligible partners, marriage
+during wrap-up. Either structured effect requires both participants to accept
+the same proposal.
 
 The saved revision, status and next-speaker fields are the conversation cursor.
 The checkpoint keeps the complete admitted history (up to six public turns and
