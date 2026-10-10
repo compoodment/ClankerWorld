@@ -68,8 +68,8 @@ Several reviewers may be merging at the same time, so:
   and take the first one at the highest priority; one with no priority label
   counts as P2. Leave pull requests that wait on an owner decision alone,
   even if they are marked ready: the owner answers decisions when they choose
-  to, not when a reviewer reaches them. Choose by priority, then age; don't pick easy pull requests to
-  raise a merge count. Before a deep review, check its dependencies,
+  to, not when a reviewer reaches them. Choose by priority, then age; don't
+  pick easy pull requests to raise a merge count. Before a deep review, check its dependencies,
   duplicates, authors, current head, readiness and any existing claim. Add
   `status:reviewing` and comment with who is
   reviewing and the commit you started from. Then read the comments again: if
