@@ -3095,7 +3095,14 @@ The orchard planting choice requires carrying room to collect a shared seed.
 An already carried planting seed remains usable at full capacity. Ordinary
 wood-tree seeds remain distinct.
 
-Urgent food recovery first sets down ordinary spare cargo. If that cannot free
+Food-room recovery is admitted and revalidated for children as well as adults
+and elders; the final child gate permits that existing self-feeding action.
+It frees only the missing physical room and preserves selected equipment,
+artifacts, work reservations and delivery loads. Infants remain excluded.
+Children use only ordinary unreserved cargo; the planting-reservation exception
+below remains an adult action.
+
+Urgent adult food recovery first sets down ordinary spare cargo. If that cannot free
 enough carrying room, it may also select the actor's own orchard propagation
 seeds. Their selected planting reservations are released in the same inventory
 transition that stores the seeds with the household, after reaching the House

@@ -1428,6 +1428,12 @@ walk it back to camp and set down the same goods for the household. This
 frees carrying space and clears the old delivery promise. Other stock, work
 or deliveries can still prevent removing or reassigning its destination.
 
+Hungry children can free carrying room for household food by putting aside only
+spare unreserved supplies, using the same physical House or camp storage as
+adults. Worn equipment, maps, work reservations and delivery loads stay protected.
+The adult emergency exception for reserved orchard seeds does not apply to
+children. Infants do not perform this recovery action.
+
 Spoiled food cannot be eaten. Households do not yet clear spoiled food from
 pots automatically, and there is no discard control. Raw grain, potatoes and
 flour keep their freshness and need separate cooking work before they become
