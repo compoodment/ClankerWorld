@@ -1707,6 +1707,14 @@ Named manual checkpoints use a private `.manual` directory and reference the
 same history archive. Overwriting a selected checkpoint retains a recovery copy;
 new copies have explicit recovery provenance and an opt-in count-based cleanup
 preview, described under [permanent deletion](#explicit-permanent-deletion).
+
+Creation, autosaving and overwrite decode and validate the exact serialized
+checkpoint before writing save files, publishing metadata or advancing the
+timeline. A rejected checkpoint leaves the previous saves and timeline intact.
+Law amendment and repeal labels preserve complete surrogate pairs when shortened;
+the full structured draft remains unchanged. This adds no schema fields or
+migration for previously damaged alpha saves.
+
 Rotating autosaves are a separate
 mechanism and must not delete another world's checkpoints, or another branch's.
 Updating autosave configuration trims only that configured world, including
