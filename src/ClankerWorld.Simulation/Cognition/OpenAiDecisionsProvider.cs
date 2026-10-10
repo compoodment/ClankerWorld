@@ -75,6 +75,15 @@ public sealed class OpenAiDecisionsProvider : IDecisionProvider
                     new { label = "Important", description = "Important long-term context to keep easy to retrieve." },
                 },
             });
+        if (request.Observation.MemorySummaryOptions is { Count: > 0 } summaryOptions)
+            questions.Add(new
+            {
+                type = "choice",
+                name = "memory_summary",
+                instructions = "Choose a shorter extract of this agent's own old experiences, preserving source attribution and uncertainty, or keep_records.",
+                choices = summaryOptions.Select(option => new { value = option.Choice, description = option.Text })
+                    .Append(new { value = "keep_records", description = "Keep the original records without a new summary." }).ToArray(),
+            });
         var payload = new
         {
             model,
@@ -104,6 +113,7 @@ public sealed class OpenAiDecisionsProvider : IDecisionProvider
             var answers = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
             var candidates = request.Observation.MemoryCompactionCandidates ?? [];
             var allowed = Enumerable.Range(0, candidates.Count).Select(MemoryName).Append(ChoiceName).ToHashSet(StringComparer.Ordinal);
+            if (request.Observation.MemorySummaryOptions is { Count: > 0 }) allowed.Add("memory_summary");
             foreach (var answer in root.GetProperty("answers").EnumerateArray())
             {
                 var name = answer.GetProperty("name").GetString();
@@ -132,6 +142,15 @@ public sealed class OpenAiDecisionsProvider : IDecisionProvider
                     (int)Math.Round(score * 5_000, MidpointRounding.AwayFromZero),
                     (int)Math.Round(confidence * 10_000, MidpointRounding.AwayFromZero)));
             }
+            string? summaryChoice = null;
+            if (answers.TryGetValue("memory_summary", out var summaryAnswer) && summaryAnswer.GetProperty("type").GetString() != "refusal")
+            {
+                if (summaryAnswer.GetProperty("type").GetString() != "choice") throw new InvalidDataException("Invalid private summary answer type.");
+                summaryChoice = summaryAnswer.GetProperty("choice").GetString();
+                if (summaryChoice == "keep_records") summaryChoice = null;
+                else if (!(request.Observation.MemorySummaryOptions ?? []).Any(option => option.Choice == summaryChoice))
+                    throw new InvalidDataException("Unknown private summary choice.");
+            }
             var modelId = root.TryGetProperty("model", out var reportedModel) ? reportedModel.GetString() : null;
             var usage = root.TryGetProperty("usage", out var reportedUsage)
                 ? new CognitionUsage(modelId, reportedUsage.GetProperty("input_tokens").GetInt32(), reportedUsage.GetProperty("output_tokens").GetInt32())
@@ -139,7 +158,7 @@ public sealed class OpenAiDecisionsProvider : IDecisionProvider
             return new(request.RequestId, request.Observation.InhabitantId, DecisionProviderKind.OpenAiDecisions,
                 request.ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest, selected, choice.GetProperty("confidence").GetDouble(), probabilities,
-                usage, MemoryCompactionScores: scores.Count == 0 ? null : scores);
+                usage, MemoryCompactionScores: scores.Count == 0 ? null : scores, MemorySummaryChoice: summaryChoice);
         }
         catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException or FormatException or OverflowException)
         {
