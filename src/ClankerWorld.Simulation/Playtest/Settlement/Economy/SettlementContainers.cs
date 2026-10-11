@@ -32,7 +32,7 @@ public sealed partial class PrivateWorldRuntime
     private InventoryLot? CarriedWaterJugForReturn(string actor, string houseId)
     {
         var inventory = society.Checkpoint.Inventory;
-        var room = StorageRoomAfterInboundDeliveries(houseId);
+        var room = DestinationRoom(houseId);
         var refillJug = CarriedWaterJugForRefill(actor);
         if (refillJug is not null && ContainerFamilyQuantity(inventory, refillJug.Id) <= room)
             return refillJug;
@@ -45,12 +45,6 @@ public sealed partial class PrivateWorldRuntime
 
     private static int ContainerFamilyQuantity(InventoryCheckpoint inventory, string containerId) =>
         InventoryIndex.For(inventory).FamilyQuantity(containerId);
-
-    private static int InboundDeliveryQuantity(InventoryCheckpoint inventory, string buildingId) =>
-        InventoryIndex.For(inventory).InboundQuantity(buildingId);
-
-    private int StorageRoomAfterInboundDeliveries(string buildingId) =>
-        Math.Max(0, StorageRoom(buildingId) - InboundDeliveryQuantity(society.Checkpoint.Inventory, buildingId));
 
     private static bool HasActiveContainerReservation(InventoryCheckpoint inventory, string containerId) =>
         InventoryIndex.For(inventory).HasReservedFamily(containerId);
@@ -154,7 +148,7 @@ public sealed partial class PrivateWorldRuntime
     private PotFoodChoice? FindFoodToStore(string actor, string householdId, string houseId)
     {
         var inventory = society.Checkpoint.Inventory;
-        var houseStorageRoom = StorageRoomAfterInboundDeliveries(houseId);
+        var houseStorageRoom = DestinationRoom(houseId);
         var pots = inventory.Lots.Where(lot => lot.OwnerId == householdId &&
                 lot.ItemKind == InventoryContainerRules.StoragePot && lot.StorageBuildingId == houseId &&
                 lot.ContainerLotId is null && lot.ConditionBasisPoints > 0 &&
@@ -248,7 +242,7 @@ public sealed partial class PrivateWorldRuntime
         // An already carried jug can be filled for local use while its House
         // is full. A House return is available only if at least one more water
         // unit can accompany the intact family into its storage.
-        return StorageRoomAfterInboundDeliveries(house.InstanceId) >
+        return DestinationRoom(house.InstanceId) >
             ContainerFamilyQuantity(society.Checkpoint.Inventory, jug.Id) ? house.Position : null;
     }
 
@@ -334,7 +328,7 @@ public sealed partial class PrivateWorldRuntime
         var inventory = society.Checkpoint.Inventory;
         var contentRoom = InventoryContainerRules.StoragePotCapacity -
             ContainerContentsQuantity(inventory, choice.Pot.Id);
-        var storageRoom = choice.Food.OwnerId == actor ? StorageRoomAfterInboundDeliveries(house.InstanceId) : int.MaxValue;
+        var storageRoom = choice.Food.OwnerId == actor ? DestinationRoom(house.InstanceId) : int.MaxValue;
         var available = AvailableLotQuantity(choice.Food) - (choice.Food.OwnerId == actor ? 1 : 0);
         var quantity = Math.Min(available, Math.Min(contentRoom, storageRoom));
         if (quantity <= 0)

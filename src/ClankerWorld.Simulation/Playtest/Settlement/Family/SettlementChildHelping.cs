@@ -56,7 +56,7 @@ public sealed partial class PrivateWorldRuntime
         .Where(source => resources.GetValueOrDefault(source.Id) == ResourceState.Available &&
             (kind == "food" ? source.Kind is "food" or "fruit" && source.TreeKind is null &&
                 FoodHarvestCarryUnits(source) <= ChildHelpingRoom(actor) &&
-                StorageRoomAfterInboundDeliveries(house.InstanceId) >= FoodHarvestQuantity(source)
+                DestinationRoom(house.InstanceId) >= FoodHarvestQuantity(source)
                 : source.TreeKind is null && (source.Kind == "wood" || source.NaturalObjectKind == "fallen_wood")) &&
             ChildHelpingReachable(actor, source.Position, ResourceInteractionRange, house))
         .OrderBy(source => map.FootDistance(inhabitants[actor].Position, source.Position))
@@ -72,7 +72,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         if (CarriedHouseDelivery(actor) is not null || ChildHelpingRoom(actor) == 0 ||
-            StorageRoomAfterInboundDeliveries(house.InstanceId) == 0) return;
+            DestinationRoom(house.InstanceId) == 0) return;
         if (ChildHelpingStock(actor, house) is { } stock)
             candidates.Add(new("child_carry:" + stock.Id, "Carry a small loose household food or wood load to your House.", 28));
         foreach (var kind in new[] { "food", "wood" })
@@ -112,7 +112,7 @@ public sealed partial class PrivateWorldRuntime
                 return;
             }
             var quantity = Math.Min(ChildHelpingRoom(actor), Math.Min(AvailableLotQuantity(stock),
-                StorageRoomAfterInboundDeliveries(house.InstanceId)));
+                DestinationRoom(house.InstanceId)));
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
                 $"child-pickup:{WorldTick}:{actor}", house.HouseholdId!, actor, stock.Id, quantity,
                 "child_household_pickup", destinationDeliveryBuildingId: house.InstanceId));

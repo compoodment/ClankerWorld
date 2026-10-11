@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
 # How the game works
@@ -56,9 +56,11 @@ host's versioned HTTP contract. Legacy web assets are diagnostic tools.
 
 The approved runtime refactor is tracked in
 [#1377](https://github.com/compoodment/ClankerWorld/issues/1377). The runtime
-currently coordinates the simulation through a partial class. Its areas will
-move into systems in separate reviewed steps; the first step adds guards and
-does not move runtime code.
+coordinates the simulation through a partial class. `Conversations/ConversationSystem.cs`
+owns conversations, daily budgets and marriages in one immutable
+`ConversationState`. Every write replaces the affected read-only collection
+and its snapshot; the runtime commits the system with one assignment.
+Other areas move in separate reviewed steps.
 
 A system owns its saved state, its rules and a small `I…World` interface for
 the services it needs from other areas. Saved state is an immutable record
@@ -67,7 +69,17 @@ token on every write. Pending model calls and other live work stay outside
 saved state. The runtime keeps the existing tick phases and calls each system
 at the point where its code runs today. Moved private methods remain one-line
 forwarders while callers and reflection-based tests still need them. A tick
-commit eventually assigns each system rather than copying individual fields.
+commit assigns each extracted system rather than copying its individual fields.
+
+Conversation operations receive `IConversationWorld` for each call. A private
+runtime adapter supplies the current society snapshot, resident positions and
+needs, calendar, boat presence, provider eligibility, talk-order protection,
+trust, name/memory transactions and the event sink. The system retains no
+runtime reference. Its adapter stays live on the committed coordinator, so a
+tick commit cannot bind future effects to the disposable prepared runtime.
+Provider invocation, pending turns, request Guids and provider-route checks
+stay in the runtime. Admission checks the route at the original point before
+publishing dialogue, listener beliefs or marriage effects.
 
 Shared read services will provide the event log, resident queries, named
 ground-occupancy layers and the separately planned goods query. Snapshot-keyed
@@ -75,7 +87,20 @@ derived values must be pure, unsaved and absent from digests. Immutable
 snapshots can pass through the trusted tick copy by reference; replacing a
 snapshot invalidates its derived values without letting a discarded tick
 change committed caches. Positions, reservations and occupancy remain live
-query overlays. Later cache work adds a check that recomputes cache hits.
+query overlays.
+
+`Runtime/Derived.cs` weakly caches a pure value by snapshot identity. Conversation
+lookup indexes each participant's earliest open session, preserving created-tick
+and ID ordering. A separate derived checkpoint view keeps the original ID-sorted
+conversations, budgets and marriage records. Trusted tick preparation shares
+that immutable view through a separate system instance; writes on a refused
+proposal cannot alter the committed snapshot. Actual loads still perform the
+existing suspension transitions. `DerivedVerification.RecomputeOnHit` compares
+every cache hit with a fresh computation when enabled; the test assembly enables
+it at startup. Derived values and the switch never enter checkpoints or digests.
+The [conversation equivalence probe](conversation-system-equivalence/README.md)
+checks native public turns and listener memories alongside the general tick
+comparison.
 
 Every step preserves these contracts:
 
@@ -155,9 +180,27 @@ unreserved quantities; reusable vessels themselves are not consumable inputs.
 Requests name exact owners and item kinds, and can restrict a building. The
 answer's `Total` and `First` read the same stable matches. It includes each lot's
 root vessel, physical place, available quantity and whole-vessel movement size.
-Destination capacity and remaining uses belong to the later steps of
+Delivery selection and remaining uses belong to the later steps of
 [#1366](https://github.com/compoodment/ClankerWorld/issues/1366); unsupported
 origin/destination fields and extra-unit requests are refused rather than silently ignored.
+
+`DestinationRoom(buildingId, movingRoot)` is the shared read-only calculation
+for space at a building. It subtracts all stored physical units, positive net
+growth promised to running or paused production, open business storage
+reservations and collected inbound loads. Inbound vessels count with all their
+contents, including damaged or spoiled property. Yard stock-supply trips also
+promise their carried family to the yard; care and saddling trips do not promise
+storage. An arriving load excludes only its own current family from inbound
+promises, so delivery does not reserve that family twice. Business exchanges
+account for the goods leaving and release only their own storage reservation.
+The inventory authority still rechecks every actual transfer.
+
+Storage, returns, custody, departure, yard supply, Warehouse stock, projects and
+workstation deliveries use this same room calculation. Native Town recovery
+also keeps its allowance for carried returns that have no bound Warehouse.
+Capacity comes from `BuildingStorageRules`: private Silos hold 64 units per
+footprint tile, Farmhouses retain 96 units, and buildings without a storage
+limit remain unbounded. Room queries save nothing and change no state.
 
 Actor-bound `Collect` extends Holdings with native custody/place permission,
 free vessel families, actual carrying room and an unoccupied native travel route.
@@ -2569,7 +2612,13 @@ Material scoring searches at most five map tiles from a site, including the
 east-west seam; farther resources cannot change its rank. Recipe and expansion
 input checks share reachable-tool results and a lazily collected accessible
 Warehouse list only within one inhabitant's read-only candidate query. Stock
-quantities and reservations are still read for each input. Warehouse discovery
+quantities and reservations are still read for each input. Project-input source
+scans check the required resource kind before looking up its availability by ID;
+wood still accepts construction sources. Matching sources keep their current
+ecology quantity, foot or swimming reachability and tool checks. This only
+reorders read-only filters, with no cache or saved-state change. The
+[construction input measurements](construction-input-query-measurements.md)
+record the matched native checks and timing limits. Warehouse discovery
 matches a set of current definition IDs instead of scanning definitions for
 every building. Later queries and actions check current stock, membership and
 routes again; these optimizations add no saved state or persistent cache.
@@ -2622,7 +2671,8 @@ kinds are listed in `HouseholdBuildingKinds`. The optional Store uses the same
 household planning and ownership rules, with 1×1 and 1×2 footprints.
 Harvests remain household-owned lots on their actual field tile. An adult
 carries a load of at most four raw crops or planting items to the household's Farmhouse or Silo.
-Each holds a provisional 96 items, counting deliveries already on their way;
+The Farmhouse holds a provisional 96 items; the private Silo holds 64 units per
+footprint tile. Both count deliveries already on their way;
 pickup and delivery both check remaining space. Source selection checks the
 adult's route to each pile or vessel and the route from there to farm storage;
 an earlier blocked source does not hide later reachable stock. The same checks

@@ -412,6 +412,8 @@ public partial class Main
             grid.AddThemeConstantOverride("v_separation", 4);
             foreach (var (keys, action) in rows)
             {
+                // F12 does nothing outside Developer mode, so the list doesn't offer it.
+                if (keys is ["F12"] && !DeveloperMode) continue;
                 var caps = new HBoxContainer();
                 caps.AddThemeConstantOverride("separation", 3);
                 for (var index = 0; index < keys.Length; index++)

@@ -493,8 +493,11 @@ public partial class Main
         if (closes.Length < 8 || closes.Any(button => button.GetCombinedMinimumSize() != square ||
                 button.SizeFlagsVertical != Control.SizeFlags.ShrinkCenter || button.SizeFlagsHorizontal.HasFlag(Control.SizeFlags.Expand)))
             throw new InvalidOperationException($"Close and back buttons must share one {square.X}-pixel square: {string.Join(", ", closes.Select(button => button.GetCombinedMinimumSize()))}");
+        // Started without the launcher, the Main Menu offers no way back to it.
+        if (quitToLauncherButton.Visible)
+            throw new InvalidOperationException("Quit to Launcher must appear only when the launcher started the game.");
         Button[] choices = [mainMenuContinueButton, mainMenuNewButton, mainMenuLoadButton, mainMenuSettingsButton, quitGameButton,
-            menuResumeButton, menuSaveWorldButton, settingsButton, modLibraryButton, menuQuitToMainButton];
+            quitToLauncherButton, menuResumeButton, menuSaveWorldButton, settingsButton, modLibraryButton, menuQuitToMainButton];
         if (choices.Any(button => button.GetThemeFont("font") != UiFonts.Headings || button.GetThemeFontSize("font_size") != UiFonts.Heading ||
                 button.Alignment != HorizontalAlignment.Left))
             throw new InvalidOperationException("The Main Menu and Pause Menu choices must share one button style.");
@@ -4109,6 +4112,7 @@ public partial class Main
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
             if (controlsPanel.Visible)
                 throw new InvalidOperationException("Escape must close the controls list.");
+            await VerifyLaunchOptionsAsync();
             await VerifyDeveloperToolsAsync(occupied, founder);
             await VerifyAuthoringCoordinatesAsync(occupied);
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Minus, Pressed = true });

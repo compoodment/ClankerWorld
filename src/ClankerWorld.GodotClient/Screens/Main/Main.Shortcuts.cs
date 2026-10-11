@@ -56,7 +56,7 @@ public partial class Main
             PressTopBarAction(pauseButton);
             GetViewport().SetInputAsHandled();
         }
-        else if (key.Keycode == Key.F12 && NoMenuOverWorld())
+        else if (key.Keycode == Key.F12 && DeveloperMode && NoMenuOverWorld())
         {
             ToggleDeveloperTools();
             GetViewport().SetInputAsHandled();

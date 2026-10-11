@@ -263,7 +263,7 @@ public sealed partial class PrivateWorldRuntime
                     AgentMarriageRules.HasParticipant(item, agentId)) is { } pendingMarriage &&
                 !AgentMarriageRules.CanKeepSurnameChoices(pendingMarriage, name))
                 throw new ArgumentException("Choose a shorter first or middle name so the marriage's surname choices still fit.", nameof(name));
-            var marriageIndex = marriages.FindIndex(item => item.EndReceipt is null && item.CompletedTick is not null && AgentMarriageRules.HasParticipant(item, agentId));
+            var marriageIndex = FindMarriageIndex(item => item.EndReceipt is null && item.CompletedTick is not null && AgentMarriageRules.HasParticipant(item, agentId));
             var result = marriageIndex < 0
                 ? society.Apply(checkpoint => RenameFromPlayer(checkpoint, agentId, name))
                 : RenameSpouses(marriages[marriageIndex], agentId, name, fromPlayer: true);
@@ -275,7 +275,7 @@ public sealed partial class PrivateWorldRuntime
                     var marriage = marriages[marriageIndex];
                     var surname = InhabitantNameRules.SurnameKey(society.Checkpoint.GetInhabitant(agentId).Name)!;
                     if (surname != marriage.CurrentSurname)
-                        marriages[marriageIndex] = marriage with { LatestPlayerRename = new AgentMarriageRename(agentId, surname, WorldTick) };
+                        SetMarriageAt(marriageIndex, marriage with { LatestPlayerRename = new AgentMarriageRename(agentId, surname, WorldTick) });
                 }
                 checkpointSchemaVersion = StateSchemaVersion;
                 AppendEvent("agent_renamed", agentId);

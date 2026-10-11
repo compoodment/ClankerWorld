@@ -41,7 +41,7 @@ public static class BuildingStorageRules
     public static int? Capacity(BuildingDefinition definition, PlacedBuilding building) =>
         definition.Tags.Contains(AnimalContent.YardTag, StringComparer.Ordinal) ? 16 :
         definition.Tags.Contains("farmhouse", StringComparer.Ordinal) ? FarmFieldRules.FarmStorageCapacity :
-        definition.Tags.Any(tag => tag is "house" or "warehouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic")
+        definition.Tags.Any(tag => tag is "house" or "warehouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic" or "silo")
             ? UnitsPerTile * (building.Footprint?.Width ?? definition.Width) *
                 (building.Footprint?.Height ?? definition.Height) : null;
 
@@ -70,27 +70,18 @@ public sealed partial class PrivateWorldRuntime
     // Provisional duration; paid model calls do not advance construction.
     private const int BuildingExpansionTicks = 20;
 
-    private int StoredQuantity(string buildingId) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.StorageBuildingId == buildingId).Sum(lot => lot.Quantity);
+    private int StoredQuantity(string buildingId, InventoryCheckpoint? inventory = null) =>
+        InventoryIndex.For(inventory ?? society.Checkpoint.Inventory).StoredAt(buildingId).Sum(lot => lot.Quantity);
 
-    private int StorageRoom(string buildingId)
-    {
-        var building = worldSimulation.Buildings.Single(item => item.InstanceId == buildingId);
-        var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
-        return BuildingStorageRules.Capacity(definition, building) is { } capacity
-            ? Math.Max(0, capacity - StoredQuantity(buildingId) - ReservedStorageGrowth(buildingId) -
-                ReservedBusinessStorageSpace(buildingId)) : int.MaxValue;
-    }
-
-    private int ReservedStorageGrowth(string buildingId) => worldSimulation.ProductionJobs
+    private int ReservedStorageGrowth(string buildingId, InventoryCheckpoint? inventory = null) => worldSimulation.ProductionJobs
         .Where(job => job.BuildingInstanceId == buildingId && (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused))
         .Sum(job =>
         {
             var recipe = worldContent.Recipes.Single(item => item.CanonicalId == job.RecipeId);
             return Math.Max(0, recipe.Outputs.Where(item => item.ResourceId != InventoryContainerRules.Handcart)
                 .Sum(item => item.Amount) - job.InputReservationIds
-                .Select(society.Checkpoint.Inventory.GetReservation).Where(reservation =>
-                    society.Checkpoint.Inventory.GetLot(reservation.LotId).StorageBuildingId == buildingId)
+                .Select((inventory ?? society.Checkpoint.Inventory).GetReservation).Where(reservation =>
+                    (inventory ?? society.Checkpoint.Inventory).GetLot(reservation.LotId).StorageBuildingId == buildingId)
                 .Sum(reservation => reservation.Quantity));
         });
 
@@ -123,11 +114,6 @@ public sealed partial class PrivateWorldRuntime
         society.Checkpoint.Inventory.Lots
             .Where(lot => lot.ItemKind == itemKind && lot.DeliveryBuildingId == building.InstanceId)
             .Sum(AvailableLotQuantity);
-
-    private int ExpansionDeliveryStorageRoom(PlacedBuilding building, InventoryLot delivery) =>
-        Math.Max(0, StorageRoom(building.InstanceId) - society.Checkpoint.Inventory.Lots
-            .Where(lot => lot.DeliveryBuildingId == building.InstanceId && lot.Id != delivery.Id)
-            .Sum(lot => lot.Quantity));
 
     private InventoryLot? ExpansionSharedMaterialSource(string actor, PlacedBuilding building, string itemKind)
     {
@@ -388,7 +374,7 @@ public sealed partial class PrivateWorldRuntime
 
                 var owner = ExpansionOwner(building);
                 var storageQuantity = Math.Min(AvailableLotQuantity(delivery),
-                    ExpansionDeliveryStorageRoom(building, delivery));
+                    DestinationRoom(building.InstanceId, delivery));
                 if (storageQuantity > 0)
                 {
                     ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,

@@ -237,6 +237,41 @@ public sealed class FarmhouseSiloReplenishmentTests
     private sealed record Setup(PrivateWorldRuntimeState State, string Actor, string Household,
         GridPoint Point, string Farmhouse, string Silo, string House);
 
+    [Fact]
+    public async Task NativeHaulingFillsTheSilosLastUnitAndLeavesTheRemainingSeedsOnTheGround()
+    {
+        var setup = await Prepare("silo-capacity-boundary", growField: false, isolateStoredGrain: true);
+        var silo = setup.State.WorldSimulation!.Buildings.Single(building => building.InstanceId == setup.Silo);
+        var inventory = InventoryFixture.AddLot(setup.State.Society.Society.Inventory, "silo-capacity-stock",
+            FarmFieldRules.GrainSeed, setup.Household, 63, storageBuildingId: setup.Silo);
+        inventory = InventoryFixture.AddLot(inventory, "full-capacity-farmhouse",
+            FarmFieldRules.GrainSeed, setup.Household, 96, storageBuildingId: setup.Farmhouse);
+        inventory = InventoryFixture.AddLot(inventory, "silo-capacity-ground-seeds",
+            FarmFieldRules.GrainSeed, setup.Household, 4,
+            groundPosition: new(silo.Position.X, silo.Position.Y));
+        using var world = Restore(FarmFieldTests.WithInventory(setup.State, inventory), setup.Actor,
+            "haul_farm_grain", "haul_household_stock");
+        await Until(world, () => world.Society.Inventory.Lots.Any(lot =>
+            IsFrom(lot, "silo-capacity-ground-seeds") && lot.StorageBuildingId == setup.Silo),
+            20, "actual last-unit Silo delivery");
+        Assert.Equal(64, Stored(world, setup.Silo));
+        Assert.Equal(1, world.Society.Inventory.Lots.Where(lot =>
+            IsFrom(lot, "silo-capacity-ground-seeds") && lot.StorageBuildingId == setup.Silo).Sum(lot => lot.Quantity));
+        var remaining = world.Society.Inventory.GetLot("silo-capacity-ground-seeds");
+        Assert.Equal((3, new InventoryGroundPosition(silo.Position.X, silo.Position.Y)),
+            (remaining.Quantity, remaining.GroundPosition));
+        using var replay = Reload(world, setup.Actor, "haul_farm_grain", "haul_household_stock");
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        for (var tick = 0; tick < 3; tick++)
+        {
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+            Assert.Equal(64, Stored(world, setup.Silo));
+            Assert.Equal(3, world.Society.Inventory.GetLot(remaining.Id).Quantity);
+        }
+    }
+
     private static async Task<Setup> Prepare(string seed, bool growField, bool isolateStoredGrain = false)
     {
         var (state, actor, household, point) = FarmFieldTests.PreparedFarmer(seed);
@@ -408,8 +443,7 @@ public sealed class FarmhouseSiloReplenishmentTests
             world.WorldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == "first-town-warehouse")?.Position ??
             state.Towns?.FirstOrDefault(item => item.OriginSite is not null)?.OriginSite ??
             state.Map.Resources.First(item => item.Id == "berry-patch").Position;
-        int Room(string building) => Math.Max(0, FarmFieldRules.FarmStorageCapacity - inventory.Lots
-            .Where(lot => lot.StorageBuildingId == building || lot.DeliveryBuildingId == building).Sum(lot => lot.Quantity));
+        int Room(string building) => world.DestinationRoom(building);
         var freeCarry = PersonalEquipmentRules.FreeCapacity(inventory, setup.Actor, person.Equipment);
         var roots = inventory.Lots.Where(lot => lot.OwnerId == setup.Household && lot.ContainerLotId is null &&
                 lot.StorageBuildingId is null && lot.DeliveryBuildingId is null && FarmFieldRules.IsFarmStock(lot.ItemKind))
@@ -436,7 +470,7 @@ public sealed class FarmhouseSiloReplenishmentTests
         return $"tick={world.WorldTick}, actor={setup.Actor}@{person.Position}, age={social.AgeBand}, " +
             $"HH={social.HouseholdId}/{household.Name}, free-carry={freeCarry}, camp={camp}, " +
             $"FH={farmhouse.Position}/owner={farmhouse.HouseholdId}/capacity={FarmFieldRules.FarmStorageCapacity}/room={Room(setup.Farmhouse)}, " +
-            $"Silo={silo.Position}/owner={silo.HouseholdId}/capacity={FarmFieldRules.FarmStorageCapacity}/room={Room(setup.Silo)}, trades={world.BusinessTrades.Count}, " +
+            $"Silo={silo.Position}/owner={silo.HouseholdId}/capacity=64/room={Room(setup.Silo)}, trades={world.BusinessTrades.Count}, " +
             $"Silo-pickup-route={HasUnoccupiedRoute(state, setup.Actor, person.Position, silo.Position)}, " +
             $"Silo-FH-route={HasUnoccupiedRoute(state, setup.Actor, silo.Position, farmhouse.Position)}, " +
             $"first-fitting-loose-root={firstFitting?.Id}, titles={string.Join(",", titles)}, rights={string.Join(",", rights)}.\n" +

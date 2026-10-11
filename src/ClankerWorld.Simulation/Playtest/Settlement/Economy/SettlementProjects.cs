@@ -797,7 +797,7 @@ public sealed partial class PrivateWorldRuntime
                 return;
             }
             var deliveryQuantity = Math.Min(input.Amount, AvailableLotQuantity(carried));
-            if (house is not null) deliveryQuantity = Math.Min(deliveryQuantity, StorageRoom(house.InstanceId));
+            if (house is not null) deliveryQuantity = Math.Min(deliveryQuantity, DestinationRoom(house.InstanceId));
             if (deliveryQuantity == 0)
             {
                 SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "House storage is full; expand it before delivering more." });
@@ -1036,8 +1036,10 @@ public sealed partial class PrivateWorldRuntime
             var position = inhabitants[residentId].Position;
             foreach (var resource in map.Resources)
             {
-                if (resources.GetValueOrDefault(resource.Id) != ResourceState.Available ||
-                    resource.Kind != input.ResourceId && !(input.ResourceId == "wood" && resource.Kind == "construction"))
+                // Most sources cannot supply this input. Check the cheap kind
+                // match before looking up their current availability by ID.
+                if (resource.Kind != input.ResourceId && !(input.ResourceId == "wood" && resource.Kind == "construction") ||
+                    resources.GetValueOrDefault(resource.Id) != ResourceState.Available)
                     continue;
 
                 var sourceQuantity = worldSystems.Ecology.GetResource(resource.Id).Quantity;
@@ -1083,7 +1085,7 @@ public sealed partial class PrivateWorldRuntime
         var house = HouseForHousehold(request.OwnerId);
         return house is null
             ? FreeCarryCapacity(request.Requester) > 0
-            : StorageRoom(house.InstanceId) > 0;
+            : DestinationRoom(house.InstanceId) > 0;
     }
 
     private void AssistProject(string helperId, PlaytestInhabitantState state, string itemKind)
@@ -1124,7 +1126,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         var quantity = Math.Min(request.Input.Amount, AvailableLotQuantity(carried));
-        if (house is not null) quantity = Math.Min(quantity, StorageRoom(house.InstanceId));
+        if (house is not null) quantity = Math.Min(quantity, DestinationRoom(house.InstanceId));
         else quantity = Math.Min(quantity, FreeCarryCapacity(request.Requester));
         if (quantity == 0) return;
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"project-share:{WorldTick}:{helperId}",

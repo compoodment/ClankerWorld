@@ -735,7 +735,7 @@ public sealed class FarmFieldTests
         Assert.Equal(2, stores.Length);
         foreach (var store in stores)
             inventory = InventoryFixture.AddLot(inventory, "full:" + store.InstanceId, "grain", household,
-                96, storageBuildingId: store.InstanceId);
+                store.InstanceId == "full-stores-silo" ? 64 : 96, storageBuildingId: store.InstanceId);
         var harvest = $"farm:Harvest:{point.X}:{point.Y}:-";
         using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory),
             id => new ChooseProvider(id == actor ? harvest : "safe_idle"));
@@ -757,7 +757,7 @@ public sealed class FarmFieldTests
         Assert.Equal(InventoryReservationState.Reserved, reserve.State);
         Assert.Equal(1, reserve.Quantity);
         Assert.Equal("grain_seed", world.Society.Inventory.GetLot(reserve.LotId).ItemKind);
-        Assert.All(stores, store => Assert.Equal(96,
+        Assert.All(stores, store => Assert.Equal(store.InstanceId == "full-stores-silo" ? 64 : 96,
             world.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == store.InstanceId).Sum(lot => lot.Quantity)));
         using var restored = Reload(world);
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
