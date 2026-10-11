@@ -1,0 +1,13 @@
+using Microsoft.Diagnostics.NETCore.Client;
+using System.Diagnostics.Tracing;
+var gate=args[0];
+var deadline=DateTime.UtcNow.AddMinutes(15);
+while(!File.Exists(gate+".ready")) {if(DateTime.UtcNow>deadline)throw new TimeoutException("No target readiness marker");await Task.Delay(100);}
+var pid=int.Parse(File.ReadAllText(gate+".ready"),System.Globalization.CultureInfo.InvariantCulture);
+using var session=new DiagnosticsClient(pid).StartEventPipeSession(new[]{new EventPipeProvider("Microsoft-DotNETCore-SampleProfiler", EventLevel.Informational)},requestRundown:true);
+using var file=File.Create(args[1]);
+var copying=session.EventStream.CopyToAsync(file);
+File.WriteAllText(gate+".go",DateTime.UtcNow.ToString("O",System.Globalization.CultureInfo.InvariantCulture));
+Console.WriteLine("Sampling session opened before measurement gate.");
+await copying;
+Console.WriteLine("Sampling stream completed.");
