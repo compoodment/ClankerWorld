@@ -7,9 +7,8 @@ public sealed partial class PrivateWorldRuntime
 {
     private int GoodsQuantity(InventoryIndex index, InventoryLot lot, GoodsRequest request)
     {
-        var quantity = request.Use == GoodsUse.ConsumeAt
-            ? InventoryRules.ReservableQuantity(index, lot) : InventoryRules.UsableQuantity(index, lot);
-        if (request.Use != GoodsUse.Collect || PersonalEquipmentRules.IsCarried(index.Root(lot), request.Actor!))
+        var quantity = GoodsInventoryQuery.Quantity(index, lot, request.Use);
+        if (request.Use is not (GoodsUse.Collect or GoodsUse.Recover) || PersonalEquipmentRules.IsCarried(index.Root(lot), request.Actor!))
             return quantity;
         var room = FreeCarryCapacity(request.Actor!);
         var root = index.Root(lot);
@@ -50,7 +49,7 @@ public sealed partial class PrivateWorldRuntime
     private bool MayCollectGoodsAt(string actor, InventoryLot root)
     {
         if (root.OwnerId == actor)
-            return PersonalEquipmentRules.IsCarried(root, actor) || PersonalGoodsAwaitingCollection(actor).Any(lot => lot.Id == root.Id);
+            return PersonalEquipmentRules.IsCarried(root, actor) || MayRecoverPersonalGoodsAt(actor, root) && PersonalRecoveryPropertyExclusion(actor, InventoryIndex.For(society.Checkpoint.Inventory), root) is null;
         if (root.OwnerId == HouseholdFor(actor)) return true;
         if (PersonalEquipmentRules.IsCarried(root, actor) && worldSimulation.Buildings.Any(building =>
                 building.HouseholdId == root.OwnerId && worldContent.Buildings.Any(definition =>
