@@ -1,0 +1,1 @@
+- Stores and Markets can save exchanges and stock receipts with valid long mod resource names. Paying with such a resource no longer halts the world at its next checkpoint; saves keep the full name and exact inventory bindings.

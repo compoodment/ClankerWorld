@@ -106,6 +106,89 @@ public sealed class LocalHostCompanionTests
         }
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    [InlineData(HttpStatusCode.Conflict)]
+    public async Task RefusedShutdownAndCallerCancellationPreserveTheChildForRetry(HttpStatusCode refusal)
+    {
+        var data = Path.Combine(Path.GetTempPath(), $"clankerworld-companion-refused-{Guid.NewGuid():N}");
+        var viewer = typeof(Program).Assembly;
+        var (version, revision) = BuildOf(viewer);
+        var layout = new LocalHostLayout(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet",
+            [viewer.Location], Path.GetDirectoryName(viewer.Location)!, data);
+        using var handler = new ShutdownRefusalHandler();
+        using var http = new HttpClient(handler);
+        var game = new LocalHostCompanion(layout, http, FreePort(), FreePort());
+        try
+        {
+            Assert.True((await game.StartAsync(version, revision, CancellationToken.None)).IsReady);
+            handler.Refusal = refusal;
+            Assert.False(await game.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.True(game.StartedHost);
+            Assert.True((await http.GetAsync(new Uri(game.Origin, "api/v1/handshake"))).IsSuccessStatusCode);
+            handler.Refusal = null;
+            using var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => game.StopAsync(cancellation.Token));
+            Assert.True(game.StartedHost);
+            Assert.True((await http.GetAsync(new Uri(game.Origin, "api/v1/handshake"))).IsSuccessStatusCode);
+            Assert.True(await game.StopAsync(CancellationToken.None));
+            Assert.False(game.StartedHost);
+        }
+        finally
+        {
+            handler.Refusal = null;
+            await game.StopAsync(CancellationToken.None);
+            if (Directory.Exists(data)) Directory.Delete(data, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SameBuildRequiresTheRunningCompanionToRecognizeItsSavedSecret()
+    {
+        var data = Path.Combine(Path.GetTempPath(), $"clankerworld-companion-proof-{Guid.NewGuid():N}");
+        var viewer = typeof(Program).Assembly;
+        var (version, revision) = BuildOf(viewer);
+        var layout = new LocalHostLayout(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet",
+            [viewer.Location], Path.GetDirectoryName(viewer.Location)!, data);
+        using var http = new HttpClient();
+        var (port, approval) = (FreePort(), FreePort());
+        var game = new LocalHostCompanion(layout, http, port, approval);
+        string? original = null;
+        try
+        {
+            Assert.True((await game.StartAsync(version, revision, CancellationToken.None)).IsReady);
+            original = File.ReadAllText(layout.SecretPath);
+            File.WriteAllText(layout.SecretPath, new string('x', 32));
+            var relaunch = new LocalHostCompanion(layout, http, port, approval);
+            Assert.Equal(LocalHostOutcome.PortInUse, (await relaunch.StartAsync(version, revision, CancellationToken.None)).Outcome);
+            Assert.False(relaunch.StartedHost);
+            await relaunch.StopAsync(CancellationToken.None);
+            Assert.True((await http.GetAsync(new Uri(game.Origin, "api/v1/handshake"))).IsSuccessStatusCode);
+            File.WriteAllText(layout.SecretPath, original);
+            Assert.Equal(LocalHostOutcome.Reused, (await relaunch.StartAsync(version, revision, CancellationToken.None)).Outcome);
+        }
+        finally
+        {
+            if (original is not null) File.WriteAllText(layout.SecretPath, original);
+            await game.StopAsync(CancellationToken.None);
+            if (Directory.Exists(data)) Directory.Delete(data, recursive: true);
+        }
+    }
+
+    private sealed class ShutdownRefusalHandler : HttpMessageHandler
+    {
+        private readonly HttpMessageInvoker inner = new(new HttpClientHandler());
+        public HttpStatusCode? Refusal { get; set; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return request.RequestUri!.AbsolutePath == "/api/v1/local/shutdown" && Refusal is { } status
+                ? Task.FromResult(new HttpResponseMessage(status)) : inner.SendAsync(request, cancellationToken);
+        }
+        protected override void Dispose(bool disposing) { if (disposing) inner.Dispose(); base.Dispose(disposing); }
+    }
+
     private static (string Version, string Revision) BuildOf(Assembly assembly)
     {
         var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;

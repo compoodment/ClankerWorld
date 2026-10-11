@@ -185,7 +185,7 @@ public static class WorldContentSimulationRules
                 job.InputReservationIds is null ||
                 job.InputReservationIds.Count != job.InputReservationIds.Distinct(StringComparer.Ordinal).Count() ||
                 job.ToolLotId is { } toolLotId && (string.IsNullOrWhiteSpace(toolLotId) ||
-                    toolLotId.Length > 512 || toolLotId.Any(char.IsControl) || !ToolProgressionRules.UsesKnife(recipe)))
+                    toolLotId.Any(char.IsControl) || !ToolProgressionRules.UsesKnife(recipe)))
             {
                 throw new InvalidDataException($"Production job '{job.JobId}' is malformed.");
             }

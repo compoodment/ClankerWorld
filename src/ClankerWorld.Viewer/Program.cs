@@ -221,6 +221,8 @@ builder.Services.AddSingleton<OwnerAuthorityStore>(services =>
 builder.Services.AddSingleton<OwnerRequestAuthorizer>();
 builder.Services.AddSingleton(new OwnerClientPresenceLease(
     TimeSpan.FromSeconds(clientPresenceTimeoutSeconds)));
+if (isPrivateWorld)
+    builder.Services.AddSingleton<PrivateWorldRuntimeService>();
 if (advanceRuntime)
 {
     if (isPrivateWorld)

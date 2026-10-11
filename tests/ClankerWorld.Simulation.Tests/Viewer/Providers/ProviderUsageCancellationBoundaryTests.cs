@@ -50,6 +50,7 @@ public sealed class ProviderUsageCancellationBoundaryTests
         private readonly InlineCancellationHttpHandler handler = new();
         private readonly RecordingLogger<ProviderUsageCancellationBoundaryTests> log = new();
         private Task? runningOperation;
+        private readonly AwaitingDecisionProvider provider;
 
         public HeldConfiguredUsageWorld()
         {
@@ -59,8 +60,8 @@ public sealed class ProviderUsageCancellationBoundaryTests
                 Actor, Guid.NewGuid().ToString("N"), "Boundary test model"));
             Usage = new ProviderUsageStore(Path.Combine(directory.FullName, "usage.json"));
             _ = Usage.Configure(new ProviderUsageLimitAction(1));
-            var provider = new ConfigurableDecisionProvider(configuration, new HeldHttpClientFactory(handler),
-                usageStore: Usage);
+            provider = new AwaitingDecisionProvider(new ConfigurableDecisionProvider(
+                configuration, new HeldHttpClientFactory(handler), usageStore: Usage));
             World = new PrivateWorldRuntime("configured-usage-cancellation-boundary", id =>
                 id == Actor ? provider : new DeterministicDecisionProvider());
             StateFile = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"));
@@ -77,8 +78,13 @@ public sealed class ProviderUsageCancellationBoundaryTests
         {
             Assert.True((await TickAsync()).Advanced);
             await handler.Started.Task.WaitAsync(Deadline);
-            // Another real tick leaves the HTTP request held while the provider
-            // returns to its await. No second request may spend another call.
+            // Started is deliberately early: SendAsync has not returned yet.
+            // Only the configured provider's returned incomplete operation proves
+            // that its full HTTP/usage chain has suspended on the held response.
+            Assert.False(provider.AwaitingReply.Task.IsCompleted);
+            handler.AllowReturn.Set();
+            await provider.AwaitingReply.Task.WaitAsync(Deadline);
+            // No second request may spend another call while the first is held.
             Assert.True((await TickAsync()).Advanced);
             Assert.Equal(1, handler.RequestCount);
             Assert.Equal(1, Usage.Capture().Attempts);
@@ -116,6 +122,23 @@ public sealed class ProviderUsageCancellationBoundaryTests
         }
     }
 
+    private sealed class AwaitingDecisionProvider(IDecisionProvider inner) : IDecisionProvider
+    {
+        public TaskCompletionSource AwaitingReply { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public DecisionProviderKind Kind => inner.Kind;
+        public long ProviderEpoch => inner.ProviderEpoch;
+        public DecisionProviderKind KindFor(InhabitantObservation observation) => inner.KindFor(observation);
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var pending = inner.DecideAsync(request, cancellationToken);
+            Assert.False(pending.IsCompleted);
+            AwaitingReply.TrySetResult();
+            return pending;
+        }
+    }
+
     private sealed class HeldHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
@@ -131,6 +154,7 @@ public sealed class ProviderUsageCancellationBoundaryTests
 
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int RequestCount => Volatile.Read(ref requestCount);
+        public ManualResetEventSlim AllowReturn { get; } = new();
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
             CancellationToken cancellationToken)
@@ -138,6 +162,8 @@ public sealed class ProviderUsageCancellationBoundaryTests
             Interlocked.Increment(ref requestCount);
             cancellation = cancellationToken.Register(() => response.TrySetCanceled(cancellationToken));
             Started.TrySetResult(true);
+            if (!AllowReturn.Wait(TimeSpan.FromSeconds(10), cancellationToken))
+                throw new TimeoutException("The fixture did not release the early HTTP start signal.");
             return response.Task;
         }
 
@@ -150,7 +176,12 @@ public sealed class ProviderUsageCancellationBoundaryTests
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) cancellation.Dispose();
+            if (disposing)
+            {
+                AllowReturn.Set();
+                cancellation.Dispose();
+                AllowReturn.Dispose();
+            }
             base.Dispose(disposing);
         }
     }

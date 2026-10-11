@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Observation;
 
@@ -43,6 +44,7 @@ public sealed class RecoveryCleanupDeletionTests
     [InlineData("history")]
     [InlineData("schema")]
     [InlineData("identity")]
+    [InlineData("regeneration")]
     public void CleanupDeletionPreservesUnverifiableRecoveryAndItsLatestVerifiedPredecessor(string damage)
     {
         var directory = Directory.CreateTempSubdirectory("recovery-verify-");
@@ -66,6 +68,22 @@ public sealed class RecoveryCleanupDeletionTests
                 document["state"]!["schemaVersion"] = 0;
                 File.WriteAllText(target, document.ToJsonString());
             }
+            else if (damage == "regeneration")
+            {
+                var checkpoint = store.Read(unverified);
+                var map = checkpoint.Map with
+                {
+                    GenerationAttempt = (checkpoint.Map.GenerationAttempt + 1) % SeededMapGenerator.MaximumAttempts,
+                };
+                map = map with { ManifestDigest = MapManifestCodec.Digest(map) };
+                File.WriteAllBytes(target, PrivateWorldRuntimeCodec.Encode(checkpoint with { Map = map }));
+                // Codec acceptance alone does not prove this copy can be loaded.
+                var decoded = store.Read(unverified);
+                Assert.Throws<InvalidDataException>(() =>
+                {
+                    using var restored = PrivateWorldRuntime.Restore(decoded);
+                });
+            }
             else
             {
                 using var other = new PrivateWorldRuntime("another-recovery-world");
@@ -80,6 +98,7 @@ public sealed class RecoveryCleanupDeletionTests
             store.CleanRecoveryHistory(preview.WorldId, 1, preview.Digest, stateFile);
             Assert.Equal(evidence, File.ReadAllBytes(target));
             Assert.NotNull(store.Read(valid));
+            using var usable = PrivateWorldRuntime.Restore(store.Read(valid));
             Assert.NotNull(store.Read(named.Id));
         }
         finally { directory.Delete(recursive: true); }

@@ -1,0 +1,1 @@
+- On the paired world, give an adult from the fifth or a later generation an Order to gather fiber from a nearby real source. Save and reload during travel and after completion; the world should continue, with the order done and the same gathered fiber and depleted source. ([#1636](https://github.com/compoodment/ClankerWorld/issues/1636))

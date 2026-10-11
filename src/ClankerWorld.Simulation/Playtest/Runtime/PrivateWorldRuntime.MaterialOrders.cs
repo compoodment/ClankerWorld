@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Kernel;
@@ -96,8 +98,13 @@ public sealed partial class PrivateWorldRuntime
             RecordKnowledgeFact(actor, source.Position);
         var effect = GatherProjectMaterial(actor, person, instruction.Order!.TargetMaterialKind!, source);
         if (effect is not null)
-            CreditOrderEffect(instruction, $"gather:{effect.LotId}",
+        {
+            var receipt = $"gather:{effect.LotId}";
+            if (receipt.Length > 512)
+                receipt = "gather:material:sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(receipt)));
+            CreditOrderEffect(instruction, receipt,
                 instruction.Order.ProgressUnit == "harvests" ? 1 : effect.Quantity);
+        }
     }
 
     private string MaterialOrderBlockedReason(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)

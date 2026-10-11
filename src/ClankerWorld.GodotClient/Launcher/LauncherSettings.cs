@@ -41,7 +41,8 @@ public static class SavedWorlds
         try
         {
             using var document = JsonDocument.Parse(File.ReadAllBytes(layout.WorldCatalogPath));
-            if (!document.RootElement.TryGetProperty("Worlds", out var worlds) || worlds.ValueKind != JsonValueKind.Array)
+            if (document.RootElement.ValueKind != JsonValueKind.Object ||
+                !document.RootElement.TryGetProperty("Worlds", out var worlds) || worlds.ValueKind != JsonValueKind.Array)
                 return [];
             return worlds.EnumerateArray()
                 .Where(world => world.ValueKind == JsonValueKind.Object)

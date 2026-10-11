@@ -223,6 +223,49 @@ public sealed class AbandonedWarehouseConsumerTests
         Assert.Equal(QuietTown, world.Society.Inventory.GetLot("salvage-stock").OwnerId);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task WarehousePreparationKeepsReachableStockWhileNativePickupRequiresCurrentRoomAndUnreservedGoods(
+        bool full, bool reserved)
+    {
+        var (state, actor, warehouse) = PreparedStock("wooden_axe", 1);
+        if (full) state = WithInventory(state, InventoryFixture.AddLot(state.Society.Society.Inventory,
+            "full-load", "wood", actor, PersonalEquipmentRules.BaseCapacity));
+        if (reserved) state = WithReservation(state, "salvage-stock", 1);
+        using var world = Reload(state);
+        using var replay = Reload(state);
+        var request = new GoodsRequest(GoodsUse.ReachableHoldings, actor, GoodsOwners.One(QuietTown),
+            GoodsKinds.One("wooden_axe"), AtBuilding: warehouse.InstanceId);
+        var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        var reachable = world.FindGoods(request);
+        var stock = ((IEnumerable<InventoryLot>)typeof(PrivateWorldRuntime)
+            .GetMethod("AvailableWarehouseStock", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(world, [actor, "wooden_axe"])!).ToArray();
+        Assert.Equal(reserved ? 0 : 1, reachable.Total);
+        Assert.Equal(reachable.Matches.Select(match => match.Lot.Id), stock.Select(lot => lot.Id));
+        Assert.Equal(full || reserved ? 0 : 1, world.FindGoods(request with { Use = GoodsUse.Collect }).Total);
+        Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        var offered = Candidates(world, actor).Any(item => item.Id == "collect_wooden_axe");
+        Assert.Equal(!full && !reserved, offered);
+        Choose(world, actor, "collect_wooden_axe");
+        Choose(replay, actor, "collect_wooden_axe");
+        var axe = world.Society.Inventory.GetLot("salvage-stock");
+        Assert.Equal((full || reserved ? QuietTown : actor, 1, 7_600, 8_300),
+            (axe.OwnerId, axe.Quantity, axe.ConditionBasisPoints, axe.FreshnessBasisPoints));
+        if (full || reserved) Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        else Assert.Null(axe.StorageBuildingId);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        AssertRoundTrip(world);
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        world.Validate();
+        replay.Validate();
+    }
+
     private static (PrivateWorldRuntimeState State, string Actor, PlacedBuilding Warehouse) PreparedStock(
         string kind, int quantity, string household = Alpha)
     {

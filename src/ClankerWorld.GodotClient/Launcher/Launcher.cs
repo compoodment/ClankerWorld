@@ -26,6 +26,7 @@ public partial class Launcher : Control
     private readonly ProgressBar progressBar = new() { MinValue = 0, MaxValue = 1, Step = 0.001, Visible = false };
     private readonly VBoxContainer installedRows = new();
     private readonly VBoxContainer availableRows = new();
+    private readonly List<Button> versionActions = [];
     private readonly CheckButton developerMode = new() { Text = "Developer mode" };
     private readonly Label developerHint = new();
     private readonly Button playTab = new() { Text = "Play" };
@@ -307,6 +308,7 @@ public partial class Launcher : Control
 
     private void RebuildVersionRows()
     {
+        versionActions.Clear();
         foreach (var rows in new[] { installedRows, availableRows })
             foreach (var child in rows.GetChildren())
             {
@@ -349,6 +351,7 @@ public partial class Launcher : Control
         foreach (var (label, pressed) in actions)
         {
             var button = new Button { Text = label, Disabled = busy };
+            versionActions.Add(button);
             StyleButton(button);
             if (label == "Remove") button.ThemeTypeVariation = "DangerButton";
             button.Pressed += pressed;
@@ -389,6 +392,17 @@ public partial class Launcher : Control
     {
         if (busy) return null;
         SetBusy(true);
+        try { return await DownloadInstallAsync(release, playAfter); }
+        finally
+        {
+            SetBusy(false);
+            RefreshInstalled();
+        }
+    }
+
+    // Called only while the install or repair operation holds the busy state.
+    private async Task<InstalledVersion?> DownloadInstallAsync(GameRelease release, bool playAfter)
+    {
         SetStatus($"Downloading ClankerWorld {release.Version}…");
         var progress = new Progress<double>(fraction => progressBar.Value = fraction);
         try
@@ -408,6 +422,33 @@ public partial class Launcher : Control
             SetStatus("The download stopped. Your saves are untouched. Check your connection and try again.");
             return null;
         }
+    }
+
+    private async Task RepairAsync(InstalledVersion version)
+    {
+        if (busy) return;
+        SetBusy(true);
+        try
+        {
+            SetStatus($"Checking ClankerWorld {version.Version}…");
+            var problems = await Task.Run(() => GameVersionStore.Verify(version));
+            if (problems.Count == 0)
+            {
+                SetStatus($"ClankerWorld {version.Version} is fine. Every file matches its release.");
+                return;
+            }
+            var release = releases.Games.FirstOrDefault(candidate => candidate.Version == version.Version);
+            if (release is null)
+            {
+                SetStatus($"ClankerWorld {version.Version} needs repair, and its release couldn't be reached. Your installed copy is kept.");
+                return;
+            }
+            await DownloadInstallAsync(release, playAfter: false);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            SetStatus($"Couldn't check ClankerWorld {version.Version}. Close it and try Repair again.");
+        }
         finally
         {
             SetBusy(false);
@@ -415,26 +456,9 @@ public partial class Launcher : Control
         }
     }
 
-    private async Task RepairAsync(InstalledVersion version)
-    {
-        SetStatus($"Checking ClankerWorld {version.Version}…");
-        var problems = await Task.Run(() => GameVersionStore.Verify(version));
-        if (problems.Count == 0)
-        {
-            SetStatus($"ClankerWorld {version.Version} is fine. Every file matches its release.");
-            return;
-        }
-        var release = releases.Games.FirstOrDefault(candidate => candidate.Version == version.Version);
-        if (release is null)
-        {
-            SetStatus($"{problems.Count} files in {version.Version} changed, and its release couldn't be reached to repair it.");
-            return;
-        }
-        await InstallAsync(release, playAfter: false);
-    }
-
     private void Remove(InstalledVersion version, int worldsNeedingIt)
     {
+        if (busy) return;
         var confirm = new ConfirmationDialog
         {
             Title = $"Remove {version.Version}?",
@@ -445,13 +469,19 @@ public partial class Launcher : Control
         };
         confirm.Confirmed += () =>
         {
+            if (busy) return;
+            SetBusy(true);
             try
             {
                 store.Remove(version);
                 SetStatus($"Removed ClankerWorld {version.Version}. Your worlds are kept.");
             }
             catch (GameInstallException exception) { SetStatus(exception.Message); }
-            RefreshInstalled();
+            finally
+            {
+                SetBusy(false);
+                RefreshInstalled();
+            }
         };
         AddChild(confirm);
         confirm.PopupCentered();
@@ -460,6 +490,8 @@ public partial class Launcher : Control
     private void SetBusy(bool value)
     {
         busy = value;
+        versionChoice.Disabled = value;
+        foreach (var button in versionActions) button.Disabled = value;
         progressBar.Visible = value;
         progressBar.Value = 0;
         UpdatePlayButton();
@@ -502,6 +534,26 @@ public partial class Launcher : Control
             Expect(launcherUpdate.Visible, "A newer launcher is announced, never installed");
             versionsTab.EmitSignal(BaseButton.SignalName.Pressed);
             Expect(versionsPage.Visible && availableRows.GetChildCount() == 2, "Versions lists both releases");
+            var testVersion = GameVersionName.Parse("0.0.1")!;
+            var testDirectory = layout.VersionDirectory(testVersion);
+            Directory.CreateDirectory(testDirectory);
+            File.WriteAllText(Path.Combine(testDirectory, LauncherLayout.GameExecutable), "smoke game");
+            File.WriteAllText(Path.Combine(testDirectory, LauncherLayout.PackageManifest), "# smoke manifest");
+            RefreshInstalled();
+            var testInstalled = installed.Single(version => version.Version == testVersion);
+            Remove(testInstalled, 0);
+            var confirmation = GetChildren().OfType<ConfirmationDialog>().Single();
+            SetBusy(true);
+            SetStatus("An operation is already running.");
+            Expect(versionActions.Count > 0 && versionActions.All(button => button.Disabled) && versionChoice.Disabled,
+                "Existing version actions are disabled throughout an operation");
+            await RepairAsync(testInstalled);
+            Expect(status.Text == "An operation is already running.", "Repair cannot start during another operation");
+            confirmation.EmitSignal(ConfirmationDialog.SignalName.Confirmed);
+            Expect(Directory.Exists(testDirectory), "An earlier Remove confirmation cannot race an operation");
+            confirmation.QueueFree();
+            SetBusy(false);
+            Expect(versionActions.All(button => !button.Disabled), "Version actions are enabled again after an operation");
             settingsTab.EmitSignal(BaseButton.SignalName.Pressed);
             developerMode.ButtonPressed = true;
             Expect(LauncherSettings.Load(layout).DeveloperMode, "Developer mode is remembered");
@@ -515,7 +567,7 @@ public partial class Launcher : Control
             try { Directory.Delete(layout.Root, recursive: true); }
             catch (DirectoryNotFoundException) { }
         }
-        if (failures.Count == 0) GD.Print("Launcher checks passed: pages, version choice, release list, launcher notice and Developer mode.");
+        if (failures.Count == 0) GD.Print("Launcher checks passed: pages, version choice, release list, operation locks, launcher notice and Developer mode.");
         else GD.PrintErr("Launcher checks failed: " + string.Join("; ", failures));
         GetTree().Quit(failures.Count == 0 ? 0 : 1);
     }

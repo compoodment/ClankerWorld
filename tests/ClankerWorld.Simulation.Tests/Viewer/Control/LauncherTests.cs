@@ -101,7 +101,7 @@ public sealed class LauncherTests
             var layout = new LauncherLayout(root.FullName);
             var version = GameVersionName.Parse("0.1.0-alpha.1")!;
             var zip = Path.Combine(root.FullName, "package.zip");
-            File.WriteAllBytes(zip, Package(version, ("ClankerWorld.exe", "game")));
+            File.WriteAllBytes(zip, Package(version, ("ClankerWorld.exe", "game"), ("host/ClankerWorld.Viewer.exe", "host")));
             using (var archive = ZipFile.Open(zip, ZipArchiveMode.Update))
             using (var writer = new StreamWriter(archive.CreateEntry(entryName).Open()))
                 writer.Write("escaped");
@@ -134,6 +134,157 @@ public sealed class LauncherTests
             Assert.Equal(before, File.GetLastWriteTimeUtc(layout.WorldCatalogPath));
             Assert.Equal(["--", "--launcher=L.exe"], GameStarter.Arguments("L.exe", developerMode: false));
             Assert.Equal(["--", "--launcher=L.exe", "--developer-mode"], GameStarter.Arguments("L.exe", developerMode: true));
+            foreach (var invalidRoot in new[] { "[]", "null", "42", "{\"Worlds\":null}" })
+            {
+                File.WriteAllText(layout.WorldCatalogPath, invalidRoot);
+                Assert.Empty(SavedWorlds.Read(layout));
+                Assert.Equal(invalidRoot, File.ReadAllText(layout.WorldCatalogPath));
+            }
+        }
+        finally { root.Delete(recursive: true); }
+    }
+
+    [Theory]
+    [InlineData("empty")]
+    [InlineData("headers")]
+    [InlineData("partial")]
+    [InlineData("short")]
+    [InlineData("unsafe")]
+    [InlineData("duplicate")]
+    [InlineData("missing")]
+    [InlineData("missing-executable")]
+    [InlineData("missing-both")]
+    [InlineData("unlisted")]
+    public async Task DamagedFileListsAndUnlistedFilesNeedRepairAndReinstallPreservesSaves(string damage)
+    {
+        var root = Directory.CreateTempSubdirectory("launcher-manifest-");
+        try
+        {
+            var layout = new LauncherLayout(root.FullName);
+            Directory.CreateDirectory(layout.SavesDirectory);
+            var save = Path.Combine(layout.SavesDirectory, "private-world.json");
+            File.WriteAllText(save, "saved world");
+            var version = GameVersionName.Parse("0.1.0-alpha.1")!;
+            var server = new FakeReleases();
+            var release = server.Publish(version, Package(version, ("ClankerWorld.exe", "game"), ("host/ClankerWorld.Viewer.exe", "host")));
+            using var http = new HttpClient(server);
+            var store = new GameVersionStore(layout, http);
+            var installed = await store.InstallAsync(release, null, CancellationToken.None);
+            var manifestPath = Path.Combine(installed.Directory, LauncherLayout.PackageManifest);
+            var manifest = File.ReadAllText(manifestPath);
+            var entries = manifest.Split('\n').Where(line => line.Length > 0 && !line.StartsWith('#')).ToArray();
+            if (damage is "missing" or "missing-both")
+            {
+                File.Delete(manifestPath);
+                if (damage == "missing-both") File.Delete(installed.Executable);
+            }
+            else if (damage == "missing-executable") File.Delete(installed.Executable);
+            else if (damage == "unlisted") File.WriteAllText(Path.Combine(installed.Directory, "host", "unlisted.dll"), "unexpected program");
+            else
+            {
+                File.WriteAllText(Path.Combine(installed.Directory, "host", "ClankerWorld.Viewer.exe"), "changed host");
+                File.WriteAllText(manifestPath, damage switch
+                {
+                    "empty" => "",
+                    "headers" => "# package\n# Source commit: retained\n",
+                    "partial" => entries.Single(line => line.EndsWith("./ClankerWorld.exe", StringComparison.Ordinal)) + "\n",
+                    "short" => "incomplete checksum\n",
+                    "unsafe" => manifest.Replace("*./", "*../", StringComparison.Ordinal),
+                    "duplicate" => manifest + entries[0] + "\n",
+                    _ => throw new InvalidOperationException(damage),
+                });
+            }
+
+            var damaged = Assert.Single(store.Installed());
+            Assert.Equal(installed.Version, damaged.Version);
+            Assert.NotEmpty(GameVersionStore.Verify(damaged));
+            var repaired = await store.InstallAsync(release, null, CancellationToken.None);
+            Assert.Empty(GameVersionStore.Verify(repaired));
+            Assert.Equal("host", File.ReadAllText(Path.Combine(repaired.Directory, "host", "ClankerWorld.Viewer.exe")));
+            Assert.False(File.Exists(Path.Combine(repaired.Directory, "host", "unlisted.dll")));
+            Assert.Equal("saved world", File.ReadAllText(save));
+        }
+        finally { root.Delete(recursive: true); }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void InterruptedReplacementRecoversItsOldCopyButRemovalStaysRemoved(bool replacementPresent, bool removal)
+    {
+        var root = Directory.CreateTempSubdirectory("launcher-recovery-");
+        try
+        {
+            var layout = new LauncherLayout(root.FullName);
+            Directory.CreateDirectory(layout.SavesDirectory);
+            var save = Path.Combine(layout.SavesDirectory, "private-world.json");
+            File.WriteAllText(save, "saved world");
+            var version = GameVersionName.Parse("0.1.0-alpha.1")!;
+            var zip = Path.Combine(root.FullName, "package.zip");
+            File.WriteAllBytes(zip, Package(version, ("ClankerWorld.exe", "old game"), ("host/ClankerWorld.Viewer.exe", "old host")));
+            using var http = new HttpClient();
+            var store = new GameVersionStore(layout, http);
+            var old = store.InstallPackage(zip, version);
+            // The actual directory-move boundary after retiring the old copy.
+            var retired = Path.Combine(layout.VersionsDirectory, $".{(removal ? "removed" : "old")}-{version}-{Guid.NewGuid():N}");
+            Directory.Move(old.Directory, retired);
+            if (replacementPresent)
+            {
+                File.WriteAllBytes(zip, Package(version, ("ClankerWorld.exe", "new game"), ("host/ClankerWorld.Viewer.exe", "new host")));
+                _ = store.InstallPackage(zip, version);
+            }
+            Directory.CreateDirectory(Path.Combine(layout.VersionsDirectory, ".staging-" + Guid.NewGuid().ToString("N")));
+
+            store.CleanUp();
+            store.CleanUp();
+            if (removal) Assert.Empty(store.Installed());
+            else
+            {
+                var recovered = Assert.Single(store.Installed());
+                Assert.Equal(version, recovered.Version);
+                Assert.Equal(replacementPresent ? "new game" : "old game", File.ReadAllText(recovered.Executable));
+                Assert.Empty(GameVersionStore.Verify(recovered));
+            }
+            Assert.False(Directory.Exists(retired));
+            Assert.DoesNotContain(Directory.EnumerateDirectories(layout.VersionsDirectory),
+                path => Path.GetFileName(path).StartsWith('.'));
+            Assert.Equal("saved world", File.ReadAllText(save));
+        }
+        finally { root.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public async Task ACheckedDownloadWithAnIncompleteFileListCannotReplaceTheInstalledCopy()
+    {
+        var root = Directory.CreateTempSubdirectory("launcher-invalid-package-");
+        try
+        {
+            var layout = new LauncherLayout(root.FullName);
+            var version = GameVersionName.Parse("0.1.0-alpha.1")!;
+            var package = Package(version, ("ClankerWorld.exe", "game"), ("host/ClankerWorld.Viewer.exe", "host"));
+            var server = new FakeReleases();
+            using var http = new HttpClient(server);
+            var store = new GameVersionStore(layout, http);
+            var installed = await store.InstallAsync(server.Publish(version, package), null, CancellationToken.None);
+            using var damaged = new MemoryStream();
+            damaged.Write(package);
+            using (var archive = new ZipArchive(damaged, ZipArchiveMode.Update, leaveOpen: true))
+            {
+                var entry = archive.GetEntry(GameReleaseFeed.PackageName(version) + "/manifest.sha256")!;
+                string manifest;
+                using (var reader = new StreamReader(entry.Open())) manifest = reader.ReadToEnd();
+                entry.Delete();
+                using var writer = new StreamWriter(archive.CreateEntry(GameReleaseFeed.PackageName(version) + "/manifest.sha256").Open());
+                writer.WriteLine(manifest.Split('\n').Single(line => line.EndsWith("./ClankerWorld.exe", StringComparison.Ordinal)));
+            }
+            // The published ZIP hash is correct; its internal file list is incomplete.
+            var release = server.Publish(version, damaged.ToArray());
+            await Assert.ThrowsAsync<GameInstallException>(() => store.InstallAsync(release, null, CancellationToken.None));
+            Assert.Equal("game", File.ReadAllText(installed.Executable));
+            Assert.Empty(GameVersionStore.Verify(installed));
+            Assert.Single(store.Installed());
+            Assert.Single(Directory.EnumerateDirectories(layout.VersionsDirectory));
         }
         finally { root.Delete(recursive: true); }
     }

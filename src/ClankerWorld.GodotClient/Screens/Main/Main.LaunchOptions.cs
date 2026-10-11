@@ -15,7 +15,7 @@ public partial class Main
     private const string LauncherOption = "--launcher=";
     private readonly Button quitToLauncherButton = new();
     private readonly ConfirmationDialog quitToLauncherConfirmation = new();
-    private bool openLauncherOnQuit;
+    private readonly ConfirmationDialog launcherStartFailure = new();
     private bool? developerMode;
     private string? launcherPath;
     private bool launcherPathRead;
@@ -46,28 +46,41 @@ public partial class Main
         menu.AddChild(quitToLauncherButton);
         StyleConfirmation(quitToLauncherConfirmation, "Quit to Launcher?", "Quit to Launcher");
         quitToLauncherConfirmation.DialogText = "Save and close the game, then open the launcher?";
-        quitToLauncherConfirmation.Confirmed += () =>
-        {
-            openLauncherOnQuit = true;
-            QuitGame();
-        };
+        quitToLauncherConfirmation.Confirmed += QuitToLauncher;
         AddChild(quitToLauncherConfirmation);
     }
 
     /// <summary>Opens the launcher with this version chosen, as the game closes.</summary>
-    private void OpenLauncherIfAsked()
+    private bool TryOpenLauncher()
     {
-        if (!openLauncherOnQuit || LauncherPath is not { } path) return;
         try
         {
+            if (LauncherPath is not { } path) throw new IOException("The launcher is no longer available.");
             var start = new ProcessStartInfo(path) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(path) };
             start.ArgumentList.Add("--");
             start.ArgumentList.Add("--choose-version=" + BuildInformation.Version);
-            Process.Start(start)?.Dispose();
+            using var process = Process.Start(start);
+            if (process is null) throw new IOException("The launcher did not start.");
+            return true;
         }
         catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or IOException)
         {
             GD.PushWarning("launcher outcome=not_started");
+            ShowLauncherStartFailure();
+            return false;
         }
+    }
+
+    private void ShowLauncherStartFailure()
+    {
+        if (launcherStartFailure.GetParent() is null)
+        {
+            StyleConfirmation(launcherStartFailure, "Couldn't open the launcher", "Try Again");
+            launcherStartFailure.CancelButtonText = "Keep Game Open";
+            launcherStartFailure.DialogText = "The launcher couldn't start. The game will stay open so you can try again. Check that the launcher is still installed.";
+            launcherStartFailure.Confirmed += QuitToLauncher;
+            AddChild(launcherStartFailure);
+        }
+        PopupDialog(launcherStartFailure);
     }
 }
