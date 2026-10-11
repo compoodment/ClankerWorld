@@ -247,19 +247,68 @@ public sealed record SeededMap(
 
     public IEnumerable<GridPoint> FootNeighbors(GridPoint point)
     {
-        if (!Contains(point))
-            throw new ArgumentOutOfRangeException(nameof(point));
-        // Route searches call this for every tile they reach. The eight offsets
-        // are always eight different tiles, except across an east/west wrap
-        // narrower than three columns, so only that case needs to skip repeats.
-        var seen = WrapsEastWest && Width < 3 ? new HashSet<GridPoint>() : null;
-        foreach (var (dx, dy) in FootNeighborOffsets)
+        foreach (var next in FootNeighborsForSearch(point))
+            yield return next;
+    }
+
+    // Layout searches visit many tiles. Keep their enumerator on the stack
+    // rather than allocating the public IEnumerable iterator for each tile.
+    internal FootNeighborEnumerator FootNeighborsForSearch(GridPoint point) => new(this, point);
+
+    internal struct FootNeighborEnumerator
+    {
+        private readonly SeededMap map;
+        private readonly GridPoint origin;
+        private int offset;
+
+        internal FootNeighborEnumerator(SeededMap map, GridPoint point)
         {
-            var x = point.X + dx;
-            if (WrapsEastWest) x = (x % Width + Width) % Width;
-            var next = new GridPoint(x, point.Y + dy);
-            if ((seen is null || seen.Add(next)) && CanFootStep(point, next))
-                yield return next;
+            if (!map.Contains(point))
+                throw new ArgumentOutOfRangeException(nameof(point));
+            this.map = map;
+            origin = point;
+            offset = 0;
+            Current = default;
+        }
+
+        public readonly FootNeighborEnumerator GetEnumerator() => this;
+
+        public GridPoint Current { get; private set; }
+
+        public bool MoveNext()
+        {
+            while (offset < FootNeighborOffsets.Length)
+            {
+                var index = offset++;
+                var next = Neighbor(index);
+                // A one- or two-column wrap repeats offsets. Suppress a tile
+                // even if its earlier occurrence was illegal, as before.
+                if (map.WrapsEastWest && map.Width < 3)
+                {
+                    var repeated = false;
+                    for (var previous = 0; previous < index; previous++)
+                    {
+                        if (Neighbor(previous) != next) continue;
+                        repeated = true;
+                        break;
+                    }
+                    if (repeated) continue;
+                }
+                // Recheck the live map for every yielded step; no walkability
+                // or bridge-axis result survives between steps or searches.
+                if (!map.CanFootStep(origin, next)) continue;
+                Current = next;
+                return true;
+            }
+            return false;
+        }
+
+        private readonly GridPoint Neighbor(int index)
+        {
+            var (dx, dy) = FootNeighborOffsets[index];
+            var x = origin.X + dx;
+            if (map.WrapsEastWest) x = (x % map.Width + map.Width) % map.Width;
+            return new GridPoint(x, origin.Y + dy);
         }
     }
 
