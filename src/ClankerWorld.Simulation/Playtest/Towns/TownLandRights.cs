@@ -246,8 +246,8 @@ public static class TownLandRightsRules
         foreach (var request in requests)
         {
             if (!ValidId(request.Id) || !ValidId(request.TownId) || !townsById.ContainsKey(request.TownId) ||
-                !households.Contains(request.HouseholdId) || !ValidText(request.HouseholdId, 256) ||
-                !ValidId(request.RequestedByAgentId) || !agents.Contains(request.RequestedByAgentId) ||
+                !households.Contains(request.HouseholdId) || !TownHearingProcedure.Id(request.HouseholdId) ||
+                !TownHearingProcedure.Id(request.RequestedByAgentId) || !agents.Contains(request.RequestedByAgentId) ||
                 request.Tiles is not { Count: <= CognitionDecisionResponse.MaximumCivicLandTiles } ||
                 !IsValidPlot(map, request.Tiles, worldTick, request.RequestedTick, request.AgreedEndTick) ||
                 request.Tiles.Any(tile => !IsCoveredByTownTitle(tile, request.TownId, titles)))
@@ -309,7 +309,7 @@ public sealed partial class PrivateWorldRuntime
         long? agreedEndTick, TownGovernanceState governance)
     {
         var priorNoticeCount = governance.Notices.Count;
-        if (!ValidLandRequestText(requestId, 128) || !ValidLandRequestText(requestedByAgentId, 128) ||
+        if (!ValidLandRequestText(requestId, 128) || !TownHearingProcedure.Id(requestedByAgentId) ||
             !ValidLandRequestText(townId, 128) || requestedTiles is not { Count: > 0 and <= CognitionDecisionResponse.MaximumCivicLandTiles } ||
             requestedTiles.Distinct().Count() != requestedTiles.Count ||
             requestedTiles.Any(tile => !map.IsLand(tile)))

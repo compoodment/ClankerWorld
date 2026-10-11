@@ -324,6 +324,13 @@ land-use proposals. Closed requests remain history without competing claims.
 Prepared-tick rollback and current-format reload preserve approval progress and
 commit the final grant once. Older alpha schemas are refused without migration.
 
+Land requests retain the complete canonical identities of their known requester
+and household, including native-born adults who form their own household and
+whose family identity is longer than a request key.
+Filing still requires an active adult or elder household member who resides in
+the Town. A filed request supplies no adult consent, Council vote or land-use
+grant. Request keys keep their 128-character limit; the saved shape is unchanged.
+
 Private-world schema 72 adds field orders and their optional `TargetCropKind`;
 schema 77 adds an optional exact tile below.
 `FarmFieldWork.OrderInstructionId` binds work to its actor's active field order.
