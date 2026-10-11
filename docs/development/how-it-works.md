@@ -3603,6 +3603,20 @@ metadata, never private prose or map contents. Logs are derived telemetry, never
 simulation authority or required save state. Observability tests must prove both
 useful signal and absence of representative secrets.
 
+**Report a problem** (`Diagnostics/ProblemReport.cs` in the Godot client, with
+no Godot dependency so the launcher can compile the same file) zips `summary.txt` and the last 4 MB of each log it is given: the
+Godot log and the newest older one, plus `host.log` and `host.previous.log`
+when the game runs its own host. It reads only those files, never saves,
+settings or key stores. Each line passes through `ProblemReport.Redact`, which
+blanks the companion secret, values after names such as `api_key`,
+`Authorization`, `password` or `pairing_code`, bearer tokens, passwords in
+addresses, common provider key formats and any token of 32 or more characters
+mixing upper case, lower case and digits. Plain hex IDs and hashes stay so a
+request can be followed. The rule against logging secrets still applies; this
+pass is a safety net, not permission. Reports go to `reports/` in the player's
+data folder (or `user://reports` without a bundled host), keeping the five
+newest.
+
 Event descriptions resolve complete agent and Town IDs from the owner snapshot;
 colons inside those IDs are part of the identity. Food yields and Town membership
 fields are read separately. Existing entries use the current saved name, including
@@ -3751,6 +3765,10 @@ time. Repair consumes the recipe materials carried by that tool's owner; it
 does not restore condition for free. Hammer use speeds building work, and an
 iron knife speeds food or other preparation recipes. Recipe and field records
 keep their exact selected tool lot through save and reload.
+Knife-assisted production keeps the full inventory lot reference, including
+long identities produced by partial moves. Completing the recipe checks that
+this exact knife is still usable and carried by its owner, and wears one unit;
+an unavailable knife cancels the work without spending its reserved ingredients.
 
 ## Ports and communal boats
 

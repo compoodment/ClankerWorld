@@ -387,7 +387,7 @@ public partial class Main
         {
             Text = BuildInformation.Display,
             TooltipText = "Source commit: " + BuildInformation.SourceRevision,
-        }));
+        }, NewReportProblemButton()));
         themeChoice.AddItem("Light", (int)UiThemeChoice.Light);
         themeChoice.AddItem("Dark", (int)UiThemeChoice.Dark);
         themeChoice.AddItem("Match system", (int)UiThemeChoice.System);

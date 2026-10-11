@@ -15,6 +15,7 @@ public partial class Main
     private readonly ConfirmationDialog localHostFailure = new();
     private readonly ConfirmationDialog localHostStopFailure = new();
     private bool isQuittingGame;
+    private static readonly StringName ReportProblemAction = "report_problem";
 
     private LocalHostCompanion? FindBundledLocalHost()
     {
@@ -35,6 +36,12 @@ public partial class Main
             localHostFailure.CancelButtonText = "Quit Game";
             localHostFailure.Confirmed += () => _ = StartLocalHostAsync();
             localHostFailure.Canceled += QuitGame;
+            // A start that keeps failing is exactly when a report helps most.
+            localHostFailure.AddButton("Report a problem", right: false, action: ReportProblemAction);
+            localHostFailure.CustomAction += action =>
+            {
+                if (action == ReportProblemAction) ReportProblem();
+            };
             AddChild(localHostFailure);
         }
         SetStatus("Starting your world server…", good: true);

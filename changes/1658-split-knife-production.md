@@ -1,0 +1,1 @@
+- Cooking continues and saves normally when a carried knife has a long inventory history from splitting or moving a stack. Completing a meal still spends its real ingredients and wears one knife once.

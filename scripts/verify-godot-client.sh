@@ -33,3 +33,5 @@ printf 'Building Godot C# scripts and starting the scene headlessly\n'
 "${godot_bin}" --headless --path "${repo_root}/src/ClankerWorld.GodotClient" --build-solutions --quit
 "${godot_bin}" --headless --path "${repo_root}/src/ClankerWorld.GodotClient" --quit-after 120
 "${godot_bin}" --headless --path "${repo_root}/src/ClankerWorld.GodotClient" -- --ui-smoke-test
+printf 'Starting the launcher scene headlessly\n'
+"${godot_bin}" --headless --path "${repo_root}/src/ClankerWorld.GodotClient" res://Launcher/Launcher.tscn -- --launcher-smoke-test

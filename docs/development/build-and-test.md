@@ -2,7 +2,7 @@
 title: Build and test
 type: development-reference
 status: active
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
 # Build and test
@@ -35,12 +35,16 @@ Shared compiler, analyzer and version settings live in
 [Directory.Build.props](../../Directory.Build.props). Use its version fields
 rather than adding a second version constant.
 
-The retained-guidance farming fixture waits for the provider's start signal by
-polling the native nonblocking tick path. A committed tick schedules background
-work but does not guarantee that its worker has started. The check covers
-immediate entry and entry after two more committed ticks. Its
-polls retain a forty-tick limit and a separate thirty-second cancellation guard
-for each tick, including after pause and reload.
+The retained-guidance farming and held repair-cancellation fixtures wait for
+the provider's start signal by polling the native nonblocking tick path. A
+committed tick schedules background work but does not guarantee that its worker
+has started. The checks cover immediate entry and entry after two more committed
+ticks. Their polls retain a forty-tick limit and a separate thirty-second cancellation guard
+for each tick, including after pause and reload in the farming fixture. The
+repair check also waits for the released reply before checking that cancellation
+prevents repairs. Use this pattern only where advancing ticks preserves the
+intended cancellation boundary; orders that can already complete physical work
+must keep the world at that boundary while waiting for provider entry.
 
 The held storage-cancellation check keeps the world at its first committed
 load while waiting for actual provider invocation, the validated operative
@@ -288,6 +292,21 @@ Simulation projects list `win-x64` in `RuntimeIdentifiers` so this publish
 restores in locked mode. CI uploads the zip as the
 `clankerworld-windows-11-x64-portable` artifact. It is unsigned, and a built
 zip is not a Windows playtest.
+
+### Windows launcher
+
+The launcher ([#1566](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1566))
+is the same Godot project exported with the `launcher` feature, which makes
+`run/main_scene.launcher` open `res://Launcher/Launcher.tscn` instead of the
+game. `bash scripts/verify-godot-windows-export.sh --launcher` exports it to
+`export/launcher-windows-x64/ClankerWorldLauncher.exe`, and
+`bash scripts/package-windows.sh --launcher` zips it, without a host, as
+`ClankerWorld-Launcher-<launcher version>-windows-x64.zip`. The launcher's own
+version is `Launcher.Version` in `Launcher/Launcher.cs`, separate from the game
+version. CI uploads it as the `clankerworld-launcher-windows-11-x64` artifact.
+`bash scripts/verify-godot-client.sh` also opens the launcher scene headlessly
+with `--launcher-smoke-test`. Its install, hash-check, repair and remove logic
+lives in plain C# under `Launcher/` and is tested in `LauncherTests`.
 
 The program icon, `src/ClankerWorld.GodotClient/icon.ico`, is generated from
 the logo art in `UI/MenuLogo.cs` and embedded in the exported `.exe`. After
