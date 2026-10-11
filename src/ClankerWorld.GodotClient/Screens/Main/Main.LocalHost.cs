@@ -15,7 +15,7 @@ public partial class Main
     private readonly ConfirmationDialog localHostFailure = new();
     private readonly ConfirmationDialog localHostStopFailure = new();
     private bool isQuittingGame;
-    private bool retryQuitToLauncher;
+    private string? retryLauncherVersion;
     private static readonly StringName ReportProblemAction = "report_problem";
 
     private LocalHostCompanion? FindBundledLocalHost()
@@ -90,10 +90,11 @@ public partial class Main
 
     private async void QuitToLauncher() => await QuitGameAsync(openLauncher: true);
 
-    private async Task QuitGameAsync(bool openLauncher)
+    private async Task QuitGameAsync(bool openLauncher, string? launcherVersion = null)
     {
         if (isQuittingGame) return;
         isQuittingGame = true;
+        var requestedVersion = openLauncher ? launcherVersion ?? BuildInformation.Version : null;
         try
         {
             if (localHost is not null)
@@ -101,16 +102,16 @@ public partial class Main
                 SetStatus("Saving your world…", good: true);
                 if (!await localHost.StopAsync(CancellationToken.None))
                 {
-                    ShowLocalHostStopFailure(openLauncher);
+                    ShowLocalHostStopFailure(requestedVersion);
                     return;
                 }
             }
-            if (openLauncher && !TryOpenLauncher()) return;
+            if (openLauncher && !TryOpenLauncher(requestedVersion)) return;
             GetTree().Quit();
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            ShowLocalHostStopFailure(openLauncher);
+            ShowLocalHostStopFailure(requestedVersion);
         }
         finally
         {
@@ -118,17 +119,16 @@ public partial class Main
         }
     }
 
-    private void ShowLocalHostStopFailure(bool openLauncher)
+    private void ShowLocalHostStopFailure(string? launcherVersion)
     {
-        retryQuitToLauncher = openLauncher;
+        retryLauncherVersion = launcherVersion;
         if (localHostStopFailure.GetParent() is null)
         {
             StyleConfirmation(localHostStopFailure, "Couldn't save and close your world", "Try Again");
             localHostStopFailure.CancelButtonText = "Keep Game Open";
             localHostStopFailure.Confirmed += () =>
             {
-                if (retryQuitToLauncher) QuitToLauncher();
-                else QuitGame();
+                _ = QuitGameAsync(retryLauncherVersion is not null, retryLauncherVersion);
             };
             AddChild(localHostStopFailure);
         }

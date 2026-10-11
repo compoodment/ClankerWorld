@@ -52,6 +52,13 @@ public partial class Main
                     await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 if (!File.Exists(arguments) || !File.ReadAllLines(arguments).SequenceEqual(new[] { "--", "--choose-version=" + BuildInformation.Version }))
                     throw new InvalidOperationException("Launcher hand-off must retain argument boundaries and the actual game version.");
+                File.Delete(arguments);
+                if (!TryOpenLauncher("0.0.1-older")) throw new InvalidOperationException("The requested-version hand-off must start.");
+                deadline.Restart();
+                while ((!File.Exists(arguments) || File.ReadAllLines(arguments).Length < 2) && deadline.Elapsed < TimeSpan.FromSeconds(5))
+                    await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (!File.Exists(arguments) || File.ReadAllLines(arguments) is not ["--", "--choose-version=0.0.1-older"])
+                    throw new InvalidOperationException("The real launcher process must receive the selected world's version.");
             }
             GD.Print("Game launch option checks passed: Developer mode off, F1 list, busy quit, missing launcher and version hand-off.");
         }

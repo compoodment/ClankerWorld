@@ -1,4 +1,5 @@
 using ClankerWorld.GodotClient.ClientState;
+using ClankerWorld.GodotClient.Launcher;
 using Godot;
 using ClankerWorld.GodotClient.UI;
 using System.Globalization;
@@ -495,7 +496,9 @@ public partial class Main
             if (worldMenuBusy || isOwnerAction) return;
             if (worldListRequest.IsLoading || index < 0 || index >= listedWorlds.Length) return;
             var world = listedWorlds[(int)index];
-            worldMenuStatus.Text = world.Compatibility == "incompatible"
+            worldMenuStatus.Text = world.Compatibility == OtherVersion && world.GameVersion is not null
+                ? OtherVersionStatus(world)
+                : world.Compatibility is "incompatible" or OtherVersion
                 ? "Cannot open this world: " + (world.CompatibilityReason ?? "It was made with a different version.") + " Your save is safe."
                 : world.Compatibility == "unknown"
                     ? "Could not check this world. Opening it will try the saved copy and will not delete anything."
@@ -661,11 +664,13 @@ public partial class Main
                 var icon = WorldThumbnailTexture(world.Thumbnail) ?? globe;
                 List<SlotTag> tags = [];
                 if (world.Id == catalog.ActiveId) tags.Add(new SlotTag("Current"));
-                if (world.Compatibility == "incompatible") tags.Add(new SlotTag("Can't open", Note: true));
+                if (world.Compatibility == OtherVersion && world.GameVersion is not null)
+                    tags.Add(new SlotTag("Saved by " + world.GameVersion, Note: true));
+                else if (world.Compatibility is "incompatible" or OtherVersion) tags.Add(new SlotTag("Can't open", Note: true));
                 else if (world.Compatibility == "unknown") tags.Add(new SlotTag("Not checked", Note: true));
                 worldSelectionList.AddItem(world.Name,
                     $"Saved {GameUiText.SavedAgo(world.UpdatedUtc, DateTimeOffset.Now)} · Seed {world.Seed}",
-                    icon, tags, muted: world.Compatibility == "incompatible");
+                    icon, tags, muted: world.Compatibility is "incompatible" or OtherVersion);
             }
             worldSelectionList.Placeholder = "No worlds yet. Make one with New World.";
             worldMenuStatus.Text = listedWorlds.Length == 0 ? "No worlds yet." : "Choose a world. Double-click to open it.";
@@ -720,7 +725,12 @@ public partial class Main
         var disabled = worldMenuBusy || isOwnerAction || worldListRequest.IsLoading ||
             registeredEndpointInvalid || registration is null || deviceKey is null || observationSession.AwaitingFreshBaseline;
         var world = SelectedListedWorld();
-        worldSelectButton.Disabled = disabled || world is null || world.Compatibility == "incompatible";
+        // A world another version saved gets the red button that opens it there.
+        var otherVersion = world is { Compatibility: OtherVersion, GameVersion: not null };
+        worldSelectButton.Text = otherVersion ? "Open in " + world!.GameVersion : "Open World";
+        worldSelectButton.ThemeTypeVariation = otherVersion ? "DangerButton" : "PrimaryButton";
+        worldSelectButton.Disabled = disabled || world is null || world.Compatibility == "incompatible" ||
+            (world.Compatibility == OtherVersion && (!otherVersion || LauncherPath is null || GameVersionName.Parse(world.GameVersion) is null));
         // Saves load into the open world, so another world must be opened first.
         worldSavesButton.Disabled = disabled || world is null || world.Id != listedActiveWorldId;
         worldDeleteButton.Disabled = disabled || world is null;
@@ -1003,8 +1013,14 @@ public partial class Main
 
     private async Task SelectListedWorldAsync()
     {
+        if (!worldMenuBusy && !isOwnerAction && !worldListRequest.IsLoading && !worldSelectButton.Disabled &&
+            SelectedListedWorld() is { Compatibility: OtherVersion } other)
+        {
+            OpenInSavedVersion(other);
+            return;
+        }
         if (worldMenuBusy || isOwnerAction || SelectedListedWorld() is not { } world ||
-            world.Compatibility == "incompatible" ||
+            world.Compatibility is "incompatible" or OtherVersion ||
             !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
         // The catalog and selection can change while the pause response is pending.
         // Keep the player's chosen identity, never its position in the list.

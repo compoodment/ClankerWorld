@@ -42,6 +42,7 @@ public partial class Launcher : Control
     private IReadOnlyList<InstalledVersion> installed = [];
     private ReleaseFeedResult releases = new([], null);
     private bool releasesReached;
+    private string? requestedVersion;
     private bool busy;
 
     public override void _Ready()
@@ -56,7 +57,10 @@ public partial class Launcher : Control
         // Quit to Launcher in the game names the version it came from.
         var chosen = OS.GetCmdlineUserArgs().FirstOrDefault(value => value.StartsWith("--choose-version=", StringComparison.Ordinal));
         if (GameVersionName.Parse(chosen?["--choose-version=".Length..]) is { } version)
+        {
             settings = settings with { LastPlayedVersion = version.ToString() };
+            requestedVersion = version.ToString();
+        }
         if (DisplayServer.GetName() != "headless") DisplayServer.SetIcon(MenuLogo.Icon(64));
         TextureFilter = TextureFilterEnum.Nearest;
         // A smaller window than the game's, at the same pixel scale.
@@ -146,7 +150,11 @@ public partial class Launcher : Control
     {
         ((BoxContainer)playPage).AddThemeConstantOverride("separation", 10);
         playPage.AddChild(new Label { Text = "Version" });
-        versionChoice.ItemSelected += _ => UpdatePlayButton();
+        versionChoice.ItemSelected += _ =>
+        {
+            requestedVersion = null;
+            UpdatePlayButton();
+        };
         playPage.AddChild(versionChoice);
         playButton.Text = "Play";
         StyleButton(playButton, primary: true);
@@ -273,7 +281,8 @@ public partial class Launcher : Control
     private void RefreshInstalled()
     {
         installed = store.Installed();
-        var previous = versionChoice.Selected >= 0 ? versionChoice.GetItemText(versionChoice.Selected) : settings.LastPlayedVersion;
+        var previous = requestedVersion ??
+            (versionChoice.Selected >= 0 ? versionChoice.GetItemText(versionChoice.Selected) : settings.LastPlayedVersion);
         versionChoice.Clear();
         foreach (var name in Choices())
         {
@@ -283,6 +292,11 @@ public partial class Launcher : Control
         if (versionChoice.Selected < 0 && versionChoice.ItemCount > 0) versionChoice.Select(0);
         UpdatePlayButton();
         RebuildVersionRows();
+        if (requestedVersion is { } requested && installed.All(version => version.Version.ToString() != requested) &&
+            releases.Games.All(release => release.Version.ToString() != requested))
+            SetStatus(releasesReached
+                ? $"ClankerWorld {requested} isn't installed and that version isn't published. Your save is safe."
+                : $"ClankerWorld {requested} isn't installed. Connect to check whether it can be downloaded. Your save is safe.");
     }
 
     /// <summary>Installed versions first, newest first; the newest release if it isn't installed yet.</summary>
@@ -290,16 +304,26 @@ public partial class Launcher : Control
     {
         var newest = releases.Games.FirstOrDefault(release => !release.PreRelease) ??
             (releases.Games.Count > 0 ? releases.Games[0] : null);
-        if (newest is not null && installed.All(version => version.Version != newest.Version))
+        if (requestedVersion is { } requested && installed.All(version => version.Version.ToString() != requested))
+            yield return requested;
+        if (newest is not null && newest.Version.ToString() != requestedVersion && installed.All(version => version.Version != newest.Version))
             yield return newest.Version.ToString();
+        // A version the game asked for, to open a world it saved, can be installed from here too.
+        var wanted = releases.Games.FirstOrDefault(release => release.Version.ToString() == (requestedVersion ?? settings.LastPlayedVersion));
+        if (wanted is not null && wanted != newest && wanted.Version.ToString() != requestedVersion &&
+            installed.All(version => version.Version != wanted.Version))
+            yield return wanted.Version.ToString();
         foreach (var version in installed) yield return version.Version.ToString();
     }
 
     private void UpdatePlayButton()
     {
         var chosen = Chosen();
-        playButton.Disabled = busy || chosen is null;
+        var unavailable = chosen is not null && installed.All(version => version.Version != chosen) &&
+            releases.Games.All(release => release.Version != chosen);
+        playButton.Disabled = busy || chosen is null || unavailable;
         playButton.Text = chosen is null ? "Play"
+            : unavailable ? $"ClankerWorld {chosen} isn't available"
             : installed.Any(version => version.Version == chosen) ? $"Play {chosen}" : $"Install and Play {chosen}";
     }
 
@@ -532,6 +556,23 @@ public partial class Launcher : Control
             RefreshInstalled();
             Expect(playButton.Text == "Install and Play 0.1.0-alpha.2", "Play offers the newest release");
             Expect(launcherUpdate.Visible, "A newer launcher is announced, never installed");
+            requestedVersion = "0.1.0-alpha.1";
+            RefreshInstalled();
+            Expect(playButton.Text == "Install and Play 0.1.0-alpha.1", "The version a world needs is chosen");
+            requestedVersion = "0.0.9";
+            RefreshInstalled();
+            Expect(Chosen()?.ToString() == requestedVersion && playButton.Disabled && status.Text.Contains("isn't published", StringComparison.Ordinal),
+                "An unpublished requested version stays chosen and cannot silently play another version");
+            var published = releases;
+            releases = new([], null);
+            releasesReached = false;
+            RefreshInstalled();
+            Expect(Chosen()?.ToString() == requestedVersion && playButton.Disabled && status.Text.Contains("Connect", StringComparison.Ordinal),
+                "An offline requested version stays chosen");
+            releases = published;
+            releasesReached = true;
+            requestedVersion = "0.1.0-alpha.1";
+            RefreshInstalled();
             versionsTab.EmitSignal(BaseButton.SignalName.Pressed);
             Expect(versionsPage.Visible && availableRows.GetChildCount() == 2, "Versions lists both releases");
             var testVersion = GameVersionName.Parse("0.0.1")!;
