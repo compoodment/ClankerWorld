@@ -47,6 +47,9 @@ public sealed partial class AnimalPipelineTests
         var tripState = world.ExportState();
         var trip = Assert.Single(tripState.AnimalWorld.SupplyTrips);
         Assert.Equal(1, world.Society.Inventory.GetLot(trip.LotId).Quantity);
+        Assert.Equal(jug ? 9 : 13, world.DestinationRoom(yard.InstanceId));
+        Assert.Equal(14, world.DestinationRoom(yard.InstanceId, world.Society.Inventory.GetLot(trip.LotId)));
+        Assert.Equal(PrivateWorldRuntimeCodec.Encode(tripState), PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         if (!jug)
         {
             var remainder = world.Society.Inventory.GetLot("quantity-source-feed");

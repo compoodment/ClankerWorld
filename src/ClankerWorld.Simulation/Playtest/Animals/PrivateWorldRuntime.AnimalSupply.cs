@@ -79,9 +79,9 @@ public sealed partial class PrivateWorldRuntime
             var wanted = AnimalRules.IsFeed(root.ItemKind) ? feedTarget - feedStock :
                 !hasWater && root.ItemKind == InventoryContainerRules.WaterJug && inventory.Lots.Any(content =>
                     content.ContainerLotId == root.Id && content.ItemKind == InventoryContainerRules.FreshWater && AvailableLotQuantity(content) > 0) ? 1 : 0;
-            var quantity = Math.Min(wanted, Math.Min(AvailableLotQuantity(root), StorageRoom(yard.InstanceId)));
+            var quantity = Math.Min(wanted, Math.Min(AvailableLotQuantity(root), DestinationRoom(yard.InstanceId)));
             if (!PersonalEquipmentRules.IsCarried(root, actor)) quantity = Math.Min(quantity, FreeCarryCapacity(actor));
-            if (quantity <= 0 || !VesselFits(root, StorageRoom(yard.InstanceId)) ||
+            if (quantity <= 0 || !VesselFits(root, DestinationRoom(yard.InstanceId)) ||
                 !PersonalEquipmentRules.IsCarried(root, actor) && !VesselFits(root, FreeCarryCapacity(actor)) ||
                 AnimalRules.IsFeed(root.ItemKind) && !AnimalFeedMayBeSpent(actor, animals[0], root, quantity)) continue;
             yield return new(root, yard, quantity);
@@ -122,8 +122,9 @@ public sealed partial class PrivateWorldRuntime
                 return true;
             }
             if (inhabitants[actor].Position != yard.Position) { MoveToward(actor, inhabitants[actor], yard.Position, "animal_yard_supply"); return true; }
-            var quantity = InventoryContainerRules.IsContainer(lot.ItemKind) ? VesselFits(lot, StorageRoom(yard.InstanceId)) ? 1 : 0 :
-                Math.Min(AvailableLotQuantity(lot), StorageRoom(yard.InstanceId));
+            var room = DestinationRoom(yard.InstanceId, lot);
+            var quantity = InventoryContainerRules.IsContainer(lot.ItemKind) ? VesselFits(lot, room) ? 1 : 0 :
+                Math.Min(AvailableLotQuantity(lot), room);
             if (quantity <= 0) return true;
             ApplyInventoryTransition(current => lot.OwnerId == yard.HouseholdId ? InventoryFixture.Relocate(current,
                 "animal-deliver-" + WorldTick + "-" + nextEventId, lot.Id, lot.OwnerId, quantity, storageBuildingId: yard.InstanceId) :

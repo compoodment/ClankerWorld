@@ -54,7 +54,7 @@ public sealed partial class PrivateWorldRuntime
             if (MilkSaleSite(actor, inventory.Lots.First(lot => lot.ContainerLotId == jug.Id && lot.ItemKind == "milk"), out _, out _)) continue;
             if (!PersonalEquipmentRules.IsCarried(jug, actor) && !VesselFits(jug, FreeCarryCapacity(actor))) continue;
             if (HouseholdBuildingWithTag(home, "store") is { } store && jug.StorageBuildingId != store.InstanceId &&
-                VesselFits(jug, RemainingDeliveryRoom(inventory, store.InstanceId)))
+                VesselFits(jug, DestinationRoom(inventory, store.InstanceId)))
                 yield return new(jug, store.InstanceId, store.Position);
             foreach (var town in towns)
                 foreach (var market in town.Markets.Where(market => market.RemovedTick is null))

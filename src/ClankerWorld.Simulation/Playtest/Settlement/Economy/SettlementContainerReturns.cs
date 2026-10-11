@@ -14,7 +14,7 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor) || CarriedHouseDelivery(actor) is not null || FreeCarryCapacity(actor) < 1 ||
             society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             HouseForHousehold(householdId) is not { } house ||
-            StorageRoomAfterInboundDeliveries(house.InstanceId) < 1)
+            DestinationRoom(house.InstanceId) < 1)
             return null;
 
         var inventory = society.Checkpoint.Inventory;
