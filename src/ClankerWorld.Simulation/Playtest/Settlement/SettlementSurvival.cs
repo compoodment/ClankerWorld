@@ -447,7 +447,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool NeedsRecipeOutput(RecipeDefinition recipe, string? ownerId = null, string? requestWorker = null) =>
-        HouseToolsContent.IsCrudeToolRecipe(recipe) ? NeedsHouseTool(recipe, ownerId) :
+        !HasUnsupportedWaterOutput(recipe) && (HouseToolsContent.IsCrudeToolRecipe(recipe) ? NeedsHouseTool(recipe, ownerId) :
         HasToolMakingDemand(recipe, ownerId, requestWorker) || recipe.Outputs.Any(output =>
     {
         if (output.ResourceId == KnowledgeContent.Paper)
@@ -466,7 +466,7 @@ public sealed partial class PrivateWorldRuntime
         var target = IsPreparedMeal(output.ResourceId) ? Math.Max(2, residentCount * 2)
             : output.ResourceId == "food" ? inhabitants.Count * 4 : Math.Max(1, inhabitants.Count);
         return available < target;
-    });
+    }));
 
     /// <summary>One usable family tool per adult, counting better tools and work already paid for.</summary>
     private bool NeedsHouseTool(RecipeDefinition recipe, string? householdId)

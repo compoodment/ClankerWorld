@@ -2,7 +2,7 @@
 title: Playing the current game
 type: player-guide
 status: active
-updated: 2026-10-09
+updated: 2026-10-10
 ---
 
 # Playing the current game
@@ -29,6 +29,16 @@ registration and return you to the same menu.
 
 For an already paired device, **Connect** checks the saved server connection
 and shows the result below the address. It does not start a new pairing.
+
+A game folder that carries its own `host` folder runs the world on your PC
+instead. Starting `ClankerWorld.exe` then starts that world server, pairs with
+it without a code and opens the Main Menu. Quitting saves the world and stops
+the server. Your saves, keys and model-call count are kept in
+`%LOCALAPPDATA%\ClankerWorld`, outside the game folder, and the server's log is
+`logs\host.log` there. If the server cannot start, the game says why and offers
+**Try Again**. If saving fails while quitting, the game stays open and offers
+**Try Again** after you fix the save problem; it keeps the host running. The downloadable package with this folder is not published yet
+([#468](https://github.com/ClankerWorldOrg/ClankerWorld/issues/468)).
 
 If the server changes, forget the old registration and pair again.
 [Device pairing](development/device-pairing.md) has the operator instructions.

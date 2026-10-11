@@ -198,6 +198,12 @@ The retained client cancellation has the same pairing, origin, world and
 observer-timeline boundaries as an instruction. A fresh challenge and signature
 are required for each retry.
 
+Pending cancellations preserve the complete native target ID, including the
+longer IDs of adults born in the world. The client retains the 128-character
+bounds for the caller's idempotency key, order ID and world ID, and refuses
+blank or control-character identities. Persistence, reload and retry keep the
+same target; they never shorten or replace it.
+
 The user can explicitly retry that one record. The retry obtains a new one-use
 challenge and signature, then submits the same logical request so the server
 returns the original receipt rather than creating a duplicate. Private-world
@@ -290,6 +296,18 @@ value in the `X-ClankerWorld-Companion-Secret` header, compared in constant
 time. Without it the routes return 404, exactly as on the forwarded listener.
 The game uses it to approve its own pending pairing with the comparison code,
 so the player sees no code to copy.
+
+The game does this itself when its folder has `host/ClankerWorld.Viewer.exe`
+and no `--world-url` argument (`LocalHostCompanion`). It uses the fixed origin
+`http://127.0.0.1:5188/`, because a paired origin is pinned, and the approval
+port 5189. It stores this pairing in `user://local-owner-device-registration.json`,
+apart from a server pairing. Before starting the host it checks the port: a
+running host of the exact same version and source revision, started by an
+earlier launch, is reused only after a side-effect-free `GET /api/v1/local/companion`
+confirms the secret already in its file on the approval listener. Anything else on
+the port is refused with a message and never stopped. The host's output goes to
+`logs/host.log` in the player's data folder; saves, the owner authority and the
+provider files sit in separate folders there, never in the game folder.
 
 `POST /api/v1/local/shutdown` exists only on a private-world companion host. It
 pauses the world, cancels hosted model work and writes its checkpoint before
