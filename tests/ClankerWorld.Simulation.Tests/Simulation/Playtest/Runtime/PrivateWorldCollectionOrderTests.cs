@@ -330,19 +330,22 @@ public sealed partial class PrivateWorldCollectionOrderTests
     }
 
     [Theory]
-    [InlineData(false, "clay")]
-    [InlineData(true, "clay")]
-    [InlineData(false, "fruit")]
-    [InlineData(true, "fruit")]
-    [InlineData(false, "basket")]
-    [InlineData(true, "basket")]
-    public async Task CollectionOrderCancelledWhileAModelReplyIsHeldCannotCollectAnotherLoad(bool explicitSource, string kind)
+    [InlineData(false, "clay", false)]
+    [InlineData(true, "clay", false)]
+    [InlineData(false, "fruit", false)]
+    [InlineData(true, "fruit", false)]
+    [InlineData(false, "basket", false)]
+    [InlineData(true, "basket", false)]
+    [InlineData(false, "fruit", true)]
+    public async Task CollectionOrderCancelledWhileAModelReplyIsHeldCannotCollectAnotherLoad(bool explicitSource, string kind, bool delayedStartup = false)
     {
         var state = Prepared();
         var actor = Actor(state);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "collect-held-a", kind, actor, 1, storageBuildingId: House);
         inventory = InventoryFixture.AddLot(inventory, "collect-held-b", kind, actor, 1, storageBuildingId: House);
         var provider = new CollectionChoices(DecisionProviderKind.LargeLanguageModel, hold: true);
+        var entryGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (delayedStartup) provider.EntryGate = entryGate.Task;
         using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory), id => id == actor ? provider : new CollectionChoices());
         var source = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == House).Position;
         var text = $"keep collecting {kind}" + (explicitSource ? $" from ({source.X}, {source.Y})" : "");
@@ -350,17 +353,56 @@ public sealed partial class PrivateWorldCollectionOrderTests
         try
         {
             Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            var firstFrame = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+            var invoked = await AwaitCollectionSignal(provider.Invoked.Task, "receive the native request");
+            Assert.Equal(actor, invoked.Observation.InhabitantId);
+            Assert.Equal(receipt.InstructionId, invoked.Observation.OperativeOrderInstructionId);
+            if (delayedStartup)
+            {
+                Assert.False(provider.Started.Task.IsCompleted);
+                Assert.Empty(provider.Requests);
+            }
+            Assert.Equal(firstFrame, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+            entryGate.TrySetResult(true);
+            var started = await AwaitCollectionSignal(provider.Started.Task, "validate and hold the operative request");
+            Assert.Same(invoked.Observation, started);
+            Assert.Same(started, Assert.Single(provider.Requests));
+            // Chosen work can continue during model waits. Keep the first
+            // collected load fixed until cancellation, even with deferred entry.
+            Assert.Equal(firstFrame, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
             Assert.Equal(1, Order(world, receipt).CompletedUnits);
+            Assert.True(PersonalEquipmentRules.IsCarried(world.Society.Inventory.GetLot("collect-held-a"), actor));
             Assert.True(world.CancelOrder(new("cancel-held", "owner:test", world.Society.WorldId, actor, receipt.InstructionId)).Changed);
             provider.Release.TrySetResult(true);
-            await provider.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            var returned = await AwaitCollectionSignal(provider.Returned.Task, "return the late reply");
+            Assert.Equal(invoked.RequestId, returned.RequestId);
+            Assert.Equal(actor, returned.InhabitantId);
+            Assert.Equal(kind switch { "fruit" => "collect_food", "basket" => "collect_equipment", _ => "collect_material" },
+                returned.SelectedCandidateId);
             for (var tick = 0; tick < 5; tick++) Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-            Assert.Equal("cancelled", Order(world, receipt).Status);
-            Assert.Equal(House, world.Society.Inventory.GetLot("collect-held-b").StorageBuildingId);
+            Assert.Equal(("cancelled", 1), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
+            var second = world.Society.Inventory.GetLot("collect-held-b");
+            Assert.Equal((actor, 1, House), (second.OwnerId, second.Quantity, second.StorageBuildingId));
             Assert.Single(world.ExportState().Events, item => item.Kind == "personal_goods_collected");
+            world.Validate();
+            var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+            using var restored = Restore(PrivateWorldRuntimeCodec.Decode(saved));
+            Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         }
-        finally { provider.Release.TrySetResult(true); }
+        finally
+        {
+            entryGate.TrySetResult(true);
+            provider.Release.TrySetResult(true);
+        }
+    }
+
+    private static async Task<T> AwaitCollectionSignal<T>(Task<T> signal, string phase)
+    {
+        try { return await signal.WaitAsync(TimeSpan.FromSeconds(30)); }
+        catch (TimeoutException exception)
+        {
+            throw new TimeoutException($"The held collection provider did not {phase} within thirty seconds.", exception);
+        }
     }
 
     [Theory]
@@ -485,25 +527,31 @@ public sealed partial class PrivateWorldCollectionOrderTests
     private sealed class CollectionChoices(DecisionProviderKind kind = DecisionProviderKind.Deterministic, bool hold = false) : IDecisionProvider
     {
         public DecisionProviderKind Kind => kind;
+        public Task? EntryGate { get; set; }
         public ConcurrentQueue<InhabitantObservation> Requests { get; } = new();
-        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<CognitionDecisionRequest> Invoked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<InhabitantObservation> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<CognitionDecisionResponse> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public long ProviderEpoch => 0;
         public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
+            if (hold) Invoked.TrySetResult(request);
+            if (EntryGate is { } entry) await entry;
             request.Validate();
             Requests.Enqueue(request.Observation);
-            if (hold && Requests.Count == 1 && request.Observation.OperativeOrderInstructionId is not null)
+            var held = hold && Requests.Count == 1 && request.Observation.OperativeOrderInstructionId is not null;
+            if (held)
             {
-                Started.TrySetResult(true);
+                Started.TrySetResult(request.Observation);
                 await Release.Task;
-                Returned.TrySetResult(true);
             }
             var selected = request.Observation.Candidates.FirstOrDefault(candidate => candidate.Id is "collect_material" or "collect_food" or "collect_equipment")?.Id ?? "safe_idle";
-            return new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
+            var response = new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
                 Kind, request.ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest, selected, 1, new Dictionary<string, double> { [selected] = 1 });
+            if (held) Returned.TrySetResult(response);
+            return response;
         }
     }
 }
