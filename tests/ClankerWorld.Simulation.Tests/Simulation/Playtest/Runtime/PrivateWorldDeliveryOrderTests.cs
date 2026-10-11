@@ -106,11 +106,12 @@ public sealed partial class PrivateWorldDeliveryOrderTests
     }
 
     [Theory]
+    [InlineData(63, 0, false, Farmhouse)]
+    [InlineData(64, 0, false, Farmhouse)]
+    [InlineData(63, 0, true, Farmhouse)]
+    [InlineData(63, 95, false, null)]
+    [InlineData(61, 0, false, Silo)]
     [InlineData(95, 0, false, Farmhouse)]
-    [InlineData(96, 0, false, Farmhouse)]
-    [InlineData(95, 0, true, Farmhouse)]
-    [InlineData(95, 95, false, null)]
-    [InlineData(93, 0, false, Silo)]
     public async Task RoutineFarmHaulFindsStorageForTheWholePot(int siloStock, int farmhouseStock, bool ordered, string? expectedDestination)
     {
         var state = Prepared(SiloBaseline.Value);

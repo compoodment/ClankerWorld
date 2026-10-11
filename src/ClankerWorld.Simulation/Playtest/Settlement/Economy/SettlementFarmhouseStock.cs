@@ -18,9 +18,6 @@ public sealed partial class PrivateWorldRuntime
     private PlacedBuilding? FarmhouseForHousehold(string householdId) =>
         HouseholdBuildingWithTag(householdId, "farmhouse");
 
-    private bool IsFarmStorage(PlacedBuilding building) => worldContent.Buildings.Single(definition =>
-        definition.CanonicalId == building.DefinitionId).Tags.Any(tag => tag is "farmhouse" or "silo");
-
     private PlacedBuilding? FarmStorageFor(string householdId, string kind, string? requestedBuildingId = null,
         Func<PlacedBuilding, bool>? fitsHaul = null)
     {
