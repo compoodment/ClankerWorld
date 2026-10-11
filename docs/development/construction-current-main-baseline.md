@@ -1,11 +1,11 @@
 ---
-title: Current construction query baseline
+title: October 10 construction query baseline
 type: experiment-report
 status: active
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
-# Current construction query baseline
+# October 10 construction query baseline
 
 The remaining construction-query work in
 [#998](https://github.com/ClankerWorldOrg/ClankerWorld/issues/998) still reproduces
@@ -35,9 +35,10 @@ completed the `4:96` and `16:96` fixtures. Its `16:384` fixture stopped at the
 measured-phase trace was produced. The one-tick setup samples are not ordinary
 timing comparisons.
 
-Current-main profiling needs an achievable dense fixture before choosing the
-next bounded repair. Matched ordinary and local personal-provider captures,
-resident/stock/land/building/Road changes, rollback, reload and post-change
-measurements remain to be done. Full local setup output and generated checkpoint
-evidence are retained in `.evidence/keep/998-native/` by Codex session 9b395a8e.
+At the end of this run, profiling still needed an achievable dense fixture
+before choosing a repair, with matched ordinary and local personal-provider
+captures, state changes, rollback, reload and post-change measurements. The
+[October 11 input-query report](construction-input-query-measurements.md)
+records the follow-up profile and bounded repair. Full local setup output and
+generated checkpoint evidence are retained in `.evidence/keep/998-native/` by Codex session 9b395a8e.
 Existing Windows/F12 checks remain pending.

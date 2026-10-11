@@ -2,7 +2,7 @@
 title: Measuring Town tick time
 type: development-reference
 status: active
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
 # Measuring Town tick time
@@ -18,8 +18,9 @@ These are controlled headless fixtures, not a Windows playtest or a promise
 about every grown Town.
 
 The [October 10 current-main baseline](construction-current-main-baseline.md)
-records a fresh schema-122 reproduction for #998 and an incomplete dense setup.
-It has no optimization or new measured-phase profile yet.
+preserves a schema-122 reproduction for #998 and an incomplete dense setup.
+The [October 11 input-query report](construction-input-query-measurements.md)
+records the follow-up profile, bounded filter repair and native comparisons.
 
 ## Run a comparison
 

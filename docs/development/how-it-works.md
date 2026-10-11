@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
 # How the game works
@@ -2569,7 +2569,13 @@ Material scoring searches at most five map tiles from a site, including the
 east-west seam; farther resources cannot change its rank. Recipe and expansion
 input checks share reachable-tool results and a lazily collected accessible
 Warehouse list only within one inhabitant's read-only candidate query. Stock
-quantities and reservations are still read for each input. Warehouse discovery
+quantities and reservations are still read for each input. Project-input source
+scans check the required resource kind before looking up its availability by ID;
+wood still accepts construction sources. Matching sources keep their current
+ecology quantity, foot or swimming reachability and tool checks. This only
+reorders read-only filters, with no cache or saved-state change. The
+[construction input measurements](construction-input-query-measurements.md)
+record the matched native checks and timing limits. Warehouse discovery
 matches a set of current definition IDs instead of scanning definitions for
 every building. Later queries and actions check current stock, membership and
 routes again; these optimizations add no saved state or persistent cache.
