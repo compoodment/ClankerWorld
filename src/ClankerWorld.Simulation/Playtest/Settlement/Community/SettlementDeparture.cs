@@ -134,22 +134,29 @@ public sealed partial class PrivateWorldRuntime
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         if (heldReservations.Length > 0)
             ApplyInventoryTransition(inventory => InventoryFixture.HoldReservations(inventory, heldReservations));
-        // A carried delivery is borrowed household stock, never a personal windfall on leaving.
-        foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
-                     lot.ContainerLotId is null && lot.DeliveryBuildingId is { } delivery && worldSimulation.Buildings.Any(building =>
-                         building.InstanceId == delivery && building.HouseholdId == householdId)).ToArray())
-        {
-            ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
-                $"depart-delivery:{actor}:{WorldTick}:{lot.Id}", actor, householdId, lot.Id, lot.Quantity,
-                "delivery_ownership_restored"));
-            ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
-                $"depart-custody:{actor}:{WorldTick}:{lot.Id}", lot.Id, householdId, lot.Quantity, actor));
-        }
+        foreach (var id in group) RestoreHouseholdDeliveries(id, householdId, "depart");
         foreach (var job in personalJobs) AppendEvent("recipe_cancelled", $"{job.JobId}:{job.RecipeId}");
         checkpointSchemaVersion = StateSchemaVersion;
         AppendEvent("household_left", $"{actor}|{householdId}|{cause}|{allowance}");
         ReconcileGuardianPlacements();
         return true;
+    }
+
+    private void RestoreHouseholdDeliveries(string actor, string householdId, string transition)
+    {
+        // Every moving member's unfinished House delivery is borrowed household stock.
+        // Restore its owner and clear the old promise, keeping its actual physical carrier.
+        foreach (var lot in society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == actor &&
+                     lot.ContainerLotId is null && lot.DeliveryBuildingId is { } delivery && worldSimulation.Buildings.Any(building =>
+                         building.InstanceId == delivery && building.HouseholdId == householdId)).ToArray())
+        {
+            var carrier = lot.CarrierId ?? actor;
+            ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
+                $"{transition}-delivery:{actor}:{WorldTick}:{lot.Id}", actor, householdId, lot.Id, lot.Quantity,
+                "delivery_ownership_restored"));
+            ApplyInventoryTransition(inventory => InventoryFixture.Relocate(inventory,
+                $"{transition}-custody:{actor}:{WorldTick}:{lot.Id}", lot.Id, householdId, lot.Quantity, carrier));
+        }
     }
 
     private int PhysicalUnreservedQuantity(InventoryLot lot) =>

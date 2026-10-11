@@ -574,7 +574,10 @@ pending destination; the runtime refreshes it rather than discarding accepted
 care. The normal runtime rechecks availability and capacity on retry and
 arrival. Completion changes the child's household and Town together and
 clears the pending record; cancellation also clears it without changing birth
-history. Save/load retains intermediate travel and blockers, and replay must
+history. When completion changes household, an unfinished delivery to the former
+House restores the original household owner and clears its delivery destination,
+retaining the exact quantity and physical carrier. It earns no delivery credit or
+remote storage transfer. Save/load retains intermediate travel and blockers, and replay must
 reach the same membership, position and lifecycle events. Earlier alpha saves
 are refused and preserved; no migration is added.
 
@@ -814,7 +817,7 @@ Store delivery lots survive save/reload without granting customer access to
 private stock. Earlier alpha saves need not load; no shop-state migration is
 provided.
 
-Private-world schema 47 records household departures, their original household, care group and once-only food allocation, plus optional physical inventory custody separate from ownership. Personal House storage retains the personal owner even after membership ends. Reload preserves collection rights, borrowed carried goods, the care group and unfinished housing task without awarding another allowance. Paused private jobs retain the original owners, exact input reservations and pause time; a leaver's own cart build is cancelled instead, releasing its carried materials. Their reserved workstation or expansion footprint stays occupied; a remaining authorized member can resume at the physical site with the same materials and remaining duration. Unavailable materials cancel the preserved job and release its remaining commitments. Invalid custody, departure records and unavailable carriers are refused. Older alpha checkpoints are refused and preserved; no migration is added.
+Private-world schema 47 records household departures, their original household, care group and once-only food allocation, plus optional physical inventory custody separate from ownership. Personal House storage retains the personal owner even after membership ends. Every departing care-group member's unfinished House delivery restores household ownership and clears the former destination while preserving its quantity and physical carrier; leaving earns no delivery credit. Reload preserves collection rights, borrowed carried goods, the care group and unfinished housing task without awarding another allowance. Paused private jobs retain the original owners, exact input reservations and pause time; a leaver's own cart build is cancelled instead, releasing its carried materials. Their reserved workstation or expansion footprint stays occupied; a remaining authorized member can resume at the physical site with the same materials and remaining duration. Unavailable materials cancel the preserved job and release its remaining commitments. Invalid custody, departure records and unavailable carriers are refused. Older alpha checkpoints are refused and preserved; no migration is added.
 
 Private-world schema 51 lets each living inhabitant record named adult medical
 permissions and an active medicine course. The course binds its patient and
