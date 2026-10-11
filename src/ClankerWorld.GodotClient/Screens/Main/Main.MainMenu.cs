@@ -1,4 +1,5 @@
 using ClankerWorld.GodotClient.ClientState;
+using ClankerWorld.GodotClient.Launcher;
 using Godot;
 using ClankerWorld.GodotClient.UI;
 using System.Globalization;
@@ -729,7 +730,7 @@ public partial class Main
         worldSelectButton.Text = otherVersion ? "Open in " + world!.GameVersion : "Open World";
         worldSelectButton.ThemeTypeVariation = otherVersion ? "DangerButton" : "PrimaryButton";
         worldSelectButton.Disabled = disabled || world is null || world.Compatibility == "incompatible" ||
-            (world.Compatibility == OtherVersion && (!otherVersion || LauncherPath is null));
+            (world.Compatibility == OtherVersion && (!otherVersion || LauncherPath is null || GameVersionName.Parse(world.GameVersion) is null));
         // Saves load into the open world, so another world must be opened first.
         worldSavesButton.Disabled = disabled || world is null || world.Id != listedActiveWorldId;
         worldDeleteButton.Disabled = disabled || world is null;
@@ -1012,7 +1013,8 @@ public partial class Main
 
     private async Task SelectListedWorldAsync()
     {
-        if (!worldMenuBusy && !isOwnerAction && SelectedListedWorld() is { Compatibility: OtherVersion } other)
+        if (!worldMenuBusy && !isOwnerAction && !worldListRequest.IsLoading && !worldSelectButton.Disabled &&
+            SelectedListedWorld() is { Compatibility: OtherVersion } other)
         {
             OpenInSavedVersion(other);
             return;

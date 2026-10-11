@@ -23,8 +23,8 @@ public static class TownLandTransferValidation
             .Concat(state.Adjustments.SelectMany(adjustment => adjustment.PriorRights.Select(version => version.Right).Concat(adjustment.ResultRights))).ToArray();
         foreach (var request in state.Transfers)
         {
-            Check(TownGovernmentValidation.ValidId(request.Id, "land-transfer:" + townId + ":", state.Sequence) && request.TownId == townId && Id(request.FilerId) && agents.Contains(request.FilerId) &&
-                Id(request.TargetHouseholdId) && households.Contains(request.TargetHouseholdId) && request.ProposedTick >= 0 && request.ProposedTick <= tick &&
+            Check(TownGovernmentValidation.ValidId(request.Id, "land-transfer:" + townId + ":", state.Sequence) && request.TownId == townId && TownHearingProcedure.Id(request.FilerId) && agents.Contains(request.FilerId) &&
+                TownHearingProcedure.Id(request.TargetHouseholdId) && households.Contains(request.TargetHouseholdId) && request.ProposedTick >= 0 && request.ProposedTick <= tick &&
                 request.Status is "pending" or "transferred" or "rejected" or "withdrawn" or "invalidated" &&
                 request.RightVersions is { Count: > 0 } && request.RightVersions.All(version => version is not null && version.Right is not null) &&
                 request.Parties is { Count: > 0 } && request.Parties.All(party => party is not null) && request.Responses is not null &&
@@ -60,7 +60,7 @@ public static class TownLandTransferValidation
             foreach (var response in request.Responses)
                 Check(agents.Contains(response.AgentId) && request.Parties.Any(party => party.HouseholdId == response.HouseholdId) &&
                     response.Kind is "accept" or "decline" && response.Tick >= request.ProposedTick && response.Tick <= tick &&
-                    (request.SettledTick is null || response.Tick <= request.SettledTick) && Canonical(response.PartyAdults) &&
+                    (request.SettledTick is null || response.Tick <= request.SettledTick) && CanonicalPeople(response.PartyAdults) &&
                     response.PartyAdults.All(agents.Contains) && response.PartyAdults.Contains(response.AgentId, StringComparer.Ordinal) &&
                     TownLandTransferRules.HasNotice(request, response.AgentId, response.Tick, council!.Knowledge),
                     "Each transfer response needs the household adult's own actual notice receipt and contemporaneous roster.");
@@ -146,12 +146,12 @@ public static class TownLandTransferValidation
     private static void ValidateParties(IReadOnlyList<TownLandTransferParty> parties, TownLandTransferRequest request,
         IReadOnlySet<string> agents, IReadOnlySet<string> households, bool requireAdults) =>
         Check(parties is not null && parties.All(party => party is not null && households.Contains(party.HouseholdId) &&
-            Canonical(party.AdultIds) && party.AdultIds.All(agents.Contains) && (!requireAdults || party.AdultIds.Count > 0)) &&
+            CanonicalPeople(party.AdultIds) && party.AdultIds.All(agents.Contains) && (!requireAdults || party.AdultIds.Count > 0)) &&
             TownLandTransferRules.ValidParties(request.RightVersions.Select(version => version.Right), request.TargetHouseholdId, parties),
             "A transfer must retain precisely its source and beneficiary households and actual adult signatories.");
     private static IEnumerable<string> TileTerms(IEnumerable<HouseholdLandUseRight> rights) => rights.SelectMany(right => right.Tiles.Select(tile =>
         JsonSerializer.Serialize(new { tile.X, tile.Y, right.TownId, right.HouseholdId, right.GrantedTick, right.GrantSource, right.AgreedEndTick }))).Order(StringComparer.Ordinal);
     private static bool Id(string? value) => TownLandHearingRules.ValidText(value, 256);
-    private static bool Canonical(IReadOnlyList<string>? values) => values is not null && values.All(Id) && values.SequenceEqual(TownLandHearingRules.Ordered(values));
+    private static bool CanonicalPeople(IReadOnlyList<string>? values) => values is not null && values.All(TownHearingProcedure.Id) && values.SequenceEqual(TownLandHearingRules.Ordered(values));
     private static void Check([DoesNotReturnIf(false)] bool valid, string reason) { if (!valid) throw new InvalidDataException(reason); }
 }

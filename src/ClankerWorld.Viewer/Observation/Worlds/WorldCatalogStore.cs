@@ -16,8 +16,8 @@ public sealed record CatalogWorld(
     WorldAutosaveSettings? AutosaveSettings,
     string Compatibility = "unknown", string? CompatibilityReason = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WorldThumbnail? Thumbnail = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? GameVersion = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SourceRevision = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull), JsonConverter(typeof(SavedBuildTextConverter))] string? GameVersion = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull), JsonConverter(typeof(SavedBuildTextConverter))] string? SourceRevision = null)
 {
     internal CatalogWorld StampedByThisBuild() =>
         this with { GameVersion = BuildInformation.Version, SourceRevision = BuildInformation.SourceRevision };

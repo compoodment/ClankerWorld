@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace ClankerWorld.Viewer.Observation;
 
@@ -14,13 +15,27 @@ public sealed record SavedBuild(string GameVersion, string SourceRevision)
 
     /// <summary>Records this build. A failure is ignored: the checkpoint itself is already saved.</summary>
     public static bool TryWrite(string checkpointPath)
+        => TryRestore(checkpointPath, JsonSerializer.SerializeToUtf8Bytes(
+            new SavedBuild(BuildInformation.Version, BuildInformation.SourceRevision)));
+
+    internal static byte[]? TryReadBytes(string checkpointPath)
+    {
+        try { return File.ReadAllBytes(PathFor(checkpointPath)); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    internal static bool TryRestore(string checkpointPath, byte[]? bytes)
     {
         var destination = PathFor(checkpointPath);
         var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            File.WriteAllBytes(temporary, JsonSerializer.SerializeToUtf8Bytes(
-                new SavedBuild(BuildInformation.Version, BuildInformation.SourceRevision)));
+            if (bytes is null)
+            {
+                File.Delete(destination);
+                return true;
+            }
+            File.WriteAllBytes(temporary, bytes);
             File.Move(temporary, destination, overwrite: true);
             return true;
         }
@@ -44,4 +59,22 @@ public sealed record SavedBuild(string GameVersion, string SourceRevision)
             return null;
         }
     }
+}
+
+/// <summary>Unusable optional build diagnostics read as unknown without refusing a world or save.</summary>
+public sealed class SavedBuildTextConverter : JsonConverter<string>
+{
+    public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.String)
+        {
+            reader.Skip();
+            return null;
+        }
+        var value = reader.GetString();
+        return value is { Length: > 0 and <= 64 } && !value.Any(char.IsControl) ? value : null;
+    }
+
+    public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value);
 }

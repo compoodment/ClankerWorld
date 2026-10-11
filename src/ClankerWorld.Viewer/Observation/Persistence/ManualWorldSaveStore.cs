@@ -16,7 +16,8 @@ namespace ClankerWorld.Viewer.Observation;
 public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
     bool IsAutosave = false, SaveBranch? Branch = null, string? ContinuedFromId = null,
     DateTimeOffset? ContinuedFromCreatedUtc = null, long BranchPosition = 0,
-    string? GameVersion = null, string? SourceRevision = null);
+    [property: JsonConverter(typeof(SavedBuildTextConverter))] string? GameVersion = null,
+    [property: JsonConverter(typeof(SavedBuildTextConverter))] string? SourceRevision = null);
 public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string BackupId);
 
 /// <summary>
@@ -97,6 +98,7 @@ public sealed partial class ManualWorldSaveStore
             var state = runtime.ExportState();
             if (!state.Society.Society.IsPaused)
                 throw new InvalidOperationException("Pause the world before overwriting a manual save.");
+            var bytes = EncodeReadableCheckpoint(state);
             if (!File.Exists(MetadataPath(id)))
                 throw new FileNotFoundException("The selected manual save no longer exists.");
             var previousMetadata = ReadMetadata(id);
@@ -153,7 +155,6 @@ public sealed partial class ManualWorldSaveStore
             var generation = Guid.NewGuid().ToString("N");
             // Only metadata publishes the new immutable generation. A failed metadata
             // replacement leaves the prior checkpoint and routing/settings selected.
-            var bytes = PrivateWorldRuntimeCodec.Encode(state);
             WriteAtomic(GenerationPath(id, generation), bytes);
             AdvanceTimeline(worldId, timeline, saved, bytes);
             WriteAtomic(MetadataPath(id), JsonSerializer.SerializeToUtf8Bytes(new Metadata(
@@ -174,6 +175,7 @@ public sealed partial class ManualWorldSaveStore
             var state = runtime.ExportState();
             if (!isAutosave && !state.Society.Society.IsPaused)
                 throw new InvalidOperationException("Pause the world before making a manual save.");
+            var bytes = EncodeReadableCheckpoint(state);
             var worldId = state.Society.Society.WorldId;
             var timeline = ReadTimeline(worldId);
             var branch = ResolveBranch(timeline, List(worldId));
@@ -183,7 +185,6 @@ public sealed partial class ManualWorldSaveStore
                 BuildInformation.Version, BuildInformation.SourceRevision);
             Directory.CreateDirectory(directory);
             RestrictDirectory();
-            var bytes = PrivateWorldRuntimeCodec.Encode(state);
             WriteAtomic(StatePath(entry.Id), bytes);
             // The branch record moves before the save is published. A failure in
             // between leaves a record pointing at an unlisted save, whose
@@ -193,6 +194,15 @@ public sealed partial class ManualWorldSaveStore
                 new Metadata(entry, assignments, autosaveSettings, worldId, Recovery: recovery)));
             return entry;
         }
+    }
+
+    private static byte[] EncodeReadableCheckpoint(PrivateWorldRuntimeState state)
+    {
+        var bytes = PrivateWorldRuntimeCodec.Encode(state);
+        // Validate the serialized representation before publishing files or moving
+        // the timeline: JSON can change text that was valid only in memory.
+        _ = PrivateWorldRuntimeCodec.Decode(bytes);
+        return bytes;
     }
 
     /// <summary>

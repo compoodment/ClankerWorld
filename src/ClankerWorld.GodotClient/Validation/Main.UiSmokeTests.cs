@@ -1210,10 +1210,12 @@ public partial class Main
             {
                 await VerifyFirstWorldListAsync();
                 await VerifyWorldActionSelectionAsync();
+                await VerifyRefusedPendingSubmissionsAsync();
                 await VerifyUsageSettingsRepliesAsync();
                 await VerifyPairingRecoveryMenuAsync();
                 await VerifyFreshHostEntryAsync();
                 await VerifyPauseMenuResumeAsync();
+                VerifyProblemReport();
                 await VerifyContinueSettingsNavigationAsync();
                 await VerifyNewWorldCompatibilityMessageAsync();
                 await VerifyWorldPreviewRerollAsync();
@@ -4110,6 +4112,7 @@ public partial class Main
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
             if (controlsPanel.Visible)
                 throw new InvalidOperationException("Escape must close the controls list.");
+            await VerifyLaunchOptionsAsync();
             await VerifyDeveloperToolsAsync(occupied, founder);
             await VerifyAuthoringCoordinatesAsync(occupied);
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.Minus, Pressed = true });

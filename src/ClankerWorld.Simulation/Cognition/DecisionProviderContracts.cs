@@ -1535,7 +1535,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 .GetProperty("message")
                 .GetProperty("content")
                 .GetString();
-            // Usage is still read after the answer, so a malformed answer is the reported failure.
+            // Keep the completed reply's usage even if its game answer cannot be read.
             return ParseAnswer(request, content, () => TryParseUsage(root, modelId));
         }
         catch (JsonException exception)
@@ -1557,6 +1557,26 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         CognitionDecisionRequest request,
         string? content,
         Func<CognitionUsage?> readUsage)
+    {
+        var usage = readUsage();
+        try
+        {
+            var response = ParseAnswerCore(request, content, usage);
+            usage?.Validate();
+            return response;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            if (usage is not null)
+                HostedModelUnusableReply.RetainTokens(exception, usage.InputTokens, usage.OutputTokens);
+            throw;
+        }
+    }
+
+    private static CognitionDecisionResponse ParseAnswerCore(
+        CognitionDecisionRequest request,
+        string? content,
+        CognitionUsage? usage)
     {
         try
         {
@@ -1623,7 +1643,6 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
             var civicProposal = answerRoot.TryGetProperty("civic_proposal", out var civicText) && civicText.ValueKind == JsonValueKind.String
                 ? CognitionDecisionResponse.NormalizeIdentityText(civicText.GetString()) : null;
             var civicBallot = ParseCivicBallot(answerRoot);
-            var usage = readUsage();
             return new CognitionDecisionResponse(
                 request.RequestId,
                 request.Observation.InhabitantId,

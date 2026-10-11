@@ -22,6 +22,9 @@ public sealed record LocalHostLayout(
 
     public string SecretPath => Path.Combine(DataDirectory, "host", "companion.secret");
     public string LogPath => Path.Combine(DataDirectory, "logs", "host.log");
+    /// <summary>The log of the launch before this one, kept so a crash can still be reported.</summary>
+    public string PreviousLogPath => Path.Combine(DataDirectory, "logs", "host.previous.log");
+    public string ReportDirectory => Path.Combine(DataDirectory, "reports");
     public string SaveDirectory => Path.Combine(DataDirectory, "saves");
     public string SettingsDirectory => Path.Combine(DataDirectory, "settings");
 
@@ -86,7 +89,7 @@ public sealed record LocalHostStart(LocalHostOutcome Outcome, string? Detail = n
         LocalHostOutcome.PortInUse =>
             $"Another program is using the port the world server needs ({Detail}). Close it, or another copy of ClankerWorld, then try again. Your saves are safe.",
         LocalHostOutcome.Exited =>
-            "The world server closed while starting. Your saves are safe. Try again, and if it keeps happening, send the host log from your ClankerWorld folder.",
+            "The world server closed while starting. Your saves are safe. Try again, and if it keeps happening, choose Report a problem and send the report.",
         LocalHostOutcome.TimedOut =>
             "The world server is taking too long to start. Your saves are safe. Try again.",
         _ => "The world server could not be started. Check that the game folder is complete, then try again.",
@@ -134,12 +137,18 @@ public sealed class LocalHostCompanion : IAsyncDisposable
 
     public bool StartedHost => process is not null;
 
+    public LocalHostLayout Layout => layout;
+
+    /// <summary>Exact values a problem report must blank, should a log ever carry one.</summary>
+    public IReadOnlyCollection<string> SecretsToHide() => secret is null ? [] : [secret];
+
     public async Task<LocalHostStart> StartAsync(string expectedVersion, string expectedRevision,
         CancellationToken cancellationToken)
     {
         if (process is { HasExited: false }) return new LocalHostStart(LocalHostOutcome.Started);
         var existing = await ProbeAsync(expectedVersion, expectedRevision, cancellationToken);
-        if (existing == Probe.SameBuild && TryReadSecret(out var running))
+        if (existing == Probe.SameBuild && TryReadSecret(out var running) &&
+            await IsCompanionAsync(running, cancellationToken))
         {
             secret = running;
             return new LocalHostStart(LocalHostOutcome.Reused);
@@ -172,7 +181,9 @@ public sealed class LocalHostCompanion : IAsyncDisposable
             switch (await ProbeAsync(expectedVersion, expectedRevision, cancellationToken))
             {
                 case Probe.SameBuild:
-                    return new LocalHostStart(LocalHostOutcome.Started);
+                    if (await IsCompanionAsync(secret!, cancellationToken))
+                        return new LocalHostStart(LocalHostOutcome.Started);
+                    break;
                 case Probe.OtherBuild or Probe.NotClankerWorld:
                     // Something else claimed the port first; leave it, stop ours.
                     await StopAsync(cancellationToken);
@@ -205,7 +216,7 @@ public sealed class LocalHostCompanion : IAsyncDisposable
     /// Asks the host to save and exit, and waits for it. Only a host this
     /// launch started is ever forced to stop, and only if it ignores the request.
     /// </summary>
-    public async Task StopAsync(CancellationToken cancellationToken)
+    public async Task<bool> StopAsync(CancellationToken cancellationToken)
     {
         if (secret is not null)
         {
@@ -215,10 +226,14 @@ public sealed class LocalHostCompanion : IAsyncDisposable
                 request.Headers.Add(SecretHeader, secret);
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 deadline.CancelAfter(TimeSpan.FromSeconds(5));
-                using var _ = await http.SendAsync(request, deadline.Token);
+                using var response = await http.SendAsync(request, deadline.Token);
+                // The host explicitly refused to exit: preserve its paused world
+                // and our process handle so the player can repair and retry.
+                if (!response.IsSuccessStatusCode) return false;
             }
             catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 // Already gone, or not answering: handled below for a host we started.
             }
         }
@@ -232,14 +247,34 @@ public sealed class LocalHostCompanion : IAsyncDisposable
             }
             catch (OperationCanceledException)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 // The host saves every tick, so forcing our own child is the last resort.
                 running.Kill(entireProcessTree: true);
             }
         }
         await ForgetProcessAsync();
+        return true;
     }
 
-    public async ValueTask DisposeAsync() => await StopAsync(CancellationToken.None);
+    public async ValueTask DisposeAsync() { await StopAsync(CancellationToken.None); }
+
+    private async Task<bool> IsCompanionAsync(string value, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(TimeSpan.FromSeconds(2));
+            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(ApprovalOrigin, "api/v1/local/companion"));
+            request.Headers.Add(SecretHeader, value);
+            using var response = await http.SendAsync(request, deadline.Token);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException &&
+            !cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+    }
 
     private enum Probe { Nothing, SameBuild, OtherBuild, NotClankerWorld }
 
@@ -305,6 +340,14 @@ public sealed class LocalHostCompanion : IAsyncDisposable
         Directory.CreateDirectory(layout.SaveDirectory);
         Directory.CreateDirectory(layout.SettingsDirectory);
         Directory.CreateDirectory(Path.GetDirectoryName(layout.LogPath)!);
+        try
+        {
+            File.Move(layout.LogPath, layout.PreviousLogPath, overwrite: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // No earlier log, or it is still open somewhere: start a fresh one anyway.
+        }
         log = new StreamWriter(new FileStream(layout.LogPath, FileMode.Create, FileAccess.Write, FileShare.Read))
         {
             AutoFlush = true,

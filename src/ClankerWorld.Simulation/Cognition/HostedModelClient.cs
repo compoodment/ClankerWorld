@@ -46,7 +46,8 @@ public interface IHostedModelClient
 /// <summary>
 /// A charged reply the game can't use, such as a refusal or an answer cut off
 /// at the output limit, is an <see cref="InvalidDataException"/> that keeps the
-/// reported token counts, so a failed conversation turn is still metered.
+/// reported token counts, so a failed decision, model check or conversation
+/// turn is still metered. Answer parsing can retain usage on its existing error.
 /// </summary>
 public static class HostedModelUnusableReply
 {
@@ -56,9 +57,17 @@ public static class HostedModelUnusableReply
     public static InvalidDataException Create(string message, int inputTokens, int outputTokens)
     {
         var failure = new InvalidDataException(message);
-        failure.Data[InputTokensKey] = inputTokens;
-        failure.Data[OutputTokensKey] = outputTokens;
+        RetainTokens(failure, inputTokens, outputTokens);
         return failure;
+    }
+
+    public static void RetainTokens(Exception exception, int inputTokens, int outputTokens)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        // Invalid provider counts must not prevent the paid attempt finishing.
+        if (inputTokens < 0 || outputTokens < 0) return;
+        exception.Data[InputTokensKey] = inputTokens;
+        exception.Data[OutputTokensKey] = outputTokens;
     }
 
     public static bool TryGetTokens(Exception exception, out int inputTokens, out int outputTokens)

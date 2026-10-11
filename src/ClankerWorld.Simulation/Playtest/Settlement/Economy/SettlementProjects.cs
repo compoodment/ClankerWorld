@@ -819,11 +819,9 @@ public sealed partial class PrivateWorldRuntime
             SetProject(inhabitantId, project with { Stage = "blocked", Blocker = WaitingForWorkSiteBlocker });
             return;
         }
-        if (WarehouseWithAvailableStock(inhabitantId, input.ResourceId, returnTo.Value, returnRange) is { } warehouse &&
-            society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-                lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
-                lot.ItemKind == input.ResourceId && AvailableLotQuantity(lot) > 0) is { } communal)
+        if (WarehouseMaterialSource(inhabitantId, input.ResourceId, returnTo.Value, returnRange) is { } warehouseSource)
         {
+            var warehouse = warehouseSource.Warehouse;
             SetProject(inhabitantId, project with { Stage = "gathering", Blocker = $"Collecting {input.ResourceId} from the Town Warehouse" });
             if (state.Position != warehouse.Position)
             {
@@ -835,12 +833,12 @@ public sealed partial class PrivateWorldRuntime
                 SetProject(inhabitantId, project with { Stage = "blocked", Blocker = "This Town Warehouse is no longer available to you." });
                 return;
             }
-            communal = society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-                lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
-                lot.ItemKind == input.ResourceId && AvailableLotQuantity(lot) > 0);
-            if (communal is null) return;
+            var request = new GoodsRequest(GoodsUse.Collect, inhabitantId, GoodsOwners.One(warehouse.TownId!),
+                GoodsKinds.One(input.ResourceId), AtBuilding: warehouse.InstanceId);
+            if (RecheckGoods(request, warehouseSource.Source.Lot.Id) is not { } match) return;
+            var communal = match.Lot;
             var quantity = Math.Min(WarehouseLoadQuantity,
-                Math.Min(input.Amount, AvailableLotQuantity(communal)));
+                Math.Min(input.Amount, match.Quantity));
             quantity = Math.Min(quantity, PickupCarryCapacity(inhabitantId, communal, returnTo.Value, returnRange));
             if (quantity == 0) return;
             ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
@@ -1038,8 +1036,10 @@ public sealed partial class PrivateWorldRuntime
             var position = inhabitants[residentId].Position;
             foreach (var resource in map.Resources)
             {
-                if (resources.GetValueOrDefault(resource.Id) != ResourceState.Available ||
-                    resource.Kind != input.ResourceId && !(input.ResourceId == "wood" && resource.Kind == "construction"))
+                // Most sources cannot supply this input. Check the cheap kind
+                // match before looking up their current availability by ID.
+                if (resource.Kind != input.ResourceId && !(input.ResourceId == "wood" && resource.Kind == "construction") ||
+                    resources.GetValueOrDefault(resource.Id) != ResourceState.Available)
                     continue;
 
                 var sourceQuantity = worldSystems.Ecology.GetResource(resource.Id).Quantity;

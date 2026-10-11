@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-10-08
+updated: 2026-10-10
 ---
 
 # Towns, buildings and government
@@ -63,6 +63,10 @@ everything that is available in the current build. See [what works today](../wha
   agreed Warehouse rule (any Town resident may plan its expansion once its
   stock is nearly full) belong in the full content catalogue; do not invent
   those values yet.
+  **Agreed on October 10
+  ([#1369](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1369)):**
+  private farm Silos also store 64 units per footprint tile. A 1×1 Silo holds
+  64 units.
 - Non-residential buildings have distinct physical occupancy, workstation,
   storage, and other type-specific limits. Agents can reserve space when
   practical, queue or choose alternatives when full, and retain the blocked

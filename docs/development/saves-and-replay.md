@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
 # Saves and replay
@@ -121,12 +121,25 @@ repairs use their actor's saved skill with existing progress. Native paired
 continuation retains outputs, material costs, full completion receipts and
 current-format checkpoints; refused ticks keep the preceding state.
 
+Workstation recipes that output fresh water are refused before reserving
+materials or creating a job: their output path has no destination jug, and
+inventory requires fresh water inside a water jug. Autonomous production and
+workstation supply planning skip those recipes, including mixed-output ones.
+A running job admitted by an earlier build remains loadable. When it becomes
+due, it cancels and releases its remaining reservations without consuming
+inputs, wearing its tool or creating output. The cancellation saves and
+replays normally; no schema change or water-production feature is added.
+
 Private-world schema 34 adds household field tiles and their crop/work state.
 The saved inventory also records a ground position for physical harvest lots.
 Field ownership, work inputs, growth times and replanting reservations are
 validated together with inventory and map geometry. Current-format roundtrips
 retain intermediate work, carried deliveries and planting reserves. Fertility
 is derived from the seed and immutable map layers rather than saved per tile.
+Generated maps use their saved candidate attempt to recover the same rainfall
+as generation. Correcting that calculation changes derived fertility and
+future crop yields for candidate attempts 1 and 2, including after reload;
+existing fields, checkpoint bytes and the schema are unchanged.
 Older alpha saves need not load; no field or orchard migration is provided.
 
 Town-wide farm planning derives its food shortage and each farm's field target
@@ -226,7 +239,11 @@ Private-world schema 65 adds material-gathering orders with a distinct
 `TargetMaterialKind`, exact optional source or position, and progress measured
 in harvest batches or material items. Saved progress and the last physical
 harvest receipt are validated together; mixed food/material targets and invalid
-material kinds are refused. Queueing, cancellation, discovery and partial
+material kinds are refused. A harvest receipt that would exceed 512 characters
+uses a fixed-length SHA-256 identity derived from the complete original receipt.
+The actor and native inventory lot keep their full identities; shorter receipts
+remain unchanged. Current-format reload accepts both shapes without a schema change.
+Queueing, cancellation, discovery and partial
 quantities retain their state across reload. Older alpha saves are refused and
 preserved unchanged; no migration is added.
 
@@ -269,7 +286,11 @@ Schema 53 saves wills with several heirs. An estate keeps its household
 default beneficiaries and adds, for an accepted will, the named heirs in order,
 the split, the exact quantity of each frozen lot each heir receives, and any
 final words. Frozen lots retain their original building storage when present,
-so escrow and communal inheritance cannot claim an unrelated House as storage.
+so escrow and Town or legacy communal inheritance cannot claim an unrelated
+House as storage. Town stock retained in a private House must match a settled
+estate's frozen lot ID or provenance, kind, quantity and original storage,
+and its owner must be the deceased resident's recorded Town. This validates
+physical custody without changing House ownership or collection permission.
 The deceased archive records the Town the agent lived in. It also retains the
 committed death tick and final physical position. The owner observation exposes
 that position and the `death-tick` decision factor; the client derives map grave
@@ -372,6 +393,22 @@ personally accept before completion. These records preserve original Council
 grant receipts and Town title. A goods sale also retains its immutable price
 and actual payment receipt; only the agreed goods payment changes physical
 property ownership.
+
+Voluntary-transfer filers and the person rosters in proposals, individual
+responses and completed receipts retain complete known person identities,
+including later-generation adults with ancestry-based IDs longer than 256
+characters. These rosters still require canonical order and unique, known,
+well-formed people. Transfer keys, permission keys and other bounded fields
+keep their limits. This validation repair changes no schema or saved field.
+
+Beneficiary household references in civic replies, transfer records and resulting
+land-use rights retain complete known household identities, including households
+founded by later-generation native-born adults with IDs longer than 256 characters.
+Unknown or malformed household references are refused. Transfer keys, permission
+keys, evidence references and other bounded reply fields keep their limits, as
+does the provider response-body limit. Each affected adult still separately learns
+and accepts the exact current terms before permissions change. No schema or saved
+field changes.
 
 These records share prepared-tick rollback with permissions, requests, civic
 receipts and events. Current-format reload and continuation retain pending
@@ -561,7 +598,10 @@ pending destination; the runtime refreshes it rather than discarding accepted
 care. The normal runtime rechecks availability and capacity on retry and
 arrival. Completion changes the child's household and Town together and
 clears the pending record; cancellation also clears it without changing birth
-history. Save/load retains intermediate travel and blockers, and replay must
+history. When completion changes household, an unfinished delivery to the former
+House restores the original household owner and clears its delivery destination,
+retaining the exact quantity and physical carrier. It earns no delivery credit or
+remote storage transfer. Save/load retains intermediate travel and blockers, and replay must
 reach the same membership, position and lifecycle events. Earlier alpha saves
 are refused and preserved; no migration is added.
 
@@ -801,7 +841,7 @@ Store delivery lots survive save/reload without granting customer access to
 private stock. Earlier alpha saves need not load; no shop-state migration is
 provided.
 
-Private-world schema 47 records household departures, their original household, care group and once-only food allocation, plus optional physical inventory custody separate from ownership. Personal House storage retains the personal owner even after membership ends. Reload preserves collection rights, borrowed carried goods, the care group and unfinished housing task without awarding another allowance. Paused private jobs retain the original owners, exact input reservations and pause time; a leaver's own cart build is cancelled instead, releasing its carried materials. Their reserved workstation or expansion footprint stays occupied; a remaining authorized member can resume at the physical site with the same materials and remaining duration. Unavailable materials cancel the preserved job and release its remaining commitments. Invalid custody, departure records and unavailable carriers are refused. Older alpha checkpoints are refused and preserved; no migration is added.
+Private-world schema 47 records household departures, their original household, care group and once-only food allocation, plus optional physical inventory custody separate from ownership. Personal House storage retains the personal owner even after membership ends. Every departing care-group member's unfinished House delivery restores household ownership and clears the former destination while preserving its quantity and physical carrier; leaving earns no delivery credit. Reload preserves collection rights, borrowed carried goods, the care group and unfinished housing task without awarding another allowance. Paused private jobs retain the original owners, exact input reservations and pause time; a leaver's own cart build is cancelled instead, releasing its carried materials. Their reserved workstation or expansion footprint stays occupied; a remaining authorized member can resume at the physical site with the same materials and remaining duration. Unavailable materials cancel the preserved job and release its remaining commitments. Invalid custody, departure records and unavailable carriers are refused. Older alpha checkpoints are refused and preserved; no migration is added.
 
 Private-world schema 51 lets each living inhabitant record named adult medical
 permissions and an active medicine course. The course binds its patient and
@@ -1228,8 +1268,12 @@ current alpha cutoff.
 Saved tool requests keep their requester, selling household, actual Blacksmith,
 existing recipe, status, worker and real production/offer links. Active and
 terminal lists remain bounded; selected production plans retain the exact
-request identity. Loading checks these links against the canonical production
-and barter records. Every linked job must retain its exact input reservations,
+request identity. Recipe identities retain the full canonical content ID,
+including IDs longer than 128 characters; request validation adds
+no separate recipe-name limit. Withdrawn no-job history keeps that identity even
+after its package is rolled back. Loading checks these links against the
+canonical production and barter records. Every linked job must retain its exact
+input reservations,
 matching the whole recipe and selling household; completed work requires
 completed consumption receipts. Ready work must bind a completed job, and an
 offer must name that job's actual output and the same customer and shop.
@@ -1502,6 +1546,10 @@ Named borrowing records bind actual living adults to a paid stall while they
 remain inside the hall-and-plaza area. Stock receipts keep the personal or
 household owner recorded at deposit, physical lot, quantity and occupancy
 identity; live inventory remains authoritative after inheritance or collection.
+Source and destination lot references retain the full native inventory identity
+without a narrower receipt length limit. Whole and partial deposits from long
+split/move histories remain valid; the receipt hash, owner, quantity, occupancy,
+derived destination and exact retained inventory event still have to agree.
 Another borrower gains no right to sell those goods. Barter records bind the
 exact inventory offer, named seller and buyer, lots, reservations and outcome.
 Completed or cancelled trades retain a recent history without requiring spent
@@ -1512,6 +1560,13 @@ bounds reject missing, duplicate, reordered or unaccounted receipts. The live
 receipt suffix above the retirement boundary must be complete. An open offer
 always retains its exact source receipt. A closed outcome may refer below the
 explicit retired boundary; that historical reference grants no new selling right.
+
+Business exchanges, Market exchanges and Market stock receipts retain the exact
+resource kind accepted by inventory and content quantities. Resource kinds have
+no separate trade-record length limit and are never truncated. Loading still
+rejects empty, untrimmed or control-character names, mismatched lot kinds and
+forged offer or receipt bindings. This validation correction keeps the current
+schema and does not change saved fields or transfer goods during reload.
 
 Each Market keeps the most recent 32 receipts, 32 closed trades and 32 ended
 borrowing records, plus exact live dependencies. Current borrowers keep the
@@ -1707,6 +1762,14 @@ Named manual checkpoints use a private `.manual` directory and reference the
 same history archive. Overwriting a selected checkpoint retains a recovery copy;
 new copies have explicit recovery provenance and an opt-in count-based cleanup
 preview, described under [permanent deletion](#explicit-permanent-deletion).
+
+Creation, autosaving and overwrite decode and validate the exact serialized
+checkpoint before writing save files, publishing metadata or advancing the
+timeline. A rejected checkpoint leaves the previous saves and timeline intact.
+Law amendment and repeal labels preserve complete surrogate pairs when shortened;
+the full structured draft remains unchanged. This adds no schema fields or
+migration for previously damaged alpha saves.
+
 Rotating autosaves are a separate
 mechanism and must not delete another world's checkpoints, or another branch's.
 Updating autosave configuration trims only that configured world, including
@@ -1776,14 +1839,17 @@ its "different save format" message. Each world catalog entry in
 `catalog.json` records the build that last wrote or opened that world in the
 same two fields, so any version can list who saved a world without restoring
 it; the host stamps an entry when it creates, archives, selects or starts with
-that world. When a listed world can't be restored and its entry
-names another version, its compatibility is `other_version` instead of
-`incompatible`, and Load World offers to open it in that version through the
-launcher. A damaged save from this build, a world from before versions were
-recorded, or a missing model setup stays `incompatible`. These records are diagnostic only: they
-never change world state, replay digests or whether a save loads
+that world. When a listed world can't be restored and its entry names another
+version, its compatibility is `other_version` instead of `incompatible`, and
+Load World offers to open it in that version through the launcher. A damaged
+save from this build, a world from before versions were recorded, or a missing
+model setup stays `incompatible`. These records are diagnostic only: they
+never change world state, replay digests or whether a save loads. Unusable
+optional build fields read as unknown. Recovery rollback restores the refused
+checkpoint's prior build record (or its absence), and a successful retry stamps
+the recovering build again
 ([releasing](releasing.md#save-and-content-compatibility)). They let the
-planned launcher offer the version that last saved a world
+launcher offer the version that last saved a world
 ([#1566](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1566)).
 
 ### Save branches
@@ -1838,6 +1904,14 @@ Deleting a world removes its
 branch record with its saves.
 
 ## Validation boundaries
+
+Ordinary conversation handles are generated from the proposal tick and a
+SHA-256 digest of the ordered complete participant IDs. Participant references
+remain intact and must identify known people. The handle's 512-character guard
+and turn/request binding checks remain; existing valid handles still load.
+This generation change needs no schema change.
+The unsaved scheduler choice token also hashes its complete actor, handle,
+revision and status; its existing bound and stale-choice comparisons remain.
 
 Use focused tests for migration, replay identity, interrupted writes, referenced
 history, old calendars and rejected restores as relevant to the change. Record
@@ -1921,8 +1995,11 @@ manual checkpoint again. Copies without a named source remain ordinary saves.
 The world checkpoint schema and replay bytes do not change.
 
 The preview decodes each classified checkpoint, verifies its world identity and
-required history, and keeps the latest requested number of verified copies for
-each source. It additionally protects the recovery currently continued from;
+required history, and performs a full runtime restore without advancing the world
+or calling a model. Only copies that pass all these checks count toward the latest
+requested number for each source. A copy that decodes but cannot restore remains
+preserved and cannot displace a loadable predecessor. The preview additionally
+protects the recovery currently continued from;
 an older active copy may exceed the requested count. Unverifiable files, manual
 saves, autosaves and migration originals are never cleanup candidates. Earlier
 unclassified backups remain protected even if their names look like recoveries.
@@ -1969,7 +2046,18 @@ leaders. Products and fitted saddles reference real inventory lots and exclusive
 reservations. Trade offers retain the exact animal, adults, receiving yard and
 payment lot; native animal orders retain the exact bound animal ID. Milk-sale
 offers retain both parties, the held milk, receiving jug, payment and physical
-Store or Market stall. Whole-jug stock deliveries retain household ownership.
+Store or Market stall. Receiving-jug and payment references preserve complete
+inventory lot identities, including IDs derived by repeated partial stock
+moves. Reload binds them to the exact existing lots, owners and carried custody
+and checks the held milk reservation and physical site. Whole-jug stock
+deliveries retain household ownership.
+
+Supply-trip actors, milk-sale parties, riders, leaders and named permissions
+retain complete known person IDs, including native descendants longer than
+512 characters. Reload checks their actual person references, unique roles and
+physical custody. Animal identities, names and other short fields keep their
+512-character limit; unknown, duplicated and malformed person references are
+refused. This changes validation, with no new field, schema or migration.
 
 Current-format replay and rollback cover arrival, paid care, collection, birth,
 production jobs and attachments. Reload validates required animal fields,

@@ -1,0 +1,1 @@
+- Later-generation adults can propose and accept household land-permission transfers without their full identities stopping the world's saves.

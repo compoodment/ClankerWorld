@@ -1,0 +1,1 @@
+- An agent can collect their own stored or dropped work tool after leaving a household without halting the world. The tool keeps its owner, and normal access, reservations and carrying limits still apply.

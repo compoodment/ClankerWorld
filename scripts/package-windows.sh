@@ -50,12 +50,22 @@ if ! grep -q -x -F "# Source commit: ${revision}" "${export_dir}/manifest.sha256
 fi
 (cd "${export_dir}" && sha256sum --check --quiet --strict manifest.sha256)
 
+scratch_root="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/clankerworld-package.XXXXXX")"
+trap 'rm -rf -- "${scratch_root}"' EXIT
 if [[ "${launcher}" == true ]]; then
-    # The launcher's own version, separate from game versions.
-    version="$(sed -n 's/^ *public const string Version = "\([^"]*\)";$/\1/p' \
-        "${repo_root}/src/ClankerWorld.GodotClient/Launcher/Launcher.cs")"
+    # Read the same committed launcher version as the verified export.
+    version="$(git -C "${repo_root}" show "${revision}:src/ClankerWorld.GodotClient/Launcher/Launcher.cs" |
+        sed -n 's/^ *public const string Version = "\([^"]*\)";$/\1/p')"
 else
-    version="$(dotnet msbuild "${repo_root}/src/ClankerWorld.Viewer/ClankerWorld.Viewer.csproj" -nologo -getProperty:Version)"
+    # Keep host source and version tied to the export's committed inputs.
+    staged_repo_root="${scratch_root}/repository"
+    mkdir -p "${staged_repo_root}"
+    git -C "${repo_root}" archive "${revision}" \
+        global.json Directory.Build.props src/ClankerWorld.Viewer src/ClankerWorld.Simulation \
+        src/ClankerWorld.Shared/BuildInformation.cs \
+        src/ClankerWorld.Shared/AgentPlacementRules.cs | tar -C "${staged_repo_root}" -xf -
+    staged_host_project="${staged_repo_root}/src/ClankerWorld.Viewer/ClankerWorld.Viewer.csproj"
+    version="$(dotnet msbuild "${staged_host_project}" -nologo -getProperty:Version)"
 fi
 if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
     printf 'Cannot determine the game version: %s\n' "${version}" >&2
@@ -66,8 +76,6 @@ if [[ "${launcher}" == true ]]; then
 else
     package_name="ClankerWorld-${version}-windows-x64"
 fi
-scratch_root="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/clankerworld-package.XXXXXX")"
-trap 'rm -rf -- "${scratch_root}"' EXIT
 stage="${scratch_root}/${package_name}"
 mkdir -p "${stage}"
 
@@ -91,7 +99,7 @@ EOF
     sed -i 's/$/\r/' "${stage}/README.txt"
 else
     printf 'Publishing the self-contained win-x64 host\n'
-    SourceRevisionId="${revision}" dotnet publish "${repo_root}/src/ClankerWorld.Viewer/ClankerWorld.Viewer.csproj" \
+    SourceRevisionId="${revision}" dotnet publish "${staged_host_project}" \
         --configuration Release --runtime win-x64 --self-contained -p:RestoreLockedMode=true \
         --output "${stage}/host" --nologo
     if [[ ! -f "${stage}/host/${HOST_EXE}" ]]; then

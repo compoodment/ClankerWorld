@@ -13,6 +13,16 @@ public sealed partial class PrivateWorldRuntime
         if (!world.Seeded && (world.Animals.Count != 0 || world.Offers.Count != 0 || world.SupplyTrips.Count != 0 || world.MilkOffers.Count != 0))
             throw new InvalidDataException("An unseeded animal world cannot contain animal history or custody.");
         static bool Identifier(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 512 && !value.Any(char.IsControl);
+        static bool InventoryReference(string? value) => !string.IsNullOrWhiteSpace(value) && !value.Any(char.IsControl);
+        var society = state.Society.Society;
+        var people = society.Inhabitants.Select(person => person.Id).ToHashSet(StringComparer.Ordinal);
+        void UniqueAgents(IEnumerable<string> ids)
+        {
+            var values = ids.ToArray();
+            if (values.Any(value => !InventoryReference(value) || !people.Contains(value)) ||
+                values.Distinct(StringComparer.Ordinal).Count() != values.Length)
+                throw new InvalidDataException("Animal agent references must name unique, known people.");
+        }
         static void Unique(IEnumerable<string> ids)
         {
             var values = ids.ToArray();
@@ -21,14 +31,13 @@ public sealed partial class PrivateWorldRuntime
         }
         Unique(world.Animals.Select(animal => animal.Id));
         Unique(world.Offers.Select(offer => offer.Id));
-        Unique(world.SupplyTrips.Select(trip => trip.ActorId));
+        UniqueAgents(world.SupplyTrips.Select(trip => trip.ActorId));
         Unique(world.MilkOffers.Select(offer => offer.Id));
-        Unique(world.MilkOffers.Select(offer => offer.SellerId));
-        Unique(world.MilkOffers.Select(offer => offer.BuyerId));
+        UniqueAgents(world.MilkOffers.Select(offer => offer.SellerId));
+        UniqueAgents(world.MilkOffers.Select(offer => offer.BuyerId));
         Unique(world.MilkOffers.Select(offer => offer.MilkLotId));
-        Unique(world.Animals.Select(animal => animal.RiderId).OfType<string>());
-        Unique(world.Animals.Select(animal => animal.LeaderId).OfType<string>());
-        var society = state.Society.Society;
+        UniqueAgents(world.Animals.Select(animal => animal.RiderId).OfType<string>());
+        UniqueAgents(world.Animals.Select(animal => animal.LeaderId).OfType<string>());
         var inventory = society.Inventory;
         var day = state.WorldSystems!.Config.TicksPerDay;
         var map = TravelMap(state);
@@ -38,7 +47,7 @@ public sealed partial class PrivateWorldRuntime
             var seller = society.Inhabitants.FirstOrDefault(person => person.Id == offer.SellerId);
             var buyer = society.Inhabitants.FirstOrDefault(person => person.Id == offer.BuyerId);
             if (seller is null || buyer is null || seller.HouseholdId == buyer.HouseholdId || milk is null || milk.ItemKind != "milk" ||
-                milk.ContainerLotId is null || !(milk.OwnerId == seller.Id || milk.OwnerId == seller.HouseholdId) || !Identifier(offer.ReceivingJugId) || !Identifier(offer.PaymentLotId) ||
+                milk.ContainerLotId is null || !(milk.OwnerId == seller.Id || milk.OwnerId == seller.HouseholdId) || !InventoryReference(offer.ReceivingJugId) || !InventoryReference(offer.PaymentLotId) ||
                 !Identifier(offer.BuildingId) || !map.IsPassable(offer.Position) || offer.OfferedTick < 0 || offer.OfferedTick > society.WorldTick ||
                 !state.WorldSimulation!.Buildings.Any(building => building.InstanceId == offer.BuildingId && building.Position == offer.Position) ||
                 !inventory.Lots.Any(jug => jug.Id == offer.ReceivingJugId && jug.ItemKind == InventoryContainerRules.WaterJug &&
@@ -61,7 +70,7 @@ public sealed partial class PrivateWorldRuntime
                 animal.DiedTick is { } death && (death < 0 || death > society.WorldTick || animal.Pregnancy is not null || animal.RiderId is not null ||
                     animal.LeaderId is not null || animal.ReadyProductLotId is not null || animal.SaddleLotId is not null))
                 throw new InvalidDataException("An animal has invalid age, care, product progress or physical state.");
-            Unique(animal.CarePermissions); Unique(animal.RidingPermissions);
+            UniqueAgents(animal.CarePermissions); UniqueAgents(animal.RidingPermissions);
             if (animal.CarePermissions.Concat(animal.RidingPermissions).Any(id => !society.Inhabitants.Any(person => person.Id == id)) ||
                 animal.Species != "horse" && (animal.RidingPermissions.Count != 0 || animal.RiderId is not null || animal.SaddleLotId is not null))
                 throw new InvalidDataException("Animal permissions must name known people and only horses may be ridden.");

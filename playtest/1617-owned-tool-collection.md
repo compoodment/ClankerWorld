@@ -1,0 +1,1 @@
+- In a disposable world, have an adult collect a wooden axe or pickaxe, store it in their House and leave the household. Ask them to collect it for work. Confirm they physically retrieve their own tool, the world keeps advancing, and saving, loading and resuming preserve the tool and its owner. Try a dropped tool too; shared household tools should still belong to their lender.

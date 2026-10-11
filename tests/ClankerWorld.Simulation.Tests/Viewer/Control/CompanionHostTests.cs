@@ -64,23 +64,46 @@ public sealed class CompanionHostTests
         {
             var path = Path.Combine(directory, "world.json");
             var logger = new RecordingLogger<PrivateWorldRuntimeService>();
-            using var runtime = new PrivateWorldRuntime("shutdown-save", _ => new DeterministicDecisionProvider());
+            var provider = new WaitingHostedProvider();
+            using var runtime = new PrivateWorldRuntime("shutdown-save", id =>
+                id == "founder-scout" ? provider : new DeterministicDecisionProvider());
             using var service = new PrivateWorldRuntimeService(runtime, new PrivateWorldStateFile(path),
                 new OwnerClientPresenceLease(TimeSpan.FromMinutes(1)), logger);
             // Ticks committed in memory but not yet written, as when the host stops mid-loop.
-            Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
-            Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+            Assert.True((await runtime.AdvanceOneTickNonBlockingAsync()).Advanced);
+            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
             var tick = runtime.WorldTick;
 
-            Assert.True(service.SaveBeforeShutdown());
+            Assert.Equal(ShutdownSaveOutcome.Saved, service.SaveBeforeShutdown(pauseWorld: true));
+            Assert.True(provider.Cancellation.IsCancellationRequested);
 
             using var reloaded = new PrivateWorldStateFile(path).LoadOrCreate("shutdown-save");
+            Assert.Equal(tick, reloaded.WorldTick);
+            Assert.True(reloaded.Society.IsPaused);
+            Assert.False((await reloaded.AdvanceOneTickNonBlockingAsync()).Advanced);
             Assert.Equal(tick, reloaded.WorldTick);
             Assert.Contains(logger.Messages, message => message.Contains("host_shutdown outcome=saved", StringComparison.Ordinal));
         }
         finally
         {
             if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private sealed class WaitingHostedProvider : IDecisionProvider
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public CancellationToken Cancellation { get; private set; }
+        public DecisionProviderKind Kind => DecisionProviderKind.Jev;
+        public long ProviderEpoch => 1;
+
+        public async ValueTask<CognitionDecisionResponse> DecideAsync(
+            CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            Cancellation = cancellationToken;
+            Started.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("The hosted call must be cancelled.");
         }
     }
 

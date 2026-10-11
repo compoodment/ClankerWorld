@@ -35,8 +35,11 @@ instead. Starting `ClankerWorld.exe` then starts that world server, pairs with
 it without a code and opens the Main Menu. Quitting saves the world and stops
 the server. Your saves, keys and model-call count are kept in
 `%LOCALAPPDATA%\ClankerWorld`, outside the game folder, and the server's log is
-`logs\host.log` there. If the server cannot start, the game says why and offers
-**Try Again**. Until the first alpha release, this portable package is the
+`logs\host.log` there, with the launch before it in `logs\host.previous.log`.
+If the server cannot start, the game says why and offers **Try Again** and
+**Report a problem**. If saving fails while quitting, the game stays open and
+offers **Try Again** after you fix the save problem; it keeps the host running.
+Until the first alpha release, this portable package is the
 `clankerworld-windows-11-x64-portable` build from CI
 ([#468](https://github.com/ClankerWorldOrg/ClankerWorld/issues/468)).
 
@@ -58,6 +61,17 @@ launcher is published. If it can't reach GitHub, you can still play an
 installed version. Until the first alpha release, it is the
 `clankerworld-launcher-windows-11-x64` build from CI
 ([#1566](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1566)).
+
+### Report a problem
+
+**Settings > Build > Report a problem** saves a zip to send with a bug report
+and shows it in your file manager. It holds the game's latest logs, the world
+server's logs when the server runs on your PC, and a summary of the game
+version, Windows version, graphics card, screen and open world. It never
+includes keys, pairing codes, saves, prompts or model replies, and anything in
+a log that looks like a key is blanked. Reports go in a `reports` folder (in
+`%LOCALAPPDATA%\ClankerWorld` when the game runs its own server), and only the
+five newest are kept. Nothing is uploaded; you choose where to send the file.
 
 If the server changes, forget the old registration and pair again.
 [Device pairing](development/device-pairing.md) has the operator instructions.
@@ -1158,7 +1172,10 @@ another game version last saved, and this one can't open, is marked
 **Saved by <version>**. In a game the launcher started, its red **Open in
 <version>** button asks first, saves and closes the game, and opens the
 launcher with that version chosen, ready to install if needed. Started without
-the launcher, the game names the version to start instead.
+the launcher, the game names the version to start instead. If that version is
+neither installed nor available to download, the launcher keeps it selected and
+explains why it cannot start. Failed saving or opening the launcher keeps the
+game open, and **Try Again** keeps the chosen version.
 
 To go back to an earlier save, choose the current world in Load World and
 **Load a save...**, then pick a save and **Load**, or double-click it. Your world

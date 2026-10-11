@@ -17,6 +17,10 @@ public partial class Main
         var originalKey = deviceKey;
         var originalUrl = worldUrlInput.Text;
         var originalCi = Environment.GetEnvironmentVariable("CI");
+        var originalLauncher = launcherPath;
+        var originalLauncherRead = launcherPathRead;
+        var originalPendingVersion = pendingOpenVersion;
+        var originalFailedVersion = failedLauncherVersion;
         Environment.SetEnvironmentVariable("CI", "true");
         using var key = OwnerDeviceKey.CreateEphemeralForContinuousIntegration();
         try
@@ -120,6 +124,23 @@ public partial class Main
                 await SelectListedWorldAsync();
                 if (host.PauseCount != 0 || openInVersionConfirmation.Visible)
                     throw new InvalidOperationException("Without the launcher, Open in another version must not try to open the world.");
+                launcherPath = Path.Combine(Path.GetTempPath(), "missing-launcher-" + Guid.NewGuid().ToString("N"));
+                launcherPathRead = true;
+                ChooseWorldActionSmokeRow(1);
+                if (worldSelectButton.Disabled) throw new InvalidOperationException("A launcher-started game must offer the saved version.");
+                worldSelectButton.EmitSignal(Button.SignalName.Pressed);
+                if (!openInVersionConfirmation.Visible || !openInVersionConfirmation.DialogText.Contains("0.0.1-older", StringComparison.Ordinal))
+                    throw new InvalidOperationException("The actual version button must confirm its selected target.");
+                openInVersionConfirmation.Hide();
+                openInVersionConfirmation.EmitSignal(ConfirmationDialog.SignalName.Confirmed);
+                if (!launcherStartFailure.Visible || failedLauncherVersion != "0.0.1-older" || host.PauseCount != 0)
+                    throw new InvalidOperationException("Failed version hand-off must keep the game open without selecting the world here.");
+                pendingOpenVersion = "9.9.9";
+                launcherStartFailure.Hide();
+                launcherStartFailure.EmitSignal(ConfirmationDialog.SignalName.Confirmed);
+                if (!launcherStartFailure.Visible || failedLauncherVersion != "0.0.1-older" || isQuittingGame || host.PauseCount != 0)
+                    throw new InvalidOperationException("Retry must retain the failed hand-off version after another selection.");
+                launcherStartFailure.Hide();
                 ChooseWorldActionSmokeRow(0);
                 if (worldSelectButton.Text != "Open World" || worldSelectButton.ThemeTypeVariation != "PrimaryButton")
                     throw new InvalidOperationException("Other worlds keep the green Open World button.");
@@ -140,6 +161,12 @@ public partial class Main
             RefreshControlAvailability();
             RefreshMainMenuAvailability();
             statusToast.Hide();
+            launcherPath = originalLauncher;
+            launcherPathRead = originalLauncherRead;
+            pendingOpenVersion = originalPendingVersion;
+            failedLauncherVersion = originalFailedVersion;
+            openInVersionConfirmation.Hide();
+            launcherStartFailure.Hide();
         }
     }
 
@@ -232,6 +259,7 @@ public partial class Main
         // When set, the host holds its rename reply until the check releases it.
         public TaskCompletionSource? ReleaseRename { get; set; }
         public bool FailAgentPlacement { get; set; }
+        public HttpStatusCode SubmissionStatus { get; set; } = HttpStatusCode.BadRequest;
         public bool FailPlacementProviderStatus { get; set; }
         public System.Collections.Concurrent.ConcurrentQueue<OwnerAgentPlacementAction> AgentPlacements { get; } = new();
 
@@ -307,6 +335,19 @@ public partial class Main
             Requests.Enqueue(context.Request.Url!.AbsolutePath);
             switch (context.Request.Url!.AbsolutePath)
             {
+                case OwnerPairingEndpoints.OwnerInstructions:
+                case OwnerPairingEndpoints.OwnerOrderCancel:
+                case OwnerPairingEndpoints.OwnerAuthoring:
+                    context.Response.StatusCode = (int)SubmissionStatus;
+                    if (SubmissionStatus == HttpStatusCode.OK)
+                    {
+                        context.Response.ContentType = "application/json";
+                        await context.Response.OutputStream.WriteAsync("{"u8.ToArray()).ConfigureAwait(false);
+                        context.Response.Close();
+                        return;
+                    }
+                    response = new { error = "Controlled owner request refusal." };
+                    break;
                 case "/api/v1/owner/recovery/status":
                     response = StartupRecovery;
                     break;

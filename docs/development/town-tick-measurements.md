@@ -2,7 +2,7 @@
 title: Measuring Town tick time
 type: development-reference
 status: active
-updated: 2026-10-05
+updated: 2026-10-11
 ---
 
 # Measuring Town tick time
@@ -16,6 +16,11 @@ includes rendering, save-file writes or a remote model's response time.
 The measurements and open findings belong in [#944](https://github.com/compoodment/ClankerWorld/issues/944).
 These are controlled headless fixtures, not a Windows playtest or a promise
 about every grown Town.
+
+The [October 10 current-main baseline](construction-current-main-baseline.md)
+preserves a schema-122 reproduction for #998 and an incomplete dense setup.
+The [October 11 input-query report](construction-input-query-measurements.md)
+records the follow-up profile, bounded filter repair and native comparisons.
 
 ## Run a comparison
 
