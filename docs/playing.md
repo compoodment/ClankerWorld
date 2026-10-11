@@ -37,7 +37,9 @@ the server. Your saves, keys and model-call count are kept in
 `%LOCALAPPDATA%\ClankerWorld`, outside the game folder, and the server's log is
 `logs\host.log` there. If the server cannot start, the game says why and offers
 **Try Again**. If saving fails while quitting, the game stays open and offers
-**Try Again** after you fix the save problem; it keeps the host running. The downloadable package with this folder is not published yet
+**Try Again** after you fix the save problem; it keeps the host running.
+Until the first alpha release, this portable package is the
+`clankerworld-windows-11-x64-portable` build from CI
 ([#468](https://github.com/ClankerWorldOrg/ClankerWorld/issues/468)).
 
 If the server changes, forget the old registration and pair again.

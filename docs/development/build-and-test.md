@@ -2,7 +2,7 @@
 title: Build and test
 type: development-reference
 status: active
-updated: 2026-10-08
+updated: 2026-10-10
 ---
 
 # Build and test
@@ -24,7 +24,8 @@ runnable without Godot, a window manager, a model service or a network
 connection once dependencies are restored. See [How it works](how-it-works.md).
 
 The first export target is Windows 11 x64. The current export is an unsigned
-portable bundle. It does not establish an installer, signing provider or public
+portable bundle, and [the portable package](#portable-windows-package) adds the
+game's own host to it. It does not establish an installer, signing provider or public
 release. A Windows smoke test and paired reconnect were recorded on 2026-09-21;
 that historical check does not verify every later build.
 
@@ -237,6 +238,7 @@ dotnet format --verify-no-changes --no-restore
 dotnet test --configuration Release --no-restore
 bash scripts/verify-godot-client.sh
 bash scripts/verify-godot-windows-export.sh
+bash scripts/package-windows.sh   # optional: the portable zip
 ```
 
 For C# changes, run `dotnet format --no-restore` first if formatting needs
@@ -259,6 +261,24 @@ without Git metadata must provide `SourceRevisionId` to MSBuild to identify its
 origin; otherwise the game honestly reports `unknown`.
 CI uploads that bundle as an artifact. These checks verify the build and
 export; they do not replace playing the bundle on Windows.
+
+### Portable Windows package
+
+`bash scripts/package-windows.sh`, run after the export above, builds the
+portable alpha package ([#468](https://github.com/ClankerWorldOrg/ClankerWorld/issues/468)):
+`export/package/ClankerWorld-<version>-windows-x64.zip` and its `.sha256`. The
+zip holds one folder named for the version with the Godot export, a
+self-contained `win-x64` host in `host/` (`dotnet publish`, no .NET install
+needed on the player's PC), a short `README.txt` and a `manifest.sha256` of
+every file. The script refuses an export that was not built from the current
+commit, stages the host and version from committed inputs (excluding local
+edits), and checks that the host assembly carries the same version and commit,
+since the game reuses only a host of its own exact build
+([Device pairing](device-pairing.md#host-started-by-the-game)). The Viewer and
+Simulation projects list `win-x64` in `RuntimeIdentifiers` so this publish
+restores in locked mode. CI uploads the zip as the
+`clankerworld-windows-11-x64-portable` artifact. It is unsigned, and a built
+zip is not a Windows playtest.
 
 The program icon, `src/ClankerWorld.GodotClient/icon.ico`, is generated from
 the logo art in `UI/MenuLogo.cs` and embedded in the exported `.exe`. After

@@ -146,6 +146,17 @@ public sealed partial class BusinessTradeTests
         public byte[] Saved() => File.ReadAllBytes(file.Path);
         public async Task Advance()
         {
+            // Compare the same admitted replies, rather than thread-pool timing.
+            // The playable host intentionally runs personal calls between ticks.
+            foreach (var fieldName in new[] { "pendingHosted", "pendingIdentityMoments" })
+            {
+                var field = typeof(PrivateWorldRuntime).GetField(fieldName,
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                var pending = Assert.IsAssignableFrom<System.Collections.IDictionary>(field!.GetValue(world));
+                var tasks = pending.Values.Cast<object>().Select(item =>
+                    Assert.IsAssignableFrom<Task>(item.GetType().GetProperty("Task")!.GetValue(item)!)).ToArray();
+                await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(30));
+            }
             Assert.True(await service.TryAdvanceOnceAsync(), string.Join("\n", logger.Messages));
             Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), Saved());
         }
