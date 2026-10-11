@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
 # Saves and replay
@@ -1985,6 +1985,13 @@ inventory lot identities, including IDs derived by repeated partial stock
 moves. Reload binds them to the exact existing lots, owners and carried custody
 and checks the held milk reservation and physical site. Whole-jug stock
 deliveries retain household ownership.
+
+Supply-trip actors, milk-sale parties, riders, leaders and named permissions
+retain complete known person IDs, including native descendants longer than
+512 characters. Reload checks their actual person references, unique roles and
+physical custody. Animal identities, names and other short fields keep their
+512-character limit; unknown, duplicated and malformed person references are
+refused. This changes validation, with no new field, schema or migration.
 
 Current-format replay and rollback cover arrival, paid care, collection, birth,
 production jobs and attachments. Reload validates required animal fields,
