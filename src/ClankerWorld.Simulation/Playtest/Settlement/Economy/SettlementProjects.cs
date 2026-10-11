@@ -1036,8 +1036,10 @@ public sealed partial class PrivateWorldRuntime
             var position = inhabitants[residentId].Position;
             foreach (var resource in map.Resources)
             {
-                if (resources.GetValueOrDefault(resource.Id) != ResourceState.Available ||
-                    resource.Kind != input.ResourceId && !(input.ResourceId == "wood" && resource.Kind == "construction"))
+                // Most sources cannot supply this input. Check the cheap kind
+                // match before looking up their current availability by ID.
+                if (resource.Kind != input.ResourceId && !(input.ResourceId == "wood" && resource.Kind == "construction") ||
+                    resources.GetValueOrDefault(resource.Id) != ResourceState.Available)
                     continue;
 
                 var sourceQuantity = worldSystems.Ecology.GetResource(resource.Id).Quantity;
