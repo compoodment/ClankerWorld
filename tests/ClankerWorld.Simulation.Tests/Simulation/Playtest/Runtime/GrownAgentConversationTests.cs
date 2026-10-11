@@ -215,11 +215,16 @@ public sealed partial class GrownAgentHelperMemoryTests
     private static async Task AwaitConversationRequestsAsync(PrivateWorldRuntime world)
     {
         await WaitForRequests(world);
-        var field = typeof(PrivateWorldRuntime).GetField("pendingConversationTurns",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
-        var pending = (System.Collections.IDictionary)field.GetValue(world)!;
-        await Task.WhenAll(pending.Values.Cast<object>().Select(item => (Task)item.GetType().GetProperty("Task")!.GetValue(item)!))
-            .WaitAsync(TimeSpan.FromSeconds(30));
+        // The nonblocking host admits each completed task at the next tick.
+        // Include incidental identity/will work so paired hosts admit it together.
+        foreach (var name in new[] { "pendingConversationTurns", "pendingIdentityMoments", "pendingWills" })
+        {
+            var field = typeof(PrivateWorldRuntime).GetField(name,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            var pending = (System.Collections.IDictionary)field.GetValue(world)!;
+            await Task.WhenAll(pending.Values.Cast<object>().Select(item => (Task)item.GetType().GetProperty("Task")!.GetValue(item)!))
+                .WaitAsync(TimeSpan.FromSeconds(30));
+        }
     }
 
     private sealed class NativeConversationChoices(string actor, string partner, IAgentConversationProvider router)
