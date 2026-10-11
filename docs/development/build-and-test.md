@@ -52,8 +52,8 @@ identity replies, wills and conversation turns use separate task queues. Waiting
 only for ordinary decisions can compare a requested identity in one checkpoint
 with a kept identity in the other. The child household-change fixture awaits all
 four queues without advancing another tick, retaining complete checkpoint bytes,
-strict file reload, cargo and refused-arrival checks. Its controlled identity reply
-check holds a real response to verify that the fixture waits at this boundary.
+strict file reload, cargo and refused-arrival checks. Its controlled identity
+check holds a real provider request to verify that the fixture waits at this boundary.
 
 The client bundles one third-party font, Fusion Pixel 12px, in
 `src/ClankerWorld.GodotClient/UI/Theme/Fonts/`, under the SIL Open Font
