@@ -306,8 +306,10 @@ running host of the exact same version and source revision, started by an
 earlier launch, is reused only after a side-effect-free `GET /api/v1/local/companion`
 confirms the secret already in its file on the approval listener. Anything else on
 the port is refused with a message and never stopped. The host's output goes to
-`logs/host.log` in the player's data folder; saves, the owner authority and the
-provider files sit in separate folders there, never in the game folder.
+`logs/host.log` in the player's data folder, and each start first moves the
+previous one to `logs/host.previous.log` so a crash can still be reported.
+Saves, the owner authority and the provider files sit in separate folders
+there, never in the game folder.
 
 `POST /api/v1/local/shutdown` exists only on a private-world companion host. It
 pauses the world, cancels hosted model work and writes its checkpoint before
