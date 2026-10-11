@@ -12,7 +12,7 @@ namespace ClankerWorld.GodotClient;
 public partial class Main
 {
     private const string ReportProblemTooltip =
-        "Save a zip of the game's logs to send with a bug report. It never includes keys, saves or model replies.";
+        "Save a zip of the game's logs and build details to send with a bug report.";
 
     private Button NewReportProblemButton()
     {
