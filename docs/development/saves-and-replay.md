@@ -2042,9 +2042,10 @@ leaders. Products and fitted saddles reference real inventory lots and exclusive
 reservations. Trade offers retain the exact animal, adults, receiving yard and
 payment lot; native animal orders retain the exact bound animal ID. Milk-sale
 offers retain both parties, the held milk, receiving jug, payment and physical
-Store or Market stall. Receiving-jug and payment references preserve complete
-inventory lot identities, including IDs derived by repeated partial stock
-moves. Reload binds them to the exact existing lots, owners and carried custody
+Store or Market stall. Source-milk, receiving-jug and payment references preserve
+complete inventory lot identities, including IDs derived by repeated milk sales
+or partial stock moves. Source lots remain unique across pending offers. Reload
+binds these references to the exact existing lots, owners and carried custody
 and checks the held milk reservation and physical site. Whole-jug stock
 deliveries retain household ownership.
 
@@ -2058,6 +2059,10 @@ refused. This changes validation, with no new field, schema or migration.
 Current-format replay and rollback cover arrival, paid care, collection, birth,
 production jobs and attachments. Reload validates required animal fields,
 physical saddle/product custody, household/herd limits and vessel contents.
+Repeated native milk exchanges cover source histories beyond 512 characters,
+pending and completed host-file reload, acceptance, refusal, paired exact-byte
+continuation and refused-tick rollback. Unknown or malformed source references,
+duplicate sources and inconsistent owners, vessels, sites or reservations are refused.
 Water and milk cannot share a jug, and collected milk cannot become a loose lot.
 An interrupted tick or refused durable developer edit restores both animal and
 inventory state. Older alpha checkpoints are refused and preserved; no animal
