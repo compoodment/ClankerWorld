@@ -23,7 +23,7 @@ public sealed record CognitionLandHearingChoice(
     {
         if (Statement is not null && CognitionDecisionResponse.NormalizeIdentityText(Statement) != Statement ||
             Grounds is not null && CognitionDecisionResponse.NormalizeIdentityText(Grounds) != Grounds ||
-            HouseholdId is not null && !ValidReference(HouseholdId) || AgreedEndTick is < 0 ||
+            HouseholdId is not null && !ValidHouseholdReference(HouseholdId) || AgreedEndTick is < 0 ||
             RequestedOutcome is not null and not ("confirm" or "renew" or "amend" or "end" or "reject" or "reclaim" or "grant") ||
             !ValidReferences(EvidenceIds) || !ValidReferences(LawIds) ||
             (PaymentItemKind is null) != (PaymentQuantity is null) ||
@@ -31,8 +31,10 @@ public sealed record CognitionLandHearingChoice(
             throw new ArgumentOutOfRangeException(nameof(CognitionLandHearingChoice), "The hearing submission is malformed or too large.");
     }
 
-    private static bool ValidReference(string? value) => value is { Length: > 0 and <= 256 } &&
+    private static bool ValidHouseholdReference(string? value) => value is { Length: > 0 } &&
         !value.Any(char.IsWhiteSpace) && !value.Any(char.IsControl);
+
+    private static bool ValidReference(string? value) => value is { Length: <= 256 } && ValidHouseholdReference(value);
 
     private static bool ValidReferences(IReadOnlyList<string>? values) => values is null ||
         values.Count <= MaximumReferences && values.All(ValidReference) &&
@@ -60,7 +62,7 @@ public sealed record CognitionLandHearingChoice(
             paymentQuantity = value;
         }
         var choice = new CognitionLandHearingChoice(
-            Text(payload, "statement"), Reference(payload, "household_id"), endTick,
+            Text(payload, "statement"), Reference(payload, "household_id", household: true), endTick,
             References(payload, "evidence_ids"), References(payload, "law_ids"),
             Text(payload, "grounds"), Reference(payload, "requested_outcome"),
             Reference(payload, "payment_item_kind"), paymentQuantity);
@@ -70,10 +72,11 @@ public sealed record CognitionLandHearingChoice(
         return choice;
     }
 
-    private static string? Reference(JsonElement payload, string name)
+    private static string? Reference(JsonElement payload, string name, bool household = false)
     {
         if (!payload.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null) return null;
-        if (value.ValueKind != JsonValueKind.String || !ValidReference(value.GetString()))
+        if (value.ValueKind != JsonValueKind.String ||
+            !(household ? ValidHouseholdReference(value.GetString()) : ValidReference(value.GetString())))
             throw new InvalidDataException("The provider returned an invalid hearing reference.");
         return value.GetString();
     }

@@ -1,0 +1,1 @@
+- A Windows launcher installs ClankerWorld versions from the published releases, checks each download before installing it, repairs or removes versions without touching your worlds, and starts the version you choose. It never updates itself.

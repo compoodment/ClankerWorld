@@ -10,6 +10,8 @@ config/name="ClankerWorld"
 config/use_custom_user_dir=true
 config/custom_user_dir_name="Godot/app_userdata/ClankerWorld"
 run/main_scene="res://Main.tscn"
+; The launcher export (custom feature "launcher") opens the launcher instead.
+run/main_scene.launcher="res://Launcher/Launcher.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [clankerworld]

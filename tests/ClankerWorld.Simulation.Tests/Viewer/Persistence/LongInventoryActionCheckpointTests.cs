@@ -7,7 +7,7 @@ using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
-public sealed class LongInventoryActionCheckpointTests
+public sealed partial class LongInventoryActionCheckpointTests
 {
     private const string Actor = "founder:00000000000000000000000000000001";
     private const string House = "first-town-house-a";

@@ -143,6 +143,19 @@ jobs:
           # Already a zip; don't spend time compressing it again.
           compression-level: 0
           if-no-files-found: error
+      - name: Export and package the Windows 11 x64 launcher
+        if: needs.scope.outputs.code == 'true'
+        run: |
+          bash scripts/verify-godot-windows-export.sh --launcher
+          bash scripts/package-windows.sh --launcher export/launcher-windows-x64 export/launcher-package
+      - name: Upload the Windows 11 x64 launcher zip
+        if: needs.scope.outputs.code == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: clankerworld-launcher-windows-11-x64
+          path: export/launcher-package
+          compression-level: 0
+          if-no-files-found: error
 
   # The test suite split across parallel jobs by scope's plan (.github/scripts/ci-plan.js);
   # every test runs in exactly one of them.

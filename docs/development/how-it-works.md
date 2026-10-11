@@ -3765,6 +3765,10 @@ time. Repair consumes the recipe materials carried by that tool's owner; it
 does not restore condition for free. Hammer use speeds building work, and an
 iron knife speeds food or other preparation recipes. Recipe and field records
 keep their exact selected tool lot through save and reload.
+Knife-assisted production keeps the full inventory lot reference, including
+long identities produced by partial moves. Completing the recipe checks that
+this exact knife is still usable and carried by its owner, and wears one unit;
+an unavailable knife cancels the work without spending its reserved ingredients.
 
 ## Ports and communal boats
 
