@@ -1889,6 +1889,14 @@ branch record with its saves.
 
 ## Validation boundaries
 
+Ordinary conversation handles are generated from the proposal tick and a
+SHA-256 digest of the ordered complete participant IDs. Participant references
+remain intact and must identify known people. The handle's 512-character guard
+and turn/request binding checks remain; existing valid handles still load.
+This generation change needs no schema change.
+The unsaved scheduler choice token also hashes its complete actor, handle,
+revision and status; its existing bound and stale-choice comparisons remain.
+
 Use focused tests for migration, replay identity, interrupted writes, referenced
 history, old calendars and rejected restores as relevant to the change. Record
 real Windows/server verification separately from fixture and CI results.
