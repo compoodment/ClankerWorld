@@ -44,11 +44,36 @@ public sealed class GameVersionStore(LauncherLayout layout, HttpClient http)
     public static IReadOnlyList<string> Verify(InstalledVersion version)
     {
         var problems = new List<string>();
-        foreach (var (relative, expected) in ReadManifest(Path.Combine(version.Directory, LauncherLayout.PackageManifest)))
+        (string Relative, string Hash)[] manifest;
+        try
+        {
+            manifest = ReadManifest(Path.Combine(version.Directory, LauncherLayout.PackageManifest)).ToArray();
+            var names = manifest.Select(item => item.Relative).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (!names.Contains(LauncherLayout.GameExecutable) ||
+                !names.Contains(Path.Combine("host", "ClankerWorld.Viewer.exe")))
+                return [LauncherLayout.PackageManifest];
+            foreach (var path in Directory.EnumerateFiles(version.Directory, "*", SearchOption.AllDirectories))
+            {
+                var relative = Path.GetRelativePath(version.Directory, path);
+                if (relative != LauncherLayout.PackageManifest && !names.Contains(relative)) problems.Add(relative);
+            }
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            return [LauncherLayout.PackageManifest];
+        }
+        foreach (var (relative, expected) in manifest)
         {
             var path = Path.Combine(version.Directory, relative);
-            if (!File.Exists(path) || !HashFile(path).Equals(expected, StringComparison.OrdinalIgnoreCase))
+            try
+            {
+                if (!File.Exists(path) || !HashFile(path).Equals(expected, StringComparison.OrdinalIgnoreCase))
+                    problems.Add(relative);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
                 problems.Add(relative);
+            }
         }
         return problems;
     }
@@ -87,7 +112,7 @@ public sealed class GameVersionStore(LauncherLayout layout, HttpClient http)
         Directory.CreateDirectory(layout.VersionsDirectory);
         var staging = Path.Combine(layout.VersionsDirectory, ".staging-" + Guid.NewGuid().ToString("N"));
         var destination = layout.VersionDirectory(version);
-        var retired = destination + ".old-" + Guid.NewGuid().ToString("N");
+        var retired = Path.Combine(layout.VersionsDirectory, $".old-{version}-{Guid.NewGuid():N}");
         try
         {
             Extract(zipPath, GameReleaseFeed.PackageName(version) + "/", staging);
@@ -114,7 +139,8 @@ public sealed class GameVersionStore(LauncherLayout layout, HttpClient http)
         finally
         {
             TryDeleteDirectory(staging);
-            TryDeleteDirectory(retired);
+            // A failed rollback must leave its only usable copy for startup recovery.
+            if (Directory.Exists(destination)) TryDeleteDirectory(retired);
         }
         return Installed().Single(installed => installed.Version == version);
     }
@@ -125,7 +151,7 @@ public sealed class GameVersionStore(LauncherLayout layout, HttpClient http)
         var expected = Path.GetFullPath(layout.VersionDirectory(version.Version));
         if (!string.Equals(Path.GetFullPath(version.Directory), expected, StringComparison.Ordinal))
             throw new InvalidOperationException("Only folders in the versions folder can be removed.");
-        var retired = expected + ".old-" + Guid.NewGuid().ToString("N");
+        var retired = Path.Combine(layout.VersionsDirectory, $".removed-{version.Version}-{Guid.NewGuid():N}");
         try { Directory.Move(expected, retired); }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -138,11 +164,24 @@ public sealed class GameVersionStore(LauncherLayout layout, HttpClient http)
     public void CleanUp()
     {
         if (Directory.Exists(layout.VersionsDirectory))
-            foreach (var directory in Directory.EnumerateDirectories(layout.VersionsDirectory))
+            foreach (var directory in Directory.EnumerateDirectories(layout.VersionsDirectory).ToArray())
             {
                 var name = Path.GetFileName(directory);
-                if (name.StartsWith(".staging-", StringComparison.Ordinal) || name.Contains(".old-", StringComparison.Ordinal))
+                if (name.StartsWith(".staging-", StringComparison.Ordinal) || RetiredVersion(name, ".removed-") is not null)
                     TryDeleteDirectory(directory);
+                else if (RetiredVersion(name, ".old-") is { } version)
+                {
+                    var destination = layout.VersionDirectory(version);
+                    try
+                    {
+                        if (!Directory.Exists(destination)) Directory.Move(directory, destination);
+                        else TryDeleteDirectory(directory);
+                    }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                    {
+                        // Keep the backup if it cannot yet be restored (for example, while in use).
+                    }
+                }
             }
         if (Directory.Exists(layout.DownloadsDirectory))
             foreach (var file in Directory.EnumerateFiles(layout.DownloadsDirectory, "*.part"))
@@ -162,15 +201,23 @@ public sealed class GameVersionStore(LauncherLayout layout, HttpClient http)
         throw new GameInstallException("This release has no checksum for its download, so it wasn't installed.");
     }
 
+    private static GameVersionName? RetiredVersion(string name, string prefix) =>
+        name.StartsWith(prefix, StringComparison.Ordinal) && name.Length > prefix.Length + 33 &&
+        name[^33] == '-' && Guid.TryParseExact(name[^32..], "N", out _)
+            ? GameVersionName.Parse(name[prefix.Length..^33]) : null;
+
     public static IEnumerable<(string Relative, string Hash)> ReadManifest(string manifestPath)
     {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var line in File.ReadLines(manifestPath))
         {
-            if (line.StartsWith('#') || line.Length < 66) continue;
+            if (line.StartsWith('#') || string.IsNullOrWhiteSpace(line)) continue;
+            if (line.Length < 67 || line[64] != ' ' || line[65] is not (' ' or '*'))
+                throw new InvalidDataException("The version's file list is invalid.");
             var hash = line[..64];
-            var relative = line[64..].TrimStart(' ', '*');
+            var relative = line[66..];
             if (relative.StartsWith("./", StringComparison.Ordinal)) relative = relative[2..];
-            if (!hash.All(Uri.IsHexDigit) || !IsSafeRelativePath(relative))
+            if (!hash.All(Uri.IsHexDigit) || !IsSafeRelativePath(relative) || !names.Add(relative))
                 throw new InvalidDataException("The version's file list is invalid.");
             yield return (relative.Replace('/', Path.DirectorySeparatorChar), hash);
         }
