@@ -2651,10 +2651,15 @@ before checking placed buildings for it. Each later query reads current reservat
 again. See [household plan query measurements](household-plan-query-measurements.md)
 for native candidate/state equivalence, repeated timings and allocation results.
 Layout and shared route searches reuse the step legality just established by
-`FootNeighbors` when computing Road costs. Public step costs and movement still
+foot-neighbor enumeration when computing Road costs. Public step costs and movement still
 validate the complete step; terrain, Road discounts, occupied corners and queue
 order retain their existing rules. See [route step cost measurements](route-step-cost-measurements.md)
 for matched native captures and timing limits.
+Layout foot-cost searches use a value-type neighbor enumerator instead of
+allocating the public iterator for each visited tile. Both paths keep the same
+offset order and suppress repeated coordinates on one- or two-column wrapped
+maps before checking legality. Each step reads current terrain and bridge axes;
+no neighbor result is cached between steps or searches.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
