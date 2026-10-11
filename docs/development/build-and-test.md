@@ -2,7 +2,7 @@
 title: Build and test
 type: development-reference
 status: active
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
 # Build and test
@@ -41,6 +41,13 @@ work but does not guarantee that its worker has started. The check covers
 immediate entry and entry after two more committed ticks. Its
 polls retain a forty-tick limit and a separate thirty-second cancellation guard
 for each tick, including after pause and reload.
+
+The long-recipe tool-request fixture admits its request through the personal
+provider and saves it through the real host. For byte-for-byte continuation,
+it pauses that world, captures one checkpoint, and restores both compared
+worlds with synchronous idle providers for every resident. The personal
+provider returns for withdrawal. Independent background reply timing is not a
+matching replay input, even when both providers choose idle.
 
 The client bundles one third-party font, Fusion Pixel 12px, in
 `src/ClankerWorld.GodotClient/UI/Theme/Fonts/`, under the SIL Open Font
