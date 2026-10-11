@@ -9,9 +9,15 @@ using ClankerWorld.Viewer.Control;
 
 namespace ClankerWorld.Viewer.Observation;
 
+/// <remarks>
+/// <see cref="GameVersion"/> and <see cref="SourceRevision"/> name the host build
+/// that wrote the save; saves from before they were recorded have neither.
+/// </remarks>
 public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
     bool IsAutosave = false, SaveBranch? Branch = null, string? ContinuedFromId = null,
-    DateTimeOffset? ContinuedFromCreatedUtc = null, long BranchPosition = 0);
+    DateTimeOffset? ContinuedFromCreatedUtc = null, long BranchPosition = 0,
+    [property: JsonConverter(typeof(SavedBuildTextConverter))] string? GameVersion = null,
+    [property: JsonConverter(typeof(SavedBuildTextConverter))] string? SourceRevision = null);
 public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string BackupId);
 
 /// <summary>
@@ -142,7 +148,9 @@ public sealed partial class ManualWorldSaveStore
                 Branch = branch,
                 ContinuedFromId = timeline?.ContinuedFromId,
                 ContinuedFromCreatedUtc = timeline?.ContinuedFromCreatedUtc,
-                BranchPosition = NextBranchPosition(branch, timeline)
+                BranchPosition = NextBranchPosition(branch, timeline),
+                GameVersion = BuildInformation.Version,
+                SourceRevision = BuildInformation.SourceRevision,
             };
             var generation = Guid.NewGuid().ToString("N");
             // Only metadata publishes the new immutable generation. A failed metadata
@@ -173,7 +181,8 @@ public sealed partial class ManualWorldSaveStore
             var branch = ResolveBranch(timeline, List(worldId));
             var entry = new ManualWorldSave(Guid.NewGuid().ToString("N"), name, DateTimeOffset.UtcNow,
                 state.Society.Society.WorldTick, isAutosave, branch, timeline?.ContinuedFromId,
-                timeline?.ContinuedFromCreatedUtc, NextBranchPosition(branch, timeline));
+                timeline?.ContinuedFromCreatedUtc, NextBranchPosition(branch, timeline),
+                BuildInformation.Version, BuildInformation.SourceRevision);
             Directory.CreateDirectory(directory);
             RestrictDirectory();
             WriteAtomic(StatePath(entry.Id), bytes);

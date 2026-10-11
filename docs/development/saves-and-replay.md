@@ -239,7 +239,11 @@ Private-world schema 65 adds material-gathering orders with a distinct
 `TargetMaterialKind`, exact optional source or position, and progress measured
 in harvest batches or material items. Saved progress and the last physical
 harvest receipt are validated together; mixed food/material targets and invalid
-material kinds are refused. Queueing, cancellation, discovery and partial
+material kinds are refused. A harvest receipt that would exceed 512 characters
+uses a fixed-length SHA-256 identity derived from the complete original receipt.
+The actor and native inventory lot keep their full identities; shorter receipts
+remain unchanged. Current-format reload accepts both shapes without a schema change.
+Queueing, cancellation, discovery and partial
 quantities retain their state across reload. Older alpha saves are refused and
 preserved unchanged; no migration is added.
 
@@ -282,7 +286,11 @@ Schema 53 saves wills with several heirs. An estate keeps its household
 default beneficiaries and adds, for an accepted will, the named heirs in order,
 the split, the exact quantity of each frozen lot each heir receives, and any
 final words. Frozen lots retain their original building storage when present,
-so escrow and communal inheritance cannot claim an unrelated House as storage.
+so escrow and Town or legacy communal inheritance cannot claim an unrelated
+House as storage. Town stock retained in a private House must match a settled
+estate's frozen lot ID or provenance, kind, quantity and original storage,
+and its owner must be the deceased resident's recorded Town. This validates
+physical custody without changing House ownership or collection permission.
 The deceased archive records the Town the agent lived in. It also retains the
 committed death tick and final physical position. The owner observation exposes
 that position and the `death-tick` decision factor; the client derives map grave
@@ -1796,7 +1804,7 @@ A full recovery backup must keep together:
 
 - The active save and the referenced `.history` archive.
 - Named and rotating saves in `.manual`, with each world's branch record.
-- The adjacent `.autosave.json` schedule and saved-tick metadata.
+- The adjacent `.autosave.json` schedule, `.build.json` record and saved-tick metadata.
 - The world catalog and its archived worlds.
 - Pairing authority, protected provider configuration and usage accounting.
 
@@ -1811,6 +1819,28 @@ The September 2026 internal-identifier reset was an explicitly approved
 pre-release fresh-save/new-pairing exception. It never permits deleting saves.
 During alpha an older save may stop loading, but it is refused with a reason and
 kept. Finished releases follow the migration promise in [Saves](../game-design/saves.md).
+
+### Which build saved a world
+
+Each named save and autosave records the `gameVersion` and `sourceRevision` of
+the host that wrote it, in its `.meta.json`. Overwriting a named save records
+the overwriting build; saves from before this have neither field. The first
+checkpoint a host run writes also records that build in
+`<checkpoint>.build.json` beside the active save, so it can be read without
+loading the world. When startup refuses a checkpoint, the recovery status
+includes `savedByVersion` from that file, and the game names that version in
+its "different save format" message. Each world catalog entry in
+`catalog.json` records the build that last wrote or opened that world in the
+same two fields, so any version can list who saved a world without restoring
+it; the host stamps an entry when it creates, archives, selects or starts with
+that world. These records are diagnostic only: they
+never change world state, replay digests or whether a save loads. Unusable
+optional build fields read as unknown. Recovery rollback restores the refused
+checkpoint's prior build record (or its absence), and a successful retry stamps
+the recovering build again
+([releasing](releasing.md#save-and-content-compatibility)). They let the
+planned launcher offer the version that last saved a world
+([#1566](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1566)).
 
 ### Save branches
 
