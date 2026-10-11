@@ -1,0 +1,1 @@
+- A Town can inherit food left in a House when no household heir survives without halting the world. The goods keep their original location, quantity and Town ownership through saving and loading.
