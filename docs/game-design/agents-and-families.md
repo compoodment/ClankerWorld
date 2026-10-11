@@ -2,7 +2,7 @@
 title: Agents, families and social life
 type: game-design
 status: active
-updated: 2026-10-09
+updated: 2026-10-11
 ---
 
 # Agents, families and social life
@@ -298,6 +298,11 @@ everything that is available in the current build. See [what works today](../wha
   a plan that makes no progress for 40 minutes (about 6⅔ world days) lapses.
   The birth also needs the caregiver's household to hold two ready meals for
   each member plus four more, and the birth uses those four.
+  **Agreed on October 11
+  ([#1370](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1370)):**
+  birth food is reserved and consumed where the household stores it. Preserve
+  the existing household ownership, food and reservation rules; the caregiver
+  does not need to reach or carry that food for the birth.
 - **Elders cannot have children, agreed on October 2:** only adults can plan
   or have a child. A plan in progress ends if either partner becomes an elder
   before the birth, and the continuity rule holds only couples who can have

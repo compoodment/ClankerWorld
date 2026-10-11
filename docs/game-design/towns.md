@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
 # Towns, buildings and government
@@ -362,6 +362,11 @@ Any move between Towns still follows the admission rules in issue
   remote transfer or access to other people's goods. Borrowed goods keep their
   original owner and must be physically returned rather than silently becoming
   the departing person's property. Leaving itself needs no household vote.
+  **Agreed on October 11
+  ([#1370](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1370)):**
+  an agent may also recover their damaged or spoiled personal belongings.
+  Recovery keeps their physical ownership and ordinary access, reservation,
+  route and carrying limits; it does not require the goods to be usable.
 - **A small food allowance supports the move.** The initial trial is up to
   **two ready-to-eat food portions**, from available **unreserved** household
   stock, for both voluntary departures and evictions. Existing care and work
