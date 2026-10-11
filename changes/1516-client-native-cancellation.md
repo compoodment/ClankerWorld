@@ -1,0 +1,1 @@
+- Cancel task now works in the game client for agents born in the world, including retry after a lost reply. The pending request keeps the agent's complete identity and its original order and world.

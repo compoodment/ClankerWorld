@@ -8,7 +8,7 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class GrownAgentHelperMemoryTests
 {
-    private static readonly Lazy<Task<byte[]>> LaterAdult = new(CreateLaterAdultAsync);
+    private static readonly Lazy<Task<byte[]>> LaterAdult = new(() => CreateLaterAdultAsync());
     private static readonly Lazy<Task<byte[]>> LaterHearingGovernment = new(async () =>
         await CreateNativeHearingGovernmentAsync(false, PrivateWorldRuntimeCodec.Decode(await LaterAdult.Value)));
 
@@ -116,7 +116,7 @@ public sealed partial class GrownAgentHelperMemoryTests
         }
     }
 
-    private static async Task<byte[]> CreateLaterAdultAsync()
+    private static async Task<byte[]> CreateLaterAdultAsync(int lastGeneration = 3, Action<int, byte[]>? recordAdult = null)
     {
         var state = NativeHearingCalendar(PrivateWorldRuntimeCodec.Decode(await ConversationAdult.Value));
         var society = state.Society.Society;
@@ -142,7 +142,7 @@ public sealed partial class GrownAgentHelperMemoryTests
         using var world = PrivateWorldRuntime.Restore(state, _ => choices);
         world.Resume();
         var parent = Assert.Single(world.Society.Births).ChildId;
-        for (var generation = 2; generation <= 3; generation++)
+        for (var generation = 2; generation <= lastGeneration; generation++)
         {
             var mate = "agent:" + generation.ToString("D32", System.Globalization.CultureInfo.InvariantCulture);
             var household = world.Society.GetInhabitant(parent).HouseholdId!;
@@ -242,9 +242,10 @@ public sealed partial class GrownAgentHelperMemoryTests
             }
             Assert.Equal(SocietyAgeBand.Adult, world.Society.GetInhabitant(parent).AgeBand);
             Assert.False(world.Society.GetInhabitant(parent).NeedsName);
+            recordAdult?.Invoke(generation, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         }
         world.Pause();
-        Assert.Equal(3, world.Society.Births.Count);
+        Assert.Equal(lastGeneration, world.Society.Births.Count);
         Assert.True(parent.Length > 256);
         world.Validate();
         return PrivateWorldRuntimeCodec.Encode(world.ExportState());

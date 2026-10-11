@@ -1544,7 +1544,8 @@ public sealed partial class ConfigurableDecisionProvider(
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             stopwatch.Stop();
-            if (usageTicket is not null) usageStore!.Finish(usageTicket, "failed");
+            _ = HostedModelUnusableReply.TryGetTokens(exception, out var inputTokens, out var outputTokens);
+            if (usageTicket is not null) usageStore!.Finish(usageTicket, "failed", inputTokens, outputTokens);
             if (logger is not null)
             {
                 LogProviderCallFailed(

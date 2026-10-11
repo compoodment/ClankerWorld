@@ -13,6 +13,7 @@ public partial class Main
 {
     private readonly LocalHostCompanion? localHost;
     private readonly ConfirmationDialog localHostFailure = new();
+    private readonly ConfirmationDialog localHostStopFailure = new();
     private bool isQuittingGame;
 
     private LocalHostCompanion? FindBundledLocalHost()
@@ -89,11 +90,34 @@ public partial class Main
         SetStatus("Saving your world…", good: true);
         try
         {
-            await localHost.StopAsync(CancellationToken.None);
+            if (!await localHost.StopAsync(CancellationToken.None))
+            {
+                ShowLocalHostStopFailure();
+                return;
+            }
+            GetTree().Quit();
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            ShowLocalHostStopFailure();
         }
         finally
         {
-            GetTree().Quit();
+            isQuittingGame = false;
         }
+    }
+
+    private void ShowLocalHostStopFailure()
+    {
+        if (localHostStopFailure.GetParent() is null)
+        {
+            StyleConfirmation(localHostStopFailure, "Couldn't save and close your world", "Try Again");
+            localHostStopFailure.CancelButtonText = "Keep Game Open";
+            localHostStopFailure.Confirmed += QuitGame;
+            AddChild(localHostStopFailure);
+        }
+        SetStatus("Your world server is still running. Try closing again after fixing the save problem.", good: false);
+        localHostStopFailure.DialogText = "Your world server couldn't finish saving or stopping. The game will stay open so you can try again. Check your save folder and free disk space; if startup recovery is waiting, finish it first.";
+        PopupDialog(localHostStopFailure);
     }
 }

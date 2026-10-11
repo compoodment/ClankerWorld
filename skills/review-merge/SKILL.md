@@ -269,8 +269,27 @@ before either merges.
   checks pass. GraphQL's `enqueuePullRequest` mutation also works. Never merge
   it directly, even if your tools offer to. Keep `status:reviewing` on while it
   is queued; the claim ends when it merges.
-- **While it is queued,** don't push to it: a push takes it out of the queue.
-  Push only a fix you need, then add it again.
+- **Before pushing a needed fix to a queued pull request, remove it from the
+  queue.** GitHub protects a queued head branch and rejects updates. Use the
+  merge-queue view to remove its entry, or use GraphQL's
+  [`dequeuePullRequest`](https://docs.github.com/en/graphql/reference/mutations#dequeuepullrequest)
+  mutation. Confirm that the entry is gone and your review claim still holds
+  before pushing normally. Keep the pull request ready and retain
+  `status:reviewing`; after the push, review the new head, complete any
+  [reviewer-fix check](#fix-what-you-find) and wait for its green CI before
+  adding it again.
+- **If your tools cannot dequeue,** use the queue interface when available.
+  Otherwise, if your tools can close and reopen pull requests, post a signed
+  comment explaining the temporary queue removal, then close and promptly
+  reopen the same pull request. Keep its branch, stacked bases and dependency
+  blockers in place. This temporary operation does not require the follow-through
+  for a pull request that stays closed [without merging](#hand-back-or-close).
+  After reopening, read the newest comments: retain or restore your review
+  claim only if nobody else has claimed it since; leave any newer claim alone.
+  Confirm that it is ready, out of the queue and still on the expected head
+  before pushing. Do not use draft as a hold. If neither removal route is
+  available, report the blocker and do not push. Re-enqueue only after the
+  review and CI checks on the new head described above.
 - **If the queue takes it out,** because its batch failed, a conflict appeared
   or a check timed out, read the batch's CI run (the Verify run for the
   `merge_group` event on a `gh-readonly-queue/main/...` branch). If the

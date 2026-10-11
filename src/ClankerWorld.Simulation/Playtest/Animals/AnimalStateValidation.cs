@@ -13,6 +13,7 @@ public sealed partial class PrivateWorldRuntime
         if (!world.Seeded && (world.Animals.Count != 0 || world.Offers.Count != 0 || world.SupplyTrips.Count != 0 || world.MilkOffers.Count != 0))
             throw new InvalidDataException("An unseeded animal world cannot contain animal history or custody.");
         static bool Identifier(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 512 && !value.Any(char.IsControl);
+        static bool InventoryReference(string? value) => !string.IsNullOrWhiteSpace(value) && !value.Any(char.IsControl);
         static void Unique(IEnumerable<string> ids)
         {
             var values = ids.ToArray();
@@ -38,7 +39,7 @@ public sealed partial class PrivateWorldRuntime
             var seller = society.Inhabitants.FirstOrDefault(person => person.Id == offer.SellerId);
             var buyer = society.Inhabitants.FirstOrDefault(person => person.Id == offer.BuyerId);
             if (seller is null || buyer is null || seller.HouseholdId == buyer.HouseholdId || milk is null || milk.ItemKind != "milk" ||
-                milk.ContainerLotId is null || !(milk.OwnerId == seller.Id || milk.OwnerId == seller.HouseholdId) || !Identifier(offer.ReceivingJugId) || !Identifier(offer.PaymentLotId) ||
+                milk.ContainerLotId is null || !(milk.OwnerId == seller.Id || milk.OwnerId == seller.HouseholdId) || !InventoryReference(offer.ReceivingJugId) || !InventoryReference(offer.PaymentLotId) ||
                 !Identifier(offer.BuildingId) || !map.IsPassable(offer.Position) || offer.OfferedTick < 0 || offer.OfferedTick > society.WorldTick ||
                 !state.WorldSimulation!.Buildings.Any(building => building.InstanceId == offer.BuildingId && building.Position == offer.Position) ||
                 !inventory.Lots.Any(jug => jug.Id == offer.ReceivingJugId && jug.ItemKind == InventoryContainerRules.WaterJug &&

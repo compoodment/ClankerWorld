@@ -31,7 +31,7 @@ public sealed partial class PrivateWorldRuntime
             if (!Enum.IsDefined(request.Status) || !BoundedBusinessText(request.Id, 128) ||
                 !request.Id.StartsWith("tool-making-request:", StringComparison.Ordinal) ||
                 request.Id != ToolMakingRequestId(request.RequesterId, request.BuildingInstanceId, request.RecipeId, request.RequestedTick) ||
-                !BoundedBusinessText(request.BuildingInstanceId, 256) || !BoundedBusinessText(request.RecipeId, 128) ||
+                !BoundedBusinessText(request.BuildingInstanceId, 256) || !IsToolRequestRecipeId(request.RecipeId) ||
                 ToolProgressionRules.Find(request.ItemKind) is null || request.RequestedTick < 0 ||
                 request.LastTransitionTick < request.RequestedTick || request.LastTransitionTick > worldTick ||
                 request.AcceptedTick is { } acceptedTick && (acceptedTick < request.RequestedTick || acceptedTick > request.LastTransitionTick) ||
@@ -106,6 +106,11 @@ public sealed partial class PrivateWorldRuntime
             if (!requests.Any(request => request.Id == job.ToolMakingRequestId && request.JobId == job.JobId))
                 throw new InvalidDataException("A production job has no matching tool request history.");
     }
+
+    // Canonical content local names have no length cap. Keep the full identity
+    // even in withdrawn history whose no-job recipe package has been rolled back.
+    private static bool IsToolRequestRecipeId(string? id) => !string.IsNullOrWhiteSpace(id) &&
+        id == id.Trim() && !id.Any(char.IsControl);
 
     private static bool HasCompleteToolMakingInputs(WorldProductionJob job, RecipeDefinition? recipe, InventoryCheckpoint inventory)
     {

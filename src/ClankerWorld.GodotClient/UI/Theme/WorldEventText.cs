@@ -170,6 +170,7 @@ public static class WorldEventText
             "build_completed" => $"The new {ThingAt(1)} is finished.",
             "recipe_started" => $"Work began on {ThingAt(1).ToLowerInvariant()}.",
             "recipe_completed" => $"A batch of {ThingAt(1).ToLowerInvariant()} was made.",
+            "production_output_unsupported" => "Work on fresh water stopped because it needs a water jug. Its materials are free to use again.",
             "house_tool_made" => $"{Name(snapshot, Field(worldEvent.Detail, 0))} made a {GameUiText.ItemName(Field(worldEvent.Detail, 1)).ToLowerInvariant()}.",
             "field_work_started" => $"{LeadingName(snapshot, worldEvent.Detail)} started work on a field.",
             "field_prepared" => $"{LeadingName(snapshot, worldEvent.Detail)} tilled a field.",

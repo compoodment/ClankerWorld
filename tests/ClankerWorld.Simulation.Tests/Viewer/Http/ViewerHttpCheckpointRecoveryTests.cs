@@ -43,6 +43,12 @@ public sealed partial class ViewerHttpTests
                 old["state"]!["schemaVersion"] = 1;
                 damaged = Encoding.UTF8.GetBytes(old.ToJsonString());
             }
+            // The running host recorded its build beside the checkpoint (#1565).
+            Assert.Equal(SavedBuild.TryRead(path)?.SourceRevision, typeof(SavedBuild).Assembly
+                .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+                .Cast<System.Reflection.AssemblyInformationalVersionAttribute>().Single().InformationalVersion.Split('+')[^1]);
+            if (damage == "schema")
+                File.WriteAllText(SavedBuild.PathFor(path), """{"GameVersion":"0.0.9-alpha.1","SourceRevision":"abc"}""");
             File.WriteAllBytes(path, damaged);
 
             using var restarted = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true, advanceScript: advanceScript);
@@ -58,6 +64,9 @@ public sealed partial class ViewerHttpTests
             Assert.Equal(damage == "schema" ? "different_save_format" : "checkpoint_refused",
                 json.RootElement.GetProperty("reason").GetString());
             Assert.Equal(saveId, json.RootElement.GetProperty("autosave").GetProperty("id").GetString());
+            Assert.False(string.IsNullOrEmpty(json.RootElement.GetProperty("autosave").GetProperty("gameVersion").GetString()));
+            if (damage == "schema")
+                Assert.Equal("0.0.9-alpha.1", json.RootElement.GetProperty("savedByVersion").GetString());
             Assert.Equal(damaged, File.ReadAllBytes(path));
 
             var savedFiles = Directory.GetFiles(path + ".manual").ToDictionary(file => file, File.ReadAllBytes);
