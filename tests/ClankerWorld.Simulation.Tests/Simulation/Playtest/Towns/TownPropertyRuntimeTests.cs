@@ -304,6 +304,7 @@ public sealed partial class TownLandHearingRuntimeTests
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 1;
         public bool Request { get; init; }
+        public string BuildingId { get; init; } = PropertyHouse;
         public string? Target { get; init; }
         public bool? Agree { get; init; }
         public string? Refuser { get; init; }
@@ -321,7 +322,7 @@ public sealed partial class TownLandHearingRuntimeTests
             if (Collect is { } lot && observation.InhabitantId == Filer)
                 selected ??= choices.FirstOrDefault(candidate => candidate.Id == "household_collect:" + lot);
             if (Request && observation.InhabitantId == PropertyFiler)
-                selected ??= choices.FirstOrDefault(candidate => candidate.Id.Contains("|hearing_property_request|" + PropertyHouse + "|", StringComparison.Ordinal) &&
+                selected ??= choices.FirstOrDefault(candidate => candidate.Id.Contains("|hearing_property_request|" + BuildingId + "|", StringComparison.Ordinal) &&
                     (Target is null ? candidate.Id.EndsWith("|town", StringComparison.Ordinal) :
                         candidate.Description.Contains("grant household " + Target + " ", StringComparison.Ordinal)));
             if (Agree is { } agree)

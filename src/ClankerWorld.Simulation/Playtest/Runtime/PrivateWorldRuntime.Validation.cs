@@ -41,7 +41,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
             society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates, deceasedInhabitants.Values,
-            TownPropertyValidation.RecoveredBuildings(towns), inhabitants.Values);
+            towns, inhabitants.Values);
         ValidateFarmFields(fields.ToArray(), map, worldSeed, society.Checkpoint, worldSimulation, worldContent, RoadAndBridgeTiles().ToArray());
         ValidateFieldOrderBindings(fields, instructionsByIdempotency.Values);
         ValidateProductionOrderBindings(worldSimulation, worldContent, inhabitants.Values, instructionsByIdempotency.Values);
@@ -285,12 +285,13 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidatePhysicalInventoryLocations(InventoryCheckpoint inventory,
         WorldContentSimulationState simulation, DeclarativeWorldContentState content,
         IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map, IReadOnlyList<SocietyEstate> estates,
-        IEnumerable<PlaytestDeceasedInhabitantState> deceased, HashSet<string> recoveredBuildings,
+        IEnumerable<PlaytestDeceasedInhabitantState> deceased, IReadOnlyList<TownRuntimeState>? townStates,
         IEnumerable<PlaytestInhabitantState> physical)
     {
         var buildings = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         var people = inhabitants.ToDictionary(item => item.Id, StringComparer.Ordinal);
+        var recoveredBuildings = TownPropertyValidation.RecoveredBuildings(townStates);
         var heldEstates = estates.Where(estate => !estate.Settled)
             .ToDictionary(estate => estate.Id, StringComparer.Ordinal);
         var departures = physical.Concat(deceased.Select(person => person.LastPhysical))
@@ -316,13 +317,12 @@ public sealed partial class PrivateWorldRuntime
         }
         bool HasAllowanceStorage(InventoryLot lot, PlacedBuilding storage)
         {
-            if (storage.HouseholdId is not { } household || !IsEdibleFood(lot.ItemKind) ||
+            if (!IsEdibleFood(lot.ItemKind) ||
                 lot.CarrierId is not null || lot.ContainerLotId is not null || lot.DeliveryBuildingId is not null)
                 return false;
-            if (IsAllowance(lot.OwnerId, lot.Id, lot.Quantity, household)) return true;
             // Death and inheritance keep the same physical stock. An estate's
             // frozen lot must trace back to the deceased person's allowance.
-            return estates.Any(estate =>
+            bool FromHousehold(string household) => IsAllowance(lot.OwnerId, lot.Id, lot.Quantity, household) || estates.Any(estate =>
                 (!estate.Settled && lot.OwnerId == estate.Id || estate.Settled &&
                     (lot.OwnerId == "settlement:communal" || deceased.Any(person =>
                         person.InhabitantId == estate.DeceasedId && person.TownId == lot.OwnerId) ||
@@ -336,6 +336,14 @@ public sealed partial class PrivateWorldRuntime
                     (estate.Settled ? frozen.Quantity >= lot.Quantity : frozen.Quantity == lot.Quantity) &&
                     frozen.StorageBuildingId == storage.InstanceId &&
                     IsAllowance(estate.DeceasedId, frozen.LotId, frozen.Quantity, household)));
+            // Reclamation and an onward grant do not move a former member's
+            // personal allowance. The saved transfer proves this same Store's
+            // prior household, without admitting unrelated personal stock.
+            return storage.HouseholdId is { } home && FromHousehold(home) ||
+                (townStates ?? []).SelectMany(town => town?.LandHearings?.Cases ?? [])
+                    .Where(item => item?.Property?.Transfer?.PriorBuilding is { HouseholdId: not null } prior &&
+                        prior.InstanceId == storage.InstanceId)
+                    .Any(item => FromHousehold(item.Property!.Transfer!.PriorBuilding.HouseholdId!));
         }
         foreach (var lot in inventory.Lots)
         {
@@ -547,7 +555,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
             state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates,
-            state.DeceasedInhabitants ?? [], TownPropertyValidation.RecoveredBuildings(state.Towns), state.Inhabitants);
+            state.DeceasedInhabitants ?? [], state.Towns, state.Inhabitants);
         ValidateFarmFields(state.Fields!.ToArray(), state.Map, state.WorldSeed, state.Society.Society,
             state.WorldSimulation, state.WorldContent, state.RoadTiles.Concat(
                 state.Bridges.SelectMany(bridge => bridge.Entrances)).ToArray());
