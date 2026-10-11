@@ -90,7 +90,7 @@ public sealed partial class PrivateWorldRuntime
 
     private static IReadOnlyList<GoodsMatch> BirthFoodSources(SocietyCheckpoint checkpoint, string actor,
         IReadOnlyList<TownRuntimeState> townStates) => BirthFoodRequest(checkpoint, actor) is { } request
-            ? GoodsInventoryQuery.FindGoods(checkpoint.Inventory, request, (_, lot) =>
+            ? GoodsInventoryQuery.FindConsumableGoods(checkpoint.Inventory, request, (_, lot) =>
                 lot.CarrierId is { } carrier && carrier != actor ? GoodsReason.Custody :
                 OnBorrowedMarketStall(lot, townStates) ? GoodsReason.MarketStall : null).Matches : [];
 

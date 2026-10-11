@@ -12,6 +12,7 @@ using ClankerWorld.Simulation.World;
 var output = args[0];
 Directory.CreateDirectory(output);
 using var generated = CreateGenerated("personal-goods-query-equivalence", new Choices());
+if (!(await generated.AdvanceOneTickAsync()).Advanced) throw new InvalidOperationException("Initial settlement activation failed.");
 var initial = generated.ExportState();
 var actor = initial.Society.Society.Inhabitants.First(person => person.HouseholdId == "household:camp-alpha").Id;
 var household = initial.Society.Society.GetInhabitant(actor).HouseholdId!;
@@ -82,10 +83,12 @@ foreach (var broken in new[] { false, true })
     { Lots = waiting.Society.Society.Inventory.Lots.Where(lot => lot.OwnerId != caregiver &&
         (lot.OwnerId != owner || !InventoryContainerRules.IsFood(lot.ItemKind))).ToArray() };
     inventory = InventoryFixture.AddLot(inventory, "proof-birth-pot", "storage_pot", owner, 1, storageBuildingId: house.InstanceId);
-    inventory = InventoryFixture.AddLot(inventory, "proof-birth-food", "food", owner, 12, storageBuildingId: house.InstanceId, containerLotId: "proof-birth-pot");
+    inventory = InventoryFixture.AddLot(inventory, "proof-birth-food", "food", owner, 6, storageBuildingId: house.InstanceId, containerLotId: "proof-birth-pot");
+    inventory = InventoryFixture.AddLot(inventory, "proof-birth-second-pot", "storage_pot", owner, 1, storageBuildingId: house.InstanceId);
+    inventory = InventoryFixture.AddLot(inventory, "proof-birth-second-food", "food", owner, 6, storageBuildingId: house.InstanceId, containerLotId: "proof-birth-second-pot");
     inventory = InventoryFixture.Reserve(inventory, "proof-other-meal", owner, "proof-birth-food", 2, "another_meal", long.MaxValue);
     inventory = InventoryFixture.AddLot(inventory, "proof-ballast", "stone", caregiver, PersonalEquipmentRules.Capacity(inventory, caregiver, null));
-    if (broken) inventory = inventory with { Lots = inventory.Lots.Select(lot => lot.Id == "proof-birth-pot" ? lot with { ConditionBasisPoints = 0 } : lot).ToArray() };
+    if (broken) inventory = inventory with { Lots = inventory.Lots.Select(lot => lot.Id is "proof-birth-pot" or "proof-birth-second-pot" ? lot with { ConditionBasisPoints = 0 } : lot).ToArray() };
     var away = waiting.Map.Tiles.First(tile => waiting.Map.IsPassable(tile.Position) && waiting.Map.FootDistance(tile.Position, house.Position) > 3 &&
         waiting.Inhabitants.All(person => person.Position != tile.Position)).Position;
     var state = WithInventory(waiting, inventory) with
@@ -98,7 +101,7 @@ foreach (var broken in new[] { false, true })
     await CaptureRun(world, recorder, output, $"birth-{broken}", 3);
     if (world.Society.Births.Count != (broken ? 0 : 1)) throw new InvalidOperationException("Birth gate differed.");
     var retained = world.Society.Inventory.GetLot("proof-birth-food");
-    if (retained.Quantity != (broken ? 12 : 8) || retained.ContainerLotId != "proof-birth-pot" || retained.StorageBuildingId != house.InstanceId)
+    if (retained.Quantity != (broken ? 6 : 2) || retained.ContainerLotId != "proof-birth-pot" || retained.StorageBuildingId != house.InstanceId)
         throw new InvalidOperationException("Birth did not consume food in place.");
 }
 Console.WriteLine("Eight native scenarios: six physical recoveries, birth in a reserved family with full cargo, and broken-pot rejection.");

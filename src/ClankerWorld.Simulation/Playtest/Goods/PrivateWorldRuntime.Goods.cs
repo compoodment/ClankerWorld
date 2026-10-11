@@ -21,6 +21,7 @@ public sealed partial class PrivateWorldRuntime
 
     private GoodsAnswer FindGoods(InventoryCheckpoint inventory, GoodsRequest request)
     {
+        GoodsInventoryQuery.Validate(request);
         var routes = request.Use is GoodsUse.Collect or GoodsUse.ReachableHoldings or GoodsUse.Recover
             ? new Dictionary<(GridPoint Position, int Range), bool>() : null;
         return GoodsInventoryQuery.FindGoods(inventory, request,
