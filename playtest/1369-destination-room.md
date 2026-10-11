@@ -1,0 +1,1 @@
+- On the paired world: fill a private 1×1 Silo to 63 units, leave four planting items nearby and direct an adult to deliver them there. The Silo should accept one unit, show its 64-unit limit and leave three outside; saving and loading should preserve the remaining stock. ([#1369](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1369))

@@ -71,7 +71,7 @@ public sealed partial class PrivateWorldRuntime
         AddChildHelpingCandidates(candidates, actor, state);
         var house = householdId is null ? null : HouseForHousehold(householdId);
         if (state.HungerBasisPoints >= 6_000 && PersonalSpareFood(actor) is not null &&
-            (house is null || StorageRoomAfterInboundDeliveries(house.InstanceId) > 0) &&
+            (house is null || DestinationRoom(house.InstanceId) > 0) &&
             FindUnoccupiedRoute(actor, state.Position,
                 house?.Position ?? SettlementStoragePosition,
                 house is null ? ResourceInteractionRange : 0).Count > 0)
@@ -94,7 +94,7 @@ public sealed partial class PrivateWorldRuntime
                 return;
             var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
             var house = householdId is null ? null : HouseForHousehold(householdId);
-            if (house is not null && StorageRoomAfterInboundDeliveries(house.InstanceId) == 0)
+            if (house is not null && DestinationRoom(house.InstanceId) == 0)
                 return;
             var store = house?.Position ?? SettlementStoragePosition;
             var interactionRange = house is null ? ResourceInteractionRange : 0;

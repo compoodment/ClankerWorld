@@ -106,7 +106,7 @@ public sealed partial class PrivateWorldRuntime
     private void AddWarehouseStockCandidate(List<CognitionCandidate> candidates, string actor,
         PlaytestInhabitantState state)
     {
-        if (WarehouseForResident(actor) is not { } warehouse || StorageRoom(warehouse.InstanceId) == 0 || PersonalWarehouseSurplus(actor) is not { } surplus ||
+        if (WarehouseForResident(actor) is not { } warehouse || DestinationRoom(warehouse.InstanceId) == 0 || PersonalWarehouseSurplus(actor) is not { } surplus ||
             state.Position != warehouse.Position &&
             FindUnoccupiedRoute(actor, state.Position, warehouse.Position, 0).Count == 0)
             return;
@@ -125,7 +125,7 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, state, warehouse.Position, "town_warehouse", 0);
             return;
         }
-        var quantity = Math.Min(StorageRoom(warehouse.InstanceId), Math.Min(WarehouseLoadQuantity, surplus.Quantity));
+        var quantity = Math.Min(DestinationRoom(warehouse.InstanceId), Math.Min(WarehouseLoadQuantity, surplus.Quantity));
         if (quantity == 0) return;
         var availableBefore = PersonalWarehouseAvailableQuantity(actor, surplus.Lot.ItemKind);
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
@@ -143,7 +143,7 @@ public sealed partial class PrivateWorldRuntime
             WarehousesForTown(townId).FirstOrDefault(building => DeliveryDestinationMatches(order, building)) is not { } warehouse ||
             PersonalWarehouseSurplus(actor, order.TargetItemKind, order.DeliveryLotId) is not { } surplus)
             return null;
-        var quantity = Math.Min(maximumQuantity, Math.Min(StorageRoom(warehouse.InstanceId),
+        var quantity = Math.Min(maximumQuantity, Math.Min(DestinationRoom(warehouse.InstanceId),
             Math.Min(WarehouseLoadQuantity, surplus.Quantity)));
         return quantity <= 0 ? null : new DeliveryOrderPlan("town_surplus", warehouse, townId,
             surplus.Lot, surplus.Lot, quantity, quantity, DirectDelivery: true);

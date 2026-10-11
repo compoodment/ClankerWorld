@@ -51,7 +51,7 @@ public sealed partial class PrivateWorldRuntime
         }
         if (society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             HouseForHousehold(householdId) is not { } house ||
-            StorageRoomAfterInboundDeliveries(house.InstanceId) < 1 ||
+            DestinationRoom(house.InstanceId) < 1 ||
             person.Position != house.Position && FindUnoccupiedRoute(actor, person.Position, house.Position, 0).Count == 0)
             return;
         foreach (var artifact in HeldKnowledgeArtifacts(actor))
@@ -90,7 +90,7 @@ public sealed partial class PrivateWorldRuntime
         if (!HeldKnowledgeArtifacts(actor).Any(item => item.Id == artifact.Id) ||
             society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             HouseForHousehold(householdId) is not { } house ||
-            StorageRoomAfterInboundDeliveries(house.InstanceId) < 1)
+            DestinationRoom(house.InstanceId) < 1)
             return true;
         if (person.Position != house.Position)
         {

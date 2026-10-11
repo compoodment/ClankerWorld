@@ -109,7 +109,7 @@ public sealed partial class PrivateWorldRuntime
         var householdId = society.Checkpoint.GetInhabitant(actor).HouseholdId;
         if (!AdultResident(actor) || householdId is null || CarriedHouseDelivery(actor) is not null ||
             BlacksmithForHousehold(householdId) is not { } blacksmith ||
-            StorageRoomAfterInboundDeliveries(blacksmith.InstanceId) == 0 ||
+            DestinationRoom(blacksmith.InstanceId) == 0 ||
             BlacksmithOreStocked(householdId, blacksmith.InstanceId) >= BlacksmithInputTarget(blacksmith.InstanceId, "iron_ore"))
             return;
         if (PersonalSmithOre(actor) is not null)
@@ -155,7 +155,7 @@ public sealed partial class PrivateWorldRuntime
         var stocked = BlacksmithOreStocked(householdId, blacksmith.InstanceId);
         var target = BlacksmithInputTarget(blacksmith.InstanceId, "iron_ore");
         if (stocked >= target) return;
-        var quantity = Math.Min(StorageRoomAfterInboundDeliveries(blacksmith.InstanceId),
+        var quantity = Math.Min(DestinationRoom(blacksmith.InstanceId),
             Math.Min(target - stocked, AvailableLotQuantity(ore)));
         if (quantity <= 0) return;
         if (state.Position != blacksmith.Position)
@@ -216,7 +216,7 @@ public sealed partial class PrivateWorldRuntime
 
     private bool BlacksmithHasDeliverableInput(string householdId, PlacedBuilding blacksmith, string actor, string itemKind)
     {
-        if (StorageRoomAfterInboundDeliveries(blacksmith.InstanceId) <= 0 ||
+        if (DestinationRoom(blacksmith.InstanceId) <= 0 ||
             BlacksmithInputForDelivery(householdId, blacksmith, actor, itemKind) is not { } input)
             return false;
         if (input.OwnerId != actor) return FreeCarryCapacity(actor) > 0;
@@ -228,7 +228,7 @@ public sealed partial class PrivateWorldRuntime
         string actor, string? itemKind = null)
     {
         var blacksmith = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == blacksmithId);
-        if (blacksmith is null || StorageRoomAfterInboundDeliveries(blacksmithId) <= 0) return null;
+        if (blacksmith is null || DestinationRoom(blacksmithId) <= 0) return null;
         var inventory = society.Checkpoint.Inventory;
         foreach (var (kind, target) in BlacksmithInputTargets(blacksmithId))
         {
@@ -284,7 +284,7 @@ public sealed partial class PrivateWorldRuntime
         string blacksmithId, string actor)
     {
         var blacksmith = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == blacksmithId);
-        if (blacksmith is null || StorageRoomAfterInboundDeliveries(blacksmithId) <= 0) return null;
+        if (blacksmith is null || DestinationRoom(blacksmithId) <= 0) return null;
         if (BlacksmithInputToGather(householdId, blacksmithId, actor) is { } missing)
             return missing;
         if (PersonalSmithOre(actor) is not null ||
@@ -313,7 +313,7 @@ public sealed partial class PrivateWorldRuntime
             }
             return;
         }
-        if (StorageRoomAfterInboundDeliveries(blacksmith.InstanceId) == 0)
+        if (DestinationRoom(blacksmith.InstanceId) == 0)
             return;
         var input = BlacksmithInputForDelivery(householdId, blacksmith, actor);
         if (input is null)
@@ -346,7 +346,7 @@ public sealed partial class PrivateWorldRuntime
             BlacksmithForHousehold(householdId) is not { } blacksmith ||
             BlacksmithInputForDelivery(householdId, blacksmith, actor) is not { } input)
             return;
-        var room = StorageRoomAfterInboundDeliveries(blacksmith.InstanceId);
+        var room = DestinationRoom(blacksmith.InstanceId);
         if (room == 0) return;
         if (input.OwnerId == actor)
         {
@@ -409,7 +409,7 @@ public sealed partial class PrivateWorldRuntime
             .Sum(AvailableLotQuantity);
         var missing = BlacksmithInputTarget(blacksmith.InstanceId, input.ItemKind) - stocked - incoming;
         var quantity = Math.Min(maximumQuantity, Math.Min(missing,
-            Math.Min(StorageRoomAfterInboundDeliveries(blacksmith.InstanceId),
+            Math.Min(DestinationRoom(blacksmith.InstanceId),
                 direct ? SpareCarriedQuantity(actor, input) : AvailableLotQuantity(input))));
         // Personal mined ore has a dedicated native delivery without the loose-input load limit.
         if (!direct || input.ItemKind != "iron_ore") quantity = Math.Min(quantity, HouseHaulLoadQuantity);

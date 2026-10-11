@@ -142,7 +142,7 @@ public sealed partial class PrivateWorldRuntime
     private InventoryLot? BuildingPreparationToolToStore(string actor, string householdId)
     {
         if (inhabitants[actor].Project is { Stage: not ("completed" or "cancelled") } ||
-            HouseForHousehold(householdId) is not { } house || StorageRoom(house.InstanceId) == 0 ||
+            HouseForHousehold(householdId) is not { } house || DestinationRoom(house.InstanceId) == 0 ||
             NeededBuildingMaterial(actor, householdId) is not { } need ||
             MaterialSource(need.Material.ResourceId, actor, HouseForHousehold(householdId)?.Position ?? SettlementStoragePosition,
                 HouseForHousehold(householdId) is null ? ResourceInteractionRange : 0, useHarvestBonus: false) is not { } source)

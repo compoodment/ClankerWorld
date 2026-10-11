@@ -44,7 +44,7 @@ public sealed partial class PrivateWorldRuntime
             if (person.HungerBasisPoints < 6_000 || HouseForHousehold(householdId) is not { } foodHouse ||
                 !DeliveryDestinationMatches(order, foodHouse) || PersonalSpareFood(actor, order.TargetItemKind, order.DeliveryLotId) is not { } food)
                 return null;
-            var quantity = Math.Min(maximumQuantity, Math.Min(StorageRoomAfterInboundDeliveries(foodHouse.InstanceId),
+            var quantity = Math.Min(maximumQuantity, Math.Min(DestinationRoom(foodHouse.InstanceId),
                 Math.Min(HouseHaulLoadQuantity, AvailableLotQuantity(food) - 1)));
             return quantity > 0 ? new("household_food", foodHouse, householdId, food, food, quantity, quantity,
                 DirectDelivery: true) : null;
@@ -110,7 +110,7 @@ public sealed partial class PrivateWorldRuntime
             if (quantity <= 0 || quantity > available || quantity > DeliveryOrderRemaining(order) ||
                 vessel && quantity != available) continue;
             var physicalQuantity = vessel ? HouseDeliveryPhysicalQuantity(inventory, lot) : quantity;
-            if (physicalQuantity > HouseDeliveryRoom(lot)) continue;
+            if (physicalQuantity > DestinationRoom(lot.DeliveryBuildingId!, lot)) continue;
             return new(route, destination, destination.HouseholdId!, lot, lot, vessel ? 1 : quantity, quantity, DirectDelivery: true);
         }
         return null;
@@ -167,7 +167,7 @@ public sealed partial class PrivateWorldRuntime
         if (order.DeliveryRoute is null or "blacksmith_input" && order.TargetItemKind == "iron_ore" &&
             HouseholdFor(actor) is { } oreHousehold && BlacksmithForHousehold(oreHousehold) is { } oreSmith &&
             DeliveryDestinationMatches(order, oreSmith) &&
-            StorageRoomAfterInboundDeliveries(oreSmith.InstanceId) > 0 &&
+            DestinationRoom(oreSmith.InstanceId) > 0 &&
             BlacksmithOreStocked(oreHousehold, oreSmith.InstanceId) < BlacksmithInputTarget(oreSmith.InstanceId, "iron_ore") &&
             PersonalSmithOre(actor) is null && !BlacksmithHasDeliverableInput(oreHousehold, oreSmith, actor, "iron_ore") &&
             MaterialSource("iron_ore", actor, oreSmith.Position) is { } oreSource &&

@@ -11,7 +11,7 @@ public sealed partial class PrivateWorldRuntime
     {
         var actor = instruction.TargetInhabitantId;
         if (!ReadyForBriefInteraction(actor) || CustodyOrderHouse(instruction, HouseholdFor(actor)) is not { } house ||
-            StorageRoomAfterInboundDeliveries(house.InstanceId) <= 0 ||
+            DestinationRoom(house.InstanceId) <= 0 ||
             !IsWithinInteractionRange(person.Position, house.Position, 1) &&
             FindUnoccupiedRoute(actor, person.Position, house.Position, 1).Count == 0)
             return null;
@@ -58,7 +58,7 @@ public sealed partial class PrivateWorldRuntime
             return order.TargetPosition is not null
                 ? "The requested tile does not contain a House held by this agent's household."
                 : $"The agent needs a House held by their household to store personal {subject}.";
-        if (StorageRoomAfterInboundDeliveries(house.InstanceId) <= 0)
+        if (DestinationRoom(house.InstanceId) <= 0)
             return $"The House storage is full; make room before storing more {subject}.";
         if (!PersonalStorageLots(actor, house.InstanceId).Any(lot => lot.ItemKind == StorageOrderItemKind(order)))
             return order.Action == "store_equipment"

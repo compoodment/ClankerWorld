@@ -74,6 +74,10 @@ public sealed class InboundCustodyStorageTests
         var jug = world.Society.Inventory.GetLot("000-inbound-jug");
         Assert.Equal((hauler, (string?)null, house.InstanceId), (jug.OwnerId, jug.CarrierId, jug.DeliveryBuildingId));
         Assert.Equal(initialStock, world.Society.Inventory.Lots.Where(lot => lot.StorageBuildingId == house.InstanceId).Sum(lot => lot.Quantity));
+        var beforeRoomQuery = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        Assert.Equal(64 - initialStock - 4, world.DestinationRoom(house.InstanceId));
+        Assert.Equal(64 - initialStock, world.DestinationRoom(house.InstanceId, jug));
+        Assert.Equal(beforeRoomQuery, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         hauling.Preferred = "safe_idle";
         if (mode != "none") world.SubmitInstruction(new("custody-capacity", "owner:test", actor, OwnerInstructionKind.MustDo,
             mode == "borrowed" ? vessel ? "return one borrowed water jug" : "return four borrowed wood" :

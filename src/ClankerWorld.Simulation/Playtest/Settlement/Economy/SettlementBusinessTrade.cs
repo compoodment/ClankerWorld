@@ -57,11 +57,11 @@ public sealed partial class PrivateWorldRuntime
             .Where(lot => restaurants.Any(building => WorkstationInputTarget(building, itemKind) >
                     WorkstationOnsiteQuantity(inventory, building, itemKind) +
                     WorkstationIncomingQuantity(inventory, building, itemKind) &&
-                WorkstationDeliveryRoom(inventory, building.InstanceId) > 0 &&
+                DestinationRoom(inventory, building.InstanceId) > 0 &&
                 (lot.ContainerLotId is not { } containerId ||
                  !HasActiveContainerReservation(inventory, containerId) &&
                  !UnusableDeliveryStock(inventory, inventory.GetLot(containerId)) &&
-                 ContainerFamilyQuantity(inventory, containerId) <= WorkstationDeliveryRoom(inventory, building.InstanceId))))
+                 ContainerFamilyQuantity(inventory, containerId) <= DestinationRoom(inventory, building.InstanceId))))
             .Sum(lot => UsableWorkstationQuantity(inventory, lot));
         var householdStock = inventory.Lots.Where(lot => lot.OwnerId == householdId && lot.ItemKind == itemKind &&
                 lot.CarrierId is null && !OnBorrowedMarketStall(lot) &&
@@ -169,13 +169,9 @@ public sealed partial class PrivateWorldRuntime
     {
         var inventory = society.Checkpoint.Inventory;
         var equipment = inhabitants[buyer].Equipment;
-        var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
-        var capacity = IsFarmStorage(building) ? FarmFieldRules.FarmStorageCapacity :
-            BuildingStorageRules.Capacity(definition, building) ?? int.MaxValue;
         return PersonalEquipmentRules.CarriedQuantity(inventory, buyer, equipment) - payment + goods +
                 ReservedBusinessCarrySpace(buyer) <= PersonalEquipmentRules.Capacity(inventory, buyer, equipment) + HorseCargoCapacity(buyer) &&
-            (long)StoredQuantity(building.InstanceId) - goods + payment + ReservedStorageGrowth(building.InstanceId) +
-                ReservedBusinessStorageSpace(building.InstanceId) + InboundDeliveryQuantity(inventory, building.InstanceId) <= capacity;
+            payment <= DestinationRoom(inventory, building.InstanceId, outgoingQuantity: goods);
     }
 
     private static HashSet<string> BestUsableToolIds(InventoryCheckpoint inventory, string actor) =>
@@ -425,15 +421,10 @@ public sealed partial class PrivateWorldRuntime
             Math.Max(0, offer.FirstQuantity - offer.SecondQuantity);
         var afterCarry = PersonalEquipmentRules.CarriedQuantity(inventory, trade.BuyerId, equipment) -
             offer.SecondQuantity + offer.FirstQuantity + otherCarryReservations;
-        var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
-        var capacity = IsFarmStorage(building) ? FarmFieldRules.FarmStorageCapacity :
-            BuildingStorageRules.Capacity(definition, building) ?? int.MaxValue;
-        var otherStorageReservations = ReservedBusinessStorageSpace(trade.BuildingInstanceId) -
-            Math.Max(0, offer.SecondQuantity - offer.FirstQuantity);
-        var afterStorage = (long)StoredQuantity(trade.BuildingInstanceId) - offer.FirstQuantity +
-            offer.SecondQuantity + ReservedStorageGrowth(trade.BuildingInstanceId) + otherStorageReservations +
-            InboundDeliveryQuantity(inventory, trade.BuildingInstanceId);
-        if (afterCarry > PersonalEquipmentRules.Capacity(inventory, trade.BuyerId, equipment) + HorseCargoCapacity(trade.BuyerId) || afterStorage > capacity)
+        var storageRoom = DestinationRoom(inventory, trade.BuildingInstanceId, outgoingQuantity: offer.FirstQuantity,
+            releasedBusinessReservation: Math.Max(0, offer.SecondQuantity - offer.FirstQuantity));
+        if (afterCarry > PersonalEquipmentRules.Capacity(inventory, trade.BuyerId, equipment) + HorseCargoCapacity(trade.BuyerId) ||
+            offer.SecondQuantity > storageRoom)
             return "There is no longer enough receiving space.";
         if (!IsWithinInteractionRange(buyerState.Position, trade.Position, ResourceInteractionRange) &&
             FindUnoccupiedRoute(trade.BuyerId, buyerState.Position, trade.Position, ResourceInteractionRange).Count == 0)

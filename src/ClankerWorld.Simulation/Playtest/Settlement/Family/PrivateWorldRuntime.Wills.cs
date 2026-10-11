@@ -239,7 +239,7 @@ public sealed partial class PrivateWorldRuntime
             .Where(lot => InventoryContainerRules.IsFood(lot.ItemKind))
             .Select(lot => lot.ItemKind).Append(InventoryContainerRules.Handcart), StringComparer.Ordinal);
         return towns.Select(town => TownInheritanceWarehouse(town.Id) is { } warehouse
-                ? new SocietyTownStore(town.Id, warehouse.InstanceId, StorageRoom(warehouse.InstanceId), refused)
+                ? new SocietyTownStore(town.Id, warehouse.InstanceId, DestinationRoom(warehouse.InstanceId), refused)
                 : null)
             .OfType<SocietyTownStore>().ToArray();
     }

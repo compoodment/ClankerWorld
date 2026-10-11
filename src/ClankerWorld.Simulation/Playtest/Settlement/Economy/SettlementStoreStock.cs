@@ -21,7 +21,7 @@ public sealed partial class PrivateWorldRuntime
             buildingId is not null && store.InstanceId != buildingId)
             return null;
         var inventory = society.Checkpoint.Inventory;
-        var room = RemainingDeliveryRoom(inventory, store.InstanceId);
+        var room = DestinationRoom(inventory, store.InstanceId);
         if (room == 0) return null;
         var protectedToolIds = BestUsableToolIds(inventory, actor);
         var sources = inventory.Lots.Where(lot => IsLooseBusinessLot(lot) && !OnBorrowedMarketStall(lot) &&
