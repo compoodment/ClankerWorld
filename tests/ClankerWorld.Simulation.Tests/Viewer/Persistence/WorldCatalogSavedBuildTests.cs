@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Control;
 using ClankerWorld.Viewer.Observation;
@@ -7,6 +8,39 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class WorldCatalogSavedBuildTests
 {
+    [Theory]
+    [InlineData("GameVersion", "42")]
+    [InlineData("GameVersion", "[]")]
+    [InlineData("GameVersion", "{}")]
+    [InlineData("SourceRevision", "42")]
+    [InlineData("SourceRevision", "[]")]
+    [InlineData("SourceRevision", "{}")]
+    public void MalformedOptionalBuildValuesDoNotPreventReadingTheWorldCatalog(string field, string malformedJson)
+    {
+        var directory = Directory.CreateTempSubdirectory("catalog-build-diagnostics-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "active.json");
+            var indexPath = path + ".worlds/catalog.json";
+            using var runtime = new PrivateWorldRuntime("catalog-build-diagnostics");
+            var settings = new WorldAutosaveSettings(runtime.Society.WorldId, true, 5, 3, DateTimeOffset.MinValue, -1);
+            var catalog = new WorldCatalogStore(path, runtime.ExportState(), [], settings);
+            var document = JsonNode.Parse(File.ReadAllBytes(indexPath))!;
+            document["Worlds"]![0]![field] = JsonNode.Parse(malformedJson);
+            var original = document.ToJsonString();
+            File.WriteAllText(indexPath, original);
+            var identity = WorldCatalogStore.ReadActiveIdentity(path);
+            Assert.Equal(runtime.Society.WorldId, identity?.WorldId);
+            Assert.Null(field == "GameVersion" ? identity?.GameVersion : identity?.SourceRevision);
+            Assert.Equal(original, File.ReadAllText(indexPath));
+            var reopened = new WorldCatalogStore(path, runtime.ExportState(), [], settings);
+            Assert.Equal(catalog.Active().Id, reopened.Active().Id);
+            using var restored = PrivateWorldRuntime.Restore(reopened.Read(reopened.Active().Id));
+            restored.Validate();
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [Fact]
     public void CatalogEntriesNameTheBuildThatLastWroteOrOpenedEachWorld()
     {

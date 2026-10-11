@@ -108,12 +108,13 @@ public sealed partial class PrivateWorldStartupRecovery
             var oldAssignments = providers.CaptureRuntimeConfiguration().Assignments ?? [];
             var oldSettings = autosave.Capture();
             SaveTimelineRestorePoint? timeline = null;
+            CheckpointRestorePoint? checkpointRestore = null;
             var checkpointAttempted = false;
             var assignmentsAttempted = false;
             var settingsAttempted = false;
             try
             {
-                _ = stateFile.PreserveDamagedCheckpoint(damagedBytes!);
+                checkpointRestore = stateFile.PreserveDamagedCheckpoint(damagedBytes!);
                 timeline = saves.ContinueFrom(id);
                 assignmentsAttempted = true;
                 providers.RestoreWorldAssignments(saved.Assignments);
@@ -131,7 +132,7 @@ public sealed partial class PrivateWorldStartupRecovery
             catch
             {
                 recovered.Dispose();
-                if (checkpointAttempted) stateFile.RestorePreservedCheckpoint(damagedBytes!);
+                if (checkpointAttempted) stateFile.RestorePreservedCheckpoint(checkpointRestore!);
                 if (assignmentsAttempted) providers.RestoreWorldAssignments(oldAssignments);
                 if (settingsAttempted) autosave.RestoreFromCheckpoint(oldSettings);
                 if (timeline is not null) saves.RestoreTimeline(timeline);

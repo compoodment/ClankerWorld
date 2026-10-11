@@ -16,7 +16,8 @@ namespace ClankerWorld.Viewer.Observation;
 public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
     bool IsAutosave = false, SaveBranch? Branch = null, string? ContinuedFromId = null,
     DateTimeOffset? ContinuedFromCreatedUtc = null, long BranchPosition = 0,
-    string? GameVersion = null, string? SourceRevision = null);
+    [property: JsonConverter(typeof(SavedBuildTextConverter))] string? GameVersion = null,
+    [property: JsonConverter(typeof(SavedBuildTextConverter))] string? SourceRevision = null);
 public sealed record ManualSaveOverwriteReceipt(ManualWorldSave Saved, string BackupId);
 
 /// <summary>

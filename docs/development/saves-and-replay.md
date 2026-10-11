@@ -1813,7 +1813,10 @@ its "different save format" message. Each world catalog entry in
 same two fields, so any version can list who saved a world without restoring
 it; the host stamps an entry when it creates, archives, selects or starts with
 that world. These records are diagnostic only: they
-never change world state, replay digests or whether a save loads
+never change world state, replay digests or whether a save loads. Unusable
+optional build fields read as unknown. Recovery rollback restores the refused
+checkpoint's prior build record (or its absence), and a successful retry stamps
+the recovering build again
 ([releasing](releasing.md#save-and-content-compatibility)). They let the
 planned launcher offer the version that last saved a world
 ([#1566](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1566)).
