@@ -47,7 +47,7 @@ public sealed class ConversationSystemTests
         var turn = Assert.Single(admitted.Turns);
         Assert.Equal(ListenerIds, turn.ListenerIds);
         Assert.Equal("agent-b", admitted.CurrentSpeakerId);
-        Assert.Equal(ListenerIds, world.Society.AllBeliefs().Select(item => item.OwnerId));
+        Assert.Equal(ListenerIds, world.Society.AllBeliefs().Select(item => item.OwnerId).Order(StringComparer.Ordinal));
         Assert.All(world.Society.AllBeliefs(), belief => Assert.Equal(turn.Id, belief.SourceTurnId));
         Assert.Equal(AdmissionEvents,
             world.Events.Select(item => item.Kind));

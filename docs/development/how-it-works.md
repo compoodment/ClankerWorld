@@ -98,6 +98,9 @@ proposal cannot alter the committed snapshot. Actual loads still perform the
 existing suspension transitions. `DerivedVerification.RecomputeOnHit` compares
 every cache hit with a fresh computation when enabled; the test assembly enables
 it at startup. Derived values and the switch never enter checkpoints or digests.
+The [conversation equivalence probe](conversation-system-equivalence/README.md)
+checks native public turns and listener memories alongside the general tick
+comparison.
 
 Every step preserves these contracts:
 
