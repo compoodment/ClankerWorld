@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Control;
 using ClankerWorld.Viewer.Observation;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -69,6 +70,61 @@ public sealed class WorldCatalogSavedBuildTests
 
             catalog.Select(added.Id);
             AssertThisBuild(catalog.Capture().Worlds.Single(world => world.Id == added.Id));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Theory]
+    [InlineData("older", "other_version")]
+    [InlineData("current", "incompatible")]
+    [InlineData(null, "incompatible")]
+    public void UnrestorableWorldListAndSelectionPreserveFiles(string? savedBuild, string compatibility)
+    {
+        var directory = Directory.CreateTempSubdirectory("catalog-other-version-");
+        try
+        {
+            string id;
+            string activePath;
+            using (var host = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true))
+            using (var client = host.CreateClient())
+            {
+                host.Services.GetRequiredService<PrivateWorldRuntime>().Pause();
+                using var other = new PrivateWorldRuntime("catalog-other-version");
+                other.Pause();
+                id = host.Services.GetRequiredService<WorldCatalogStore>().Add("Other", other.ExportState()).Id;
+                activePath = host.Services.GetRequiredService<PrivateWorldStateFile>().Path;
+            }
+            var indexPath = activePath + ".worlds/catalog.json";
+            var document = JsonNode.Parse(File.ReadAllBytes(indexPath))!;
+            var world = document["Worlds"]!.AsArray().Single(node => node!["Id"]!.GetValue<string>() == id)!;
+            world["GameVersion"] = savedBuild switch
+            {
+                "older" => "0.0.1-older",
+                "current" => BuildInformation.Version,
+                _ => null,
+            };
+            File.WriteAllText(indexPath, document.ToJsonString());
+            var checkpointPath = Path.Combine(activePath + ".worlds", id + ".save");
+            var damaged = File.ReadAllBytes(checkpointPath);
+            damaged[0] = (byte)'x';
+            File.WriteAllBytes(checkpointPath, damaged);
+
+            using var reopened = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true);
+            using var reopenedClient = reopened.CreateClient();
+            var runtime = reopened.Services.GetRequiredService<PrivateWorldRuntime>();
+            runtime.Pause();
+            var selection = reopened.Services.GetRequiredService<WorldSelectionCoordinator>();
+            var activeWorld = runtime.Society.WorldId;
+            var activeBytes = File.ReadAllBytes(activePath);
+            var indexBytes = File.ReadAllBytes(indexPath);
+            var listed = selection.List().Worlds.Single(entry => entry.Id == id);
+            Assert.Equal(compatibility, listed.Compatibility);
+            if (savedBuild == "older") Assert.Contains("0.0.1-older", listed.CompatibilityReason, StringComparison.Ordinal);
+            Assert.Throws<InvalidDataException>(() => selection.Select(id));
+            Assert.Equal(activeWorld, runtime.Society.WorldId);
+            Assert.Equal(activeBytes, File.ReadAllBytes(activePath));
+            Assert.Equal(indexBytes, File.ReadAllBytes(indexPath));
+            Assert.Equal(damaged, File.ReadAllBytes(checkpointPath));
         }
         finally { directory.Delete(recursive: true); }
     }

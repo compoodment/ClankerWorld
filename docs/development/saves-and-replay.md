@@ -1839,13 +1839,17 @@ its "different save format" message. Each world catalog entry in
 `catalog.json` records the build that last wrote or opened that world in the
 same two fields, so any version can list who saved a world without restoring
 it; the host stamps an entry when it creates, archives, selects or starts with
-that world. These records are diagnostic only: they
+that world. When a listed world can't be restored and its entry names another
+version, its compatibility is `other_version` instead of `incompatible`, and
+Load World offers to open it in that version through the launcher. A damaged
+save from this build, a world from before versions were recorded, or a missing
+model setup stays `incompatible`. These records are diagnostic only: they
 never change world state, replay digests or whether a save loads. Unusable
 optional build fields read as unknown. Recovery rollback restores the refused
 checkpoint's prior build record (or its absence), and a successful retry stamps
 the recovering build again
 ([releasing](releasing.md#save-and-content-compatibility)). They let the
-planned launcher offer the version that last saved a world
+launcher offer the version that last saved a world
 ([#1566](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1566)).
 
 ### Save branches

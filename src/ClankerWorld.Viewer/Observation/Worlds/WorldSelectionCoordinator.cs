@@ -193,7 +193,7 @@ public sealed class WorldSelectionCoordinator(
             else cacheHit = true;
             world = WithThumbnail(world, checkedCheckpoint.Thumbnail);
             if (!checkedCheckpoint.Restorable)
-                return Incompatible(world);
+                return Unrestorable(world);
             // History files and provider credentials can change without a
             // checkpoint rewrite; never reuse their previous assessment.
             stateFile.VerifyRequiredHistory(checkedCheckpoint.HistoryArchiveHead, checkedCheckpoint.RetiredRequests);
@@ -208,7 +208,7 @@ public sealed class WorldSelectionCoordinator(
         catch (Exception exception) when (exception is InvalidDataException or ArgumentException or
             FileNotFoundException or System.Text.Json.JsonException or FormatException or InvalidOperationException)
         {
-            return Incompatible(world);
+            return Unrestorable(world);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -243,11 +243,26 @@ public sealed class WorldSelectionCoordinator(
         }
     }
 
-    private static CatalogWorld Incompatible(CatalogWorld world) => world with
-    {
-        Compatibility = "incompatible",
-        CompatibilityReason = "The saved checkpoint or required content cannot be restored."
-    };
+    /// <summary>
+    /// A world this build can't restore. When another game version last saved
+    /// it, the player can open it there (#1566), so it is told apart from a
+    /// damaged save. A missing model setup stays plain "incompatible".
+    /// </summary>
+    internal static CatalogWorld Unrestorable(CatalogWorld world) =>
+        world.GameVersion is { Length: > 0 } version && version != BuildInformation.Version
+            ? world with
+            {
+                Compatibility = OtherVersion,
+                CompatibilityReason = $"ClankerWorld {version} saved this world, and this version can't open it.",
+            }
+            : world with
+            {
+                Compatibility = "incompatible",
+                CompatibilityReason = "The saved checkpoint or required content cannot be restored."
+            };
+
+    /// <summary>Compatibility of a world that another game version can open.</summary>
+    public const string OtherVersion = "other_version";
 
     public ViewerWorldPreview Preview(GeographyOptions geography)
     {
@@ -320,7 +335,7 @@ public sealed class WorldSelectionCoordinator(
                 ?? throw new FileNotFoundException("The selected world does not exist.");
             if (entry.Id == catalog.Capture().ActiveId) return entry;
             var assessed = Assess(entry, out _);
-            if (assessed.Compatibility == "incompatible")
+            if (assessed.Compatibility is "incompatible" or OtherVersion)
             {
                 WorldSelectionTelemetry.Failed(logger, entry.Id, "incompatible_checkpoint");
                 throw new InvalidDataException(assessed.CompatibilityReason);
