@@ -15,6 +15,7 @@ public sealed partial class PrivateWorldRuntime
             .SelectMany(recipe => recipe.Inputs).Where(input => input.ResourceId == kind)
             .Select(input => input.Amount * SupplyBatches).DefaultIfEmpty(0).Max();
         return target > 0 && society.Checkpoint.Inventory.Lots.Where(lot => lot.ItemKind == kind &&
+                !OnBorrowedMarketStall(lot) &&
                 (lot.OwnerId == household || lot.OwnerId == actor)).Sum(AvailableLotQuantity) < target;
     }
 }
