@@ -1,0 +1,1 @@
+- Leaving a household keeps the world running when the food allowance comes from its Store. The food stays there as personal property until it is collected, including after saving and loading.

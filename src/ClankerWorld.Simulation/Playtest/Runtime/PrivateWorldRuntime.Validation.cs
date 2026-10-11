@@ -41,7 +41,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
             society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates, deceasedInhabitants.Values,
-            TownPropertyValidation.RecoveredBuildings(towns));
+            towns, inhabitants.Values);
         ValidateFarmFields(fields.ToArray(), map, worldSeed, society.Checkpoint, worldSimulation, worldContent, RoadAndBridgeTiles().ToArray());
         ValidateFieldOrderBindings(fields, instructionsByIdempotency.Values);
         ValidateProductionOrderBindings(worldSimulation, worldContent, inhabitants.Values, instructionsByIdempotency.Values);
@@ -285,13 +285,19 @@ public sealed partial class PrivateWorldRuntime
     private static void ValidatePhysicalInventoryLocations(InventoryCheckpoint inventory,
         WorldContentSimulationState simulation, DeclarativeWorldContentState content,
         IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map, IReadOnlyList<SocietyEstate> estates,
-        IEnumerable<PlaytestDeceasedInhabitantState> deceased, HashSet<string> recoveredBuildings)
+        IEnumerable<PlaytestDeceasedInhabitantState> deceased, IReadOnlyList<TownRuntimeState>? townStates,
+        IEnumerable<PlaytestInhabitantState> physical)
     {
         var buildings = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
         var people = inhabitants.ToDictionary(item => item.Id, StringComparer.Ordinal);
+        var recoveredBuildings = TownPropertyValidation.RecoveredBuildings(townStates);
         var heldEstates = estates.Where(estate => !estate.Settled)
             .ToDictionary(estate => estate.Id, StringComparer.Ordinal);
+        var departures = physical.Concat(deceased.Select(person => person.LastPhysical))
+            .Where(person => person.Departures is { Count: > 0 })
+            .ToDictionary(person => person.InhabitantId, person => person.Departures!, StringComparer.Ordinal);
+        var allowanceAmounts = new Dictionary<SettlementDeparture, long>();
         bool HasEstateStorage(InventoryLot lot)
         {
             if (heldEstates.TryGetValue(lot.OwnerId, out var estate))
@@ -306,6 +312,71 @@ public sealed partial class PrivateWorldRuntime
                     (frozen.LotId == lot.Id || frozen.LotId == lot.ProvenanceLotId) && frozen.ItemKind == lot.ItemKind &&
                     frozen.Quantity >= lot.Quantity && frozen.StorageBuildingId == lot.StorageBuildingId);
         }
+        SettlementDeparture? AllowanceStorageRecord(InventoryLot lot, PlacedBuilding storage)
+        {
+            if (!IsEdibleFood(lot.ItemKind) ||
+                lot.CarrierId is not null || lot.ContainerLotId is not null || lot.DeliveryBuildingId is not null)
+                return null;
+            SettlementDeparture? FromHousehold(string household)
+            {
+                var visiting = new HashSet<string>(StringComparer.Ordinal);
+                SettlementDeparture? Origin(string owner, string lotId, int quantity, long beforeTick)
+                {
+                    if (departures.TryGetValue(owner, out var records) && records.FirstOrDefault(record =>
+                        record.HouseholdId == household && record.Tick <= beforeTick &&
+                        record.AllowancePortions >= quantity && record.AllowanceLotIds.Contains(lotId, StringComparer.Ordinal)) is { } recorded)
+                        return recorded;
+                    foreach (var estate in estates.Where(item => item.CreatedTick <= beforeTick))
+                    {
+                        if (!visiting.Add(estate.Id)) continue;
+                        try
+                        {
+                            var held = !estate.Settled && owner == estate.Id;
+                            var fallback = owner == "settlement:communal" || deceased.Any(person =>
+                                person.InhabitantId == estate.DeceasedId && person.TownId == owner);
+                            if (!held && (!estate.Settled || estate.ExpiryTick > beforeTick)) continue;
+                            foreach (var frozen in (estate.FrozenLots ?? []).Where(item =>
+                                item.ItemKind == lot.ItemKind && item.StorageBuildingId == storage.InstanceId))
+                            {
+                                if (held)
+                                {
+                                    if (frozen.LotId != lotId || frozen.Quantity != quantity) continue;
+                                }
+                                else
+                                {
+                                    // Unavailable will shares also follow the saved
+                                    // household default, even with an accepted will.
+                                    if (frozen.Quantity < quantity || !(fallback ||
+                                        estate.BeneficiaryIds.Contains(owner, StringComparer.Ordinal) ||
+                                        (estate.WillBequests ?? []).Any(bequest => bequest.HeirId == owner &&
+                                            bequest.LotId == frozen.LotId && bequest.Quantity >= quantity))) continue;
+                                    var inheritedId = $"{frozen.LotId}#estate:{estate.Id}:{owner}";
+                                    if (lotId != inheritedId && lotId != inheritedId + ":storage:" + storage.InstanceId &&
+                                        !(fallback && lotId == frozen.LotId && quantity == frozen.Quantity)) continue;
+                                }
+                                // Frozen IDs retain exact settlement links through
+                                // later deaths; provenance alone does not prove them.
+                                if (Origin(estate.DeceasedId, frozen.LotId, frozen.Quantity, estate.CreatedTick) is { } origin)
+                                    return origin;
+                            }
+                        }
+                        finally { visiting.Remove(estate.Id); }
+                    }
+                    return null;
+                }
+                return Origin(lot.OwnerId, lot.Id, lot.Quantity, inventory.WorldTick);
+            }
+            // Reclamation and an onward grant do not move a former member's
+            // personal allowance. The saved transfer proves this same Store's
+            // prior household, without admitting unrelated personal stock.
+            if (storage.HouseholdId is { } home && FromHousehold(home) is { } current) return current;
+            foreach (var prior in (townStates ?? []).SelectMany(town => town?.LandHearings?.Cases ?? [])
+                    .Where(item => item?.Property?.Transfer?.PriorBuilding is { HouseholdId: not null } prior &&
+                        prior.InstanceId == storage.InstanceId)
+                    .Select(item => item.Property!.Transfer!.PriorBuilding.HouseholdId!))
+                if (FromHousehold(prior) is { } recorded) return recorded;
+            return null;
+        }
         foreach (var lot in inventory.Lots)
         {
             if (lot.CarrierId is { } carrierId && (!people.TryGetValue(carrierId, out var custodian) ||
@@ -317,8 +388,17 @@ public sealed partial class PrivateWorldRuntime
             if (lot.StorageBuildingId is { } storageId)
             {
                 if (!buildings.TryGetValue(storageId, out var storage) ||
-                    !definitions.TryGetValue(storage.DefinitionId, out var definition) ||
-                    !(storage.HouseholdId == lot.OwnerId && definition.Tags.Any(IsHouseholdBuildingTag) ||
+                    !definitions.TryGetValue(storage.DefinitionId, out var definition))
+                    throw new InvalidDataException($"Inventory lot '{lot.Id}' has an invalid building storage location.");
+                var allowance = definition.Tags.Contains("store", StringComparer.Ordinal) ? AllowanceStorageRecord(lot, storage) : null;
+                if (allowance is not null)
+                {
+                    allowanceAmounts[allowance] = allowanceAmounts.GetValueOrDefault(allowance) + lot.Quantity;
+                    if (allowanceAmounts[allowance] > allowance.AllowancePortions)
+                        throw new InvalidDataException("The recorded Store allowance exceeds its departure portions.");
+                }
+                if (!(storage.HouseholdId == lot.OwnerId && definition.Tags.Any(IsHouseholdBuildingTag) ||
+                      allowance is not null ||
                       (people.ContainsKey(lot.OwnerId) || HasEstateStorage(lot)) && (storage.HouseholdId is not null || recoveredBuildings.Contains(storageId)) &&
                       definition.Tags.Contains("house", StringComparer.Ordinal) ||
                       storage.TownId == lot.OwnerId && storage.HouseholdId is null &&
@@ -515,7 +595,7 @@ public sealed partial class PrivateWorldRuntime
         ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
             state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates,
-            state.DeceasedInhabitants ?? [], TownPropertyValidation.RecoveredBuildings(state.Towns));
+            state.DeceasedInhabitants ?? [], state.Towns, state.Inhabitants);
         ValidateFarmFields(state.Fields!.ToArray(), state.Map, state.WorldSeed, state.Society.Society,
             state.WorldSimulation, state.WorldContent, state.RoadTiles.Concat(
                 state.Bridges.SelectMany(bridge => bridge.Entrances)).ToArray());
