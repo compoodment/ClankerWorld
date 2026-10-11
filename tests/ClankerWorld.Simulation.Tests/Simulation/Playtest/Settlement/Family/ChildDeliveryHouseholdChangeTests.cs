@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Reflection;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
@@ -11,6 +12,56 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class ChildDeliveryHouseholdChangeTests
 {
+    [Fact]
+    public async Task GuardianCheckpointWaitsForHeldIdentityInputBeforeContinuing()
+    {
+        var scenario = GuardianPlacementTestFixture.Prepared(1, 0);
+        var choices = new DeliveryChoices(scenario.Children[0], scenario.Guardians[0], guardian: true)
+        {
+            IdentityResponseGate = new(TaskCreationOptions.RunContinuationsAsynchronously),
+        };
+        using var world = PrivateWorldRuntime.Restore(scenario.State, _ => choices);
+        using var host = new CheckpointHost(world, choices);
+        var replayChoices = choices.Copy();
+        using var replay = PrivateWorldRuntime.Restore(scenario.State, _ => replayChoices);
+        using var replayHost = new CheckpointHost(replay, replayChoices);
+        var step = ReachIdentityCheckpoint(host);
+        try
+        {
+            await choices.IdentityEntered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            await Assert.ThrowsAsync<TimeoutException>(() => step.WaitAsync(TimeSpan.FromSeconds(1)));
+            await ReachIdentityCheckpoint(replayHost);
+            var requested = world.Inhabitants.SelectMany(person => (person.IdentityMoments ?? [])
+                .Where(moment => moment.Outcome == "requested").Select(moment => (person.InhabitantId, moment.Kind))).ToArray();
+            Assert.NotEmpty(requested);
+            choices.IdentityResponseGate.SetResult();
+            await step.WaitAsync(TimeSpan.FromSeconds(30));
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+            await host.Step();
+            await replayHost.Step();
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+            Assert.Contains(world.ExportState().Events, item => item.Kind == "agent_identity_moment_kept");
+            Assert.All(requested, item => Assert.Equal("kept", world.Inhabitants.Single(person => person.InhabitantId == item.InhabitantId)
+                .IdentityMoments!.Single(moment => moment.Kind == item.Kind).Outcome));
+        }
+        finally
+        {
+            choices.IdentityResponseGate.TrySetResult();
+            await step.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+
+        static async Task ReachIdentityCheckpoint(CheckpointHost checkpointHost)
+        {
+            for (var tick = 0; tick < 20; tick++)
+            {
+                await checkpointHost.Step();
+                if (checkpointHost.World.Inhabitants.SelectMany(person => person.IdentityMoments ?? [])
+                    .Any(moment => moment.Outcome == "requested")) return;
+            }
+            Assert.Fail("The native host never requested an identity input.");
+        }
+    }
+
     [Theory]
     [InlineData(true, false)]
     [InlineData(true, true)]
@@ -173,6 +224,7 @@ public sealed class ChildDeliveryHouseholdChangeTests
 
     private sealed class CheckpointHost : IDisposable
     {
+        private static readonly string[] PendingInputQueues = ["pendingHosted", "pendingIdentityMoments", "pendingWills", "pendingConversationTurns"];
         private readonly DirectoryInfo directory = Directory.CreateTempSubdirectory("child-house-change-");
         private readonly PrivateWorldStateFile file;
         private readonly PrivateWorldRuntimeService service;
@@ -205,8 +257,11 @@ public sealed class ChildDeliveryHouseholdChangeTests
                 RefusedArrival = true;
             }
             Assert.True(await service.TryAdvanceOnceAsync(), $"Native host halted at tick {World.WorldTick}.");
-            var pending = (IDictionary)typeof(PrivateWorldRuntime).GetField("pendingHosted", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(World)!;
-            await Task.WhenAll(pending.Values.Cast<object>().Select(item => (Task)item.GetType().GetProperty("Task")!.GetValue(item)!))
+            // Replies are sampled by the next tick. Match every external input before either continuation advances.
+            var tasks = PendingInputQueues.SelectMany(name => ((IDictionary)typeof(PrivateWorldRuntime)
+                .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(World)!).Values.Cast<object>())
+                .Select(item => (Task)item.GetType().GetProperty("Task")!.GetValue(item)!);
+            await Task.WhenAll(tasks)
                 .WaitAsync(TimeSpan.FromSeconds(30));
             var bytes = File.ReadAllBytes(file.Path);
             Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(World.ExportState()));
@@ -227,30 +282,37 @@ public sealed class ChildDeliveryHouseholdChangeTests
 
     private sealed class DeliveryChoices(string child, string caregiver, bool guardian = false) : IDecisionProvider
     {
+        public TaskCompletionSource? IdentityResponseGate { get; init; }
+        public TaskCompletionSource IdentityEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool Pickup { get; init; } = true;
         public bool Deliver { get; set; }
         public bool ChangeHousehold { get; set; }
-        public List<(string Actor, string Candidate)> Selected { get; } = [];
+        public ConcurrentQueue<(string Actor, string Candidate)> Selected { get; } = new();
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
         public long ProviderEpoch => 0;
         public DeliveryChoices Copy() => new(child, caregiver, guardian) { Pickup = Pickup, Deliver = Deliver, ChangeHousehold = ChangeHousehold };
-        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
             request.Validate();
             var observation = request.Observation;
+            if (observation.IdentityMoment is not null && IdentityResponseGate is not null)
+            {
+                IdentityEntered.TrySetResult();
+                await IdentityResponseGate.Task.WaitAsync(cancellationToken);
+            }
             string[] wanted = observation.InhabitantId == child
                 ? Deliver ? ["child_carry:"] : Pickup && !ChangeHousehold ? ["child_carry:child-moving-wood"] : []
                 : observation.InhabitantId == caregiver && ChangeHousehold
                     ? guardian ? ["guardian_accept:" + child, "guardian_relocate:" + child] : ["household_leave"] : [];
             var candidate = wanted.Select(prefix => observation.Candidates.FirstOrDefault(item => item.Id.StartsWith(prefix, StringComparison.Ordinal)))
                 .FirstOrDefault(item => item is not null) ?? observation.Candidates.Single(item => item.Id == "safe_idle");
-            Selected.Add((observation.InhabitantId, candidate.Id));
-            return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, observation.InhabitantId, Kind, ProviderEpoch,
+            Selected.Enqueue((observation.InhabitantId, candidate.Id));
+            return new CognitionDecisionResponse(request.RequestId, observation.InhabitantId, Kind, ProviderEpoch,
                 observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest, candidate.Id, 1,
                 new Dictionary<string, double> { [candidate.Id] = 1 },
                 ChosenName: observation.NeedsName ? observation.Self!.Name : null,
                 ChosenPersonality: observation.NeedsPersonality ? "patient" : null,
-                ChosenAspiration: observation.NeedsAspiration ? "help at home" : null));
+                ChosenAspiration: observation.NeedsAspiration ? "help at home" : null);
         }
     }
 }
