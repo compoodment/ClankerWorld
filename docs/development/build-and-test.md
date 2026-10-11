@@ -35,6 +35,15 @@ Shared compiler, analyzer and version settings live in
 [Directory.Build.props](../../Directory.Build.props). Use its version fields
 rather than adding a second version constant.
 
+The held collection-cancellation check keeps the first collected load fixed
+while waiting for actual provider invocation, the validated operative request
+and the constructed late reply. Its deferred-entry case opens a preparation
+gate only after checking that first frame. Each signal has a thirty-second
+diagnostic deadline; advancing ticks to poll it could collect another load
+before cancellation. The check retains real request and order identity,
+exact saved bytes while waiting, one collection event, the untouched second
+load and strict checkpoint reload after cancellation.
+
 The retained-guidance farming and held repair-cancellation fixtures wait for
 the provider's start signal by polling the native nonblocking tick path. A
 committed tick schedules background work but does not guarantee that its worker
