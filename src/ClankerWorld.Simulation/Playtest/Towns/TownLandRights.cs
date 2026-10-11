@@ -246,7 +246,7 @@ public static class TownLandRightsRules
         foreach (var request in requests)
         {
             if (!ValidId(request.Id) || !ValidId(request.TownId) || !townsById.ContainsKey(request.TownId) ||
-                !households.Contains(request.HouseholdId) || !ValidText(request.HouseholdId, 256) ||
+                !households.Contains(request.HouseholdId) || !TownHearingProcedure.Id(request.HouseholdId) ||
                 !TownHearingProcedure.Id(request.RequestedByAgentId) || !agents.Contains(request.RequestedByAgentId) ||
                 request.Tiles is not { Count: <= CognitionDecisionResponse.MaximumCivicLandTiles } ||
                 !IsValidPlot(map, request.Tiles, worldTick, request.RequestedTick, request.AgreedEndTick) ||

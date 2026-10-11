@@ -1,1 +1,1 @@
-- Native-born adults can ask for household use of Town land even when their family identity is long. Their requests still need household consent and Council approval before granting any land rights.
+- Native-born adults can ask for household use of Town land even when their family identity is long, including after forming their own household. Their requests still need household consent and Council approval before granting any land rights.
