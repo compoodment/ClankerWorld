@@ -171,6 +171,14 @@ public partial class Main
         public int DeleteCount => Volatile.Read(ref deleteCount);
         public int SaveCreateCount => Volatile.Read(ref saveCreateCount);
         public ManualWorldSave[]? ManualSaves { get; set; }
+        public RecoveryCleanupPreview? RecoveryPreview { get; set; }
+        public System.Collections.Concurrent.ConcurrentQueue<OwnerRecoveryCleanupAction> RecoveryCleanupRequests { get; } = new();
+        public SaveDiskSpaceStatus DiskSpace { get; set; } = new("ok", 4L * 1024 * 1024 * 1024, 1024L * 1024 * 1024, DateTimeOffset.UtcNow);
+        public bool FailDiskSpace { get; set; }
+        public StartupRecoveryStatus StartupRecovery { get; set; } = new(false, null, null);
+        public TaskCompletionSource RecoveryReceived { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource? ReleaseRecovery { get; set; }
+        public bool LoseRecoveryReply { get; set; }
         public string AutosaveWorldId { get; set; } = "autosave-world-B";
         public List<OwnerAutosaveConfigurationAction> AutosaveConfigurations { get; } = [];
         /// <summary>The next signed refresh's world, or none to refuse refreshes.</summary>
@@ -199,6 +207,7 @@ public partial class Main
         // When set, the host holds its rename reply until the check releases it.
         public TaskCompletionSource? ReleaseRename { get; set; }
         public bool FailAgentPlacement { get; set; }
+        public HttpStatusCode SubmissionStatus { get; set; } = HttpStatusCode.BadRequest;
         public bool FailPlacementProviderStatus { get; set; }
         public System.Collections.Concurrent.ConcurrentQueue<OwnerAgentPlacementAction> AgentPlacements { get; } = new();
 
@@ -274,6 +283,36 @@ public partial class Main
             Requests.Enqueue(context.Request.Url!.AbsolutePath);
             switch (context.Request.Url!.AbsolutePath)
             {
+                case OwnerPairingEndpoints.OwnerInstructions:
+                case OwnerPairingEndpoints.OwnerOrderCancel:
+                case OwnerPairingEndpoints.OwnerAuthoring:
+                    context.Response.StatusCode = (int)SubmissionStatus;
+                    if (SubmissionStatus == HttpStatusCode.OK)
+                    {
+                        context.Response.ContentType = "application/json";
+                        await context.Response.OutputStream.WriteAsync("{"u8.ToArray()).ConfigureAwait(false);
+                        context.Response.Close();
+                        return;
+                    }
+                    response = new { error = "Controlled owner request refusal." };
+                    break;
+                case "/api/v1/owner/recovery/status":
+                    response = StartupRecovery;
+                    break;
+                case "/api/v1/owner/recovery/restore":
+                    var recoveryId = envelope.GetProperty("action").GetProperty("value").GetString()!;
+                    RecoveryReceived.TrySetResult();
+                    if (ReleaseRecovery is { } releaseRecovery) await releaseRecovery.Task.ConfigureAwait(false);
+                    StartupRecovery = new(false, StartupRecovery.WorldId, null);
+                    if (LoseRecoveryReply)
+                    {
+                        context.Response.ContentType = "application/json";
+                        await context.Response.OutputStream.WriteAsync("{"u8.ToArray()).ConfigureAwait(false);
+                        context.Response.Close();
+                        return;
+                    }
+                    response = new StartupRecoveryReceipt(recoveryId, 0);
+                    break;
                 case OwnerPairingEndpoints.OwnerAgentPlace:
                     var placement = envelope.GetProperty("action").Deserialize<OwnerAgentPlacementAction>(JsonOptions)!;
                     AgentPlacements.Enqueue(placement);
@@ -310,10 +349,29 @@ public partial class Main
                 case OwnerPairingEndpoints.OwnerSaveTimeline when ManualSaves is not null:
                     response = new SaveTimelinePosition(null, null, false);
                     break;
+                case "/api/v1/owner/saves/recovery-cleanup" when RecoveryPreview is { } recoveryPreview:
+                    var cleanup = envelope.GetProperty("action").Deserialize<OwnerRecoveryCleanupAction>(JsonOptions)!;
+                    RecoveryCleanupRequests.Enqueue(cleanup);
+                    if (cleanup.Operation == "preview") response = recoveryPreview;
+                    else
+                    {
+                        var removed = recoveryPreview.Remove.Select(save => save.Id).ToArray();
+                        ManualSaves = ManualSaves?.Where(save => !removed.Contains(save.Id, StringComparer.Ordinal)).ToArray();
+                        response = new OwnerRecoveryCleanupReceipt(removed, true);
+                    }
+                    break;
                 case OwnerPairingEndpoints.OwnerSaveCreate:
                     Interlocked.Increment(ref saveCreateCount);
                     response = new ManualWorldSave("new-save", envelope.GetProperty("action").GetProperty("value").GetString()!,
                         DateTimeOffset.UnixEpoch, 0);
+                    break;
+                case "/api/v1/owner/saves/disk-status":
+                    if (FailDiskSpace)
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                        response = new { error = "Controlled disk advisory failure." };
+                    }
+                    else response = DiskSpace;
                     break;
                 case OwnerPairingEndpoints.OwnerSaveLoad when LoadReceipt is { } loadReceipt:
                     LoadReceived.TrySetResult(envelope.GetProperty("action").GetProperty("value").GetString()!);

@@ -205,27 +205,37 @@ public sealed class PrivateWorldToolRepairOrderTests
         Assert.DoesNotContain(resumed.ExportState().Events, item => item.Kind == "tool_repaired");
     }
 
-    [Fact]
-    public async Task LateModelReplyCannotRestartACancelledPreparation()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LateModelReplyCannotRestartACancelledPreparation(bool delayedStartup)
     {
         var state = PreparedForPickup();
         var actor = Actor(state);
         var provider = new RepairChoices(DecisionProviderKind.LargeLanguageModel, hold: true);
         using var world = PrivateWorldRuntime.Restore(state, id => id == actor ? provider : new RepairChoices());
+        var startAfter = world.WorldTick + 3;
+        provider.CanStart = () => !delayedStartup || world.WorldTick >= startAfter;
         var receipt = Submit(world, actor, "held", "repair wooden axe");
         try
         {
-            Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            await AdvanceUntil(world, () => provider.Started.Task.IsCompleted,
+                "The hosted repair-planning request did not start within forty native ticks.");
+            if (delayedStartup) Assert.True(world.WorldTick >= startAfter);
+            Assert.Equal(receipt.InstructionId, Assert.Single(provider.Requests).OperativeOrderInstructionId);
             Assert.Equal(0, Order(world, receipt).CompletedUnits);
             Assert.True(world.CancelOrder(new("stop", "owner:test", world.Society.WorldId, actor, receipt.InstructionId)).Changed);
             provider.Release.TrySetResult(true);
-            await provider.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            await AdvanceUntil(world, () => provider.Returned.Task.IsCompleted,
+                "The held repair-planning reply did not return within forty native ticks.");
             for (var tick = 0; tick < 5; tick++) Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
             Assert.Equal(("cancelled", 0), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
             Assert.Equal(3_000, world.Society.Inventory.GetLot("target").ConditionBasisPoints);
             Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "tool_repaired");
             world.Validate();
+            var checkpoint = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+            using var resumed = Restore(PrivateWorldRuntimeCodec.Decode(checkpoint));
+            Assert.Equal(checkpoint, PrivateWorldRuntimeCodec.Encode(resumed.ExportState()));
         }
         finally { provider.Release.TrySetResult(true); }
     }
@@ -564,6 +574,23 @@ public sealed class PrivateWorldToolRepairOrderTests
     {
         for (var tick = 0; tick < maximum && Order(world, receipt).Status != "finished"; tick++) Assert.True((await world.AdvanceOneTickAsync()).Advanced);
     }
+    private static async Task AdvanceUntil(PrivateWorldRuntime world, Func<bool> done, string failureMessage)
+    {
+        for (var tick = 0; tick < 40 && !done(); tick++)
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                Assert.True((await world.AdvanceOneTickNonBlockingAsync(cancellationToken: deadline.Token)).Advanced);
+            }
+            catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+            {
+                Assert.Fail($"World tick {world.WorldTick} stalled during poll {tick + 1} of 40.");
+            }
+            if (!done()) await Task.Delay(5);
+        }
+        Assert.True(done(), failureMessage);
+    }
     private sealed class RepairChoices(DecisionProviderKind kind = DecisionProviderKind.Deterministic, bool hold = false) : IDecisionProvider
     {
         public DecisionProviderKind Kind => kind;
@@ -572,8 +599,10 @@ public sealed class PrivateWorldToolRepairOrderTests
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Func<bool>? CanStart { get; set; }
         public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
+            while (CanStart?.Invoke() == false) await Task.Delay(1, cancellationToken);
             request.Validate();
             var observation = request.Observation;
             Requests.Enqueue(observation);

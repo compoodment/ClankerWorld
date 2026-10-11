@@ -6,7 +6,7 @@ namespace ClankerWorld.Simulation.Society;
 
 public static class SocietyCheckpointCodec
 {
-    private const string Header = "clankerworld.society/v2";
+    private const string Header = "clankerworld.society/v4";
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

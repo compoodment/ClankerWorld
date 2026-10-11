@@ -46,6 +46,7 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor) || HouseholdFor(actor) is not { } home) yield break;
         var inventory = society.Checkpoint.Inventory;
         foreach (var jug in inventory.Lots.Where(jug => jug.OwnerId == home && IsMilkJug(jug) && jug.DeliveryBuildingId is null &&
+                     !OnBorrowedMarketStall(jug) &&
                      !HasActiveContainerReservation(inventory, jug.Id) &&
                      (jug.CarrierId is null || PersonalEquipmentRules.IsCarried(jug, actor)) &&
                      CanRemoveWorkstationStock(inventory, jug, 1)).OrderBy(jug => jug.Id, StringComparer.Ordinal))
@@ -53,7 +54,7 @@ public sealed partial class PrivateWorldRuntime
             if (MilkSaleSite(actor, inventory.Lots.First(lot => lot.ContainerLotId == jug.Id && lot.ItemKind == "milk"), out _, out _)) continue;
             if (!PersonalEquipmentRules.IsCarried(jug, actor) && !VesselFits(jug, FreeCarryCapacity(actor))) continue;
             if (HouseholdBuildingWithTag(home, "store") is { } store && jug.StorageBuildingId != store.InstanceId &&
-                VesselFits(jug, RemainingDeliveryRoom(inventory, store.InstanceId)))
+                VesselFits(jug, DestinationRoom(inventory, store.InstanceId)))
                 yield return new(jug, store.InstanceId, store.Position);
             foreach (var town in towns)
                 foreach (var market in town.Markets.Where(market => market.RemovedTick is null))

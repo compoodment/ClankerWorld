@@ -259,14 +259,14 @@ public sealed partial class PrivateWorldRuntime
                 throw new ArgumentException("Choose a valid name.", nameof(name));
             if (InhabitantNameRules.IsTaken(society.Checkpoint, agentId, name))
                 throw new InhabitantNameTakenException();
-            if (marriages.SingleOrDefault(item => item.CompletedTick is null && item.SurnameReceipt is null &&
+            if (marriages.SingleOrDefault(item => item.EndReceipt is null && item.CompletedTick is null && item.SurnameReceipt is null &&
                     AgentMarriageRules.HasParticipant(item, agentId)) is { } pendingMarriage &&
                 !AgentMarriageRules.CanKeepSurnameChoices(pendingMarriage, name))
                 throw new ArgumentException("Choose a shorter first or middle name so the marriage's surname choices still fit.", nameof(name));
-            var marriageIndex = marriages.FindIndex(item => item.CompletedTick is not null && AgentMarriageRules.HasParticipant(item, agentId));
+            var marriageIndex = marriages.FindIndex(item => item.EndReceipt is null && item.CompletedTick is not null && AgentMarriageRules.HasParticipant(item, agentId));
             var result = marriageIndex < 0
-                ? society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, agentId, name))
-                : RenameSpouses(marriages[marriageIndex], agentId, name);
+                ? society.Apply(checkpoint => RenameFromPlayer(checkpoint, agentId, name))
+                : RenameSpouses(marriages[marriageIndex], agentId, name, fromPlayer: true);
             var changed = result.NewEvents is { Count: > 0 };
             if (changed)
             {
@@ -277,6 +277,7 @@ public sealed partial class PrivateWorldRuntime
                     if (surname != marriage.CurrentSurname)
                         marriages[marriageIndex] = marriage with { LatestPlayerRename = new AgentMarriageRename(agentId, surname, WorldTick) };
                 }
+                checkpointSchemaVersion = StateSchemaVersion;
                 AppendEvent("agent_renamed", agentId);
             }
             return changed;
@@ -355,11 +356,14 @@ public sealed partial class PrivateWorldRuntime
             AssignedBuildingIds = town.AssignedBuildingIds.Append(building.InstanceId)
                 .Order(StringComparer.Ordinal).ToArray(),
             BorderTiles = border,
+            FirstBuildingCompletedTick = town.FirstBuildingCompletedTick ?? WorldTick,
         });
         var updated = towns.Single(item => item.Id == town.Id);
         AppendEvent("town_building_assigned", $"{town.Id}:{building.InstanceId}:buildings:{updated.AssignedBuildingIds.Count}");
         if (!town.BorderTiles.SequenceEqual(border))
             AppendEvent("town_border_expanded", $"{town.Id}:{building.InstanceId}:tiles:{border.Count}");
+        if (town.FirstBuildingCompletedTick is null)
+            GenerateRoadBetweenTowns(updated, building);
         var laid = GenerateRoadToBuilding(building, updated.BorderTiles.ToHashSet());
         if (laid.Count == 0) return;
         // Town Roads stay inside the border, so it grows around the new Road too.

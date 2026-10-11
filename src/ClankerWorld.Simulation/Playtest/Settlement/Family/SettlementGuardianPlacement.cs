@@ -305,9 +305,12 @@ public sealed partial class PrivateWorldRuntime
             !IsCurrentGuardianPlacement(child, placement) || GuardianPlacementHomeBlocker(child, placement) is not null ||
             dependent.Position != placement.HousePosition ||
             !IsWithinInteractionRange(dependent.Position, inhabitants[placement.CaregiverId].Position, ResourceInteractionRange)) return;
+        var formerHousehold = society.Checkpoint.GetInhabitant(child).HouseholdId;
         var result = society.Apply(checkpoint => SocietyFixture.PlaceDependentWithGuardian(checkpoint,
             placement.CaregiverId, child, placement.CareRelationshipId, placement.CareRevision, placement.DestinationHouseholdId!));
         if (result.CreatedId != child) return;
+        if (formerHousehold is not null && formerHousehold != placement.DestinationHouseholdId)
+            RestoreHouseholdDeliveries(child, formerHousehold, "guardian-placement");
         if (!MoveDependentToGuardianTown(child, placement.CaregiverId))
             throw new InvalidOperationException("A validated guardian placement could not settle the child's Town.");
         SetGuardianPlacement(child, null);
@@ -333,6 +336,6 @@ public sealed partial class PrivateWorldRuntime
         // The observation's housing slot is bounded. Keep the accepted task and
         // current blocker before ordinary housing detail and the repeated name.
         var note = $"Accepted guardian placement pending: {stage}. {placement.Blocker} {HousingNote(actor)} Child: {society.Checkpoint.GetInhabitant(child).Name}.".Trim();
-        return note[..Math.Min(256, note.Length)];
+        return NonviolentExcerpt(note, 256);
     }
 }

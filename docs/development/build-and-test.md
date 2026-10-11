@@ -2,7 +2,7 @@
 title: Build and test
 type: development-reference
 status: active
-updated: 2026-10-08
+updated: 2026-10-11
 ---
 
 # Build and test
@@ -24,7 +24,8 @@ runnable without Godot, a window manager, a model service or a network
 connection once dependencies are restored. See [How it works](how-it-works.md).
 
 The first export target is Windows 11 x64. The current export is an unsigned
-portable bundle. It does not establish an installer, signing provider or public
+portable bundle, and [the portable package](#portable-windows-package) adds the
+game's own host to it. It does not establish an installer, signing provider or public
 release. A Windows smoke test and paired reconnect were recorded on 2026-09-21;
 that historical check does not verify every later build.
 
@@ -34,12 +35,25 @@ Shared compiler, analyzer and version settings live in
 [Directory.Build.props](../../Directory.Build.props). Use its version fields
 rather than adding a second version constant.
 
-The retained-guidance farming fixture waits for the provider's start signal by
-polling the native nonblocking tick path. A committed tick schedules background
-work but does not guarantee that its worker has started. The check covers
-immediate entry and entry after two more committed ticks. Its
-polls retain a forty-tick limit and a separate thirty-second cancellation guard
-for each tick, including after pause and reload.
+The retained-guidance farming and held repair-cancellation fixtures wait for
+the provider's start signal by polling the native nonblocking tick path. A
+committed tick schedules background work but does not guarantee that its worker
+has started. The checks cover immediate entry and entry after two more committed
+ticks. Their polls retain a forty-tick limit and a separate thirty-second cancellation guard
+for each tick, including after pause and reload in the farming fixture. The
+repair check also waits for the released reply before checking that cancellation
+prevents repairs. Use this pattern only where advancing ticks preserves the
+intended cancellation boundary; orders that can already complete physical work
+must keep the world at that boundary while waiting for provider entry.
+
+The held storage-cancellation check keeps the world at its first committed
+load while waiting for actual provider invocation, the validated operative
+request and the late reply. Its deferred-entry row holds provider preparation
+until that first frame is checked and the test opens the entry gate. Each
+signal has a thirty-second diagnostic deadline. Advancing native ticks during
+this wait could store another load before cancellation, because chosen work
+continues while a model waits. The check retains one stored load, the untouched
+second load and exact checkpoint reload after releasing the cancelled reply.
 
 The client bundles one third-party font, Fusion Pixel 12px, in
 `src/ClankerWorld.GodotClient/UI/Theme/Fonts/`, under the SIL Open Font
@@ -66,8 +80,11 @@ local checks should fit the change. List checks you could not run and why.
 
 ### How CI runs
 
-The Protect main ruleset requires three checks: `verify`,
-`windows-documentation` and `windows-provider-storage`. `verify` passes only
+The Protect main ruleset merges pull requests only through GitHub's merge
+queue, by squash, and requires three checks: `verify`,
+`windows-documentation` and `windows-provider-storage`. They must pass on a
+pull request's head before it joins the queue, and again on each batch the
+queue builds on top of main. `verify` passes only
 when every part of the Verify workflow passes:
 
 - **scope** decides which of the other jobs the change needs.
@@ -107,8 +124,13 @@ the client files its `<Compile Include>` lines name, so no other client file
 can change a test result. A change to one of those files, to anything under
 `tests/`, or to anything outside the client folder runs everything.
 
-Pushes to main always run everything. A newer push to a pull request cancels
-its older run.
+Each batch the merge queue tests on top of main runs everything. The queue then
+moves main to the very commit it tested, so the push to main finds that green
+run and runs nothing more, and main's green runs on this page are the queue's.
+A push the queue didn't test runs everything. When a pull request in the queue
+fails, the queue rebuilds the ones behind it, and each rebuilt run cancels its
+pull request's older queue runs. A newer push to a pull request cancels its
+older run.
 
 The test jobs split the tests by how long each took on main, so new slow tests
 spread out on their own and nobody needs to rebalance them by hand. Each test
@@ -229,6 +251,7 @@ dotnet format --verify-no-changes --no-restore
 dotnet test --configuration Release --no-restore
 bash scripts/verify-godot-client.sh
 bash scripts/verify-godot-windows-export.sh
+bash scripts/package-windows.sh   # optional: the portable zip
 ```
 
 For C# changes, run `dotnet format --no-restore` first if formatting needs
@@ -251,6 +274,39 @@ without Git metadata must provide `SourceRevisionId` to MSBuild to identify its
 origin; otherwise the game honestly reports `unknown`.
 CI uploads that bundle as an artifact. These checks verify the build and
 export; they do not replace playing the bundle on Windows.
+
+### Portable Windows package
+
+`bash scripts/package-windows.sh`, run after the export above, builds the
+portable alpha package ([#468](https://github.com/ClankerWorldOrg/ClankerWorld/issues/468)):
+`export/package/ClankerWorld-<version>-windows-x64.zip` and its `.sha256`. The
+zip holds one folder named for the version with the Godot export, a
+self-contained `win-x64` host in `host/` (`dotnet publish`, no .NET install
+needed on the player's PC), a short `README.txt` and a `manifest.sha256` of
+every file. The script refuses an export that was not built from the current
+commit, stages the host and version from committed inputs (excluding local
+edits), and checks that the host assembly carries the same version and commit,
+since the game reuses only a host of its own exact build
+([Device pairing](device-pairing.md#host-started-by-the-game)). The Viewer and
+Simulation projects list `win-x64` in `RuntimeIdentifiers` so this publish
+restores in locked mode. CI uploads the zip as the
+`clankerworld-windows-11-x64-portable` artifact. It is unsigned, and a built
+zip is not a Windows playtest.
+
+### Windows launcher
+
+The launcher ([#1566](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1566))
+is the same Godot project exported with the `launcher` feature, which makes
+`run/main_scene.launcher` open `res://Launcher/Launcher.tscn` instead of the
+game. `bash scripts/verify-godot-windows-export.sh --launcher` exports it to
+`export/launcher-windows-x64/ClankerWorldLauncher.exe`, and
+`bash scripts/package-windows.sh --launcher` zips it, without a host, as
+`ClankerWorld-Launcher-<launcher version>-windows-x64.zip`. The launcher's own
+version is `Launcher.Version` in `Launcher/Launcher.cs`, separate from the game
+version. CI uploads it as the `clankerworld-launcher-windows-11-x64` artifact.
+`bash scripts/verify-godot-client.sh` also opens the launcher scene headlessly
+with `--launcher-smoke-test`. Its install, hash-check, repair and remove logic
+lives in plain C# under `Launcher/` and is tested in `LauncherTests`.
 
 The program icon, `src/ClankerWorld.GodotClient/icon.ico`, is generated from
 the logo art in `UI/MenuLogo.cs` and embedded in the exported `.exe`. After

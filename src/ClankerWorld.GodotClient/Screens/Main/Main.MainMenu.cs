@@ -117,12 +117,12 @@ public partial class Main
 
         mainMenuNewButton.Text = "New World";
         StyleMenuChoice(mainMenuNewButton);
-        mainMenuNewButton.Pressed += () => OpenWorldMenu(create: true);
+        mainMenuNewButton.Pressed += () => _ = OpenWorldMenuAfterRecoveryCheckAsync(create: true);
         body.AddChild(mainMenuNewButton);
 
         mainMenuLoadButton.Text = "Load World";
         StyleMenuChoice(mainMenuLoadButton);
-        mainMenuLoadButton.Pressed += () => OpenWorldMenu(create: false);
+        mainMenuLoadButton.Pressed += () => _ = OpenWorldMenuAfterRecoveryCheckAsync(create: false);
         body.AddChild(mainMenuLoadButton);
 
         mainMenuSettingsButton.Text = "Settings";
@@ -134,6 +134,8 @@ public partial class Main
         StyleMenuChoice(mainMenuConnectButton);
         mainMenuConnectButton.Pressed += () => _ = OpenMainMenuConnectionAsync();
         body.AddChild(mainMenuConnectButton);
+
+        BuildQuitToLauncher(body);
 
         quitGameButton.Text = "Quit Game";
         StyleMenuChoice(quitGameButton);
@@ -148,6 +150,7 @@ public partial class Main
         quitToMenuConfirmation.Confirmed += QuitToMainMenu;
         AddChild(quitToMenuConfirmation);
         BuildWorldMenu();
+        BuildStartupRecovery();
         RefreshMainMenuAvailability();
     }
 
@@ -161,6 +164,7 @@ public partial class Main
         mainMenuCenter.MouseFilter = MouseFilterEnum.Pass;
         mainMenuCard.Show();
         mainMenuLogo.Show();
+        startupRecoveryCard.Hide();
         menuShade.ZIndex = 90;
         gameMenuPanel.ZIndex = 100;
         mainMenuOverlay.Show();
@@ -198,6 +202,8 @@ public partial class Main
         if (registration is null || deviceKey is null || registeredEndpointInvalid) return;
         var navigationRevision = ++mainMenuNavigationRevision;
         mainMenuContinueButton.Disabled = true;
+        if (await CheckStartupRecoveryAsync()) return;
+        if (navigationRevision != mainMenuNavigationRevision) return;
         var previousRefreshCount = successfulRefreshCount;
         await RefreshAsync();
         if (navigationRevision != mainMenuNavigationRevision) return;
@@ -231,6 +237,8 @@ public partial class Main
 
     private void OpenMainMenuSettings()
     {
+        // Hiding the title card clears Godot focus before VisibilityChanged.
+        var keyboardOpener = GetViewport().GuiGetFocusOwner();
         mainMenuNavigationRevision++;
         returnToMainMenu = true;
         mainMenuOverlay.Show();
@@ -249,6 +257,8 @@ public partial class Main
         SetWorldMenuActionsVisible(false);
         menuResumeButton.Hide();
         gameMenuPanel.Show();
+        var panelIndex = keyboardPanels.FindLastIndex(item => item.Panel == gameMenuPanel);
+        if (panelIndex >= 0) keyboardPanels[panelIndex] = (gameMenuPanel, keyboardOpener);
         menuShade.Show();
         ShowSettingsSection(worldSpecific: false);
         ApplyResponsiveLayout();

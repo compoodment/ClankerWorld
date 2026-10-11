@@ -18,14 +18,6 @@ public sealed partial class PrivateWorldRuntime
     private PlacedBuilding? FarmhouseForHousehold(string householdId) =>
         HouseholdBuildingWithTag(householdId, "farmhouse");
 
-    private bool IsFarmStorage(PlacedBuilding building) => worldContent.Buildings.Single(definition =>
-        definition.CanonicalId == building.DefinitionId).Tags.Any(tag => tag is "farmhouse" or "silo");
-
-    private int FarmStorageFree(string buildingId, bool includeDeliveries = true) => Math.Max(0,
-        FarmFieldRules.FarmStorageCapacity - ReservedBusinessStorageSpace(buildingId) - society.Checkpoint.Inventory.Lots.Where(lot =>
-            lot.StorageBuildingId == buildingId || includeDeliveries && lot.DeliveryBuildingId == buildingId)
-        .Sum(lot => lot.Quantity));
-
     private PlacedBuilding? FarmStorageFor(string householdId, string kind, string? requestedBuildingId = null,
         Func<PlacedBuilding, bool>? fitsHaul = null)
     {
@@ -33,7 +25,7 @@ public sealed partial class PrivateWorldRuntime
         var silo = HouseholdBuildingWithTag(householdId, "silo");
         var choices = kind == FarmFieldRules.Grain ? new[] { farmhouse, silo } : new[] { silo, farmhouse };
         return choices.FirstOrDefault(building => building is not null &&
-            (requestedBuildingId is null || building.InstanceId == requestedBuildingId) && FarmStorageFree(building.InstanceId) > 0 &&
+            (requestedBuildingId is null || building.InstanceId == requestedBuildingId) && DestinationRoom(building.InstanceId) > 0 &&
             (fitsHaul is null || fitsHaul(building)));
     }
 
@@ -110,7 +102,7 @@ public sealed partial class PrivateWorldRuntime
         var incoming = inventory.Lots.Where(lot => lot.DeliveryBuildingId == farmhouse.InstanceId &&
                 lot.ItemKind == FarmFieldRules.Grain).Sum(AvailableLotQuantity);
         var missing = inputTarget - supplied - incoming;
-        if (missing <= 0 || RemainingDeliveryRoom(inventory, farmhouse.InstanceId) <= 0)
+        if (missing <= 0 || DestinationRoom(inventory, farmhouse.InstanceId) <= 0)
             return null;
         var silos = worldSimulation.Buildings.Where(building => building.HouseholdId == householdId && building.InstanceId != farmhouse.InstanceId &&
                 worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId &&
@@ -180,8 +172,9 @@ public sealed partial class PrivateWorldRuntime
         int maximumQuantity = int.MaxValue)
     {
         var inventory = society.Checkpoint.Inventory;
-        var capacity = Math.Min(HouseHaulLoadQuantity,
-            Math.Min(FreeCarryCapacity(actor), RemainingDeliveryRoom(inventory, destinationId)));
+        var destination = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == destinationId);
+        var capacity = destination is null ? 0 : Math.Min(HouseHaulLoadQuantity,
+            Math.Min(PickupCarryCapacity(actor, choice.Carrier, destination.Position), DestinationRoom(inventory, destinationId)));
         if (capacity <= 0)
             return null;
 
@@ -214,15 +207,6 @@ public sealed partial class PrivateWorldRuntime
             ? new FarmStockHaulPlan(choice.Carrier, choice.Resource, takenQuantity, takenQuantity,
                 MoveContainerFamily: false)
             : null;
-    }
-
-    private int RemainingDeliveryRoom(InventoryCheckpoint inventory, string buildingId)
-    {
-        var room = Math.Max(0, StorageRoom(buildingId) - InboundDeliveryQuantity(inventory, buildingId));
-        if (worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == buildingId) is { } building &&
-            IsFarmStorage(building))
-            room = Math.Min(room, FarmStorageFree(buildingId));
-        return room;
     }
 
     private void AddFarmGrainCandidate(List<CognitionCandidate> candidates, string actor)

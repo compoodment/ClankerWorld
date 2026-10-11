@@ -106,7 +106,8 @@ public static class WorldContentSimulationRules
         WorldContentSimulationState state,
         DeclarativeWorldContentState definitions,
         SeededMap map,
-        long worldTick)
+        long worldTick,
+        IReadOnlySet<string>? recoveredBuildings = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(definitions);
@@ -135,7 +136,8 @@ public static class WorldContentSimulationRules
             definition = BuildingStorageRules.EffectiveDefinition(definition, building);
             var isHouse = definition.Tags.Contains("house", StringComparer.Ordinal);
             var acceptsHouseholdOwner = definition.Tags.Any(HouseholdBuildingKinds.IsKindTag);
-            if (isHouse && string.IsNullOrWhiteSpace(building.HouseholdId) ||
+            if (isHouse && string.IsNullOrWhiteSpace(building.HouseholdId) &&
+                    !(building.HouseholdId is null && building.TownId is not null && recoveredBuildings?.Contains(building.InstanceId) == true) ||
                 building.HouseholdId is not null && string.IsNullOrWhiteSpace(building.HouseholdId) ||
                 building.HouseholdId is not null && !acceptsHouseholdOwner ||
                 building.HouseholdId is { } householdId && householdId != householdId.Trim())
@@ -183,7 +185,7 @@ public static class WorldContentSimulationRules
                 job.InputReservationIds is null ||
                 job.InputReservationIds.Count != job.InputReservationIds.Distinct(StringComparer.Ordinal).Count() ||
                 job.ToolLotId is { } toolLotId && (string.IsNullOrWhiteSpace(toolLotId) ||
-                    toolLotId.Length > 512 || toolLotId.Any(char.IsControl) || !ToolProgressionRules.UsesKnife(recipe)))
+                    toolLotId.Any(char.IsControl) || !ToolProgressionRules.UsesKnife(recipe)))
             {
                 throw new InvalidDataException($"Production job '{job.JobId}' is malformed.");
             }

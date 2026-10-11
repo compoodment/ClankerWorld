@@ -2,7 +2,7 @@
 title: Device pairing
 type: development-reference
 status: active
-updated: 2026-10-03
+updated: 2026-10-10
 ---
 
 # Device pairing
@@ -32,7 +32,8 @@ rollback backup. This is the approved pre-release exception described in
 3. A host-local bootstrap administrator approves the matching pairing ID and
    code through a separate loopback-only listener. There is no bootstrap
    password or reusable approval secret in the client, a URL, or deployment
-   configuration. Once an owner device exists, it may approve or revoke further
+   configuration. A host the game starts on the player's own PC also needs a
+   one-launch secret ([companion host](#host-started-by-the-game)). Once an owner device exists, it may approve or revoke further
    devices through signed owner-device-management requests. It may also request
    the signed registry of paired-device lifecycle records. The registry exposes
    only public device IDs, public-key fingerprints, and lifecycle state; it
@@ -71,8 +72,12 @@ existing pairing. Older hosts without this advertisement need an update too.
 Routine helper changes require `clankerworld.owner-routine-helper.v1`, signing
 the observed world ID, helper, model and optional saved OpenAI key-slot ID. The
 host holds the world-selection gate through validation and persistence, and
-refuses a changed world or an unpaused world. Other signed actions, including
-reconnect, keep their existing contracts.
+refuses a changed world or an unpaused world.
+A request that names Anthropic or a thinking level requires
+`clankerworld.owner-model-thinking.v1`: model settings, model lists, saved keys,
+Test model and founder or agent placement. Their payloads gain a final
+`thinking=` line only when a level is chosen, so other requests are unchanged.
+Other signed actions, including reconnect, keep their existing contracts.
 
 The advertisement is compatibility information, not permission to weaken a
 proof. The host still reconstructs the exact action payload and verifies its
@@ -193,6 +198,12 @@ The retained client cancellation has the same pairing, origin, world and
 observer-timeline boundaries as an instruction. A fresh challenge and signature
 are required for each retry.
 
+Pending cancellations preserve the complete native target ID, including the
+longer IDs of adults born in the world. The client retains the 128-character
+bounds for the caller's idempotency key, order ID and world ID, and refuses
+blank or control-character identities. Persistence, reload and retry keep the
+same target; they never shorten or replace it.
+
 The user can explicitly retry that one record. The retry obtains a new one-use
 challenge and signature, then submits the same logical request so the server
 returns the original receipt rather than creating a duplicate. Private-world
@@ -205,6 +216,12 @@ general offline queue: only one request is retained, it cannot cross a pairing
 or origin boundary, and it can be explicitly forgotten. The record never
 contains a private key, signature, challenge, comparison code, or bearer
 credential.
+
+A definitive HTTP client refusal clears that request's local retry record and
+restores the owner controls, while keeping the refusal visible. HTTP 408,
+server errors, lost responses and unreadable receipts keep the exact record
+because the host may have committed the request. A late refusal from a previous
+world context cannot clear a retained request in the current world.
 
 ## Current scope
 
@@ -258,6 +275,53 @@ This is an operator recovery path, not automatic queue eviction on behalf of an
 untrusted remote client. Keep the returned code and proof local/private. Tests
 cover capacity recovery and signed owner availability; chunked-body enforcement
 is a Kestrel boundary, not claimed from TestServer's Content-Length test alone.
+
+## Host started by the game
+
+For the local Windows package ([#468](https://github.com/ClankerWorldOrg/ClankerWorld/issues/468)),
+the game starts its own host on the player's PC. Every program on that PC can
+reach a loopback listener, so loopback alone cannot prove the request came from
+the game. Before starting the host, the game writes a fresh random value of at
+least 32 characters to a file in the player's own data folder and starts the
+host with:
+
+- `ClankerWorld:Pairing:LocalApprovalPort`, the separate approval listener, and
+- `ClankerWorld:Pairing:CompanionSecretPath`, the path of that file. The path
+  is not secret; the value is never passed in arguments, logged or saved by the
+  host. A missing, short or unreadable file stops startup, and the setting is
+  refused without an approval port.
+
+On such a companion host, every `/api/v1/local/*` request must also carry the
+value in the `X-ClankerWorld-Companion-Secret` header, compared in constant
+time. Without it the routes return 404, exactly as on the forwarded listener.
+The game uses it to approve its own pending pairing with the comparison code,
+so the player sees no code to copy.
+
+The game does this itself when its folder has `host/ClankerWorld.Viewer.exe`
+and no `--world-url` argument (`LocalHostCompanion`). It uses the fixed origin
+`http://127.0.0.1:5188/`, because a paired origin is pinned, and the approval
+port 5189. It stores this pairing in `user://local-owner-device-registration.json`,
+apart from a server pairing. Before starting the host it checks the port: a
+running host of the exact same version and source revision, started by an
+earlier launch, is reused only after a side-effect-free `GET /api/v1/local/companion`
+confirms the secret already in its file on the approval listener. Anything else on
+the port is refused with a message and never stopped. The host's output goes to
+`logs/host.log` in the player's data folder, and each start first moves the
+previous one to `logs/host.previous.log` so a crash can still be reported.
+Saves, the owner authority and the provider files sit in separate folders
+there, never in the game folder.
+
+`POST /api/v1/local/shutdown` exists only on a private-world companion host. It
+pauses the world, cancels hosted model work and writes its checkpoint before
+returning 202 and requesting process exit. If writing fails, it returns 503 and
+keeps the host alive and paused so the game can retry. Pending startup recovery
+returns 409 without rewriting the refused checkpoint. Whenever a private-world
+host stops, it waits for the tick loop to finish and writes a final checkpoint
+(`host_shutdown` in the log). Ctrl+C or a service stop also pauses a companion
+world; a failed final write is logged and sets a nonzero process exit status.
+A world halted for inspection is left untouched. The server host
+started without these settings behaves as before and cannot be stopped over
+HTTP.
 
 ## Bounded owner actions
 

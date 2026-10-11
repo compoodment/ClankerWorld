@@ -41,7 +41,7 @@ public static class BuildingStorageRules
     public static int? Capacity(BuildingDefinition definition, PlacedBuilding building) =>
         definition.Tags.Contains(AnimalContent.YardTag, StringComparer.Ordinal) ? 16 :
         definition.Tags.Contains("farmhouse", StringComparer.Ordinal) ? FarmFieldRules.FarmStorageCapacity :
-        definition.Tags.Any(tag => tag is "house" or "warehouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic")
+        definition.Tags.Any(tag => tag is "house" or "warehouse" or "blacksmith" or "tailor" or "store" or "restaurant" or "clinic" or "silo")
             ? UnitsPerTile * (building.Footprint?.Width ?? definition.Width) *
                 (building.Footprint?.Height ?? definition.Height) : null;
 
@@ -70,27 +70,18 @@ public sealed partial class PrivateWorldRuntime
     // Provisional duration; paid model calls do not advance construction.
     private const int BuildingExpansionTicks = 20;
 
-    private int StoredQuantity(string buildingId) => society.Checkpoint.Inventory.Lots
-        .Where(lot => lot.StorageBuildingId == buildingId).Sum(lot => lot.Quantity);
+    private int StoredQuantity(string buildingId, InventoryCheckpoint? inventory = null) =>
+        InventoryIndex.For(inventory ?? society.Checkpoint.Inventory).StoredAt(buildingId).Sum(lot => lot.Quantity);
 
-    private int StorageRoom(string buildingId)
-    {
-        var building = worldSimulation.Buildings.Single(item => item.InstanceId == buildingId);
-        var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
-        return BuildingStorageRules.Capacity(definition, building) is { } capacity
-            ? Math.Max(0, capacity - StoredQuantity(buildingId) - ReservedStorageGrowth(buildingId) -
-                ReservedBusinessStorageSpace(buildingId)) : int.MaxValue;
-    }
-
-    private int ReservedStorageGrowth(string buildingId) => worldSimulation.ProductionJobs
+    private int ReservedStorageGrowth(string buildingId, InventoryCheckpoint? inventory = null) => worldSimulation.ProductionJobs
         .Where(job => job.BuildingInstanceId == buildingId && (job.State is WorldProductionJobState.Running or WorldProductionJobState.Paused))
         .Sum(job =>
         {
             var recipe = worldContent.Recipes.Single(item => item.CanonicalId == job.RecipeId);
             return Math.Max(0, recipe.Outputs.Where(item => item.ResourceId != InventoryContainerRules.Handcart)
                 .Sum(item => item.Amount) - job.InputReservationIds
-                .Select(society.Checkpoint.Inventory.GetReservation).Where(reservation =>
-                    society.Checkpoint.Inventory.GetLot(reservation.LotId).StorageBuildingId == buildingId)
+                .Select((inventory ?? society.Checkpoint.Inventory).GetReservation).Where(reservation =>
+                    (inventory ?? society.Checkpoint.Inventory).GetLot(reservation.LotId).StorageBuildingId == buildingId)
                 .Sum(reservation => reservation.Quantity));
         });
 
@@ -124,11 +115,6 @@ public sealed partial class PrivateWorldRuntime
             .Where(lot => lot.ItemKind == itemKind && lot.DeliveryBuildingId == building.InstanceId)
             .Sum(AvailableLotQuantity);
 
-    private int ExpansionDeliveryStorageRoom(PlacedBuilding building, InventoryLot delivery) =>
-        Math.Max(0, StorageRoom(building.InstanceId) - society.Checkpoint.Inventory.Lots
-            .Where(lot => lot.DeliveryBuildingId == building.InstanceId && lot.Id != delivery.Id)
-            .Sum(lot => lot.Quantity));
-
     private InventoryLot? ExpansionSharedMaterialSource(string actor, PlacedBuilding building, string itemKind)
     {
         var owner = ExpansionOwner(building);
@@ -144,7 +130,7 @@ public sealed partial class PrivateWorldRuntime
             .OrderBy(lot => lot.Id, StringComparer.Ordinal)
             .Where(lot => CanReachSharedItem(actor, lot))
             .Concat(warehouseStock)
-            .Where(lot => !IsActiveTownProjectDelivery(lot.Id))
+            .Where(lot => !IsActiveTownProjectDelivery(lot.Id) && PickupCarryCapacity(actor, lot, building.Position) > 0)
             .FirstOrDefault();
     }
 
@@ -159,7 +145,7 @@ public sealed partial class PrivateWorldRuntime
         var inbound = ExpansionInboundQuantity(building, cost.ResourceId);
         var remaining = Math.Max(0, cost.Amount - alreadyAtSite - inbound);
         var quantity = Math.Min(HouseHaulLoadQuantity, Math.Min(remaining,
-            Math.Min(AvailableLotQuantity(source), FreeCarryCapacity(actor))));
+            Math.Min(AvailableLotQuantity(source), PickupCarryCapacity(actor, source, building.Position))));
         return (source, quantity);
     }
 
@@ -176,7 +162,7 @@ public sealed partial class PrivateWorldRuntime
 
         if (ExpansionSharedMaterialPickup(actor, building, cost).Quantity > 0)
             return true;
-        return MaterialSource(cost.ResourceId, actor) is { } source &&
+        return MaterialSource(cost.ResourceId, actor, building.Position) is { } source &&
             FreeCarryCapacity(actor) >= ProjectMaterialCarryUnits(actor, cost.ResourceId, source);
     }
 
@@ -388,7 +374,7 @@ public sealed partial class PrivateWorldRuntime
 
                 var owner = ExpansionOwner(building);
                 var storageQuantity = Math.Min(AvailableLotQuantity(delivery),
-                    ExpansionDeliveryStorageRoom(building, delivery));
+                    DestinationRoom(building.InstanceId, delivery));
                 if (storageQuantity > 0)
                 {
                     ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory,
@@ -433,8 +419,8 @@ public sealed partial class PrivateWorldRuntime
                         $"{actor}:{shared.Id}:{quantity}:{building.InstanceId}");
                 }
             }
-            else if (MaterialSource(missing.ResourceId, actor) is { } source)
-                GatherProjectMaterial(actor, state, missing.ResourceId, source);
+            else if (MaterialSource(missing.ResourceId, actor, building.Position) is { } source)
+                GatherProjectMaterial(actor, state, missing.ResourceId, source, returnTo: building.Position);
             return;
         }
         if (state.Position != building.Position) MoveToward(actor, state, building.Position, "building_expansion", 0);
@@ -469,7 +455,7 @@ public sealed partial class PrivateWorldRuntime
         if (!HasExpansionMaterials(actor, building, costs))
             return ProductionStartResult.Rejected(buildingId, "Bring the expansion materials to the building or carry them to the site.");
         var jobId = $"expansion-{worldSimulation.NextProductionJobSequence:D8}";
-        var completion = WorldTick + BuildingExpansionTicks;
+        var completion = WorldTick + SkilledWorkTicks(actor, SettlementSkillKind.Building, BuildingExpansionTicks);
         IReadOnlyList<string> reservations = [];
         ApplyInventoryTransition(inventory => ReserveExpansionMaterials(inventory, actor, building, costs, jobId, completion, out reservations));
         var job = new BuildingExpansionJob(jobId, buildingId, actor, owner, building.Footprint?.Revision ?? 0,

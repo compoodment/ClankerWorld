@@ -57,14 +57,15 @@ public sealed partial class PrivateWorldRuntime
             .Where(lot => restaurants.Any(building => WorkstationInputTarget(building, itemKind) >
                     WorkstationOnsiteQuantity(inventory, building, itemKind) +
                     WorkstationIncomingQuantity(inventory, building, itemKind) &&
-                WorkstationDeliveryRoom(inventory, building.InstanceId) > 0 &&
+                DestinationRoom(inventory, building.InstanceId) > 0 &&
                 (lot.ContainerLotId is not { } containerId ||
                  !HasActiveContainerReservation(inventory, containerId) &&
                  !UnusableDeliveryStock(inventory, inventory.GetLot(containerId)) &&
-                 ContainerFamilyQuantity(inventory, containerId) <= WorkstationDeliveryRoom(inventory, building.InstanceId))))
+                 ContainerFamilyQuantity(inventory, containerId) <= DestinationRoom(inventory, building.InstanceId))))
             .Sum(lot => UsableWorkstationQuantity(inventory, lot));
         var householdStock = inventory.Lots.Where(lot => lot.OwnerId == householdId && lot.ItemKind == itemKind &&
-                lot.CarrierId is null && lot.DeliveryBuildingId is null && UsableWorkstationQuantity(inventory, lot) > 0 &&
+                lot.CarrierId is null && !OnBorrowedMarketStall(lot) &&
+                lot.DeliveryBuildingId is null && UsableWorkstationQuantity(inventory, lot) > 0 &&
                 (lot.StorageBuildingId is null || worldSimulation.Buildings.Any(building =>
                     building.InstanceId == lot.StorageBuildingId && worldContent.Buildings.Any(definition =>
                         definition.CanonicalId == building.DefinitionId &&
@@ -169,13 +170,9 @@ public sealed partial class PrivateWorldRuntime
     {
         var inventory = society.Checkpoint.Inventory;
         var equipment = inhabitants[buyer].Equipment;
-        var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
-        var capacity = IsFarmStorage(building) ? FarmFieldRules.FarmStorageCapacity :
-            BuildingStorageRules.Capacity(definition, building) ?? int.MaxValue;
         return PersonalEquipmentRules.CarriedQuantity(inventory, buyer, equipment) - payment + goods +
                 ReservedBusinessCarrySpace(buyer) <= PersonalEquipmentRules.Capacity(inventory, buyer, equipment) + HorseCargoCapacity(buyer) &&
-            (long)StoredQuantity(building.InstanceId) - goods + payment + ReservedStorageGrowth(building.InstanceId) +
-                ReservedBusinessStorageSpace(building.InstanceId) + InboundDeliveryQuantity(inventory, building.InstanceId) <= capacity;
+            payment <= DestinationRoom(inventory, building.InstanceId, outgoingQuantity: goods);
     }
 
     private static HashSet<string> BestUsableToolIds(InventoryCheckpoint inventory, string actor) =>
@@ -195,10 +192,9 @@ public sealed partial class PrivateWorldRuntime
                 !AgentKnowledgeRules.IsArtifactKind(lot.ItemKind));
     }
 
-    private bool MayVisitTownBusiness(string buyer, PlacedBuilding building)
+    private bool MayVisitBusiness(string buyer, PlacedBuilding building)
     {
         if (!AdultResident(buyer) || NeedsUrgentWarmth(inhabitants[buyer]) ||
-            TownForResident(buyer) is not { } townId || building.TownId != townId ||
             building.HouseholdId is not { } seller || seller == HouseholdFor(buyer) ||
             !society.Checkpoint.Households.Any(household => household.Id == seller) ||
             !inhabitants.Keys.Any(actor => AdultResident(actor) && HouseholdFor(actor) == seller) ||
@@ -210,13 +206,12 @@ public sealed partial class PrivateWorldRuntime
 
     private bool RestaurantIngredientShopTrip(string buyer, PlacedBuilding building)
     {
-        if (!MayVisitTownBusiness(buyer, building) || HouseholdFor(buyer) is not { } householdId) return false;
-        var townId = TownForResident(buyer);
+        if (!MayVisitBusiness(buyer, building) || HouseholdFor(buyer) is not { } householdId) return false;
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         if (BusinessRules.KindOf(definition) is not { } kind) return false;
         // A Town shop's location and kind can motivate a visit. Its private
         // stock and exact terms are inspected only after the buyer arrives.
-        var inputs = worldSimulation.Buildings.Where(site => site.HouseholdId == householdId && site.TownId == townId &&
+        var inputs = worldSimulation.Buildings.Where(site => site.HouseholdId == householdId &&
                 worldContent.Buildings.Any(item => item.CanonicalId == site.DefinitionId &&
                     item.Tags.Contains("restaurant", StringComparer.Ordinal)))
             .SelectMany(site => worldContent.Recipes.Where(recipe => recipe.WorkstationBuildingId == site.DefinitionId)
@@ -229,7 +224,7 @@ public sealed partial class PrivateWorldRuntime
 
     private bool RestaurantMealShopTrip(string buyer, PlacedBuilding building)
     {
-        if (!MayVisitTownBusiness(buyer, building)) return false;
+        if (!MayVisitBusiness(buyer, building)) return false;
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         if (BusinessRules.KindOf(definition) != "restaurant") return false;
         // The menu describes possible meals, never whether the private shelf
@@ -427,15 +422,10 @@ public sealed partial class PrivateWorldRuntime
             Math.Max(0, offer.FirstQuantity - offer.SecondQuantity);
         var afterCarry = PersonalEquipmentRules.CarriedQuantity(inventory, trade.BuyerId, equipment) -
             offer.SecondQuantity + offer.FirstQuantity + otherCarryReservations;
-        var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
-        var capacity = IsFarmStorage(building) ? FarmFieldRules.FarmStorageCapacity :
-            BuildingStorageRules.Capacity(definition, building) ?? int.MaxValue;
-        var otherStorageReservations = ReservedBusinessStorageSpace(trade.BuildingInstanceId) -
-            Math.Max(0, offer.SecondQuantity - offer.FirstQuantity);
-        var afterStorage = (long)StoredQuantity(trade.BuildingInstanceId) - offer.FirstQuantity +
-            offer.SecondQuantity + ReservedStorageGrowth(trade.BuildingInstanceId) + otherStorageReservations +
-            InboundDeliveryQuantity(inventory, trade.BuildingInstanceId);
-        if (afterCarry > PersonalEquipmentRules.Capacity(inventory, trade.BuyerId, equipment) + HorseCargoCapacity(trade.BuyerId) || afterStorage > capacity)
+        var storageRoom = DestinationRoom(inventory, trade.BuildingInstanceId, outgoingQuantity: offer.FirstQuantity,
+            releasedBusinessReservation: Math.Max(0, offer.SecondQuantity - offer.FirstQuantity));
+        if (afterCarry > PersonalEquipmentRules.Capacity(inventory, trade.BuyerId, equipment) + HorseCargoCapacity(trade.BuyerId) ||
+            offer.SecondQuantity > storageRoom)
             return "There is no longer enough receiving space.";
         if (!IsWithinInteractionRange(buyerState.Position, trade.Position, ResourceInteractionRange) &&
             FindUnoccupiedRoute(trade.BuyerId, buyerState.Position, trade.Position, ResourceInteractionRange).Count == 0)
@@ -495,7 +485,7 @@ public sealed partial class PrivateWorldRuntime
                 !BoundedBusinessText(trade.BuildingInstanceId, 256) ||
                 !societyState.Households.Any(household => household.Id == trade.SellerHouseholdId) ||
                 !societyState.Inhabitants.Any(person => person.Id == trade.BuyerId) ||
-                !BoundedBusinessText(trade.GoodsKind, 128) || !BoundedBusinessText(trade.PaymentKind, 128) ||
+                !BusinessResourceKind(trade.GoodsKind) || !BusinessResourceKind(trade.PaymentKind) ||
                 trade.Position.X < 0 || trade.Position.X >= map.Width || trade.Position.Y < 0 || trade.Position.Y >= map.Height ||
                 inventory.Lots.Any(lot => lot.Id == offer.FirstLotId && lot.ItemKind != trade.GoodsKind) ||
                 inventory.Lots.Any(lot => lot.Id == offer.SecondLotId && lot.ItemKind != trade.PaymentKind) ||
@@ -517,6 +507,10 @@ public sealed partial class PrivateWorldRuntime
                 !trades.Any(trade => trade.OfferId == offer.Id)))
             throw new InvalidDataException("An inventory business offer has no physical shop binding.");
     }
+
+    // Content quantities and inventory resource kinds have no separate trade-record length limit.
+    private static bool BusinessResourceKind(string? text) => text is { Length: > 0 } &&
+        text == text.Trim() && !text.Any(char.IsControl);
 
     private static bool BoundedBusinessText(string? text, int limit) => text is { Length: > 0 } &&
         text.Length <= limit && text == text.Trim() && !text.Any(char.IsControl);

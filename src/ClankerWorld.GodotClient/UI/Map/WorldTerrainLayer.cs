@@ -100,6 +100,8 @@ public partial class WorldTerrainLayer : Control
 
     public int WeatherRegionSize => weatherRegionSize;
 
+    internal IReadOnlyDictionary<Vector2I, string> WeatherRegions => weatherRegions;
+
     /// <summary>Changes whenever the map or its weather regions change, for layers that cache weather.</summary>
     public int WeatherVersion { get; private set; }
 
@@ -118,6 +120,8 @@ public partial class WorldTerrainLayer : Control
     public void SetWorld(WorldTerrainMap map)
     {
         world = map;
+        ResetGroundSnow();
+        ResetResourceAppearanceInputs();
         ResetRelief();
         townSiteGuidanceTexture = null;
         currentTownSiteGuidance = null;
@@ -580,6 +584,8 @@ public partial class WorldTerrainLayer : Control
     public void SetTrees(IReadOnlyList<OwnerWorldResource> resources)
     {
         if (world is null) return;
+        ArgumentNullException.ThrowIfNull(resources);
+        if (TreeAppearanceMatches(resources)) return;
         var next = new byte[checked(world.Width * world.Height)];
         foreach (var resource in resources)
         {
@@ -589,9 +595,7 @@ public partial class WorldTerrainLayer : Control
             if (resource.TreeKind is not { } species) continue;
             // The host sends the stage it read from the saved growth state.
             // Older hosts sent it only for orchards, so derive the rest.
-            var stage = resource.TreeStage ?? (species == "orchard" ? "fruiting"
-                : resource.IsPlanted ? "sapling"
-                : resource.Quantity == 0 || resource.State != "available" ? "stump" : "mature");
+            var stage = VisibleTreeStage(resource);
             if (TreeArtManifest.For(species, stage) is not { Code: > 0 } art) continue;
             var index = y * world.Width + x;
             if (next[index] != 0)
@@ -599,6 +603,7 @@ public partial class WorldTerrainLayer : Control
             next[index] = art.Code;
         }
         trees = next;
+        treeAppearanceInputs = resources.Where(resource => resource.TreeKind is not null && ResourceInBounds(resource)).ToArray();
         QueueRedraw();
     }
 
@@ -676,25 +681,43 @@ public partial class WorldTerrainLayer : Control
     {
         if (world is null) return;
         ArgumentNullException.ThrowIfNull(resources);
-        var next = new byte[checked(world.Width * world.Height)];
-        var stages = new byte[next.Length];
-        foreach (var resource in resources)
+        var changed = !NaturalAppearanceMatches(resources);
+        if (changed)
         {
-            var kind = NatureSprites.NaturalObjectCode(resource.NaturalObjectKind);
-            if (kind == 0) continue;
-            var x = resource.Position.X;
-            var y = resource.Position.Y;
-            if (x < 0 || x >= world.Width || y < 0 || y >= world.Height) continue;
-            var index = y * world.Width + x;
-            if (trees[index] != 0 || next[index] != 0)
-                throw new InvalidDataException("Generated natural objects cannot overlap another tree or natural object.");
-            next[index] = kind;
-            stages[index] = resource.Quantity == 0 || resource.State != "available"
-                ? resource.IsRenewable ? (byte)2 : (byte)1
-                : (byte)0;
+            var next = new byte[checked(world.Width * world.Height)];
+            var stages = new byte[next.Length];
+            foreach (var resource in resources)
+            {
+                var kind = NatureSprites.NaturalObjectCode(resource.NaturalObjectKind);
+                if (kind == 0) continue;
+                var x = resource.Position.X;
+                var y = resource.Position.Y;
+                if (x < 0 || x >= world.Width || y < 0 || y >= world.Height) continue;
+                var index = y * world.Width + x;
+                if (trees[index] != 0 || next[index] != 0)
+                    throw new InvalidDataException("Generated natural objects cannot overlap another tree or natural object.");
+                next[index] = kind;
+                stages[index] = VisibleNaturalStage(resource);
+            }
+            naturalObjects = next;
+            naturalStages = stages;
+            naturalAppearanceInputs = resources.Where(resource => NatureSprites.NaturalObjectCode(resource.NaturalObjectKind) > 0 &&
+                ResourceInBounds(resource)).ToArray();
         }
-        naturalObjects = next;
-        naturalStages = stages;
+        else if (!ReferenceEquals(naturalAppearanceTrees, trees))
+        {
+            // A new tree must not hide a previously indexed natural site.
+            foreach (var resource in naturalAppearanceInputs!)
+                if (trees[resource.Position.Y * world.Width + resource.Position.X] != 0)
+                    throw new InvalidDataException("Generated natural objects cannot overlap another tree or natural object.");
+        }
+        naturalAppearanceTrees = trees;
+        if (ReferenceEquals(campAppearanceTrees, trees) && ReferenceEquals(campAppearanceNaturalObjects, naturalObjects) &&
+            CampAppearanceMatches(resources))
+        {
+            if (changed) QueueRedraw();
+            return;
+        }
         // Older camp resources carry only a resource kind; draw them with the
         // matching site's sprite where no generated site already stands.
         campResources.Clear();
@@ -707,9 +730,12 @@ public partial class WorldTerrainLayer : Control
             var y = resource.Position.Y;
             if (x < 0 || x >= world.Width || y < 0 || y >= world.Height) continue;
             var index = y * world.Width + x;
-            if (trees[index] != 0 || next[index] != 0) continue;
+            if (trees[index] != 0 || naturalObjects[index] != 0) continue;
             campResources[index] = sprite;
         }
+        campAppearanceInputs = resources.Where(resource => CampAppearance(resource) is not null && ResourceInBounds(resource)).ToArray();
+        campAppearanceTrees = trees;
+        campAppearanceNaturalObjects = naturalObjects;
         QueueRedraw();
     }
 
@@ -772,6 +798,7 @@ public partial class WorldTerrainLayer : Control
 
     private void DrawMapContents()
     {
+        AutumnLeafDrawCount = 0;
         OverviewNaturalObjectDrawCount = 0;
         BeginReliefDraw();
         if (world is null) return;
@@ -847,7 +874,9 @@ public partial class WorldTerrainLayer : Control
         DrawFields(bounds, stride);
         DrawTownSiteGuidance(bounds, stride);
         DrawRoads(bounds, stride);
+        DrawGroundSnow(bounds, stride);
         DrawBridges(bounds, stride);
+        DrawAutumnLeaves(bounds, stride);
         DrawBuildings(bounds, stride);
         // Trees are objects, not baked ground colors: keep them visible both
         // above full-size tiles and above the small-tile palette cache.
@@ -1246,6 +1275,8 @@ public partial class WorldTerrainLayer : Control
     /// </summary>
     private void DrawBuildings((int Left, int Top, int Width, int Height) bounds, int stride)
     {
+        DrawnSnowRoofCount = 0;
+        DrawnSnowRoofRegionCount = 0;
         if (world is null || buildings.Count == 0 && constructionSites.Count == 0 && lanternSites.Count == 0 || tileSize <= 0) return;
         var visible = new Rect2I(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
         var atlasSize = BuildingSprites.AtlasTileSize(tileSize);
@@ -1264,7 +1295,10 @@ public partial class WorldTerrainLayer : Control
                 if (tileSize < SpriteTileMinimum)
                     DrawRect(rect, BuildingSprites.RoofColor(kind));
                 else
+                {
                     DrawTextureRect(BuildingSprites.Texture(kind, footprint.Size.X, footprint.Size.Y, atlasSize, door, neglect), rect, false);
+                    DrawRoofSnow(footprint, kind, door, neglect, atlasSize, shift, rect, stride);
+                }
             }
         foreach (var (footprint, kind, door, stage) in constructionSites)
             foreach (var shift in shifts)

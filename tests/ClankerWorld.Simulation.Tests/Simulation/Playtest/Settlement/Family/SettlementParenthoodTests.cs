@@ -387,8 +387,8 @@ public sealed partial class SettlementParenthoodTests
     [InlineData("safe_idle")]
     public async Task RefusalOrSilenceNeverCreatesAChild(string response)
     {
-        // Ordinary refusal applies once eight non-elders live and the continuity rule is off.
-        var state = WithEightNonElders(await PreparedState());
+        // Ordinary refusal applies once four eligible adult couples make the continuity rule turn off.
+        var state = WithFourEligibleCouples(await PreparedState());
         var first = state.Inhabitants[0].InhabitantId;
         using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : response));
         for (var tick = 0; tick < 125; tick++) await world.AdvanceOneTickAsync();
@@ -505,7 +505,7 @@ public sealed partial class SettlementParenthoodTests
     public async Task EitherParentCanWithdrawDuringPreparation()
     {
         // Withdrawal is ordinary refusal, so it needs the continuity rule to be off.
-        var state = WithEightNonElders(await PreparedState());
+        var state = WithFourEligibleCouples(await PreparedState());
         var first = state.Inhabitants[0].InhabitantId;
         using var world = PrivateWorldRuntime.Restore(state, actor => new ParentProvider(actor == first ? "parent_propose:" : "parent_accept:"));
         await world.AdvanceOneTickAsync();

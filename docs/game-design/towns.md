@@ -2,7 +2,7 @@
 title: Towns, buildings and government
 type: game-design
 status: active
-updated: 2026-10-08
+updated: 2026-10-10
 ---
 
 # Towns, buildings and government
@@ -63,6 +63,10 @@ everything that is available in the current build. See [what works today](../wha
   agreed Warehouse rule (any Town resident may plan its expansion once its
   stock is nearly full) belong in the full content catalogue; do not invent
   those values yet.
+  **Agreed on October 10
+  ([#1369](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1369)):**
+  private farm Silos also store 64 units per footprint tile. A 1×1 Silo holds
+  64 units.
 - Non-residential buildings have distinct physical occupancy, workstation,
   storage, and other type-specific limits. Agents can reserve space when
   practical, queue or choose alternatives when full, and retain the blocked
@@ -1026,8 +1030,7 @@ world](world.md#river-crossings-and-visible-forests-and-mountains)), so traffic
 can bridge two-tile crossings too. Only actual traversal counts, not route
 previews, failed attempts or waiting. Keep bounded crossing evidence across
 saves; the threshold can be tuned after playtesting. Generated-Road bridges
-need not wait for this traffic. Both bridge triggers are now built; Road links
-between Towns wait for a second Town. [What works
+need not wait for this traffic. [What works
 today](../what-works.md#maps-weather-and-appearance) says what normal play
 shows so far, and [How it
 works](../development/how-it-works.md#roads-and-bridges) says how the same

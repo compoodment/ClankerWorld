@@ -4,6 +4,8 @@ using ClankerWorld.Viewer.Control;
 
 namespace ClankerWorld.Viewer.Observation;
 
+public enum ShutdownSaveOutcome { Saved, PreservedHalted, WriteFailed }
+
 /// <summary>
 /// Advances the integrated private-world alpha at a deliberately readable
 /// cadence. Hosted providers are not called once per render frame.
@@ -91,6 +93,42 @@ public sealed partial class PrivateWorldRuntimeService(
     {
         runtime.AgentBeliefChanged -= OnAgentBeliefChanged;
         return base.StopAsync(cancellationToken);
+    }
+
+    [LoggerMessage(EventId = 2322, Level = LogLevel.Information,
+        Message = "host_shutdown outcome={Outcome} tick={WorldTick}")]
+    private static partial void LogShutdownSave(ILogger logger, string outcome, long worldTick);
+
+    /// <summary>
+    /// Cancels hosted work and writes the checkpoint. Companion shutdown pauses
+    /// first, so a prepared tick cannot commit after this save. A failed write
+    /// leaves the companion alive and paused; a halted world stays untouched.
+    /// </summary>
+    public ShutdownSaveOutcome SaveBeforeShutdown(bool pauseWorld = false)
+    {
+        if (invalidStateHalt)
+        {
+            if (logger is not null) LogShutdownSave(logger, "skipped_halted", runtime.WorldTick);
+            return ShutdownSaveOutcome.PreservedHalted;
+        }
+        var gate = providers?.WorldMutationGate ?? new object();
+        try
+        {
+            lock (gate)
+            {
+                if (pauseWorld) runtime.Pause();
+                runtime.CancelPendingHostedDecisions();
+                _ = stateFile.Save(runtime);
+            }
+            recoveryWritePending = false;
+            if (logger is not null) LogShutdownSave(logger, "saved", runtime.WorldTick);
+            return ShutdownSaveOutcome.Saved;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            if (logger is not null) LogShutdownSave(logger, "save_failed", runtime.WorldTick);
+            return ShutdownSaveOutcome.WriteFailed;
+        }
     }
 
     private void OnAgentBeliefChanged(PrivateWorldBeliefTransition transition)

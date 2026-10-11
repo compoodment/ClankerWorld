@@ -1,0 +1,1 @@
+- Land fertility now uses the rainfall of the selected generated map, so soil inspection and farming agree with that map when generation chose its second or third candidate.

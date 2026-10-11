@@ -118,7 +118,7 @@ public sealed partial class PrivateWorldRuntime
                 var missing = target - stocked - incoming;
                 if (missing <= 0)
                     continue;
-                var deliveryRoom = WorkstationDeliveryRoom(inventory, building.InstanceId);
+                var deliveryRoom = DestinationRoom(inventory, building.InstanceId);
                 var carried = inventory.Lots
                     // Water travels inside a carried jug, so look through the vessel to its contents.
                     .Where(lot => (lot.OwnerId == actor || lot.OwnerId == householdId) && PersonalEquipmentRules.IsPhysicallyCarried(inventory, lot, actor) &&
@@ -143,7 +143,7 @@ public sealed partial class PrivateWorldRuntime
                         WorkstationPickupQuantity(actor, inventory, lot, building.InstanceId, int.MaxValue) > 0 &&
                         (!InventoryContainerRules.IsContainer(lot.ItemKind) ||
                          DeliveryResourceQuantity(lot, input.Key) <= maximumResourceQuantity));
-                var source = carried is not null || stock is not null ? null : MaterialSource(input.Key, actor);
+                var source = carried is not null || stock is not null ? null : MaterialSource(input.Key, actor, building.Position);
                 if (source is not null && (deliveryRoom <= 0 ||
                     ProjectMaterialCarryUnits(actor, input.Key, source) > FreeCarryCapacity(actor)))
                     source = null;
@@ -157,15 +157,12 @@ public sealed partial class PrivateWorldRuntime
         }
     }
 
-    /// <summary>Household stock not already set aside at another workstation.</summary>
-    private int WorkstationDeliveryRoom(InventoryCheckpoint inventory, string destinationId) =>
-        Math.Max(0, StorageRoom(destinationId) - inventory.Lots
-            .Where(lot => lot.DeliveryBuildingId == destinationId).Sum(lot => lot.Quantity));
-
     private int WorkstationPickupQuantity(string actor, InventoryCheckpoint inventory, InventoryLot stock,
         string destinationId, int missing)
     {
-        var capacity = Math.Min(FreeCarryCapacity(actor), WorkstationDeliveryRoom(inventory, destinationId));
+        var destination = worldSimulation.Buildings.SingleOrDefault(building => building.InstanceId == destinationId);
+        var capacity = destination is null ? 0 : Math.Min(PickupCarryCapacity(actor, stock, destination.Position),
+            DestinationRoom(inventory, destinationId));
         if (capacity <= 0)
             return 0;
         return InventoryContainerRules.IsContainer(stock.ItemKind)
@@ -236,7 +233,7 @@ public sealed partial class PrivateWorldRuntime
                 return;
             }
             var currentInventory = society.Checkpoint.Inventory;
-            var room = WorkstationDeliveryRoom(currentInventory, building.InstanceId);
+            var room = DestinationRoom(currentInventory, building.InstanceId);
             var quantity = InventoryContainerRules.IsContainer(carried.ItemKind)
                 ? ContainerFamilyQuantity(currentInventory, carried.Id) <= room ? 1 : 0
                 : Math.Min(room, Math.Min(need.Missing, SpareCarriedQuantity(actor, carried)));
@@ -268,7 +265,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         if (need.Source is { } source)
-            GatherProjectMaterial(actor, state, itemKind, source);
+            GatherProjectMaterial(actor, state, itemKind, source, returnTo: building.Position);
     }
 
     private DeliveryOrderPlan? GetWorkstationOrderPlan(string actor, PlaytestInhabitantState person,
@@ -286,8 +283,8 @@ public sealed partial class PrivateWorldRuntime
             var container = InventoryContainerRules.IsContainer(carrier.ItemKind);
             var quantity = direct
                 ? container ? ContainerFamilyQuantity(inventory, carrier.Id) <=
-                    WorkstationDeliveryRoom(inventory, need.Building.InstanceId) ? 1 : 0
-                    : Math.Min(maximumQuantity, Math.Min(WorkstationDeliveryRoom(inventory, need.Building.InstanceId),
+                    DestinationRoom(inventory, need.Building.InstanceId) ? 1 : 0
+                    : Math.Min(maximumQuantity, Math.Min(DestinationRoom(inventory, need.Building.InstanceId),
                         Math.Min(need.Missing, SpareCarriedQuantity(actor, carrier))))
                 : WorkstationPickupQuantity(actor, inventory, carrier, need.Building.InstanceId,
                     Math.Min(need.Missing, maximumQuantity));

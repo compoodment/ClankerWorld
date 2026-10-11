@@ -146,6 +146,8 @@ public sealed partial class PrivateWorldRuntime
                     reassignedRights, WorldTick)
                 : null;
 
+            var firstBuildingTown = isWarehouse && nextTownId is { } target &&
+                towns.Single(town => town.Id == target).FirstBuildingCompletedTick is null ? nextTownId : null;
             if (isWarehouse && nextTownId is { } reassignedTownId)
             {
                 if (building.TownId is { } previousTownId)
@@ -162,6 +164,9 @@ public sealed partial class PrivateWorldRuntime
                     : worldSimulation.GuestInvitations,
             };
             householdLandUseRights = reassignedRights.ToList();
+            if (firstBuildingTown is { } firstTown)
+                GenerateRoadBetweenTowns(towns.Single(town => town.Id == firstTown),
+                    worldSimulation.Buildings.Single(item => item.InstanceId == instanceId));
             if (rightsTown is not null && reassignedHearings is not null)
             {
                 SetTown(rightsTown with { LandHearings = reassignedHearings });
@@ -174,7 +179,7 @@ public sealed partial class PrivateWorldRuntime
         finally { gate.Release(); }
     }
 
-    private string? BuildingMutationBlocker(PlacedBuilding building)
+    private string? BuildingMutationBlocker(PlacedBuilding building, bool allowStoredGoods = false)
     {
         var id = building.InstanceId;
         if (animalWorld.MilkOffers.Any(offer => offer.BuildingId == id))
@@ -189,7 +194,7 @@ public sealed partial class PrivateWorldRuntime
         if (toolMakingRequests.Any(request => request.BuildingInstanceId == id && !ToolMakingRequestRules.IsTerminal(request.Status)))
             return "Finish, refuse or withdraw the active tool request before changing this Blacksmith's owner or removing it.";
         if (society.Checkpoint.Inventory.Lots.Any(lot =>
-                lot.StorageBuildingId == id || lot.DeliveryBuildingId == id))
+                !allowStoredGoods && lot.StorageBuildingId == id || lot.DeliveryBuildingId == id))
             return "Empty this building and wait for all deliveries before changing its owner or removing it.";
         var definition = worldContent.Buildings.Single(item => item.CanonicalId == building.DefinitionId);
         if (building.HouseholdId is { } householdId && definition.Tags.Contains("farmhouse", StringComparer.Ordinal) &&
@@ -234,6 +239,7 @@ public sealed partial class PrivateWorldRuntime
         SetTown(town with
         {
             AssignedBuildingIds = town.AssignedBuildingIds.Append(buildingId).Order(StringComparer.Ordinal).ToArray(),
+            FirstBuildingCompletedTick = town.FirstBuildingCompletedTick ?? WorldTick,
         });
     }
 }

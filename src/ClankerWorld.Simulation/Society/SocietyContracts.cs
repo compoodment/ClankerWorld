@@ -243,6 +243,16 @@ public sealed record SocietyOrganization(
     IReadOnlyList<string> MemberIds,
     string InventoryOwnerId);
 
+/// <summary>Why a private source is retained; permanent kinds never fade.</summary>
+public enum SocietyMemoryKind
+{
+    Experience,
+    LifeEvent,
+    Relationship,
+    Skill,
+    Commitment,
+}
+
 public sealed record SocietySocialMemory(
     string Id,
     string OwnerId,
@@ -250,7 +260,12 @@ public sealed record SocietySocialMemory(
     string Summary,
     string Visibility,
     long SourceTick,
-    long? TombstonedTick = null);
+    long? TombstonedTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool Permanent = false)
+{
+    [JsonRequired]
+    public SocietyMemoryKind Kind { get; init; } = SocietyMemoryKind.Experience;
+}
 
 /// <summary>The evidence basis for an agent-owned account, not a world fact.</summary>
 public enum SocietyBeliefProvenance
@@ -279,7 +294,14 @@ public sealed record SocietyAgentBelief(
     string? SupersedesBeliefId = null,
     string? SupersededByBeliefId = null,
     long? SupersededTick = null,
-    string? SourceTurnId = null);
+    string? SourceTurnId = null)
+{
+    [JsonRequired]
+    public SocietyMemoryKind Kind { get; init; } = SocietyMemoryKind.Experience;
+}
+
+public sealed record SocietyArchivedMemory(SocietySocialMemory Memory, long ArchivedTick);
+public sealed record SocietyArchivedBelief(SocietyAgentBelief Belief, long ArchivedTick);
 
 /// <summary>Identifies an agent-private source without turning it into a world fact.</summary>
 public enum SocietyMemorySourceKind
@@ -353,6 +375,9 @@ public sealed record SocietyEstateLot(
 /// <summary>An exact part of one frozen lot left to one named heir.</summary>
 public sealed record SocietyWillBequest(string LotId, string HeirId, int Quantity);
 
+/// <summary>Derived from the deceased resident's Town and its law history at death.</summary>
+public sealed record SocietyDefaultEstateDivision(string EstateId, string TownId, int TownSharePercent);
+
 /// <summary>
 /// A will's validated choice in society IDs: one to three distinct heirs in the
 /// order named, "equal" or "items", and for "items" the heir of each listed lot.
@@ -411,6 +436,18 @@ public sealed record SocietyCheckpoint(
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<SocietyAgentMemoryCompaction>? MemoryCompactions { get; init; }
+
+    [JsonRequired]
+    public IReadOnlyList<SocietyAgentMemorySummary> MemorySummaries { get; init; } = [];
+
+    [JsonRequired]
+    public IReadOnlyList<SocietyArchivedMemory> ArchivedMemories { get; init; } = [];
+
+    [JsonRequired]
+    public IReadOnlyList<SocietyArchivedBelief> ArchivedBeliefs { get; init; } = [];
+
+    public IEnumerable<SocietySocialMemory> AllMemories() => Memories.Concat(ArchivedMemories.Select(item => item.Memory));
+    public IEnumerable<SocietyAgentBelief> AllBeliefs() => (Beliefs ?? []).Concat(ArchivedBeliefs.Select(item => item.Belief));
 
     public long LifeTickAt(long worldTick) => LifeClock?.At(worldTick) ?? worldTick;
 

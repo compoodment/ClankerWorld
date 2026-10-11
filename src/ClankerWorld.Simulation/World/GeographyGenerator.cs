@@ -147,6 +147,12 @@ public static class GeographyGenerator
         "This world's map was made by an older terrain generator, before mountains formed massifs. " +
         "This build cannot rebuild that map, so the world is not loaded; its save is kept.";
     public const int ChunkSize = 64;
+
+    /// <summary>
+    /// Rows at the north and south map edges that are always polar sea, so
+    /// no agent walks into an edge it cannot see (agreed October 8, #1249).
+    /// </summary>
+    public const int PolarEdgeRows = 2;
     public const int MaximumCandidateAttempts = 3;
 
     public static (int Width, int Height) Dimensions(WorldSizePreset size) => size switch
@@ -186,9 +192,7 @@ public static class GeographyGenerator
         var water = new byte[length];
         var temperature = new byte[length];
         var climate = new byte[length];
-        var candidateSeed = options.CandidateAttempt == 0
-            ? options.Seed
-            : DeriveCandidateSeed(options.Seed, options.CandidateAttempt);
+        var candidateSeed = CandidateSeed(options.Seed, options.CandidateAttempt);
         var elevationNoise = NewNoise(NoiseSeed(candidateSeed, "elevation"), 0.012f);
         var rainNoise = NewNoise(NoiseSeed(candidateSeed, "rainfall"), 0.018f);
         var temperatureNoise = NewNoise(NoiseSeed(candidateSeed, "temperature"), 0.007f);
@@ -288,6 +292,9 @@ public static class GeographyGenerator
             temperature, climate, drainage);
     }
 
+    /// <summary>Whether a row is one of the polar sea rows at the north or south edge.</summary>
+    public static bool IsPolarEdgeRow(int y, int height) => y < PolarEdgeRows || y >= height - PolarEdgeRows;
+
     /// <summary>
     /// A seeded, coherent noise field for a later map layer, such as where
     /// beaches or groves form. Values are about -1 to 1, and the field stays
@@ -326,6 +333,12 @@ public static class GeographyGenerator
     {
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(worldSeed + ":" + layer));
         return BinaryPrimitives.ReadInt32LittleEndian(digest);
+    }
+
+    internal static string CandidateSeed(string seed, int attempt)
+    {
+        if (attempt == 0) return seed;
+        return DeriveCandidateSeed(seed, attempt);
     }
 
     private static string DeriveCandidateSeed(string seed, int attempt)

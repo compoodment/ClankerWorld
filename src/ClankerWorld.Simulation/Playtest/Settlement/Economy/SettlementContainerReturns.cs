@@ -14,7 +14,7 @@ public sealed partial class PrivateWorldRuntime
         if (!AdultResident(actor) || CarriedHouseDelivery(actor) is not null || FreeCarryCapacity(actor) < 1 ||
             society.Checkpoint.GetInhabitant(actor).HouseholdId is not { } householdId ||
             HouseForHousehold(householdId) is not { } house ||
-            StorageRoomAfterInboundDeliveries(house.InstanceId) < 1)
+            DestinationRoom(house.InstanceId) < 1)
             return null;
 
         var inventory = society.Checkpoint.Inventory;
@@ -33,7 +33,7 @@ public sealed partial class PrivateWorldRuntime
                     HouseholdBuildingKind(definition) is not null));
             if (source is not null &&
                 (person.Position == source.Position || FindUnoccupiedRoute(actor, person.Position, source.Position, 0).Count > 0) &&
-                FindUnoccupiedRoute(actor, source.Position, house.Position, 0).Count > 0)
+                PickupCarryCapacity(actor, vessel, house.Position) >= ContainerFamilyQuantity(inventory, vessel.Id))
                 return vessel;
         }
         return null;

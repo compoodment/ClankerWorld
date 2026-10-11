@@ -23,7 +23,7 @@ public sealed record SocietyDispatchCycleResult(
 /// </summary>
 public sealed class SocietyWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 2;
+    public const int StateSchemaVersion = 4;
 
     private readonly SemaphoreSlim gate = new(1, 1);
     private SocietyCheckpoint society;
@@ -112,8 +112,9 @@ public sealed class SocietyWorldRuntime : IDisposable
         }
     }
 
-    public SocietyOperationResult AdvanceTo(long targetTick, IReadOnlyList<SocietyTownStore>? townStores = null) =>
-        Apply(checkpoint => SocietyFixture.AdvanceTo(checkpoint, targetTick, townStores));
+    public SocietyOperationResult AdvanceTo(long targetTick, IReadOnlyList<SocietyTownStore>? townStores = null,
+        IReadOnlyList<SocietyDefaultEstateDivision>? defaultEstates = null) =>
+        Apply(checkpoint => SocietyFixture.AdvanceTo(checkpoint, targetTick, townStores, defaultEstates));
 
     public SocietyOperationResult Pause() => Apply(SocietyFixture.Pause);
 

@@ -1,0 +1,1 @@
+- Create a new world with each climate setting, with and without latitude cooling, and scroll to the top and bottom of the map. The outer rows should always be sea, and no agent should walk onto them. [#1317](https://github.com/compoodment/ClankerWorld/issues/1317)

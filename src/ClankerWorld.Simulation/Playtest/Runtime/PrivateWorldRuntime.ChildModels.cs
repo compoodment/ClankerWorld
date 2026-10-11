@@ -10,6 +10,7 @@ public sealed partial class PrivateWorldRuntime
     public const string DeterministicModelEndpointIdentity = "built-in-rules-v1";
     public const string OpenAiModelEndpointIdentity = "openai-chat-completions-v1";
     public const string OllamaCloudModelEndpointIdentity = "ollama-cloud-chat-completions-v1";
+    public const string AnthropicModelEndpointIdentity = "anthropic-messages-v1";
 
     /// <summary>Records the selected personal model after the birth tick commits.</summary>
     public void ApplyChildModelSelection(string childId, ChildPersonalModelSelection selection)
@@ -68,6 +69,7 @@ public sealed partial class PrivateWorldRuntime
             "deterministic" => DeterministicModelEndpointIdentity,
             "openai" => OpenAiModelEndpointIdentity,
             "ollama-cloud" => OllamaCloudModelEndpointIdentity,
+            "anthropic" => AnthropicModelEndpointIdentity,
             _ => throw new InvalidDataException("The saved child model provider is unsupported."),
         };
         if (selection.EndpointIdentity != endpoint)

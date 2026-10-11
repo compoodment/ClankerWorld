@@ -251,7 +251,8 @@ public sealed partial class PrivateWorldRuntime
                 {
                     var alreadyCarried = lot.CarrierId == actor;
                     var quantity = Math.Min(missing, Math.Min(AvailableLotQuantity(lot),
-                        alreadyCarried ? lot.Quantity : Math.Min(WarehouseLoadQuantity, FreeCarryCapacity(actor))));
+                        alreadyCarried ? lot.Quantity : Math.Min(WarehouseLoadQuantity,
+                            PickupCarryCapacity(actor, lot, TownProjectRules.WorkSite(project.Plan)))));
                     if (quantity <= 0) continue;
                     var position = HouseholdStockPosition(lot);
                     var range = HouseholdStockInteractionRange(lot);
@@ -316,15 +317,15 @@ public sealed partial class PrivateWorldRuntime
                     var person = inhabitants[actor];
                     // A temporary pedestrian obstruction should wait, not cause a drop/pickup loop.
                     var warehouse = NeedsUrgentFood(person) || NeedsUrgentWarmth(person) ? null :
-                        WarehousesForTown(town.Id).FirstOrDefault(item => StorageRoomAfterInboundDeliveries(item.InstanceId) > 0 &&
-                            map.IsReachableOnFoot(person.Position, item.Position));
+                        WarehousesForTown(town.Id).FirstOrDefault(item => DestinationRoom(item.InstanceId) > 0 &&
+                            CanReachByFootOrSwimming(actor, person.Position, item.Position));
                     if (warehouse is null)
                     {
                         yield return new(TownProjectChoiceId(TownProjectReturnPrefix, project.Id, lot.Id, "ground"),
                             "return", town, project, lot.ItemKind, lot, PhysicalUnreservedQuantity(lot), delivery);
                         continue;
                     }
-                    var quantity = Math.Min(PhysicalUnreservedQuantity(lot), StorageRoomAfterInboundDeliveries(warehouse.InstanceId));
+                    var quantity = Math.Min(PhysicalUnreservedQuantity(lot), DestinationRoom(warehouse.InstanceId));
                     if (quantity <= 0) continue;
                     yield return new(TownProjectChoiceId(TownProjectReturnPrefix, project.Id, lot.Id, warehouse.InstanceId),
                         "return", town, project, lot.ItemKind, lot, quantity, delivery, Warehouse: warehouse);
@@ -357,13 +358,15 @@ public sealed partial class PrivateWorldRuntime
                 var position = HouseholdStockPosition(lot);
                 if (!CanWalkForTownProject(actor, inhabitants[actor].Position, position)) continue;
                 var warehouse = WarehousesForTown(townId).FirstOrDefault(item =>
-                    StorageRoomAfterInboundDeliveries(item.InstanceId) > inbound &&
-                    CanWalkForTownProject(actor, position, item.Position));
+                    DestinationRoom(item.InstanceId) > inbound &&
+                    CanWalkForTownProject(actor, position, item.Position) &&
+                    PickupCarryCapacity(actor, lot, item.Position) > 0);
                 if (warehouse is null) continue;
                 // Keep one carrying space available for food; never promise more than the real storage room.
                 var quantity = Math.Min(project.Plan.Budget.Single(cost => cost.ResourceId == lot.ItemKind).Amount,
                     Math.Min(AvailableLotQuantity(lot), Math.Min(WarehouseLoadQuantity,
-                        Math.Min(FreeCarryCapacity(actor) - 1, StorageRoomAfterInboundDeliveries(warehouse.InstanceId) - inbound))));
+                        Math.Min(Math.Min(FreeCarryCapacity(actor) - 1, PickupCarryCapacity(actor, lot, warehouse.Position)),
+                            DestinationRoom(warehouse.InstanceId) - inbound))));
                 if (quantity <= 0) continue;
                 yield return new(TownProjectChoiceId(TownProjectRecoverPrefix, project.Id, lot.Id,
                     quantity.ToString(CultureInfo.InvariantCulture), warehouse.InstanceId), "recover",
@@ -581,7 +584,8 @@ public sealed partial class PrivateWorldRuntime
         }
         if (!SettlementIllnessRules.AllowsWork(actor, WorldTick, state.Survival?.IllnessBasisPoints ?? 0)) return;
         var hammer = ToolProgressionRules.PlanWork(society.Checkpoint.Inventory, actor, ToolFamily.Hammer);
-        var done = Math.Min(workNeeded, choice.Project.WorkDone + (hammer?.WorkUnits ?? 1));
+        var done = Math.Min(workNeeded, SkilledWorkProgress(actor, SettlementSkillKind.Building,
+            choice.Project.WorkDone, hammer?.WorkUnits ?? 1));
         if (hammer is not null) ApplyToolWork(actor, hammer);
         var project = choice.Project with { Stage = "working", WorkDone = done, LastTransitionTick = WorldTick };
         SetTownProject(choice.Town.Id, project);

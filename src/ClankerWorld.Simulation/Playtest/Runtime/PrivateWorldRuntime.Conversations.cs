@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.World;
@@ -85,9 +86,10 @@ public sealed partial class PrivateWorldRuntime
     private string? ConversationChoiceContextFor(string agentId)
     {
         var conversation = ConversationFor(agentId);
-        return conversation is null || !ShouldDispatchConversationChoice(agentId)
-            ? null
-            : $"{agentId}|{conversation.Id}|{conversation.Revision}|{conversation.Status}";
+        if (conversation is null || !ShouldDispatchConversationChoice(agentId)) return null;
+        var context = JsonSerializer.Serialize(new object[]
+            { agentId, conversation.Id, conversation.Revision, conversation.Status });
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(context)));
     }
 
     private long CurrentConversationWorldDay =>
@@ -207,7 +209,9 @@ public sealed partial class PrivateWorldRuntime
         TrimConversationHistory();
         if (conversations.Count >= AgentConversationRules.MaximumSavedConversations) return false;
         ReserveConversationAllowance(initiatorId);
-        var id = $"conversation:{WorldTick}:{initiatorId}:{inviteeId}";
+        var participants = JsonSerializer.Serialize(new[] { initiatorId, inviteeId });
+        var digest = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(participants)));
+        var id = $"conversation:{WorldTick}:{digest}";
         var conversation = AgentConversationRules.Propose(
             id, initiatorId, inviteeId, WorldTick, society.Checkpoint.RunEpoch);
         conversations.Add(conversation);
@@ -341,7 +345,7 @@ public sealed partial class PrivateWorldRuntime
         if (oldestClosed is null) return;
 
         var turnIds = oldestClosed.Turns.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
-        if ((society.Checkpoint.Beliefs ?? []).Any(item => item.SourceTurnId is { } turnId && turnIds.Contains(turnId)))
+        if (society.Checkpoint.AllBeliefs().Any(item => item.SourceTurnId is { } turnId && turnIds.Contains(turnId)))
         {
             society.Apply(checkpoint => new SocietyOperationResult(checkpoint with
             {
@@ -349,6 +353,9 @@ public sealed partial class PrivateWorldRuntime
                     item.SourceTurnId is { } sourceTurnId && turnIds.Contains(sourceTurnId)
                         ? item with { SourceTurnId = null }
                         : item).ToArray(),
+                ArchivedBeliefs = checkpoint.ArchivedBeliefs.Select(item =>
+                    item.Belief.SourceTurnId is { } sourceTurnId && turnIds.Contains(sourceTurnId)
+                        ? item with { Belief = item.Belief with { SourceTurnId = null } } : item).ToArray(),
             }));
         }
         conversations.Remove(oldestClosed);
@@ -519,7 +526,7 @@ public sealed partial class PrivateWorldRuntime
         {
             if (ownerId == turn.SpeakerId ||
                 society.Checkpoint.GetInhabitant(ownerId).Status != SocietyInhabitantStatus.Active ||
-                (society.Checkpoint.Beliefs ?? []).Any(item => item.OwnerId == ownerId && item.SourceTurnId == turn.Id))
+                society.Checkpoint.AllBeliefs().Any(item => item.OwnerId == ownerId && item.SourceTurnId == turn.Id))
                 continue;
             var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{turn.Id}|{ownerId}")))
                 .ToLowerInvariant();
@@ -667,6 +674,7 @@ public sealed partial class PrivateWorldRuntime
                     : [AgentConversationEffect.None, AgentConversationEffect.MutualTrust]
                 : [AgentConversationEffect.None])
         {
+            RequestedActivity = RequestedConversationActivity(conversation, speakerId),
             AllowedSurnames = purpose == AgentConversationPurpose.SurnameChoice
                 ? AgentMarriageRules.AllowedSurnames(marriages.Single(item => item.SurnameConversationId == conversation.Id))
                 : [],

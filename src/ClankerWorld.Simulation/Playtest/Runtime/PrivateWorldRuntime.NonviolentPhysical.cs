@@ -245,7 +245,7 @@ public sealed partial class PrivateWorldRuntime
             var warehouse = WarehouseForResident(actor);
             return term.BeneficiaryId == town.Id && warehouse is not null && warehouse.TownId == town.Id &&
                 (term.TargetId is null || term.TargetId == warehouse.InstanceId) && WarehouseResourceKinds.Contains(term.ItemKind ?? "") &&
-                StorageRoom(warehouse.InstanceId) >= term.Quantity &&
+                DestinationRoom(warehouse.InstanceId) >= term.Quantity &&
                 PersonalWarehouseAvailableQuantity(actor, term.ItemKind!) - WarehouseLoadQuantity >= term.Quantity &&
                 (person.Position == warehouse.Position || FindUnoccupiedRoute(actor, person.Position, warehouse.Position, 0).Count > 0);
         }
@@ -311,8 +311,8 @@ public sealed partial class PrivateWorldRuntime
                     else
                     {
                         destination = EquipmentRepairSite(actor, target)!.Position;
-                        work = inProgress is null ? 1 + PersonalEquipmentRules.RepairWorkTicks :
-                            PersonalEquipmentRules.RepairWorkTicks - inProgress.WorkDone;
+                        var repairTicks = SkilledWorkTicks(actor, SettlementSkillKind.Crafting, PersonalEquipmentRules.RepairWorkTicks);
+                        work = inProgress is null ? 1 + repairTicks : Math.Max(1, repairTicks - inProgress.WorkDone);
                     }
                 }
                 else
@@ -364,7 +364,7 @@ public sealed partial class PrivateWorldRuntime
             .Select(term => (Term: term, Warehouse: WarehouseForResident(term.ContributorId))).ToArray();
         if (deliveries.Any(delivery => delivery.Warehouse is null)) return false;
         foreach (var storage in deliveries.GroupBy(delivery => delivery.Warehouse!.InstanceId, StringComparer.Ordinal))
-            if (storage.Sum(delivery => (long)delivery.Term.Quantity) > StorageRoom(storage.Key)) return false;
+            if (storage.Sum(delivery => (long)delivery.Term.Quantity) > DestinationRoom(storage.Key)) return false;
         return true;
     }
 
@@ -467,7 +467,7 @@ public sealed partial class PrivateWorldRuntime
         if (PersonalWarehouseSurplus(actor, term.ItemKind) is not { } surplus) return;
         var lot = surplus.Lot;
         var quantity = Math.Min(remaining, Math.Min(WarehouseLoadQuantity,
-            Math.Min(StorageRoom(warehouse.InstanceId), surplus.Quantity)));
+            Math.Min(DestinationRoom(warehouse.InstanceId), surplus.Quantity)));
         if (quantity <= 0) return;
         var availableBefore = PersonalWarehouseAvailableQuantity(actor, lot.ItemKind);
         var operation = $"warehouse-stock:{WorldTick}:{actor}";

@@ -24,13 +24,23 @@ internal static class PrivateWorldMemoryRetrieval
         SocietyAgentMemoryCompaction? compaction,
         string ownerId,
         long worldTick,
-        IReadOnlyList<CognitionCandidate> candidates)
+        IReadOnlyList<CognitionCandidate> candidates,
+        SocietyCheckpoint? checkpoint = null)
     {
         var contextTerms = Terms(string.Join(' ', candidates.Select(candidate =>
             $"{candidate.Id} {candidate.Description} {candidate.DestinationId}")));
         var importance = (compaction?.Sources ?? [])
             .ToDictionary(item => $"{ToWireKind(item.Kind)}:{item.SourceId}", StringComparer.Ordinal);
-        return SourceRecords(socialMemories, beliefs, ownerId, worldTick)
+        var summaryRecords = (checkpoint?.MemorySummaries ?? []).Where(item => item.OwnerId == ownerId)
+            .Select(item => new SourceRecord(item.Id, ownerId, CognitionAgentId(ownerId), item.Text, item.CreatedTick,
+                "summary", "private", null, null, null, null,
+                Attribution(checkpoint!, ownerId, item.Sources).Any(source => source.IsCorrected)));
+        return summaryRecords.Concat(SourceRecords(socialMemories, beliefs, ownerId, worldTick))
+            .OrderByDescending(item => item.Permanent)
+            .ThenByDescending(item => item.SourceTick)
+            .ThenByDescending(item => item.Permanent ? item.Id : string.Empty, StringComparer.Ordinal)
+            .ThenBy(item => item.Kind, StringComparer.Ordinal)
+            .ThenBy(item => item.Id, StringComparer.Ordinal)
             .Take(MaximumScanned)
             .Select(source =>
             {
@@ -44,7 +54,10 @@ internal static class PrivateWorldMemoryRetrieval
                     Score = overlap * 3_000 + (assessment?.ImportanceBasisPoints ?? 0) / 5,
                 };
             })
-            .OrderByDescending(item => item.Score)
+            .OrderByDescending(item => item.Source.Permanent)
+            .ThenByDescending(item => item.Source.Permanent ? item.Source.SourceTick : 0)
+            .ThenByDescending(item => item.Source.Permanent ? item.Source.Id : string.Empty, StringComparer.Ordinal)
+            .ThenByDescending(item => item.Score)
             .ThenByDescending(item => item.Importance)
             .ThenByDescending(item => item.Source.SourceTick)
             .ThenBy(item => item.Source.Kind, StringComparer.Ordinal)
@@ -64,8 +77,32 @@ internal static class PrivateWorldMemoryRetrieval
                 item.Source.SourceEventId,
                 item.Source.IsCorrected,
                 item.Importance,
-                item.ImportanceConfidence))
+                item.ImportanceConfidence,
+                item.Source.Kind == "summary" ? Attribution(checkpoint!, ownerId,
+                    checkpoint!.MemorySummaries.Single(summary => summary.Id == item.Source.Id).Sources) : null))
             .ToArray();
+    }
+
+    internal static IReadOnlyList<CognitionMemorySummaryOption> SummaryOptions(SocietyCheckpoint checkpoint, string ownerId) =>
+        SocietyMemorySummaryRules.Options(checkpoint, ownerId).Select(option => new CognitionMemorySummaryOption(
+            ownerId, option.Choice, option.Text, Attribution(checkpoint, ownerId, option.Sources))).ToArray();
+
+    private static CognitionMemorySummarySource[] Attribution(SocietyCheckpoint checkpoint, string ownerId,
+        IReadOnlyList<SocietyMemorySummarySource> sources)
+    {
+        var records = SourceRecords(checkpoint.AllMemories(), checkpoint.AllBeliefs(), ownerId, checkpoint.WorldTick)
+            .ToDictionary(item => item.Kind + ":" + item.Id, StringComparer.Ordinal);
+        // Tombstoned experiences remain evidence but must be marked corrected in later recall.
+        return sources.Select(source =>
+        {
+            var kind = ToWireKind(source.Kind);
+            if (records.TryGetValue(kind + ":" + source.Id, out var record))
+                return new CognitionMemorySummarySource(source.Id, kind, source.SourceTick, record.SubjectId,
+                    record.Provenance, record.ConfidenceBasisPoints, record.SourceAgentId, record.SourceEventId, record.IsCorrected);
+            var memory = checkpoint.AllMemories().Single(item => item.OwnerId == ownerId && item.Id == source.Id);
+            return new CognitionMemorySummarySource(source.Id, kind, source.SourceTick, CognitionAgentId(memory.SubjectId),
+                null, null, null, null, true);
+        }).ToArray();
     }
 
     internal static IReadOnlyList<CognitionMemoryCompactionCandidate> Unassessed(
@@ -79,6 +116,7 @@ internal static class PrivateWorldMemoryRetrieval
             .Select(item => $"{ToWireKind(item.Kind)}:{item.SourceId}")
             .ToHashSet(StringComparer.Ordinal);
         var batch = SourceRecords(socialMemories, beliefs, ownerId, worldTick)
+            .Where(source => !source.Permanent)
             // The persisted salience index is bounded to the latest 256
             // sources. Keep the candidate domain aligned with that retention
             // window so entries it cannot retain are not scored forever.
@@ -115,11 +153,11 @@ internal static class PrivateWorldMemoryRetrieval
         var experiences = socialMemories
             .Where(memory => string.Equals(memory.OwnerId, ownerId, StringComparison.Ordinal) &&
                 memory.TombstonedTick is null && memory.SourceTick >= 0 && memory.SourceTick <= worldTick &&
-                IsValidId(memory.Id) && IsValidId(memory.SubjectId) && !string.IsNullOrWhiteSpace(memory.Summary))
+                IsValidId(memory.Id) && IsCanonicalId(memory.SubjectId) && !string.IsNullOrWhiteSpace(memory.Summary))
             .Select(memory => new SourceRecord(
                 memory.Id,
                 ownerId,
-                memory.SubjectId,
+                CognitionAgentId(memory.SubjectId),
                 Bounded(memory.Summary, MaximumSummaryLength),
                 memory.SourceTick,
                 "experience",
@@ -128,7 +166,8 @@ internal static class PrivateWorldMemoryRetrieval
                 null,
                 null,
                 null,
-                false));
+                false,
+                memory.Permanent));
 
         var privateBeliefs = beliefs
             .Where(belief => string.Equals(belief.OwnerId, ownerId, StringComparison.Ordinal) &&
@@ -137,20 +176,22 @@ internal static class PrivateWorldMemoryRetrieval
             .Select(belief => new SourceRecord(
                 belief.Id,
                 ownerId,
-                CognitionSubjectId(belief.AboutInhabitantId ?? ownerId),
+                CognitionAgentId(belief.AboutInhabitantId ?? ownerId),
                 Bounded(belief.Statement, MaximumSummaryLength),
                 belief.FormedTick,
                 "belief",
                 null,
                 belief.Provenance.ToString().ToLowerInvariant(),
                 belief.ConfidenceBasisPoints,
-                belief.SourceAgentId,
+                belief.SourceAgentId is { } sourceAgentId ? CognitionAgentId(sourceAgentId) : null,
                 belief.SourceEventId,
                 belief.SupersededByBeliefId is not null));
 
         return experiences.Concat(privateBeliefs)
             .Where(item => item.Summary.Length > 0)
-            .OrderByDescending(item => item.SourceTick)
+            .OrderByDescending(item => item.Permanent)
+            .ThenByDescending(item => item.SourceTick)
+            .ThenByDescending(item => item.Permanent ? item.Id : string.Empty, StringComparer.Ordinal)
             .ThenBy(item => KindOrder(item.Kind))
             .ThenBy(item => item.Id, StringComparer.Ordinal);
     }
@@ -169,21 +210,28 @@ internal static class PrivateWorldMemoryRetrieval
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
-    private static bool IsValidId(string? value) => value is { Length: > 0 and <= 128 } &&
+    private static bool IsValidId(string? value) => value is { Length: <= 128 } && IsCanonicalId(value);
+
+    private static bool IsCanonicalId(string? value) => value is { Length: > 0 } &&
         value == value.Trim() && !value.Any(char.IsControl);
 
-    private static string CognitionSubjectId(string subjectId) => subjectId.Length <= 128
-        ? subjectId
-        : "agent-sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(subjectId)));
+    private static string CognitionAgentId(string agentId) => agentId.Length <= 128
+        ? agentId
+        : "agent-sha256:" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(agentId)));
 
     private static string? BoundedOptional(string? value, int limit) => value is null
         ? null
         : Bounded(value, limit);
 
-    private static string Bounded(string value, int limit) =>
-        string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)) is { } normalized
-            ? normalized[..Math.Min(limit, normalized.Length)]
-            : string.Empty;
+    private static string Bounded(string value, int limit)
+    {
+        var normalized = string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var length = Math.Min(limit, normalized.Length);
+        if (length > 0 && length < normalized.Length &&
+            char.IsHighSurrogate(normalized[length - 1]) && char.IsLowSurrogate(normalized[length]))
+            length--;
+        return normalized[..length];
+    }
 
     private static HashSet<string> Terms(string text)
     {
@@ -211,5 +259,6 @@ internal static class PrivateWorldMemoryRetrieval
         int? ConfidenceBasisPoints,
         string? SourceAgentId,
         long? SourceEventId,
-        bool IsCorrected);
+        bool IsCorrected,
+        bool Permanent = false);
 }

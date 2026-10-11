@@ -159,7 +159,13 @@ public sealed partial class TownMembershipTests
                 intention.DecisionGeneration > offered.DecisionGeneration && intention.WorldTick > offered.WorldTick;
             for (var tick = 0; tick < 8 && (!discarded || !outcomes.Any(NewerIdle)); tick++)
             {
-                await Task.Delay(2);
+                // A provider's reply signal precedes completion of the runtime's wrapping task.
+                // Wait only for an actual in-flight call, without spending any deadline ticks.
+                if (world.Inhabitants.Single(person => person.InhabitantId == newcomer).LastModelAttempt?.Status == "waiting")
+                {
+                    using var completionTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    while (!world.HostedDecisionsFinished(newcomer)) await Task.Delay(1, completionTimeout.Token);
+                }
                 var completed = await world.AdvanceOneTickNonBlockingAsync();
                 Assert.True(completed.Advanced);
                 discarded |= completed.Events.Any(item => item.Kind == "hosted_decision_discarded" && item.Detail == newcomer);

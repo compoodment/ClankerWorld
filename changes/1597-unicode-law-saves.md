@@ -1,0 +1,1 @@
+- Law amendment and repeal proposals keep complete emoji when shortened, so their saves remain loadable. Named saves and autosaves validate the written checkpoint before publication; a rejected overwrite keeps the previous save and its history intact.

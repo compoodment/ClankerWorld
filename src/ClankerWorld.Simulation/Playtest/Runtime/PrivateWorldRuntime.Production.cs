@@ -159,7 +159,7 @@ public sealed partial class PrivateWorldRuntime
                          occupied.Contains(new GridPoint(current.X, next.Y))))
                         continue;
 
-                    var cost = checked(priority.Cost + RoadStepCost(current, next));
+                    var cost = checked(priority.Cost + LegalRoadStepCost(current, next));
                     var index = next.Y * map.Width + next.X;
                     if (best[index] >= 0 && best[index] <= cost)
                         continue;
@@ -227,6 +227,10 @@ public sealed partial class PrivateWorldRuntime
     private static bool IsGenericFoodRecipe(RecipeDefinition recipe) =>
         recipe.Inputs.Any(input => input.ResourceId == "food") &&
         recipe.Outputs.Any(output => output.ResourceId == "food");
+
+    // Workstation output has no destination vessel; fresh water cannot be a loose lot.
+    private static bool HasUnsupportedWaterOutput(RecipeDefinition recipe) =>
+        recipe.Outputs.Any(output => output.ResourceId == InventoryContainerRules.FreshWater);
 
     private bool HasAvailableQuantities(IReadOnlyList<ContentQuantity> quantities, string? ownerId = null)
     {
@@ -573,7 +577,11 @@ public sealed partial class PrivateWorldRuntime
                     worldSimulation.Buildings.FirstOrDefault(building => building.InstanceId == job.BuildingInstanceId)?.Position);
             else
                 AppendEvent(completed ? "recipe_completed" : "recipe_cancelled", $"{job.JobId}:{recipe.CanonicalId}");
-            if (completed) CreditProductionOrderJob(job, recipe);
+            if (completed)
+            {
+                LearnProducedRecipe(job, recipe, targetTick);
+                CreditProductionOrderJob(job, recipe);
+            }
         }
     }
 
@@ -589,17 +597,20 @@ public sealed partial class PrivateWorldRuntime
         var inputUnusable = inputs.Any(reservation =>
             reservation.State is not (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed) ||
             reservation.ExpiryTick < targetTick || inventoryState.Lots.FirstOrDefault(lot => lot.Id == reservation.LotId) is not { FreshnessBasisPoints: > 0, ConditionBasisPoints: > 0 });
-        if (inputUnusable || job.ToolLotId is not null && knifePlan is null)
+        var unsupportedOutput = HasUnsupportedWaterOutput(recipe);
+        if (unsupportedOutput || inputUnusable || job.ToolLotId is not null && knifePlan is null)
         {
             ApplyInventoryTransition(inventory =>
             {
                 foreach (var reservation in inputs.Where(reservation => reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed))
                 {
-                    inventory = InventoryFixture.ReleaseReservation(inventory, reservation.Id, "production_input_unusable");
+                    inventory = InventoryFixture.ReleaseReservation(inventory, reservation.Id,
+                        unsupportedOutput ? "production_output_unsupported" : "production_input_unusable");
                 }
                 return inventory;
             });
-            AppendEvent(inputUnusable ? "production_input_unusable" : "production_tool_unusable", job.JobId);
+            AppendEvent(unsupportedOutput ? "production_output_unsupported" :
+                inputUnusable ? "production_input_unusable" : "production_tool_unusable", job.JobId);
             return false;
         }
         var productionBuilding = worldSimulation.Buildings
@@ -616,17 +627,22 @@ public sealed partial class PrivateWorldRuntime
             for (var outputIndex = 0; outputIndex < recipe.Outputs.Count; outputIndex++)
             {
                 var output = recipe.Outputs[outputIndex];
-                current = InventoryFixture.AddLot(
-                    current,
-                    $"{job.JobId}:output:{outputIndex.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)}",
-                    output.ResourceId,
-                    output.ResourceId == InventoryContainerRules.Handcart ? job.WorkerId : productionOwner,
-                    output.Amount,
-                    targetTick,
-                    storageBuildingId: output.ResourceId != InventoryContainerRules.Handcart && productionBuilding?.HouseholdId is not null
-                        ? productionBuilding.InstanceId : null,
-                    groundPosition: output.ResourceId == InventoryContainerRules.Handcart
-                        ? new InventoryGroundPosition(productionBuilding!.Position.X, productionBuilding.Position.Y) : null);
+                var outputLotId = $"{job.JobId}:output:{outputIndex.ToString("D2", CultureInfo.InvariantCulture)}";
+                var vessel = InventoryContainerRules.IsContainer(output.ResourceId);
+                for (var unitIndex = 0; unitIndex < (vessel ? output.Amount : 1); unitIndex++)
+                {
+                    current = InventoryFixture.AddLot(
+                        current,
+                        unitIndex == 0 ? outputLotId : $"{outputLotId}:unit:{unitIndex.ToString("D2", CultureInfo.InvariantCulture)}",
+                        output.ResourceId,
+                        output.ResourceId == InventoryContainerRules.Handcart ? job.WorkerId : productionOwner,
+                        vessel ? 1 : output.Amount,
+                        targetTick,
+                        storageBuildingId: output.ResourceId != InventoryContainerRules.Handcart && productionBuilding?.HouseholdId is not null
+                            ? productionBuilding.InstanceId : null,
+                        groundPosition: output.ResourceId == InventoryContainerRules.Handcart
+                            ? new InventoryGroundPosition(productionBuilding!.Position.X, productionBuilding.Position.Y) : null);
+                }
             }
 
             return knifePlan is null ? current : ApplyToolWorkToInventory(current, job.WorkerId,

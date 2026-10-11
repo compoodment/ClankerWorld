@@ -1,0 +1,1 @@
+- Construction choices skip unnecessary resource checks in grown Towns.

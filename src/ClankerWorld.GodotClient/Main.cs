@@ -25,9 +25,8 @@ public partial class Main : Control
     private readonly System.Net.Http.HttpClient httpClient = new();
     private readonly OwnerWorldApi ownerApi;
     private readonly OwnerWorldObservationSession observationSession = new();
-    private readonly OwnerDeviceRegistrationStore registrationStore = new();
-    private readonly OwnerPendingSubmissionStore pendingSubmissionStore = new(
-        ProjectSettings.GlobalizePath("user://owner-pending-submission.json"));
+    private readonly OwnerDeviceRegistrationStore registrationStore;
+    private readonly OwnerPendingSubmissionStore pendingSubmissionStore;
     private readonly GameDisplayPreferencesStore displayPreferencesStore = new(
         ProjectSettings.GlobalizePath("user://game-display-preferences.json"));
     private readonly Dictionary<long, OwnerWorldEvent> knownEvents = [];
@@ -61,6 +60,7 @@ public partial class Main : Control
     private readonly OptionButton cognitionProviderChoice = new();
     private readonly OptionButton cognitionCredentialChoice = new();
     private readonly ModelPicker cognitionModelPicker = new();
+    private readonly OptionButton cognitionThinkingChoice = new();
     private readonly LineEdit cognitionApiKeyInput = new();
     private readonly LineEdit cognitionCredentialLabelInput = new();
     private readonly Label cognitionConfigurationStatus = new();
@@ -94,7 +94,12 @@ public partial class Main : Control
     private readonly WorldTerrainLayer terrainLayer = new();
     private readonly WeatherLayer weatherLayer = new();
     private readonly NightLayer nightLayer = new();
+    private readonly BuildingCompletionLayer buildingCompletionLayer = new();
+    private readonly GoldenHourLayer goldenHourLayer = new();
+    private readonly GraveLayer graveLayer = new();
     private readonly NightLightsLayer nightLightsLayer = new();
+    private readonly SmokeLayer smokeLayer = new();
+    private readonly StoredStockLayer storedStockLayer = new();
     private WorldTerrainMap? terrainMap;
     private string? terrainWorldId;
     private OwnerWorldPackedTerrain? terrainPackedTerrain;
@@ -248,6 +253,14 @@ public partial class Main : Control
     public Main()
     {
         ownerApi = new OwnerWorldApi(httpClient);
+        localHost = FindBundledLocalHost();
+        // A game with its own host keeps that pairing apart from any server
+        // pairing an older client saved in the same user folder.
+        var prefix = localHost is null ? string.Empty : "local-";
+        registrationStore = new OwnerDeviceRegistrationStore(
+            ProjectSettings.GlobalizePath($"user://{prefix}owner-device-registration.json"));
+        pendingSubmissionStore = new OwnerPendingSubmissionStore(
+            ProjectSettings.GlobalizePath($"user://{prefix}owner-pending-submission.json"));
     }
 
     public override void _Ready()
@@ -270,6 +283,7 @@ public partial class Main : Control
         if (OS.GetCmdlineUserArgs().Contains("--ui-smoke-test", StringComparer.Ordinal))
             DisplayServer.WindowSetMode(DisplayServer.WindowMode.Windowed);
         BuildLayout();
+        BuildKeyboardNavigation();
         UiTheme.Changed += ApplyThemeColors;
         ApplyThemeColors();
         ApplyUiScale();
@@ -286,8 +300,8 @@ public partial class Main : Control
             return;
         }
         _ = TryGetCommandLineWorldUrl(out var commandLineUrl);
-        worldUrlInput.Text = commandLineUrl ?? ConfiguredWorldUrl();
-        _ = InitializeAsync();
+        worldUrlInput.Text = localHost?.Origin.AbsoluteUri ?? commandLineUrl ?? ConfiguredWorldUrl();
+        _ = localHost is null ? InitializeAsync() : StartLocalHostAsync();
 
         var timer = new Godot.Timer
         {

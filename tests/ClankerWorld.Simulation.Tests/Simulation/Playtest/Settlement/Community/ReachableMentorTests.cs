@@ -60,7 +60,7 @@ public sealed class ReachableMentorTests
         state = state with
         {
             Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == learner
-            ? person with { Position = new(0, 0), LastDecisionContext = null } : person).ToArray()
+            ? person with { Position = Island(state), LastDecisionContext = null } : person).ToArray()
         };
         var policy = Policy(adults[0], adults[1], learner);
         using var world = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), policy.CreateProvider);
@@ -86,7 +86,7 @@ public sealed class ReachableMentorTests
         var reachable = adults[1];
         var learner = adults[2];
         var site = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-warehouse").Position;
-        var island = new GridPoint(0, 0);
+        var island = Island(state);
         Assert.True(state.Map.IsPassable(island));
         using (var search = new UnoccupiedRouteSearch(state.Map, island, [], (_, _) => 1))
             Assert.Empty(search.RouteTo(site, 1));
@@ -109,6 +109,14 @@ public sealed class ReachableMentorTests
         };
         state = SettlementWeatherTestFixture.WithWeather(state, WeatherKind.Clear);
         return state;
+    }
+
+    /// <summary>The first walkable tile with no land route to the Town's Warehouse, where lessons are held.</summary>
+    private static GridPoint Island(PrivateWorldRuntimeState state)
+    {
+        var site = state.WorldSimulation!.Buildings.Single(building => building.InstanceId == "first-town-warehouse").Position;
+        return state.Map.Tiles.Select(tile => tile.Position)
+            .First(point => state.Map.IsPassable(point) && !state.Map.IsReachableOnFoot(site, point));
     }
 
     private static MarketRulesPolicy Policy(string isolated, string reachable, string learner) => new()

@@ -8,12 +8,23 @@ internal static class ArtContractChecks
 {
     public static void Run()
     {
+        CheckGraves();
+        CheckWeatherFade();
         var current = new ArtSet();
+        CheckApprovedSmoke();
+        foreach (var size in new[] { 16, 32 })
+            foreach (var badge in new[] { false, true })
+                for (var frame = 0; frame < 8; frame++)
+                    Equal(Proposed.WaitingMarker.WaitingMarkerProposal.Frame('c', size, frame, badge),
+                        Proposed.WaitingMarker.WaitingMarkerProposal.Frame('c', size, frame, badge, clientArt: true),
+                        $"Approved circling spark frame {frame}, badge {badge}, must match at {size} px.");
+        CheckApprovedStock();
         CheckApprovedBuildings(current);
         CheckApprovedNature(current);
         CheckApprovedItems();
         CheckApprovedHandcarts();
         CheckApprovedBoatsAndPorts();
+        CheckApprovedSmallVehicles();
         CheckApprovedAnimals();
         CheckApprovedAnimalWalk();
         CheckApprovedYard();
@@ -49,6 +60,61 @@ internal static class ArtContractChecks
         if (SceneComposer.RoadLinksAt(crossing, 1, 2, true) != RoadLinks.None)
             throw new InvalidOperationException("A deck must not create a Road piece on an empty bank.");
         Console.WriteLine("Current-art contract checks passed.");
+    }
+
+    private static void CheckGraves()
+    {
+        foreach (var size in new[] { 16, 32 })
+            foreach (var headstone in new[] { false, true })
+            {
+                var expected = headstone ? Approved.GraveSprites.Headstone() : Approved.GraveSprites.Cross();
+                if (size != 32) expected.Resize(size, size, Image.Interpolation.Nearest);
+                Console.WriteLine($"Grave reference {headstone} {size}: {Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(expected.GetData()))}");
+                Equal(GraveArt.Sprite(headstone, size), expected, $"Approved grave {(headstone ? "B" : "A")} at {size} px.");
+                var scene = new Proposed.Polish.Canvas(Proposed.Polish.Polish.Scene(size, agents: true));
+                scene.Stamp(expected, 7 * size, 10 * size, size);
+                Equal(GraveClientPreview.Frame(headstone, size), scene.ToImage(), $"Approved grave scene at {size} px.");
+            }
+        Console.WriteLine("Approved graves: 4 exact RGBA sprites and 4 complete scenes.");
+    }
+
+    private static void CheckApprovedSmoke()
+    {
+        foreach (var size in new[] { 16, 32 })
+        {
+            var sources = SmokeClientPreview.Sources(size).ToArray();
+            if (!sources.SequenceEqual(Approved.SmokeProposal.Sources(size)))
+                throw new InvalidOperationException("Smoke must begin at the actual approved chimney and forge pixels.");
+            for (var frame = 0; frame < 36; frame++)
+                Equal(Approved.SmokeProposal.Frame("b-column", size, frame / 12.0),
+                    SmokeClientPreview.Frame(size, frame / 12.0),
+                    $"Approved smoke B must match at {size} px, frame {frame}.");
+        }
+        Console.WriteLine("Approved smoke: 72 exact RGBA frame comparisons and both atlas source checks.");
+    }
+
+    private static void CheckApprovedStock()
+    {
+        foreach (var size in new[] { 16, 32 })
+            foreach (var level in new[] { 0, 1, 2 })
+                Equal(Approved.StockProposal.Frame("a-at-door", level, size), StoredStockClientPreview.Frame(level, size),
+                    $"Stock A must match at {size} px, level {level}.");
+        Console.WriteLine("Approved stock: 6 exact RGBA scene comparisons, covering all pile families and levels at both atlases.");
+    }
+
+    private static void CheckWeatherFade()
+    {
+        for (var frame = 0; frame < 60; frame++)
+        {
+            var time = frame / 12.0;
+            Equal(WeatherFadeClientPreview.Frame(time), Approved.WeatherFadeProposal.Frame("b-fade", time),
+                $"The client fade envelope must match the approved scene at frame {frame}.");
+            var expected = Approved.WeatherFadeProposal.Amount("b-fade", time).Weather;
+            var actual = WeatherFade.Progress(time - 0.8) * (1 - WeatherFade.Progress(time - 3.3));
+            if (Math.Abs(expected - actual) > 0.000001f)
+                throw new InvalidOperationException($"Weather fade must follow approved B at frame {frame}: {actual} versus {expected}.");
+        }
+        Console.WriteLine("Approved weather fade: 60 exact RGBA scenes and transition-envelope comparisons.");
     }
 
     private static void CheckApprovedBuildings(ArtSet current)
@@ -340,6 +406,21 @@ internal static class ArtContractChecks
                 $"The client's 16 px {neglect} bridge must be the approved look halved.");
         }
 
+    }
+
+    /// <summary>The client's 16 px handcarts and boats are the approved #914 drawings, halved from the approved 32 px ones.</summary>
+    private static void CheckApprovedSmallVehicles()
+    {
+        for (var facing = 0; facing < 8; facing++)
+        {
+            foreach (var (loaded, pulled) in new[] { (false, false), (true, false), (true, true) })
+                Equal(HandcartSprites.Sprite(facing, loaded, pulled, 16),
+                    Proposed.SmallVehicles.SmallVehiclesProposal.Small(HandcartSprites.Sprite(facing, loaded, pulled)),
+                    $"The client's 16 px handcart facing {facing} must match the approved small drawing.");
+            foreach (var rowing in new[] { false, true })
+                Equal(BoatSprites.Sprite(facing, rowing, 16), Proposed.SmallVehicles.SmallVehiclesProposal.Small(BoatSprites.Sprite(facing, rowing)),
+                    $"The client's 16 px boat facing {facing} must match the approved small drawing.");
+        }
     }
 
     private static void Equal(Image actual, Image expected, string message)

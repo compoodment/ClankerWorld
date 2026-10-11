@@ -1,0 +1,1 @@
+- Storage and delivery tasks share one calculation that leaves room for promised inbound loads, including vessels and their contents. Private Silos hold 64 units per footprint tile; a full 1×1 Silo keeps surplus farm stock outside until space becomes available.

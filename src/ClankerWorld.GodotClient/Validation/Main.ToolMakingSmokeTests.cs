@@ -94,10 +94,10 @@ public partial class Main
             foreach (var worldEvent in events) knownEvents[worldEvent.EventId] = worldEvent;
             RenderEventLog();
             var log = eventLog.GetParsedText();
-            if (!log.Contains("Mira asked a Blacksmith household", StringComparison.Ordinal) ||
-                !log.Contains("Orin agreed to make the requested tool", StringComparison.Ordinal) ||
-                !log.Contains("price still needs an agreed exchange", StringComparison.Ordinal) ||
-                !log.Contains("fulfilled through the completed shop exchange", StringComparison.Ordinal) ||
+            if (!log.Contains("Mira asked the Blacksmith for a tool.", StringComparison.Ordinal) ||
+                !log.Contains("Orin agreed to make the tool.", StringComparison.Ordinal) ||
+                !log.Contains("handed over once it's paid for", StringComparison.Ordinal) ||
+                !log.Contains("was paid for and handed over", StringComparison.Ordinal) ||
                 log.Contains("world:inhabitant", StringComparison.Ordinal) || log.Contains(requestId, StringComparison.Ordinal))
                 throw new InvalidOperationException("Tool-request history must reach the player log with complete agent names and separate production and purchase outcomes.");
         }

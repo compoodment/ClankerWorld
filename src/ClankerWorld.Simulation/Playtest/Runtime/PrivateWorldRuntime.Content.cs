@@ -348,6 +348,9 @@ public sealed partial class PrivateWorldRuntime
             {
                 return ProductionStartResult.Rejected(normalizedRecipeId, "The recipe is not active.");
             }
+            if (HasUnsupportedWaterOutput(recipe))
+                return ProductionStartResult.Rejected(normalizedRecipeId,
+                    "Workstation recipes cannot produce fresh water. Collect it into a water jug instead.");
             if (IsGenericFoodRecipe(recipe))
                 return ProductionStartResult.Rejected(normalizedRecipeId,
                     "Cook named ingredients at your household House or Restaurant.");
@@ -402,7 +405,7 @@ public sealed partial class PrivateWorldRuntime
             }
 
             if (placed is not null && BuildingStorageRules.Capacity(workstation!, placed) is not null &&
-                Math.Max(0, recipe.Outputs.Sum(item => item.Amount) - recipe.Inputs.Sum(item => item.Amount)) > StorageRoom(placed.InstanceId))
+                Math.Max(0, recipe.Outputs.Sum(item => item.Amount) - recipe.Inputs.Sum(item => item.Amount)) > DestinationRoom(placed.InstanceId))
                 return ProductionStartResult.Rejected(normalizedRecipeId, "There is no storage room for this recipe's finished output.");
 
             var knife = ToolProgressionRules.UsesKnife(recipe)
@@ -410,6 +413,7 @@ public sealed partial class PrivateWorldRuntime
                 : null;
             var workDuration = knife is null ? recipe.DurationTicks :
                 ToolProgressionRules.WorkDuration(recipe.DurationTicks, knife.WorkUnits);
+            workDuration = SkilledWorkTicks(normalizedWorkerId, SkillForRecipe(recipe), workDuration);
             var jobId = $"production-{worldSimulation.NextProductionJobSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}";
             var completionTick = checked(WorldTick + workDuration);
             // A handcart belongs to the adult who builds it, not to the Blacksmith's household.

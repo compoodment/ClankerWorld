@@ -95,16 +95,20 @@ public partial class Main
         {
             "weather_changed" => PixelIcons.Weather(worldEvent.Detail.Split(':').LastOrDefault() ?? "clear", 1),
             "food_harvested" or "food_consumed" => PixelIcons.Texture(PixelGlyph.Basket, ink, food, 1),
+            "exploration_started" or "exploration_return_started" or "exploration_completed" or "exploration_aborted"
+                => PixelIcons.Texture(PixelGlyph.Map, ink, green, 1),
+            "skill_learned" => PixelIcons.Texture(PixelGlyph.Book, ink, wood, 1),
+            "animal_tamed" or "animal_born" or "animal_transferred" or "animals_arrived" => PixelIcons.Texture(PixelGlyph.Flower, ink, green, 1),
             "build_started" or "build_completed" or "building_placed" or "recipe_started" or "recipe_completed" or "house_tool_made" or "bridge_built" or
                 "town_project_worked" or "town_project_completed" or "market_built" or "market_stall_built"
                 => PixelIcons.Texture(PixelGlyph.Hammer, ink, wood, 1),
             "tree_planted" or "tree_replanted" or "crop_moisture_effect" => PixelIcons.Texture(PixelGlyph.Leaf, ink, green, 1),
             "child_born" or "partnership_accepted" or "partnership_ended" or "caregiver_assigned" or
                 "guardian_needed" or "guardian_assigned" or "guardian_placement_pending" or
-                "guardian_placement_completed" or "guardian_placement_cancelled"
+                "guardian_placement_completed" or "guardian_placement_cancelled" or "marriage_accepted" or "marriage_surname_agreed"
                 => PixelIcons.Texture(PixelGlyph.Heart, pink, pink, 1),
-            "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" => PixelIcons.Texture(PixelGlyph.Grave, ink, stone, 1),
-            "town_founded" or "settlement_founded" or "town_founding_started" or "town_border_expanded" or
+            "inhabitant_removed" or "estate_will_accepted" or "estate_will_default" or "animal_died" => PixelIcons.Texture(PixelGlyph.Grave, ink, stone, 1),
+            "town_founded" or "town_founding_started" or "town_border_expanded" or
                 "town_project_approved" or "town_project_resumed"
                 => PixelIcons.Texture(PixelGlyph.Flag, ink, green, 1),
             "town_resident_joined" or "town_resident_left" or "town_membership_evaluated" or "town_building_assigned" or
@@ -146,6 +150,18 @@ public partial class Main
     /// </summary>
     private void RenderEventRows((long EventId, bool Located, string Clock, string Text)[] entries, bool offersNewcomer)
     {
+        const string actionKey = "keyboard_event_action";
+        var focused = GetViewport().GuiGetFocusOwner();
+        var focusedAction = focused is not null && eventRows.IsAncestorOf(focused) && focused.HasMeta(actionKey)
+            ? focused.GetMeta(actionKey).AsString() : null;
+        void RestoreActionFocus()
+        {
+            if (focusedAction is null) return;
+            var replacement = KeyboardControls(eventRows).FirstOrDefault(control =>
+                control.HasMeta(actionKey) && control.GetMeta(actionKey).AsString() == focusedAction);
+            if (replacement is not null) replacement.GrabFocus();
+            else FocusKeyboardPanel(eventsPanel);
+        }
         foreach (var child in eventRows.GetChildren())
         {
             eventRows.RemoveChild(child);
@@ -165,6 +181,7 @@ public partial class Main
                 eventRows.AddChild(new Label { Text = "Nothing notable has happened yet.", ThemeTypeVariation = "DimLabel" });
             FitHudLists();
             QueueHudListsFit();
+            RestoreActionFocus();
             return;
         }
         string? day = null;
@@ -208,15 +225,16 @@ public partial class Main
                 var find = new Button
                 {
                     TooltipText = "Show where this happened",
-                    FocusMode = Control.FocusModeEnum.None,
+                    FocusMode = Control.FocusModeEnum.All,
                     Flat = true,
                     Icon = PixelIcons.Themed(PixelGlyph.Find, UiTheme.Current.Primary, 1),
                     MouseDefaultCursorShape = Control.CursorShape.PointingHand,
                 };
-                foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed", "focus" })
+                foreach (var state in new[] { "normal", "hover", "pressed", "hover_pressed" })
                     find.AddThemeStyleboxOverride(state, new StyleBoxEmpty { ContentMarginLeft = 2, ContentMarginRight = 2 });
                 find.AddThemeColorOverride("icon_hover_color", UiTheme.Current.Link);
                 var id = entry.EventId.ToString(CultureInfo.InvariantCulture);
+                find.SetMeta(actionKey, id);
                 find.Pressed += () => JumpToEvent(id);
                 find.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
                 row.AddChild(find);
@@ -225,6 +243,7 @@ public partial class Main
         }
         FitHudLists();
         QueueHudListsFit();
+        RestoreActionFocus();
     }
 
     /// <summary>
@@ -249,10 +268,11 @@ public partial class Main
         {
             Text = "Add a newcomer",
             TooltipText = "Open Add Agent to place another adult.",
-            FocusMode = Control.FocusModeEnum.None,
+            FocusMode = Control.FocusModeEnum.All,
             SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
         };
         add.Pressed += () => _ = HandleEventLogActionAsync("add-newcomer");
+        add.SetMeta("keyboard_event_action", "add-newcomer");
         offer.AddChild(add);
         eventRows.AddChild(offer);
     }
@@ -317,6 +337,7 @@ public partial class Main
             (["+", "−"], "Zoom in or out"),
             (["H"], "Back to the first Town"),
             (["M"], "World Map"),
+            (["K"], "Focus a tile: arrows move, Enter selects"),
         ]),
         ("Time and agents", false, [
             (["Space"], "Pause or resume (or P)"),
@@ -328,6 +349,11 @@ public partial class Main
             (["Click"], "Select an agent or inspect a tile"),
             (["Wheel"], "Zoom toward the pointer"),
             (["Middle-drag"], "Move the map"),
+        ]),
+        ("Keyboard focus", false, [
+            (["Tab"], "Next control"),
+            (["Shift", "Tab"], "Previous control"),
+            (["Enter"], "Use the focused control"),
         ]),
         ("Panels", true, [
             (["F"], "Map filters"),
@@ -386,6 +412,8 @@ public partial class Main
             grid.AddThemeConstantOverride("v_separation", 4);
             foreach (var (keys, action) in rows)
             {
+                // F12 does nothing outside Developer mode, so the list doesn't offer it.
+                if (keys is ["F12"] && !DeveloperMode) continue;
                 var caps = new HBoxContainer();
                 caps.AddThemeConstantOverride("separation", 3);
                 for (var index = 0; index < keys.Length; index++)

@@ -13,7 +13,9 @@ public sealed record CognitionLandHearingChoice(
     IReadOnlyList<string>? EvidenceIds = null,
     IReadOnlyList<string>? LawIds = null,
     string? Grounds = null,
-    string? RequestedOutcome = null)
+    string? RequestedOutcome = null,
+    string? PaymentItemKind = null,
+    int? PaymentQuantity = null)
 {
     public const int MaximumReferences = 16;
 
@@ -21,14 +23,18 @@ public sealed record CognitionLandHearingChoice(
     {
         if (Statement is not null && CognitionDecisionResponse.NormalizeIdentityText(Statement) != Statement ||
             Grounds is not null && CognitionDecisionResponse.NormalizeIdentityText(Grounds) != Grounds ||
-            HouseholdId is not null && !ValidReference(HouseholdId) || AgreedEndTick is < 0 ||
-            RequestedOutcome is not null and not ("confirm" or "renew" or "amend" or "end" or "reject") ||
-            !ValidReferences(EvidenceIds) || !ValidReferences(LawIds))
+            HouseholdId is not null && !ValidHouseholdReference(HouseholdId) || AgreedEndTick is < 0 ||
+            RequestedOutcome is not null and not ("confirm" or "renew" or "amend" or "end" or "reject" or "reclaim" or "grant") ||
+            !ValidReferences(EvidenceIds) || !ValidReferences(LawIds) ||
+            (PaymentItemKind is null) != (PaymentQuantity is null) ||
+            PaymentItemKind is not null && !ValidReference(PaymentItemKind) || PaymentQuantity is <= 0)
             throw new ArgumentOutOfRangeException(nameof(CognitionLandHearingChoice), "The hearing submission is malformed or too large.");
     }
 
-    private static bool ValidReference(string? value) => value is { Length: > 0 and <= 256 } &&
+    private static bool ValidHouseholdReference(string? value) => value is { Length: > 0 } &&
         !value.Any(char.IsWhiteSpace) && !value.Any(char.IsControl);
+
+    private static bool ValidReference(string? value) => value is { Length: <= 256 } && ValidHouseholdReference(value);
 
     private static bool ValidReferences(IReadOnlyList<string>? values) => values is null ||
         values.Count <= MaximumReferences && values.All(ValidReference) &&
@@ -48,20 +54,29 @@ public sealed record CognitionLandHearingChoice(
                 throw new InvalidDataException("The provider returned an invalid permission end date.");
             endTick = value;
         }
+        int? paymentQuantity = null;
+        if (payload.TryGetProperty("payment_quantity", out var quantity) && quantity.ValueKind != JsonValueKind.Null)
+        {
+            if (quantity.ValueKind != JsonValueKind.Number || !quantity.TryGetInt32(out var value))
+                throw new InvalidDataException("The provider returned an invalid goods price quantity.");
+            paymentQuantity = value;
+        }
         var choice = new CognitionLandHearingChoice(
-            Text(payload, "statement"), Reference(payload, "household_id"), endTick,
+            Text(payload, "statement"), Reference(payload, "household_id", household: true), endTick,
             References(payload, "evidence_ids"), References(payload, "law_ids"),
-            Text(payload, "grounds"), Reference(payload, "requested_outcome"));
+            Text(payload, "grounds"), Reference(payload, "requested_outcome"),
+            Reference(payload, "payment_item_kind"), paymentQuantity);
         try { choice.Validate(); }
         catch (ArgumentException error)
         { throw new InvalidDataException("The provider returned a malformed hearing submission.", error); }
         return choice;
     }
 
-    private static string? Reference(JsonElement payload, string name)
+    private static string? Reference(JsonElement payload, string name, bool household = false)
     {
         if (!payload.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null) return null;
-        if (value.ValueKind != JsonValueKind.String || !ValidReference(value.GetString()))
+        if (value.ValueKind != JsonValueKind.String ||
+            !(household ? ValidHouseholdReference(value.GetString()) : ValidReference(value.GetString())))
             throw new InvalidDataException("The provider returned an invalid hearing reference.");
         return value.GetString();
     }

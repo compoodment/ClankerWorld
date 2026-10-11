@@ -29,6 +29,7 @@ public partial class Main
         BuildDeveloperTools(uiLayer);
         FitFloatingPanelsToContents();
         BuildStatusToast(uiLayer);
+        BuildSaveDiskWarning(uiLayer);
         AddChild(menuLayer);
         BuildMainMenu();
         BuildManualSavesPanel();
@@ -151,16 +152,30 @@ public partial class Main
         mapCanvas.AddChild(uiLayer);
 
         mapStage.AddChild(terrainLayer);
+        storedStockLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        storedStockLayer.Follow(terrainLayer);
+        mapStage.AddChild(storedStockLayer);
+        graveLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        graveLayer.Follow(terrainLayer);
+        mapStage.AddChild(graveLayer);
 
         // Night darkens the ground but not the labels, agents and weather above it.
         nightLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         nightLayer.Follow(terrainLayer);
         mapStage.AddChild(nightLayer);
 
+        goldenHourLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        goldenHourLayer.Follow(terrainLayer);
+        mapStage.AddChild(goldenHourLayer);
+
         // Lit windows, doors and fires warm the ground back up through the wash.
         nightLightsLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         nightLightsLayer.Follow(terrainLayer, nightLayer);
         mapStage.AddChild(nightLightsLayer);
+
+        buildingCompletionLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        buildingCompletionLayer.Follow(terrainLayer);
+        mapStage.AddChild(buildingCompletionLayer);
 
         objectLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         objectLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -174,6 +189,10 @@ public partial class Main
         entityLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapStage.AddChild(entityLayer);
 
+        smokeLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        smokeLayer.Follow(terrainLayer, weatherLayer);
+        mapStage.AddChild(smokeLayer);
+
         // Weather falls over buildings and agents alike.
         weatherLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         weatherLayer.CloudsEnabled = displayPreferences.CloudHaze;
@@ -184,7 +203,7 @@ public partial class Main
         BuildAgentCards();
         BuildBuildingCards();
 
-        worldOverview.CenterRequested += CenterCameraAt;
+        worldOverview.CenterRequested += tileCenter => CenterKeyboardCameraAt(tileCenter, immediately: true);
         var overviewBody = new VBoxContainer();
         overviewBody.AddThemeConstantOverride("separation", 6);
         overviewBody.AddChild(worldOverview);
@@ -195,8 +214,16 @@ public partial class Main
         worldOverviewPanel.Hide();
         uiLayer.AddChild(worldOverviewPanel);
         mapCanvas.GuiInput += HandleMapInput;
+        mapCanvas.FocusMode = FocusModeEnum.All;
+        mapCanvas.FocusEntered += BeginKeyboardMapSelection;
+        mapCanvas.FocusExited += () =>
+        {
+            terrainLayer.SetHoveredTile(null);
+            UpdateHoverReadout(null, null);
+        };
         mapCanvas.MouseExited += () =>
         {
+            if (mapCanvas.HasFocus()) return;
             terrainLayer.SetHoveredTile(null);
             UpdateHoverReadout(null, null);
             if (placingAddedAgent) ResetAddAgentPlacementHint();
@@ -350,7 +377,7 @@ public partial class Main
         StyleConfirmation(quitGameConfirmation, "Quit ClankerWorld?", "Quit Game");
         // Quit Game is only offered on the Main Menu, after leaving any world.
         // The title says it all, so the dialog needs no sentence beneath it.
-        quitGameConfirmation.Confirmed += () => GetTree().Quit();
+        quitGameConfirmation.Confirmed += QuitGame;
         AddChild(quitGameConfirmation);
         body.AddChild(menuActions);
 
@@ -360,7 +387,7 @@ public partial class Main
         {
             Text = BuildInformation.Display,
             TooltipText = "Source commit: " + BuildInformation.SourceRevision,
-        }));
+        }, NewReportProblemButton()));
         themeChoice.AddItem("Light", (int)UiThemeChoice.Light);
         themeChoice.AddItem("Dark", (int)UiThemeChoice.Dark);
         themeChoice.AddItem("Match system", (int)UiThemeChoice.System);
@@ -527,6 +554,9 @@ public partial class Main
         label.BbcodeEnabled = false;
         label.FitContent = false;
         label.ScrollActive = true;
+        // The built-in scrollbar defaults to accessibility-only focus.
+        // Long readers need ordinary Tab/arrow navigation as well.
+        ConfigureKeyboardScrollBar(label.GetVScrollBar());
         label.SetMeta(TextPanelLimit, maximumHeight);
         // A new width rewraps the text, but only after the resized signal, so
         // measure it once this frame's layout is done.

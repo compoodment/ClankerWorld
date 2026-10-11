@@ -285,7 +285,9 @@ public sealed class CareProductionTests(ITestOutputHelper output)
                 (water.ItemKind, water.OwnerId, water.StorageBuildingId, water.Quantity));
             var completed = Assert.Single(world.WorldSimulation.ProductionJobs, job => job.RecipeId == medicineRecipe.CanonicalId &&
                 job.State == WorldProductionJobState.Completed);
-            Assert.Equal(16, completed.CompletionTick - completed.StartedTick);
+            Assert.Contains(world.Inhabitants.Single(person => person.InhabitantId == actor).Skills!,
+                skill => skill.Kind == SettlementSkillKind.Crafting);
+            Assert.Equal(12, completed.CompletionTick - completed.StartedTick);
             var inputs = completed.InputReservationIds.Select(world.Society.Inventory.GetReservation).ToArray();
             Assert.Equal(3, inputs.Length);
             Assert.Contains(inputs, input => input.LotId == water.Id && input.Quantity == 1 && input.OwnerId == Alpha &&

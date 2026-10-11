@@ -32,7 +32,7 @@ public sealed partial class PrivateWorldRuntime
     private InventoryLot? CarriedWaterJugForReturn(string actor, string houseId)
     {
         var inventory = society.Checkpoint.Inventory;
-        var room = StorageRoomAfterInboundDeliveries(houseId);
+        var room = DestinationRoom(houseId);
         var refillJug = CarriedWaterJugForRefill(actor);
         if (refillJug is not null && ContainerFamilyQuantity(inventory, refillJug.Id) <= room)
             return refillJug;
@@ -45,12 +45,6 @@ public sealed partial class PrivateWorldRuntime
 
     private static int ContainerFamilyQuantity(InventoryCheckpoint inventory, string containerId) =>
         InventoryIndex.For(inventory).FamilyQuantity(containerId);
-
-    private static int InboundDeliveryQuantity(InventoryCheckpoint inventory, string buildingId) =>
-        InventoryIndex.For(inventory).InboundQuantity(buildingId);
-
-    private int StorageRoomAfterInboundDeliveries(string buildingId) =>
-        Math.Max(0, StorageRoom(buildingId) - InboundDeliveryQuantity(society.Checkpoint.Inventory, buildingId));
 
     private static bool HasActiveContainerReservation(InventoryCheckpoint inventory, string containerId) =>
         InventoryIndex.For(inventory).HasReservedFamily(containerId);
@@ -72,7 +66,7 @@ public sealed partial class PrivateWorldRuntime
                 !inventory.Lots.Any(lot => lot.ContainerLotId == carriedJug.Id && lot.ItemKind != InventoryContainerRules.FreshWater) &&
                 FreeCarryCapacity(actor) > 0 &&
                 !HasActiveContainerReservation(inventory, carriedJug.Id)
-                    ? FindFreshWaterShore(actor, person.Position)
+                    ? FindFreshWaterShore(actor, person.Position, returnTo: WaterJugRefillReturnDestination(actor, carriedJug))
                     : null;
             if (shore is { } fillAt)
             {
@@ -93,7 +87,7 @@ public sealed partial class PrivateWorldRuntime
         {
             var storedJug = StoredWaterJugForRefill(actor, person, householdId);
             if (storedJug is not null && WaterJugStockLocation(storedJug, householdId) is { } source &&
-                FindFreshWaterShore(actor, source.Position) is not null &&
+                FindFreshWaterShore(actor, source.Position, ContainerFamilyQuantity(inventory, storedJug.Id), house.Position) is not null &&
                 (person.Position == source.Position ||
                  FindUnoccupiedRoute(actor, person.Position, source.Position, 0).Count > 0))
             {
@@ -154,7 +148,7 @@ public sealed partial class PrivateWorldRuntime
     private PotFoodChoice? FindFoodToStore(string actor, string householdId, string houseId)
     {
         var inventory = society.Checkpoint.Inventory;
-        var houseStorageRoom = StorageRoomAfterInboundDeliveries(houseId);
+        var houseStorageRoom = DestinationRoom(houseId);
         var pots = inventory.Lots.Where(lot => lot.OwnerId == householdId &&
                 lot.ItemKind == InventoryContainerRules.StoragePot && lot.StorageBuildingId == houseId &&
                 lot.ContainerLotId is null && lot.ConditionBasisPoints > 0 &&
@@ -200,14 +194,17 @@ public sealed partial class PrivateWorldRuntime
             return shores.OrderBy(point => point.Y).ThenBy(point => point.X).ToArray();
         });
 
-    private GridPoint? FindFreshWaterShore(string actor, GridPoint origin)
+    private GridPoint? FindFreshWaterShore(string actor, GridPoint origin, int additionalCarriedUnits = 0,
+        GridPoint? returnTo = null)
     {
         foreach (var point in FreshWaterShorePositions()
-                     .Where(point => map.IsReachableOnFoot(origin, point))
+                     .Where(point => CanReachByFootOrSwimming(actor, origin, point))
                      .OrderBy(point => map.FootDistance(origin, point))
                      .ThenBy(point => point.Y).ThenBy(point => point.X))
         {
-            if (point == origin || FindUnoccupiedRoute(actor, origin, point, 0).Count > 0)
+            if ((point == origin || FindUnoccupiedRoute(actor, origin, point, 0,
+                    additionalCarriedUnits: additionalCarriedUnits).Count > 0) &&
+                (returnTo is null || PickupCarryCapacity(actor, point, returnTo.Value) > additionalCarriedUnits))
                 return point;
         }
         return null;
@@ -232,9 +229,21 @@ public sealed partial class PrivateWorldRuntime
                 CanRemoveWorkstationStock(inventory, lot, 1))
             .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault(lot =>
                 WaterJugStockLocation(lot, householdId) is { } source &&
-                FindFreshWaterShore(actor, source.Position) is not null &&
+                FindFreshWaterShore(actor, source.Position, ContainerFamilyQuantity(inventory, lot.Id),
+                    HouseForHousehold(householdId)?.Position) is not null &&
                 (person.Position == source.Position ||
                  FindUnoccupiedRoute(actor, person.Position, source.Position, 0).Count > 0));
+    }
+
+    private GridPoint? WaterJugRefillReturnDestination(string actor, InventoryLot jug)
+    {
+        if (HouseholdFor(actor) is not { } household || HouseForHousehold(household) is not { } house)
+            return null;
+        // An already carried jug can be filled for local use while its House
+        // is full. A House return is available only if at least one more water
+        // unit can accompany the intact family into its storage.
+        return DestinationRoom(house.InstanceId) >
+            ContainerFamilyQuantity(society.Checkpoint.Inventory, jug.Id) ? house.Position : null;
     }
 
     private void CollectWaterJug(string actor, PlaytestInhabitantState person)
@@ -265,7 +274,7 @@ public sealed partial class PrivateWorldRuntime
             CarriedWaterJugForRefill(actor) is not { } jug)
             return;
         var inventory = society.Checkpoint.Inventory;
-        if (!map.IsReachableOnFoot(person.Position, shore) ||
+        if (!CanReachByFootOrSwimming(actor, person.Position, shore) ||
             FindUnoccupiedRoute(actor, person.Position, shore, 0).Count == 0)
             return;
         if (person.Position != shore)
@@ -276,6 +285,8 @@ public sealed partial class PrivateWorldRuntime
         var remaining = Math.Min(
             InventoryContainerRules.WaterJugCapacity - ContainerContentsQuantity(inventory, jug.Id),
             FreeCarryCapacity(actor));
+        if (WaterJugRefillReturnDestination(actor, jug) is { } destination)
+            remaining = Math.Min(remaining, PickupCarryCapacity(actor, shore, destination));
         if (remaining <= 0 || HasActiveContainerReservation(inventory, jug.Id) ||
             inventory.Lots.Any(lot => lot.ContainerLotId == jug.Id && lot.ItemKind != InventoryContainerRules.FreshWater))
             return;
@@ -317,7 +328,7 @@ public sealed partial class PrivateWorldRuntime
         var inventory = society.Checkpoint.Inventory;
         var contentRoom = InventoryContainerRules.StoragePotCapacity -
             ContainerContentsQuantity(inventory, choice.Pot.Id);
-        var storageRoom = choice.Food.OwnerId == actor ? StorageRoomAfterInboundDeliveries(house.InstanceId) : int.MaxValue;
+        var storageRoom = choice.Food.OwnerId == actor ? DestinationRoom(house.InstanceId) : int.MaxValue;
         var available = AvailableLotQuantity(choice.Food) - (choice.Food.OwnerId == actor ? 1 : 0);
         var quantity = Math.Min(available, Math.Min(contentRoom, storageRoom));
         if (quantity <= 0)

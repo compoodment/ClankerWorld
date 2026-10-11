@@ -97,6 +97,7 @@ public partial class Main
         RenderMap(map with { WorldTick = 2, Animals = [animal, ewe with { Position = new(123, 60) }, wild] });
         if (!Shows(walking, AgentSprites.FacingToward(1, 0), 1))
             throw new InvalidOperationException("An animal stepping east must face east on its first walking step.");
+        AdvanceMapMarkers(WalkingMotion.FrameSeconds);
         RenderMap(map with { WorldTick = 3, Animals = [animal, ewe with { Position = new(123, 61) }, wild] });
         if (!Shows(walking, AgentSprites.South, 2))
             throw new InvalidOperationException("The next step must show the other walking frame, facing the new move.");
@@ -120,7 +121,7 @@ public partial class Main
             !Shows(walking, AgentSprites.South, 0))
             throw new InvalidOperationException("A world switch must clear a reused animal sprite's walking state.");
         RenderMap(map with { WorldId = "animal-smoke-other-world", WorldTick = 10, Animals = [animal, ewe with { Position = new(113, 61) }, wild] });
-        walking._Process(AgentMarker.StepSeconds + 0.1);
+        AdvanceMapMarkers(WalkingMotion.GlideSeconds + 0.1);
         if (!Shows(walking, AgentSprites.FacingToward(1, 0), 0))
             throw new InvalidOperationException("An animal that stops must stand again.");
         RenderMap(map with { WorldTick = 11 });

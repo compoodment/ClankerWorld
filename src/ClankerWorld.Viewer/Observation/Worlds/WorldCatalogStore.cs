@@ -5,12 +5,23 @@ using ClankerWorld.Viewer.Control;
 
 namespace ClankerWorld.Viewer.Observation;
 
+/// <remarks>
+/// <see cref="GameVersion"/> and <see cref="SourceRevision"/> name the host build
+/// that last wrote or opened the world, so any version can show who saved it
+/// without restoring it. Entries from before they were recorded have neither.
+/// </remarks>
 public sealed record CatalogWorld(
     string Id, string Name, string WorldId, string Seed, DateTimeOffset UpdatedUtc,
     IReadOnlyList<InhabitantProviderAssignment> Assignments,
     WorldAutosaveSettings? AutosaveSettings,
     string Compatibility = "unknown", string? CompatibilityReason = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WorldThumbnail? Thumbnail = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] WorldThumbnail? Thumbnail = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull), JsonConverter(typeof(SavedBuildTextConverter))] string? GameVersion = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull), JsonConverter(typeof(SavedBuildTextConverter))] string? SourceRevision = null)
+{
+    internal CatalogWorld StampedByThisBuild() =>
+        this with { GameVersion = BuildInformation.Version, SourceRevision = BuildInformation.SourceRevision };
+}
 
 public sealed record WorldCatalogSnapshot(string ActiveId, IReadOnlyList<CatalogWorld> Worlds,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CatalogWorld>? PendingDeletions = null);
@@ -23,6 +34,17 @@ public sealed class WorldCatalogStore
     private readonly string indexPath;
     private WorldCatalogSnapshot index;
     public bool RecoveredSelection { get; }
+
+    /// <summary>Read the last selected world's identity without opening or changing its checkpoint.</summary>
+    public static CatalogWorld? ReadActiveIdentity(string activeSavePath)
+    {
+        var path = Path.Combine(Path.GetFullPath(activeSavePath) + ".worlds", "catalog.json");
+        if (!File.Exists(path)) return null;
+        var saved = JsonSerializer.Deserialize<WorldCatalogSnapshot>(File.ReadAllBytes(path))
+            ?? throw new InvalidDataException("The world catalog is empty.");
+        Validate(saved);
+        return saved.Worlds.Single(world => world.Id == saved.ActiveId);
+    }
 
     public WorldCatalogStore(string activeSavePath, PrivateWorldRuntimeState activeState,
         IReadOnlyList<InhabitantProviderAssignment> assignments, WorldAutosaveSettings autosaveSettings,
@@ -47,12 +69,19 @@ public sealed class WorldCatalogStore
                 index = index with { ActiveId = matching.Id };
                 WriteIndex(index);
             }
+            // This build now writes the active world's checkpoint.
+            if (matching.GameVersion != BuildInformation.Version || matching.SourceRevision != BuildInformation.SourceRevision)
+            {
+                index = WithEntry(index, matching.StampedByThisBuild());
+                WriteIndex(index);
+            }
         }
         else
         {
             var entry = new CatalogWorld(Guid.NewGuid().ToString("N"), "First World",
                 activeState.Society.Society.WorldId, activeState.WorldSeed, DateTimeOffset.UtcNow,
-                assignments.ToArray(), autosaveSettings, Thumbnail: WorldThumbnail.From(activeState.Map));
+                assignments.ToArray(), autosaveSettings, Thumbnail: WorldThumbnail.From(activeState.Map))
+                .StampedByThisBuild();
             index = new WorldCatalogSnapshot(entry.Id, [entry]);
             WriteSnapshot(entry.Id, activeState);
             WriteIndex(index);
@@ -111,16 +140,37 @@ public sealed class WorldCatalogStore
         name = NormalizeName(name);
         lock (gate)
         {
-            if (index.Worlds.Concat(index.PendingDeletions ?? []).Any(world => world.WorldId == state.Society.Society.WorldId))
+            if (index.Worlds.Concat(index.PendingDeletions ?? []).Any(world =>
+                world.WorldId == state.Society.Society.WorldId || MatchesSeedIdentifiedGeneratedWorld(world, state)))
                 throw new InvalidOperationException("This world already exists.");
             var entry = new CatalogWorld(Guid.NewGuid().ToString("N"), name,
                 state.Society.Society.WorldId, state.WorldSeed, DateTimeOffset.UtcNow, [], null,
-                Thumbnail: WorldThumbnail.From(state.Map));
+                Thumbnail: WorldThumbnail.From(state.Map)).StampedByThisBuild();
             WriteSnapshot(entry.Id, state);
             WriteIndex(index with { Worlds = [.. index.Worlds, entry] });
             index = index with { Worlds = [.. index.Worlds, entry] };
             return entry;
         }
+    }
+
+    private bool MatchesSeedIdentifiedGeneratedWorld(CatalogWorld entry, PrivateWorldRuntimeState state)
+    {
+        if (state.Geography is null || entry.Seed != state.WorldSeed || entry.WorldId != entry.Seed) return false;
+        PrivateWorldRuntimeState existing;
+        try
+        {
+            existing = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(SnapshotPath(entry.Id)));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or
+            JsonException or ArgumentException or FormatException)
+        {
+            // Unrestorable archives stay untouched in their existing entries.
+            return false;
+        }
+        // Planting changes the current resource manifest, while the original
+        // generation choices still identify the world that was created.
+        return existing.Society.Society.WorldId == entry.WorldId && existing.WorldSeed == entry.Seed &&
+            existing.Geography == state.Geography;
     }
 
     public void ArchiveActive(PrivateWorldRuntimeState state,
@@ -131,13 +181,13 @@ public sealed class WorldCatalogStore
             var active = index.Worlds.Single(world => world.Id == index.ActiveId);
             if (active.WorldId != state.Society.Society.WorldId)
                 throw new InvalidDataException("The active world changed outside the catalog.");
-            var updated = active with
+            var updated = (active with
             {
                 UpdatedUtc = DateTimeOffset.UtcNow,
                 Assignments = assignments.ToArray(),
                 AutosaveSettings = autosaveSettings,
                 Thumbnail = active.Thumbnail ?? WorldThumbnail.From(state.Map),
-            };
+            }).StampedByThisBuild();
             WriteSnapshot(active.Id, state);
             var next = index with { Worlds = index.Worlds.Select(world => world.Id == active.Id ? updated : world).ToArray() };
             WriteIndex(next);
@@ -193,11 +243,16 @@ public sealed class WorldCatalogStore
         {
             if (!index.Worlds.Any(world => world.Id == id))
                 throw new FileNotFoundException("The selected world does not exist.");
-            var next = index with { ActiveId = id };
+            // The selected world's checkpoint is now written by this build.
+            var selected = index.Worlds.Single(world => world.Id == id).StampedByThisBuild();
+            var next = WithEntry(index, selected) with { ActiveId = id };
             WriteIndex(next);
             index = next;
         }
     }
+
+    private static WorldCatalogSnapshot WithEntry(WorldCatalogSnapshot snapshot, CatalogWorld entry) =>
+        snapshot with { Worlds = snapshot.Worlds.Select(world => world.Id == entry.Id ? entry : world).ToArray() };
 
     private static string NormalizeName(string? value)
     {
