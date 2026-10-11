@@ -1962,6 +1962,12 @@ instead of preventing the healthy host from starting. These checks do not
 require playable model settings or a valid display name just to remove an
 otherwise identifiable checkpoint.
 
+Whole-world cleanup preserves save IDs recorded in metadata as belonging to
+another world, including their unreadable checkpoint generations. It does not
+decode those files just to delete the requested world. Leftover files without
+such metadata still need a decoded world identity before removal; an
+unreadable unidentified file keeps cleanup pending.
+
 Snapshot metadata is renamed to a deletion intent before owned generations
 are removed. World removal first moves its catalog entry into pending deletion,
 then removes its snapshots and archived checkpoint. Pending targets are not
