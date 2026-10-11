@@ -2,7 +2,7 @@
 title: Build and test
 type: development-reference
 status: active
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
 # Build and test
@@ -35,12 +35,16 @@ Shared compiler, analyzer and version settings live in
 [Directory.Build.props](../../Directory.Build.props). Use its version fields
 rather than adding a second version constant.
 
-The retained-guidance farming fixture waits for the provider's start signal by
-polling the native nonblocking tick path. A committed tick schedules background
-work but does not guarantee that its worker has started. The check covers
-immediate entry and entry after two more committed ticks. Its
-polls retain a forty-tick limit and a separate thirty-second cancellation guard
-for each tick, including after pause and reload.
+The retained-guidance farming and held repair-cancellation fixtures wait for
+the provider's start signal by polling the native nonblocking tick path. A
+committed tick schedules background work but does not guarantee that its worker
+has started. The checks cover immediate entry and entry after two more committed
+ticks. Their polls retain a forty-tick limit and a separate thirty-second cancellation guard
+for each tick, including after pause and reload in the farming fixture. The
+repair check also waits for the released reply before checking that cancellation
+prevents repairs. Use this pattern only where advancing ticks preserves the
+intended cancellation boundary; orders that can already complete physical work
+must keep the world at that boundary while waiting for provider entry.
 
 The client bundles one third-party font, Fusion Pixel 12px, in
 `src/ClankerWorld.GodotClient/UI/Theme/Fonts/`, under the SIL Open Font
