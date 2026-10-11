@@ -162,19 +162,9 @@ public sealed partial class PrivateWorldRuntime
     private int PhysicalUnreservedQuantity(InventoryLot lot) =>
         Math.Max(0, InventoryRules.UnreservedQuantity(InventoryIndex.For(society.Checkpoint.Inventory), lot));
 
-    private IEnumerable<InventoryLot> PersonalGoodsAwaitingCollection(string actor) => society.Checkpoint.Inventory.Lots.Where(lot =>
-        // A parked handcart stays on the ground with its cargo; its owner pulls it rather than carrying it.
-        lot.OwnerId == actor && !PersonalEquipmentRules.IsCarried(lot, actor) && lot.CarrierId is null &&
-        lot.ItemKind != InventoryContainerRules.Handcart && (!MarketTradeRules.IsLoose(lot) || !OnMarketStall(lot)) &&
-        lot.DeliveryBuildingId is null && lot.ContainerLotId is null && PhysicalUnreservedQuantity(lot) > 0 &&
-        !(InventoryContainerRules.IsContainer(lot.ItemKind) && HasActiveContainerReservation(society.Checkpoint.Inventory, lot.Id)) &&
-        (lot.GroundPosition is not null || lot.StorageBuildingId is { } storageId &&
-            worldSimulation.Buildings.Any(building => building.InstanceId == storageId &&
-                (building.HouseholdId is { } home && (society.Checkpoint.GetInhabitant(actor).HouseholdId == home ||
-                 inhabitants[actor].Departures?.Any(departure => departure.HouseholdId == home) == true ||
-                 HasCareGroupDepartureFrom(actor, home) ||
-                 IsStoredSettledBequest(actor, lot, storageId)) ||
-                 towns.Any(town => town.LandHearings.Cases.Any(item => item.Property?.Transfer?.PriorBuilding.InstanceId == storageId))))));
+    private IEnumerable<InventoryLot> PersonalGoodsAwaitingCollection(string actor) =>
+        PersonalRecoveryRequest(actor, GoodsUse.RecoveryHoldings) is { } request
+            ? FindGoods(request).Matches.Select(match => match.Lot) : [];
 
     // Children leave in the caregiver's recorded care group. That saved move
     // still authorizes their own belongings after adulthood or the caregiver's
@@ -329,8 +319,7 @@ public sealed partial class PrivateWorldRuntime
                 home is null ? 19 : 104));
         if (FreeCarryCapacity(actor) > 0)
         {
-            foreach (var lot in PersonalGoodsAwaitingCollection(actor).Where(lot => VesselFits(lot, FreeCarryCapacity(actor)))
-                         .Where(lot => CanReachPersonalGoods(actor, lot))
+            foreach (var lot in RecoverablePersonalGoods(actor)
                          .OrderBy(lot => lot.Id, StringComparer.Ordinal))
             {
                 var knowledgeAtHome = KeptAtHomeByRoutine(lot.ItemKind) &&

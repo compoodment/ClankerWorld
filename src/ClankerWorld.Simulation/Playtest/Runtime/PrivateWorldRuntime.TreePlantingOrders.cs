@@ -37,13 +37,9 @@ public sealed partial class PrivateWorldRuntime
         .OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault();
 
     private InventoryLot? CollectableTreeOrderSeed(string actor, string kind) =>
-        PersonalGoodsAwaitingCollection(actor).Where(lot => lot.ItemKind == kind && PlantingSeedQuantity(lot) > 0)
+        RecoverablePersonalGoods(actor, kind).Where(lot => PlantingSeedQuantity(lot) > 0)
             .OrderBy(lot => map.FootDistance(inhabitants[actor].Position, HouseholdStockPosition(lot)))
-            .ThenBy(lot => lot.Id, StringComparer.Ordinal)
-            .FirstOrDefault(lot => IsWithinInteractionRange(inhabitants[actor].Position, HouseholdStockPosition(lot),
-                    lot.GroundPosition is not null ? ResourceInteractionRange : 1) ||
-                FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
-                    lot.GroundPosition is not null ? ResourceInteractionRange : 1).Count > 0) ?? SharedItem(kind, actor);
+            .ThenBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault() ?? SharedItem(kind, actor);
 
     private TreeOrderPlan? TreePlantingOrderPlan(OwnerQueuedInstruction instruction, PlaytestInhabitantState person)
     {

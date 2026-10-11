@@ -172,7 +172,7 @@ Physical movement may preserve damaged or spoiled property. Consumption still
 requires usable inputs. `InventoryFixture` remains the authority for an actual
 reservation, transfer, container operation or consumption.
 
-`Playtest/Goods/` currently supplies four query uses. `Holdings` excludes unusable
+`Playtest/Goods/` supplies usable-goods and physical-recovery query uses. `Holdings` excludes unusable
 lots or parent vessels, reserved quantities, delivery promises and goods held
 for sale at a borrowed Market stall. `ConsumeAt` matches the inventory
 reservation boundary, including usable contained ingredients and partially
@@ -223,8 +223,25 @@ seeds, with the existing Warehouse fallback rechecked through the same use.
 Animal-supply sources use Collect and recheck before pickup; care permission,
 feed reserves, product capacity, destination room and workstation surplus
 remain feature-specific filters. These are the first household pickup callers
-of [#1370](https://github.com/compoodment/ClankerWorld/issues/1370). Personal
-recovery and birth food still use their existing helpers.
+of [#1370](https://github.com/compoodment/ClankerWorld/issues/1370).
+
+Personal recovery uses `RecoveryHoldings` for property awaiting retrieval and
+`Recover` for a load the agent can fetch now. Both include damaged and spoiled
+belongings, while preserving personal ownership, former-household and heir
+access, Market commitments, delivery promises and family reservations.
+Recover also checks carrying room and the native route, including collection
+at an entrance. Routine recovery, collection orders and personal planting-seed
+selection share this query; collection rechecks the offered lot before moving
+it. Departure guidance retains the holdings count even when cargo is full or
+the route is blocked. A parked handcart stays outside personal carrying recovery.
+
+Birth food uses `ConsumeAt` through the same inventory-only query core for live
+selection and captured-checkpoint guidance. Household ownership, actor custody
+and borrowed Market-stall exclusions remain birth filters. Birth rechecks its
+selected food before forming the contributions. It reserves and consumes food
+where stored, including usable pots with other reserved contents; it adds no
+route or carrying-room requirement. The owner's October 11 clarification is
+recorded in [#1676](https://github.com/compoodment/ClankerWorld/pull/1676).
 
 Warehouse stock uses Holdings before route checks and ReachableHoldings
 for reachable stock, keeping the resident-Town/abandoned-Town and Warehouse
@@ -232,14 +249,17 @@ ordering. Handcart household material counts use the same reachable query.
 Preparation still permits making cargo room first; actual cart and construction
 material pickups recheck the selected lot with Collect. Town access, top-level
 stock, the intended return route and delivery quantities remain native filters.
-Other Town-stock and personal-recovery callers remain in
-[#1370](https://github.com/compoodment/ClankerWorld/issues/1370).
+Remaining Town-stock callers and the older `CanReachSharedItem` selector paths
+remain in [#1370](https://github.com/compoodment/ClankerWorld/issues/1370).
 
 With `Explain`, exclusions retain their first failure in this fixed order:
 owner, kind, building, damage, spoilage, vessel, empty stock, reservation,
 delivery and Market sale promise. Collect then checks custody/place, family
 reservations, equipped or hitched goods, carry room and finally reach.
-ReachableHoldings checks reach after the Holdings rules.
+ReachableHoldings checks reach after the Holdings rules. Recovery skips damage,
+spoilage and usable-vessel checks, then checks personal custody/place, Market
+and delivery commitments, family reservations and access. Recover adds carry
+room and reach; RecoveryHoldings leaves those checks to its eventual pickup.
 Diagnostics are derived, never saved or
 logged every tick. Normal queries use the owner/building index; explanations
 scan all lots so they can also explain an owner or place mismatch.

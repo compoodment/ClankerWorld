@@ -12,17 +12,17 @@ public sealed partial class PrivateWorldRuntime
     {
         var actor = instruction.TargetInhabitantId;
         if (!ReadyForBriefInteraction(actor) || FreeCarryCapacity(actor) <= 0) return null;
-        var lot = CollectionOrderGoods(instruction)
-            .Where(item => VesselFits(item, FreeCarryCapacity(actor)))
+        var lot = CollectionOrderGoods(instruction, GoodsUse.Recover)
             .OrderBy(item => map.FootDistance(person.Position, HouseholdStockPosition(item)))
             .ThenBy(item => item.Id, StringComparer.Ordinal)
-            .FirstOrDefault(item => CanReachPersonalGoods(actor, item));
+            .FirstOrDefault();
         return lot is null ? null : new(instruction.Order!.Action,
             $"Walk to your own stored or dropped {CollectionOrderGoodsName(instruction.Order)} and pick it up within your carrying limit.", 0, lot.Id);
     }
 
-    private IEnumerable<InventoryLot> CollectionOrderGoods(OwnerQueuedInstruction instruction) =>
-        PersonalGoodsAwaitingCollection(instruction.TargetInhabitantId).Where(lot =>
+    private IEnumerable<InventoryLot> CollectionOrderGoods(OwnerQueuedInstruction instruction, GoodsUse use = GoodsUse.RecoveryHoldings) =>
+        (use == GoodsUse.Recover ? RecoverablePersonalGoods(instruction.TargetInhabitantId)
+            : PersonalGoodsAwaitingCollection(instruction.TargetInhabitantId)).Where(lot =>
             (instruction.Order!.Action switch
             {
                 "collect_food" => IsEdibleFood(lot.ItemKind) &&

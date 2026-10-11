@@ -63,7 +63,7 @@ public sealed partial class PrivateWorldRuntime
         if (checkpoint.GetInhabitant(caregiverId).HouseholdId is not { } householdId) return new(0, 4);
         var required = checkpoint.Inhabitants.Count(person => person.HouseholdId == householdId &&
             person.Status == SocietyInhabitantStatus.Active) * 2 + 4;
-        return new(BirthFoodSources(checkpoint, caregiverId, townStates).Sum(lot => AvailableLotQuantity(checkpoint.Inventory, lot)), required);
+        return new(BirthFoodSources(checkpoint, caregiverId, townStates).Sum(match => match.Quantity), required);
     }
 
     public static string ParenthoodFoodNote(SocietyCheckpoint checkpoint, string caregiverId,
@@ -80,26 +80,30 @@ public sealed partial class PrivateWorldRuntime
 
     // Birth reserves and consumes its food in place, which the inventory
     // allows for food in a usable storage pot as well as loose food.
-    private IEnumerable<InventoryLot> BirthFoodSources(string actor) => BirthFoodSources(society.Checkpoint, actor, towns);
-
-    private static IEnumerable<InventoryLot> BirthFoodSources(SocietyCheckpoint checkpoint, string actor,
-        IReadOnlyList<TownRuntimeState> townStates)
+    private static GoodsRequest? BirthFoodRequest(SocietyCheckpoint checkpoint, string actor)
     {
         var household = checkpoint.GetInhabitant(actor).HouseholdId ?? actor;
-        return checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == household &&
-            (lot.CarrierId is null || lot.CarrierId == actor) && InUsableVesselOrLoose(checkpoint.Inventory, lot) &&
-            IsEdibleFood(lot.ItemKind) && !OnBorrowedMarketStall(lot, townStates) && AvailableLotQuantity(checkpoint.Inventory, lot) > 0)
-            .OrderBy(lot => lot.Id, StringComparer.Ordinal);
+        var kinds = InventoryIndex.For(checkpoint.Inventory).OwnedBy(household)
+            .Where(lot => IsEdibleFood(lot.ItemKind)).Select(lot => lot.ItemKind).Distinct(StringComparer.Ordinal).ToArray();
+        return kinds.Length == 0 ? null : new(GoodsUse.ConsumeAt, actor, GoodsOwners.One(household), new GoodsKinds(kinds));
     }
+
+    private static IReadOnlyList<GoodsMatch> BirthFoodSources(SocietyCheckpoint checkpoint, string actor,
+        IReadOnlyList<TownRuntimeState> townStates) => BirthFoodRequest(checkpoint, actor) is { } request
+            ? GoodsInventoryQuery.FindConsumableGoods(checkpoint.Inventory, request, (_, lot) =>
+                lot.CarrierId is { } carrier && carrier != actor ? GoodsReason.Custody :
+                OnBorrowedMarketStall(lot, townStates) ? GoodsReason.MarketStall : null).Matches : [];
 
     private List<SocietyBirthFoodContribution>? BirthFood(string actor)
     {
         var remaining = 4;
         var contributions = new List<SocietyBirthFoodContribution>();
-        foreach (var lot in BirthFoodSources(actor))
+        if (BirthFoodRequest(society.Checkpoint, actor) is not { } request) return null;
+        foreach (var offered in BirthFoodSources(society.Checkpoint, actor, towns))
         {
-            var quantity = Math.Min(remaining, AvailableLotQuantity(lot));
-            contributions.Add(new(lot.Id, quantity));
+            if (RecheckGoods(request, offered.Lot.Id) is not { } current) return null;
+            var quantity = Math.Min(remaining, current.Quantity);
+            contributions.Add(new(current.Lot.Id, quantity));
             remaining -= quantity;
             if (remaining == 0) return contributions;
         }
