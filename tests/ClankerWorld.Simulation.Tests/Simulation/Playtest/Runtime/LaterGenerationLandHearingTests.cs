@@ -8,7 +8,7 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class GrownAgentHelperMemoryTests
 {
-    private static readonly Lazy<Task<byte[]>> LaterAdult = new(CreateLaterAdultAsync);
+    private static readonly Lazy<Task<byte[]>> LaterAdult = new(() => CreateLaterAdultAsync());
     private static readonly Lazy<Task<byte[]>> LaterHearingGovernment = new(async () =>
         await CreateNativeHearingGovernmentAsync(false, PrivateWorldRuntimeCodec.Decode(await LaterAdult.Value)));
 
@@ -116,7 +116,7 @@ public sealed partial class GrownAgentHelperMemoryTests
         }
     }
 
-    private static async Task<byte[]> CreateLaterAdultAsync()
+    private static async Task<byte[]> CreateLaterAdultAsync(int lastGeneration = 3, Action<int, byte[]>? recordAdult = null)
     {
         var state = NativeHearingCalendar(PrivateWorldRuntimeCodec.Decode(await ConversationAdult.Value));
         var society = state.Society.Society;
@@ -138,10 +138,11 @@ public sealed partial class GrownAgentHelperMemoryTests
                 },
             },
         };
-        return await GrowLaterFamilyAsync(state, 2, 3);
+        return await GrowLaterFamilyAsync(state, 2, lastGeneration, recordAdult);
     }
 
-    private static async Task<byte[]> GrowLaterFamilyAsync(PrivateWorldRuntimeState state, int firstGeneration, int lastGeneration)
+    private static async Task<byte[]> GrowLaterFamilyAsync(PrivateWorldRuntimeState state, int firstGeneration, int lastGeneration,
+        Action<int, byte[]>? recordAdult = null)
     {
         Assert.Equal(firstGeneration - 1, state.Society.Society.Births.Count);
         var choices = new LaterFamilyChoices();
@@ -249,6 +250,7 @@ public sealed partial class GrownAgentHelperMemoryTests
             }
             Assert.Equal(SocietyAgeBand.Adult, world.Society.GetInhabitant(parent).AgeBand);
             Assert.False(world.Society.GetInhabitant(parent).NeedsName);
+            recordAdult?.Invoke(generation, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         }
         world.Pause();
         Assert.Equal(lastGeneration, world.Society.Births.Count);

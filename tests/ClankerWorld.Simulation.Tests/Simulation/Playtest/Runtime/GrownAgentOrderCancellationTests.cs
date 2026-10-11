@@ -8,6 +8,9 @@ public sealed partial class GrownAgentHelperMemoryTests
 {
     private static readonly Lazy<Task<byte[]>> CancellationAdult = new(CreateCancellationAdultAsync);
 
+    internal static async Task<PrivateWorldRuntimeState> CancellationAdultStateAsync() =>
+        PrivateWorldRuntimeCodec.Decode(await CancellationAdult.Value);
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

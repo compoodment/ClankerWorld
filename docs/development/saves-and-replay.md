@@ -239,7 +239,11 @@ Private-world schema 65 adds material-gathering orders with a distinct
 `TargetMaterialKind`, exact optional source or position, and progress measured
 in harvest batches or material items. Saved progress and the last physical
 harvest receipt are validated together; mixed food/material targets and invalid
-material kinds are refused. Queueing, cancellation, discovery and partial
+material kinds are refused. A harvest receipt that would exceed 512 characters
+uses a fixed-length SHA-256 identity derived from the complete original receipt.
+The actor and native inventory lot keep their full identities; shorter receipts
+remain unchanged. Current-format reload accepts both shapes without a schema change.
+Queueing, cancellation, discovery and partial
 quantities retain their state across reload. Older alpha saves are refused and
 preserved unchanged; no migration is added.
 
@@ -385,6 +389,13 @@ personally accept before completion. These records preserve original Council
 grant receipts and Town title. A goods sale also retains its immutable price
 and actual payment receipt; only the agreed goods payment changes physical
 property ownership.
+
+Voluntary-transfer filers and the person rosters in proposals, individual
+responses and completed receipts retain complete known person identities,
+including later-generation adults with ancestry-based IDs longer than 256
+characters. These rosters still require canonical order and unique, known,
+well-formed people. Transfer keys, permission keys and other bounded fields
+keep their limits. This validation repair changes no schema or saved field.
 
 These records share prepared-tick rollback with permissions, requests, civic
 receipts and events. Current-format reload and continuation retain pending
