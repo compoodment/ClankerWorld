@@ -160,6 +160,12 @@ public sealed partial class GrownAgentHelperMemoryTests
 
         public byte[] Saved() => File.ReadAllBytes(file.Path);
 
+        public byte[] Checkpoint()
+        {
+            file.Save(world);
+            return Saved();
+        }
+
         public async Task Advance()
         {
             Assert.True(await service.TryAdvanceOnceAsync());

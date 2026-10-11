@@ -2276,9 +2276,11 @@ its last valid notice and asset snapshot. It cannot transfer stale assets or
 publish a new notice without a matching snapshot; current standing and judge
 conflicts still apply. Malformed saved notice numbering is refused before
 property evidence lookups.
-Property requests and reclaim/grant outcomes retain native household references
-up to the hearing file's 256-character identity limit. Offered civic choices
-use the existing bounded household token; property records keep the full ID.
+Property requests and hearing outcomes retain complete canonical household
+references, including households founded by later-generation native adults.
+Runtime admission and saved records still require known households, affected
+parties and eligible recipients. Offered civic choices use the existing bounded
+household token; property records keep the full ID.
 Saved footprint rights and requests retain that same known household reference.
 A generated household party key longer than 256 characters uses a stable hash,
 while its separate household field keeps the complete identity.

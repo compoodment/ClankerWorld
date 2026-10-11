@@ -410,6 +410,13 @@ does the provider response-body limit. Each affected adult still separately lear
 and accepts the exact current terms before permissions change. No schema or saved
 field changes.
 
+Property requests and end, renew, amend, reclaim and grant hearing outcomes also
+retain complete canonical household references. Known-household and affected-party
+checks, personal agreements, inspected evidence and independent judge authority
+still apply. Household references are not limited by caller-owned key lengths;
+unknown, whitespace-padded or control-character references are refused. This
+validation repair changes no schema or saved field.
+
 These records share prepared-tick rollback with permissions, requests, civic
 receipts and events. Current-format reload and continuation retain pending
 windows, rulings and transfers without applying a decision twice. Reopening
