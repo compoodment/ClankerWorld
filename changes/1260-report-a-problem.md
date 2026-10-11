@@ -1,0 +1,1 @@
+- **Settings > Build > Report a problem** saves a zip with the game's and its world server's latest logs and a short summary to send with a bug report. Keys, saves and model replies are never included, and anything that looks like a key is blanked.

@@ -40,6 +40,7 @@
     <Compile Include="..\..\src\ClankerWorld.GodotClient\UI\Map\HillBand.cs" Link="GodotClient\UI\Map\HillBand.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Networking\OwnerWorldApi.cs" Link="GodotClient\Networking\OwnerWorldApi.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Networking\LocalHostCompanion.cs" Link="GodotClient\Networking\LocalHostCompanion.cs" />
+    <Compile Include="..\..\src\ClankerWorld.GodotClient\Diagnostics\ProblemReport.cs" Link="GodotClient\Diagnostics\ProblemReport.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Launcher\GameVersionName.cs" Link="GodotClient\Launcher\GameVersionName.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Launcher\LauncherLayout.cs" Link="GodotClient\Launcher\LauncherLayout.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\Launcher\GameReleaseFeed.cs" Link="GodotClient\Launcher\GameReleaseFeed.cs" />
