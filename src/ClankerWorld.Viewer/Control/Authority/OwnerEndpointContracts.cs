@@ -1,4 +1,6 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Observation;
@@ -55,13 +57,48 @@ public sealed record OwnerControlFailure(string Code, string Detail);
 /// The normal HTTPS/Tailnet listener never has this port. Only a separately
 /// bound loopback listener can approve the first pending device.
 /// </summary>
-public sealed record OwnerPairingHostOptions(int LocalApprovalPort)
+/// <remarks>
+/// A host the game started on the player's own PC also has a companion secret.
+/// The game wrote it to a file in the player's own data folder before starting
+/// the host, so every program on the PC can reach the loopback listener but only
+/// the game that started it can approve its pairing or stop it.
+/// </remarks>
+public sealed record OwnerPairingHostOptions(int LocalApprovalPort, string? CompanionSecret = null)
 {
+    public const string CompanionSecretHeader = "X-ClankerWorld-Companion-Secret";
+    public const int MinimumCompanionSecretLength = 32;
+
+    public bool IsCompanionHost => CompanionSecret is not null;
+
     public bool IsLocalApprovalRequest(HttpContext context) =>
         LocalApprovalPort > 0 &&
         context.Connection.LocalPort == LocalApprovalPort &&
         context.Connection.RemoteIpAddress is { } address &&
-        IPAddress.IsLoopback(address);
+        IPAddress.IsLoopback(address) &&
+        (CompanionSecret is null || HasCompanionSecret(context));
+
+    /// <summary>Only a companion host can be stopped over HTTP, and only by the game that started it.</summary>
+    public bool IsCompanionShutdownRequest(HttpContext context) => IsCompanionHost && IsLocalApprovalRequest(context);
+
+    private bool HasCompanionSecret(HttpContext context)
+    {
+        var supplied = context.Request.Headers[CompanionSecretHeader].ToString();
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(supplied), Encoding.UTF8.GetBytes(CompanionSecret!));
+    }
+
+    /// <summary>
+    /// Reads the secret the starting game wrote. The value is never logged or
+    /// echoed; a missing, short or unreadable file stops startup.
+    /// </summary>
+    public static string ReadCompanionSecret(string path)
+    {
+        var secret = File.ReadAllText(path).Trim();
+        if (secret.Length < MinimumCompanionSecretLength || secret.Any(char.IsWhiteSpace))
+            throw new InvalidOperationException(
+                $"The companion secret file must hold one value of at least {MinimumCompanionSecretLength} characters.");
+        return secret;
+    }
 }
 
 public static class OwnerFailures

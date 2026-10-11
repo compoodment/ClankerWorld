@@ -8,19 +8,15 @@ public sealed class PrivateWorldStartupService(IServiceProvider services,
     {
         await recovery.WaitUntilReadyAsync(stoppingToken);
         _ = services.GetRequiredService<WorldCatalogStore>();
-        using var advancing = new PrivateWorldRuntimeService(
-            services.GetRequiredService<ClankerWorld.Simulation.Playtest.PrivateWorldRuntime>(),
-            services.GetRequiredService<PrivateWorldStateFile>(),
-            services.GetRequiredService<OwnerClientPresenceLease>(),
-            services.GetRequiredService<ILogger<PrivateWorldRuntimeService>>(),
-            services.GetRequiredService<WorldAutosaveStore>(),
-            services.GetRequiredService<ManualWorldSaveStore>(),
-            services.GetRequiredService<Control.ProviderConfigurationStore>());
+        var advancing = services.GetRequiredService<PrivateWorldRuntimeService>();
         await advancing.StartAsync(stoppingToken);
         try { await advancing.ExecuteTask!; }
         finally
         {
             await advancing.StopAsync(CancellationToken.None);
+            var companion = services.GetRequiredService<Control.OwnerPairingHostOptions>().IsCompanionHost;
+            if (advancing.SaveBeforeShutdown(pauseWorld: companion) == ShutdownSaveOutcome.WriteFailed)
+                Environment.ExitCode = 1;
         }
     }
 }

@@ -1,0 +1,1 @@
+- A game folder with its own world server now starts it, pairs with it and stops it for you, keeping saves and keys in your Windows user folder. It verifies a running host with its saved secret before reusing it. If the host refuses to save and stop, the game stays open for retry.

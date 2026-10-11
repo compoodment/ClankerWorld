@@ -377,7 +377,7 @@ public partial class Main
         StyleConfirmation(quitGameConfirmation, "Quit ClankerWorld?", "Quit Game");
         // Quit Game is only offered on the Main Menu, after leaving any world.
         // The title says it all, so the dialog needs no sentence beneath it.
-        quitGameConfirmation.Confirmed += () => GetTree().Quit();
+        quitGameConfirmation.Confirmed += QuitGame;
         AddChild(quitGameConfirmation);
         body.AddChild(menuActions);
 

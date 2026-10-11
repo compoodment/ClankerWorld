@@ -1,0 +1,1 @@
+- On the paired world, give an adult from the fifth or a later generation an Order to care for a household animal whose feed and water are in its House. Save and reload after pickup and after care; the world should continue, the same adult should carry the supplies, and care should finish once. ([#1642](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1642))

@@ -16,7 +16,11 @@ public sealed class LandFertility
         this.map = map;
         terrain = new TerrainKind[checked(map.Width * map.Height)];
         foreach (var tile in map.Tiles) terrain[tile.Position.Y * map.Width + tile.Position.X] = tile.Terrain;
-        rainfall = GeographyGenerator.LayerNoise(worldSeed, "rainfall", 0.018f, map.Width, map.WrapsEastWest);
+        // Legacy fixture attempts do not select a generated geography candidate.
+        var rainfallSeed = map.ClimateZones is null
+            ? worldSeed
+            : GeographyGenerator.CandidateSeed(worldSeed, map.GenerationAttempt);
+        rainfall = GeographyGenerator.LayerNoise(rainfallSeed, "rainfall", 0.018f, map.Width, map.WrapsEastWest);
     }
 
     public int At(GridPoint point)

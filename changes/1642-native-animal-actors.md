@@ -1,0 +1,1 @@
+- Later-generation adults can fetch animal-care supplies and save their trips with complete identities and physical custody.

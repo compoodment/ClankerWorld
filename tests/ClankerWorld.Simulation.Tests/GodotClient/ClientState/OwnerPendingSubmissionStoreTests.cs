@@ -62,6 +62,34 @@ public sealed class OwnerPendingSubmissionStoreTests
     }
 
     [Fact]
+    public void InvalidCancellationIdentitiesLeaveTheExistingPendingRequestUntouched()
+    {
+        using var fixture = new PendingStoreFixture();
+        var binding = PendingStoreFixture.CreateBinding();
+        var pending = OwnerPendingSubmission.ForOrderCancel(binding,
+            new("cancel-existing", "camp-alpha", "instruction-42", "world-A"));
+        Assert.True(fixture.Store.TrySave(pending));
+        var before = File.ReadAllBytes(fixture.FilePath);
+        var original = pending.OrderCancel!;
+        foreach (var invalid in new[]
+        {
+            original with { IdempotencyKey = new string('k', 129) },
+            original with { OrderId = new string('o', 129) },
+            original with { WorldId = new string('w', 129) },
+            original with { TargetInhabitantId = " " },
+            original with { TargetInhabitantId = "camp-alpha\0" },
+            original with { IdempotencyKey = "cancel\0" },
+            original with { OrderId = "order\0" },
+            original with { WorldId = "world\0" },
+        })
+        {
+            Assert.Throws<ArgumentException>(() => fixture.Store.TrySave(pending with { OrderCancel = invalid }));
+            Assert.Equal(before, File.ReadAllBytes(fixture.FilePath));
+            Assert.Equal(pending, fixture.Store.TryLoad(binding));
+        }
+    }
+
+    [Fact]
     public void AuthoringRoundTripPreservesBatchIdAndAllOperations()
     {
         using var fixture = new PendingStoreFixture();
