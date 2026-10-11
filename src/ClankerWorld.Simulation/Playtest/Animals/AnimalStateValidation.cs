@@ -29,13 +29,19 @@ public sealed partial class PrivateWorldRuntime
             if (values.Any(value => !Identifier(value)) || values.Distinct(StringComparer.Ordinal).Count() != values.Length)
                 throw new InvalidDataException("Animal identities and permissions must be unique, short identifiers.");
         }
+        static void UniqueInventoryReferences(IEnumerable<string> ids)
+        {
+            var values = ids.ToArray();
+            if (values.Any(value => !InventoryReference(value)) || values.Distinct(StringComparer.Ordinal).Count() != values.Length)
+                throw new InvalidDataException("Animal inventory references must be unique, well-formed lot identities.");
+        }
         Unique(world.Animals.Select(animal => animal.Id));
         Unique(world.Offers.Select(offer => offer.Id));
         UniqueAgents(world.SupplyTrips.Select(trip => trip.ActorId));
         Unique(world.MilkOffers.Select(offer => offer.Id));
         UniqueAgents(world.MilkOffers.Select(offer => offer.SellerId));
         UniqueAgents(world.MilkOffers.Select(offer => offer.BuyerId));
-        Unique(world.MilkOffers.Select(offer => offer.MilkLotId));
+        UniqueInventoryReferences(world.MilkOffers.Select(offer => offer.MilkLotId));
         UniqueAgents(world.Animals.Select(animal => animal.RiderId).OfType<string>());
         UniqueAgents(world.Animals.Select(animal => animal.LeaderId).OfType<string>());
         var inventory = society.Inventory;
