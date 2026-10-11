@@ -152,16 +152,30 @@ public partial class Main
         mapCanvas.AddChild(uiLayer);
 
         mapStage.AddChild(terrainLayer);
+        storedStockLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        storedStockLayer.Follow(terrainLayer);
+        mapStage.AddChild(storedStockLayer);
+        graveLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        graveLayer.Follow(terrainLayer);
+        mapStage.AddChild(graveLayer);
 
         // Night darkens the ground but not the labels, agents and weather above it.
         nightLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         nightLayer.Follow(terrainLayer);
         mapStage.AddChild(nightLayer);
 
+        goldenHourLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        goldenHourLayer.Follow(terrainLayer);
+        mapStage.AddChild(goldenHourLayer);
+
         // Lit windows, doors and fires warm the ground back up through the wash.
         nightLightsLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         nightLightsLayer.Follow(terrainLayer, nightLayer);
         mapStage.AddChild(nightLightsLayer);
+
+        buildingCompletionLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        buildingCompletionLayer.Follow(terrainLayer);
+        mapStage.AddChild(buildingCompletionLayer);
 
         objectLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         objectLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -175,6 +189,10 @@ public partial class Main
         entityLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapStage.AddChild(entityLayer);
 
+        smokeLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        smokeLayer.Follow(terrainLayer, weatherLayer);
+        mapStage.AddChild(smokeLayer);
+
         // Weather falls over buildings and agents alike.
         weatherLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         weatherLayer.CloudsEnabled = displayPreferences.CloudHaze;
@@ -185,7 +203,7 @@ public partial class Main
         BuildAgentCards();
         BuildBuildingCards();
 
-        worldOverview.CenterRequested += CenterKeyboardCameraAt;
+        worldOverview.CenterRequested += tileCenter => CenterKeyboardCameraAt(tileCenter, immediately: true);
         var overviewBody = new VBoxContainer();
         overviewBody.AddThemeConstantOverride("separation", 6);
         overviewBody.AddChild(worldOverview);

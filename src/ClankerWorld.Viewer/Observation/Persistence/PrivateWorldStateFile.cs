@@ -6,6 +6,8 @@ using System.Text.Json;
 
 namespace ClankerWorld.Viewer.Observation;
 
+internal sealed record CheckpointRestorePoint(string PreservedPath, byte[] CheckpointBytes, byte[]? BuildBytes);
+
 /// <summary>
 /// Atomic persistence for the integrated private-world alpha runtime. The
 /// provider factory is supplied by the host and credentials never enter the
@@ -18,6 +20,7 @@ public sealed class PrivateWorldStateFile
     private readonly WorldStartPace newWorldPace;
     private readonly GeographyOptions? newWorldGeography;
     private readonly bool allowDifferentSavedSeed;
+    private bool buildRecorded;
 
     public PrivateWorldStateFile(string path, Func<string, IDecisionProvider>? providerFactory = null,
         WorldStartPace newWorldPace = WorldStartPace.Legacy, GeographyOptions? newWorldGeography = null,
@@ -99,24 +102,32 @@ public sealed class PrivateWorldStateFile
         // evidence. Check the exact bytes before replacing the last good file.
         _ = PrivateWorldRuntimeCodec.Decode(checkpointBytes);
         WriteCheckpointBytes(Path, checkpointBytes);
+        // Once per host run: every later checkpoint comes from the same build.
+        if (!buildRecorded) buildRecorded = SavedBuild.TryWrite(Path);
         return state;
     }
 
-    internal string PreserveDamagedCheckpoint(byte[] expectedBytes)
+    internal CheckpointRestorePoint PreserveDamagedCheckpoint(byte[] expectedBytes)
     {
         lock (gate)
         {
             if (!File.ReadAllBytes(Path).AsSpan().SequenceEqual(expectedBytes))
                 throw new InvalidDataException("The latest checkpoint changed. Restart before recovering it.");
             var preserved = Path + ".damaged." + Guid.NewGuid().ToString("N") + ".json";
+            var buildBytes = SavedBuild.TryReadBytes(Path);
             WriteCheckpointBytes(preserved, expectedBytes, overwrite: false);
-            return preserved;
+            return new(preserved, expectedBytes.ToArray(), buildBytes);
         }
     }
 
-    internal void RestorePreservedCheckpoint(byte[] bytes)
+    internal void RestorePreservedCheckpoint(CheckpointRestorePoint restore)
     {
-        lock (gate) WriteCheckpointBytes(Path, bytes);
+        lock (gate)
+        {
+            WriteCheckpointBytes(Path, restore.CheckpointBytes);
+            _ = SavedBuild.TryRestore(Path, restore.BuildBytes);
+            buildRecorded = false;
+        }
     }
 
     private static void WriteCheckpointBytes(string destination, byte[] checkpointBytes, bool overwrite = true)

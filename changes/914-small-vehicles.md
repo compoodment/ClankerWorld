@@ -1,0 +1,1 @@
+- Handcarts and rowing boats keep their own look at medium map zoom: carts no longer turn into the cart icon, and boats no longer shrink their close-up picture. They use smaller drawings made for that zoom, in every direction, loaded or empty, rowing or at rest.

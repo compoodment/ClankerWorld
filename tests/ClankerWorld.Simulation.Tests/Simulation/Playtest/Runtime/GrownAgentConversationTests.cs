@@ -5,6 +5,7 @@ using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Viewer.Control;
+using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -12,20 +13,30 @@ public sealed partial class GrownAgentHelperMemoryTests
 {
     private static readonly string[] ConversationModels = ["initiator-model", "invitee-model"];
     private static readonly Lazy<Task<byte[]>> ConversationAdult = new(CreateConversationAdultAsync);
+    private static readonly Lazy<Task<byte[]>> ConversationLaterAdults = new(CreateConversationLaterAdultsAsync);
 
     [Theory]
-    [InlineData("initiator")]
-    [InlineData("invitee")]
-    [InlineData("founders")]
-    public async Task NativeBornAdultCanTakeEitherConversationRoleThroughOwnConfiguredModel(string role)
+    [InlineData("initiator", false)]
+    [InlineData("invitee", false)]
+    [InlineData("founders", false)]
+    [InlineData("initiator", true)]
+    [InlineData("invitee", true)]
+    public async Task NativeBornAdultCanTakeEitherConversationRoleThroughOwnConfiguredModel(string role, bool laterGeneration)
     {
-        var state = PrivateWorldRuntimeCodec.Decode(await ConversationAdult.Value);
-        var birth = Assert.Single(state.Society.Society.Births);
+        var state = PrivateWorldRuntimeCodec.Decode(await (laterGeneration ? ConversationLaterAdults : ConversationAdult).Value);
+        var birth = laterGeneration
+            ? state.Society.Society.Births.OrderBy(item => item.CommittedTick).Last()
+            : Assert.Single(state.Society.Society.Births);
         var child = birth.ChildId;
         Assert.True(child.Length > 128);
         var actor = role == "initiator" ? child : birth.PrimaryCaregiverId;
         var partner = role == "initiator" ? birth.PrimaryCaregiverId : role == "invitee" ? child :
             state.Society.Society.Inhabitants.First(person => person.Id != child && person.Id != actor).Id;
+        if (laterGeneration)
+        {
+            Assert.True(actor.Length + partner.Length > 512);
+            Assert.True(child.Length > 512);
+        }
         var occupied = state.Map.CampObjects.Select(item => item.Position)
             .Concat(state.Map.Resources.Select(item => item.Position)).ToHashSet();
         var land = state.Map.Tiles.Select(tile => tile.Position)
@@ -79,6 +90,8 @@ public sealed partial class GrownAgentHelperMemoryTests
                 _ => new NativeConversationChoices(actor, partner, replayRouter));
             world.Resume();
             replay.Resume();
+            using var host = new NativeConversationCheckpointHost(world);
+            using var replayHost = new NativeConversationCheckpointHost(replay);
             var beforeRefusal = PrivateWorldRuntimeCodec.Encode(world.ExportState());
             Assert.False((await world.AdvanceOneTickAsync(() => false)).Advanced);
             Assert.Equal(beforeRefusal, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
@@ -86,15 +99,16 @@ public sealed partial class GrownAgentHelperMemoryTests
             {
                 await AwaitConversationRequestsAsync(world);
                 await AwaitConversationRequestsAsync(replay);
-                Assert.True((await world.AdvanceOneTickAsync()).Advanced);
-                Assert.True((await replay.AdvanceOneTickAsync()).Advanced);
-                Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+                await host.Advance();
+                await replayHost.Advance();
+                Assert.Equal(host.Saved(), replayHost.Saved());
             }
             var conversation = Assert.Single(world.Conversations);
             Assert.Equal(AgentConversationStatus.Closed, conversation.Status);
             Assert.Equal("withdrawn", conversation.Outcome);
             Assert.Equal(actor, conversation.InitiatorId);
             Assert.Equal(partner, conversation.InviteeId);
+            Assert.InRange(conversation.Id.Length, 1, 512);
             Assert.Equal(new[] { actor, partner }, conversation.Turns.Select(turn => turn.SpeakerId));
             Assert.Equal(new[] { actor, partner }, handler.SpeakerIds);
             Assert.Equal(new[] { partner, actor }, handler.OtherIds);
@@ -125,6 +139,40 @@ public sealed partial class GrownAgentHelperMemoryTests
             Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(invalid));
         }
         finally { directory.Delete(recursive: true); }
+    }
+
+    private sealed class NativeConversationCheckpointHost : IDisposable
+    {
+        private readonly DirectoryInfo directory = Directory.CreateTempSubdirectory("native-conversation-checkpoint-");
+        private readonly PrivateWorldRuntime world;
+        private readonly PrivateWorldStateFile file;
+        private readonly PrivateWorldRuntimeService service;
+
+        public NativeConversationCheckpointHost(PrivateWorldRuntime world)
+        {
+            this.world = world;
+            file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"));
+            file.Save(world);
+            var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(5));
+            presence.RecordAuthenticatedReconnect("test-owner");
+            service = new PrivateWorldRuntimeService(world, file, presence);
+        }
+
+        public byte[] Saved() => File.ReadAllBytes(file.Path);
+
+        public async Task Advance()
+        {
+            Assert.True(await service.TryAdvanceOnceAsync());
+            Assert.False(world.Society.IsPaused);
+            Assert.Equal(world.WorldTick, PrivateWorldRuntimeCodec.Decode(Saved()).Society.Society.WorldTick);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), Saved());
+        }
+
+        public void Dispose()
+        {
+            service.Dispose();
+            directory.Delete(recursive: true);
+        }
     }
 
     private static async Task<byte[]> CreateConversationAdultAsync()
@@ -161,14 +209,22 @@ public sealed partial class GrownAgentHelperMemoryTests
         return PrivateWorldRuntimeCodec.Encode(world.ExportState());
     }
 
+    private static async Task<byte[]> CreateConversationLaterAdultsAsync() =>
+        await GrowLaterFamilyAsync(PrivateWorldRuntimeCodec.Decode(await LaterAdult.Value), 4, 5);
+
     private static async Task AwaitConversationRequestsAsync(PrivateWorldRuntime world)
     {
         await WaitForRequests(world);
-        var field = typeof(PrivateWorldRuntime).GetField("pendingConversationTurns",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
-        var pending = (System.Collections.IDictionary)field.GetValue(world)!;
-        await Task.WhenAll(pending.Values.Cast<object>().Select(item => (Task)item.GetType().GetProperty("Task")!.GetValue(item)!))
-            .WaitAsync(TimeSpan.FromSeconds(30));
+        // The nonblocking host admits each completed task at the next tick.
+        // Include incidental identity/will work so paired hosts admit it together.
+        foreach (var name in new[] { "pendingConversationTurns", "pendingIdentityMoments", "pendingWills" })
+        {
+            var field = typeof(PrivateWorldRuntime).GetField(name,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+            var pending = (System.Collections.IDictionary)field.GetValue(world)!;
+            await Task.WhenAll(pending.Values.Cast<object>().Select(item => (Task)item.GetType().GetProperty("Task")!.GetValue(item)!))
+                .WaitAsync(TimeSpan.FromSeconds(30));
+        }
     }
 
     private sealed class NativeConversationChoices(string actor, string partner, IAgentConversationProvider router)

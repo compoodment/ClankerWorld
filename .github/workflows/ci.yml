@@ -28,9 +28,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # To read the test timings uploaded by main's latest green runs.
+      # To read the test timings uploaded by main's latest green runs, and the merge queue's runs.
       actions: read
     outputs:
+      # Set on a push to main whose exact commit already passed in the merge queue.
+      queue-run: ${{ steps.queue.outputs.run }}
       code: ${{ steps.plan.outputs.code }}
       tests: ${{ steps.plan.outputs.tests }}
       shards: ${{ steps.plan.outputs.shards }}
@@ -46,6 +48,22 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 2
+      # The merge queue moves main to the very commit it tested, so running everything again on
+      # that push would only repeat the queue's run. A push the queue didn't test runs in full.
+      - name: Find the merge queue's green run of this commit
+        id: queue
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=merge_group&status=success&head_sha=${GITHUB_SHA}" \
+            --jq '.workflow_runs[0].id // empty' || true)"
+          echo "run=${run}" >> "$GITHUB_OUTPUT"
+          if [ -n "$run" ]; then
+            echo "The merge queue's run ${run} already passed on this exact commit, so nothing else runs."
+          else
+            echo "The merge queue didn't pass this exact commit, so everything runs."
+          fi
       - name: Decide what this change needs
         id: plan
         env:
@@ -64,18 +82,19 @@ jobs:
       # Each test's median over three runs; one run's times swing too much to split by.
       # Without these timings the split falls back to the fixed one in ci-plan.js.
       - name: Fetch test timings from main's latest green runs
-        if: steps.plan.outputs.tests != 'false'
+        if: steps.plan.outputs.tests != 'false' && steps.queue.outputs.run == ''
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash .github/scripts/main-timings.sh "$RUNNER_TEMP/timings" 3
       - name: Split the tests between the test jobs
         id: split
-        if: steps.plan.outputs.tests != 'false'
+        if: steps.plan.outputs.tests != 'false' && steps.queue.outputs.run == ''
         run: node .github/scripts/ci-plan.js plan "$RUNNER_TEMP/timings" >> "$GITHUB_OUTPUT"
 
   checks:
     needs: scope
+    if: needs.scope.outputs.queue-run == ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -112,12 +131,24 @@ jobs:
           name: clankerworld-windows-11-x64
           path: export/windows-x64
           if-no-files-found: error
+      - name: Package the portable Windows 11 x64 zip with its host
+        if: needs.scope.outputs.code == 'true'
+        run: bash scripts/package-windows.sh
+      - name: Upload the portable Windows 11 x64 zip
+        if: needs.scope.outputs.code == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: clankerworld-windows-11-x64-portable
+          path: export/package
+          # Already a zip; don't spend time compressing it again.
+          compression-level: 0
+          if-no-files-found: error
 
   # The test suite split across parallel jobs by scope's plan (.github/scripts/ci-plan.js);
   # every test runs in exactly one of them.
   tests:
     needs: scope
-    if: needs.scope.outputs.tests != 'false'
+    if: needs.scope.outputs.tests != 'false' && needs.scope.outputs.queue-run == ''
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -186,13 +217,17 @@ jobs:
           SCOPE: ${{ needs.scope.result }}
           CHECKS: ${{ needs.checks.result }}
           TESTS: ${{ needs.tests.result }}
+          QUEUE_RUN: ${{ needs.scope.outputs.queue-run }}
         run: |
           echo "scope: $SCOPE, checks: $CHECKS, tests: $TESTS, code changed: $CODE, tests needed: $TESTS_NEEDED"
           test "$SCOPE" = success
+          if [ -n "$QUEUE_RUN" ]; then echo "Verified by the merge queue's run $QUEUE_RUN."; exit 0; fi
           test "$CHECKS" = success
           if [ "$TESTS_NEEDED" = false ]; then test "$TESTS" = skipped; else test "$TESTS" = success; fi
 
   windows-documentation:
+    needs: scope
+    if: needs.scope.outputs.queue-run == ''
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -207,7 +242,7 @@ jobs:
   # Skipped when scope skips the test suite; GitHub counts a skipped required job as passed.
   windows-provider-storage:
     needs: scope
-    if: needs.scope.outputs.tests != 'false'
+    if: needs.scope.outputs.tests != 'false' && needs.scope.outputs.queue-run == ''
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -231,3 +266,29 @@ jobs:
           include-hidden-files: true
           retention-days: 14
           if-no-files-found: warn
+
+  # When a pull request in the merge queue fails, the queue rebuilds the ones behind it on a new
+  # base. Their older runs test batches that can no longer merge, so stop them and free the runners.
+  cancel-stale-queue-runs:
+    if: github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel this pull request's older merge-queue runs
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          # A batch's branch is gh-readonly-queue/<base>/pr-<number>-<base commit>.
+          prefix="${HEAD_REF#refs/heads/}"
+          prefix="${prefix%-*}-"
+          for status in queued in_progress; do
+            gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?event=merge_group&status=${status}&per_page=100" \
+              --jq ".workflow_runs[] | select(.id < ${RUN_ID} and (.head_branch | startswith(\"${prefix}\"))) | .id"
+          done | while read -r id; do
+            echo "Cancelling run ${id}, which tests an older batch of this pull request."
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/runs/${id}/cancel"
+          done

@@ -150,8 +150,11 @@ public sealed record OwnerPendingOrderCancelSubmission(
     string OrderId,
     string WorldId)
 {
-    internal bool IsValid => new[] { IdempotencyKey, TargetInhabitantId, OrderId, WorldId }
-        .All(value => !string.IsNullOrWhiteSpace(value) && value.Length <= 128 && !value.Any(char.IsControl));
+    // Native target identities keep their full length, as in the server cancellation.
+    internal bool IsValid =>
+        !string.IsNullOrWhiteSpace(TargetInhabitantId) && !TargetInhabitantId.Any(char.IsControl) &&
+        new[] { IdempotencyKey, OrderId, WorldId }
+            .All(value => !string.IsNullOrWhiteSpace(value) && value.Length <= 128 && !value.Any(char.IsControl));
 
     public bool CanRetryIn(string? worldId) => !string.IsNullOrWhiteSpace(WorldId) && WorldId == worldId;
 

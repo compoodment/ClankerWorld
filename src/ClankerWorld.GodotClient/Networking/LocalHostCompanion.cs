@@ -147,7 +147,8 @@ public sealed class LocalHostCompanion : IAsyncDisposable
     {
         if (process is { HasExited: false }) return new LocalHostStart(LocalHostOutcome.Started);
         var existing = await ProbeAsync(expectedVersion, expectedRevision, cancellationToken);
-        if (existing == Probe.SameBuild && TryReadSecret(out var running))
+        if (existing == Probe.SameBuild && TryReadSecret(out var running) &&
+            await IsCompanionAsync(running, cancellationToken))
         {
             secret = running;
             return new LocalHostStart(LocalHostOutcome.Reused);
@@ -180,7 +181,9 @@ public sealed class LocalHostCompanion : IAsyncDisposable
             switch (await ProbeAsync(expectedVersion, expectedRevision, cancellationToken))
             {
                 case Probe.SameBuild:
-                    return new LocalHostStart(LocalHostOutcome.Started);
+                    if (await IsCompanionAsync(secret!, cancellationToken))
+                        return new LocalHostStart(LocalHostOutcome.Started);
+                    break;
                 case Probe.OtherBuild or Probe.NotClankerWorld:
                     // Something else claimed the port first; leave it, stop ours.
                     await StopAsync(cancellationToken);
@@ -213,7 +216,7 @@ public sealed class LocalHostCompanion : IAsyncDisposable
     /// Asks the host to save and exit, and waits for it. Only a host this
     /// launch started is ever forced to stop, and only if it ignores the request.
     /// </summary>
-    public async Task StopAsync(CancellationToken cancellationToken)
+    public async Task<bool> StopAsync(CancellationToken cancellationToken)
     {
         if (secret is not null)
         {
@@ -223,10 +226,14 @@ public sealed class LocalHostCompanion : IAsyncDisposable
                 request.Headers.Add(SecretHeader, secret);
                 using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 deadline.CancelAfter(TimeSpan.FromSeconds(5));
-                using var _ = await http.SendAsync(request, deadline.Token);
+                using var response = await http.SendAsync(request, deadline.Token);
+                // The host explicitly refused to exit: preserve its paused world
+                // and our process handle so the player can repair and retry.
+                if (!response.IsSuccessStatusCode) return false;
             }
             catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 // Already gone, or not answering: handled below for a host we started.
             }
         }
@@ -240,14 +247,34 @@ public sealed class LocalHostCompanion : IAsyncDisposable
             }
             catch (OperationCanceledException)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 // The host saves every tick, so forcing our own child is the last resort.
                 running.Kill(entireProcessTree: true);
             }
         }
         await ForgetProcessAsync();
+        return true;
     }
 
-    public async ValueTask DisposeAsync() => await StopAsync(CancellationToken.None);
+    public async ValueTask DisposeAsync() { await StopAsync(CancellationToken.None); }
+
+    private async Task<bool> IsCompanionAsync(string value, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(TimeSpan.FromSeconds(2));
+            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(ApprovalOrigin, "api/v1/local/companion"));
+            request.Headers.Add(SecretHeader, value);
+            using var response = await http.SendAsync(request, deadline.Token);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException &&
+            !cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+    }
 
     private enum Probe { Nothing, SameBuild, OtherBuild, NotClankerWorld }
 

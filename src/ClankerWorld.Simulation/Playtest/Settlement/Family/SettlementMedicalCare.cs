@@ -212,7 +212,7 @@ public sealed partial class PrivateWorldRuntime
 
     private bool MedicalSupplyWanted(string actor, string kind) => kind == "medicine" && LivingMedicalAdult(actor) &&
         (ObservableMedicalNeeds(actor).Any() || AuthorizedMedicalSupplyTrip(actor) is not null) &&
-        MedicalSupplyAtHand(actor) is null && SharedItem(kind, actor) is null;
+        MedicalSupplyAtHand(actor) is null && SharedPreparationItem(kind, actor) is null;
 
     private void AddMedicalCareCandidates(List<CognitionCandidate> candidates, string actor)
     {

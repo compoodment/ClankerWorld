@@ -84,6 +84,7 @@ public sealed class SeededHarnessTests
         var diagonal = new GridPoint(1, 1);
         Assert.True(open.CanFootStep(origin, diagonal));
         Assert.Equal(141, open.FootStepCost(origin, diagonal));
+        Assert.Equal(141, open.LegalFootStepCost(origin, diagonal));
         Assert.Equal(new[] { origin, diagonal, new GridPoint(2, 2) },
             DeterministicRouteFinder.Find(open, origin, new GridPoint(2, 2)));
 
@@ -94,6 +95,7 @@ public sealed class SeededHarnessTests
         };
         Assert.False(wall.CanFootStep(origin, diagonal));
         Assert.DoesNotContain(diagonal, wall.FootNeighbors(origin));
+        Assert.Throws<ArgumentOutOfRangeException>(() => wall.FootStepCost(origin, diagonal));
         Assert.Equal(new[] { origin, new GridPoint(0, 1), diagonal },
             DeterministicRouteFinder.Find(wall, origin, diagonal));
     }
@@ -115,6 +117,7 @@ public sealed class SeededHarnessTests
         };
         Assert.False(blocked.CanFootStep(origin, destination));
         Assert.DoesNotContain(destination, blocked.FootNeighbors(origin));
+        Assert.Throws<ArgumentOutOfRangeException>(() => blocked.FootStepCost(origin, destination));
     }
 
     [Fact]
@@ -131,11 +134,14 @@ public sealed class SeededHarnessTests
         Assert.False(map.IsBuildable(river));
         Assert.Equal(200, map.FootTravelCost(river));
         Assert.True(map.CanFootStep(new GridPoint(1, 1), river));
+        Assert.Equal(200, map.LegalFootStepCost(new GridPoint(1, 1), river));
         Assert.True(map.CanFootStep(river, new GridPoint(3, 1)));
+        Assert.Equal(100, map.LegalFootStepCost(river, new GridPoint(3, 1)));
         Assert.False(map.CanFootStep(new GridPoint(1, 1), new GridPoint(2, 0)));
         Assert.True(mountainMap.IsPassable(mountain));
         Assert.False(mountainMap.IsBuildable(mountain));
         Assert.Equal(200, mountainMap.FootTravelCost(mountain));
+        Assert.Equal(282, mountainMap.LegalFootStepCost(new GridPoint(0, 1), mountain));
         Assert.Contains(river, DeterministicRouteFinder.Find(map, new GridPoint(0, 1), new GridPoint(4, 1)));
 
         var vertical = TerrainMap(3, 5, point => point == new GridPoint(1, 2)

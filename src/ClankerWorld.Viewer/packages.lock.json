@@ -2,9 +2,24 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "Anthropic": {
+        "type": "Direct",
+        "requested": "[12.55.0, )",
+        "resolved": "12.55.0",
+        "contentHash": "Gpf6no4CBXnB2RwP1BItFgwXQcsGNX4rKcgYEdoMOVgnCIZ8xODdueEJrklCEFUh5CPld7xGmfDKZz5y0U59uQ==",
+        "dependencies": {
+          "Microsoft.Extensions.AI.Abstractions": "10.5.1"
+        }
+      },
+      "Microsoft.Extensions.AI.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.5.1",
+        "contentHash": "nB0l3IlsVbNeUxsE7nZNb9GY8rP1OSeqpj0pseORPejt474HNKEauTWTLdSJPkSvPlRMxowZNMo6nyp7APAiSg=="
+      },
       "clankerworld.simulation": {
         "type": "Project"
       }
-    }
+    },
+    "net10.0/win-x64": {}
   }
 }

@@ -139,12 +139,31 @@ public sealed partial class PrivateWorldRuntime
         lot.OwnerId == actor && PersonalEquipmentRules.IsCarried(lot, actor) && lot.DeliveryBuildingId is null &&
         lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0);
 
-    private InventoryLot? SharedItem(string kind, string actor, GridPoint? returnTo = null, int returnRange = 0) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.OwnerId == HouseholdFor(actor) && lot.CarrierId is null && lot.ContainerLotId is null && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0 &&
-        (lot.StorageBuildingId is null || society.Checkpoint.GetInhabitant(actor).HouseholdId == lot.OwnerId) &&
-        CanReachSharedItem(actor, lot) && (returnTo is null || CanPrepareSharedPickup(actor, lot, returnTo.Value, returnRange))) ??
-        (kind == "food" ? null : AvailableWarehouseStock(actor, kind).FirstOrDefault(lot =>
-            returnTo is null || CanPrepareSharedPickup(actor, lot, returnTo.Value, returnRange)));
+    private static GoodsRequest SharedCollectionRequest(string actor, string owner, string kind) =>
+        new(GoodsUse.Collect, actor, GoodsOwners.One(owner), GoodsKinds.One(kind));
+
+    private InventoryLot? SharedItem(string kind, string actor, GridPoint? returnTo = null, int returnRange = 0) =>
+        SharedStockItem(kind, actor, GoodsUse.Collect, returnTo, returnRange);
+
+    // Preparation may free cargo space before pickup; it must still find reachable usable stock.
+    private InventoryLot? SharedPreparationItem(string kind, string actor, GridPoint? returnTo = null, int returnRange = 0) =>
+        SharedStockItem(kind, actor, GoodsUse.ReachableHoldings, returnTo, returnRange);
+
+    private InventoryLot? SharedStockItem(string kind, string actor, GoodsUse use, GridPoint? returnTo, int returnRange)
+    {
+        if (HouseholdFor(actor) is { } household)
+        {
+            var request = new GoodsRequest(use, actor, GoodsOwners.One(household), GoodsKinds.One(kind));
+            var source = FindGoods(request).Matches.FirstOrDefault(match => match.Lot.ContainerLotId is null && match.Lot.CarrierId is null &&
+                (returnTo is null || CanPrepareSharedPickup(actor, match.Lot, returnTo.Value, returnRange)));
+            if (source is not null) return source.Lot;
+        }
+        if (kind == "food") return null;
+        foreach (var lot in AvailableWarehouseStock(actor, kind))
+            if (RecheckGoods(new(use, actor, GoodsOwners.One(lot.OwnerId), GoodsKinds.One(kind)), lot.Id) is { } match &&
+                (returnTo is null || CanPrepareSharedPickup(actor, match.Lot, returnTo.Value, returnRange))) return match.Lot;
+        return null;
+    }
 
     private bool CanReachSharedItem(string actor, InventoryLot lot) =>
         !OnBorrowedMarketStall(lot) && FindUnoccupiedRoute(actor, inhabitants[actor].Position, HouseholdStockPosition(lot),
@@ -326,9 +345,12 @@ public sealed partial class PrivateWorldRuntime
             MoveToward(actor, person, storage, "equipment", interactionRange);
             return;
         }
-        // Every household work tool, of any tier, is borrowed rather than handed over.
+        if (RecheckGoods(SharedCollectionRequest(actor, item.OwnerId, kind), item.Id) is null) return;
+        // Personal equipment changes custody; household work tools are borrowed.
         var borrowedTool = item.ItemKind == "tool" || ToolProgressionRules.Find(item.ItemKind) is not null;
-        ApplyInventoryTransition(inventory => borrowedTool && item.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId
+        var keepOwner = item.OwnerId == actor ||
+            borrowedTool && item.OwnerId == society.Checkpoint.GetInhabitant(actor).HouseholdId;
+        ApplyInventoryTransition(inventory => keepOwner
             ? InventoryFixture.Relocate(inventory, $"equipment:{WorldTick}:{actor}:{kind}", item.Id, item.OwnerId, 1, actor)
             : InventoryFixture.Transfer(inventory, $"equipment:{WorldTick}:{actor}:{kind}",
                 item.OwnerId, actor, item.Id, 1, "equipment_collected"));
@@ -425,7 +447,7 @@ public sealed partial class PrivateWorldRuntime
     }
 
     private bool NeedsRecipeOutput(RecipeDefinition recipe, string? ownerId = null, string? requestWorker = null) =>
-        HouseToolsContent.IsCrudeToolRecipe(recipe) ? NeedsHouseTool(recipe, ownerId) :
+        !HasUnsupportedWaterOutput(recipe) && (HouseToolsContent.IsCrudeToolRecipe(recipe) ? NeedsHouseTool(recipe, ownerId) :
         HasToolMakingDemand(recipe, ownerId, requestWorker) || recipe.Outputs.Any(output =>
     {
         if (output.ResourceId == KnowledgeContent.Paper)
@@ -444,7 +466,7 @@ public sealed partial class PrivateWorldRuntime
         var target = IsPreparedMeal(output.ResourceId) ? Math.Max(2, residentCount * 2)
             : output.ResourceId == "food" ? inhabitants.Count * 4 : Math.Max(1, inhabitants.Count);
         return available < target;
-    });
+    }));
 
     /// <summary>One usable family tool per adult, counting better tools and work already paid for.</summary>
     private bool NeedsHouseTool(RecipeDefinition recipe, string? householdId)

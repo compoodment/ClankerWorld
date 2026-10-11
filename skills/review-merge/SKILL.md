@@ -64,11 +64,14 @@ marked as ways to work quickly, are advice.
 Several reviewers may be merging at the same time, so:
 
 - **Claim a pull request when you start reviewing it.** Search
-  `is:pr is:open draft:false base:main -label:"status:reviewing" -label:"status:blocked" sort:created-asc`
+  `is:pr is:open draft:false base:main -label:"status:reviewing" -label:"status:blocked" -label:"status:needs-decision" sort:created-asc`
   and take the first one at the highest priority; one with no priority label
-  counts as P2. Choose by priority, then age; don't pick easy pull requests to
-  raise a merge count. Before a deep review, check its dependencies,
-  duplicates, authors, current head, readiness and any existing claim. Add
+  counts as P2. Leave pull requests that wait on an owner decision alone,
+  even if they are marked ready: the owner answers decisions when they choose
+  to, not when a reviewer reaches them. Choose by priority, then age; don't
+  pick easy pull requests to raise a merge count. Before a deep review, check
+  its dependencies, duplicates, authors, current head, readiness and any
+  existing claim. Add
   `status:reviewing` and comment with who is
   reviewing and the commit you started from. Then read the comments again: if
   someone else claimed it before you and their claim has not been released
@@ -117,7 +120,8 @@ doesn't already make the same change.
   is further along: more complete, already reviewed, or the older between
   equals. Hand the other back to draft with a comment saying which pull
   request it duplicates, so its author decides; if another reviewer holds it,
-  comment instead. If it isn't clear which to keep, ask the owner in chat.
+  comment instead. If it isn't clear which to keep, record the choice on the
+  pull request and hand it back for an owner decision.
 
 ## Keep two pull requests moving
 
@@ -201,7 +205,7 @@ not the pull request, and each later fix needs its own.
 If the author comments with a change they want after you claimed the pull
 request, include it or hand the pull request back. If the pull request needs
 an owner decision or a redesign, [hand it back](#hand-back-or-close) and move
-on.
+on. Don't ask the owner about it in chat or wait for an answer.
 
 ## Choose checks
 
@@ -265,8 +269,27 @@ before either merges.
   checks pass. GraphQL's `enqueuePullRequest` mutation also works. Never merge
   it directly, even if your tools offer to. Keep `status:reviewing` on while it
   is queued; the claim ends when it merges.
-- **While it is queued,** don't push to it: a push takes it out of the queue.
-  Push only a fix you need, then add it again.
+- **Before pushing a needed fix to a queued pull request, remove it from the
+  queue.** GitHub protects a queued head branch and rejects updates. Use the
+  merge-queue view to remove its entry, or use GraphQL's
+  [`dequeuePullRequest`](https://docs.github.com/en/graphql/reference/mutations#dequeuepullrequest)
+  mutation. Confirm that the entry is gone and your review claim still holds
+  before pushing normally. Keep the pull request ready and retain
+  `status:reviewing`; after the push, review the new head, complete any
+  [reviewer-fix check](#fix-what-you-find) and wait for its green CI before
+  adding it again.
+- **If your tools cannot dequeue,** use the queue interface when available.
+  Otherwise, if your tools can close and reopen pull requests, post a signed
+  comment explaining the temporary queue removal, then close and promptly
+  reopen the same pull request. Keep its branch, stacked bases and dependency
+  blockers in place. This temporary operation does not require the follow-through
+  for a pull request that stays closed [without merging](#hand-back-or-close).
+  After reopening, read the newest comments: retain or restore your review
+  claim only if nobody else has claimed it since; leave any newer claim alone.
+  Confirm that it is ready, out of the queue and still on the expected head
+  before pushing. Do not use draft as a hold. If neither removal route is
+  available, report the blocker and do not push. Re-enqueue only after the
+  review and CI checks on the new head described above.
 - **If the queue takes it out,** because its batch failed, a conflict appeared
   or a check timed out, read the batch's CI run (the Verify run for the
   `merge_group` event on a `gh-readonly-queue/main/...` branch). If the
@@ -320,9 +343,11 @@ their base to main.
 ### After merging
 
 - Fetch main and confirm the squash commit is there, and watch main's CI on
-  that commit, not a run on the pull request or on a later commit. Meanwhile
-  you may review and queue your next pull request. CI that is still running
-  is not a break. If main's CI fails:
+  that commit, not a run on the pull request or on a later commit. The queue
+  merged it only after its run on that exact commit passed, so the push run
+  on main only finds that run and passes within minutes; don't wait for it
+  before queueing your next pull request. CI that is still running is not a
+  break. If main's CI fails:
   - **Known flaky test:** if only one test failed and it has an open Bug issue
     for intermittent failures, add the run link to that issue and carry on. If
     you think a test is flaky but it has no such issue, re-run the failed job
@@ -371,6 +396,13 @@ convert it to draft and comment with what is needed.
   issues wait instead of rejoining the queue. Otherwise the issues it closes go
   back to the queue automatically, and the author, or any fixing agent, picks
   it up again.
+- Write an owner decision as a question the owner can answer without reading
+  the code: the options, what each changes for players and your
+  recommendation. Don't ask it in chat and don't wait for the answer; the
+  owner answers parked questions when they choose to, through
+  [design-decisions](../design-decisions/SKILL.md) or by asking what sessions
+  need from them (the owner's choice in chat, October 10). Your
+  [report](#report) lists the pull request in one line, as information.
 - If it closes no issue, update its `Refs` issues: for an owner decision, add
   `status:needs-decision` to them; otherwise replace `status:blocked` with
   `status:needs-pr`, naming the draft to continue.
@@ -386,7 +418,8 @@ whoever closes a pull request:
   request or issue that waited on it that it closed without merging. Where the
   work can go on without it, remove `status:blocked` and the `Waits on` or
   `Blocked by` line, and give an issue nobody holds `status:needs-pr`.
-  Otherwise ask the owner in chat what it should wait on now.
+  Otherwise record the question on that blocked work, add
+  `status:needs-decision` and leave it for the owner's decisions sweep.
 
 ## Wait without wasting time
 
@@ -404,6 +437,8 @@ whoever closes a pull request:
   squash commit, its issues closed and main's CI result. Add how long it took
   from claim to merge, and what it mostly waited on (review, fixes, CI, the
   queue, or main's CI).
+- List each pull request you handed back for an owner decision, one line
+  each, as information rather than a question.
 - Give a full timing breakdown only when the owner asks, or when you are
   working out why merging is slow. Then separate active work from waiting,
   and don't add up waits that overlapped.

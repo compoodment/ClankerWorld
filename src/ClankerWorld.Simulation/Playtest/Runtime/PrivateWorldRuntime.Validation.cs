@@ -40,7 +40,8 @@ public sealed partial class PrivateWorldRuntime
         ValidateCartOrderBindings(society.Checkpoint.Inventory, instructionsByIdempotency.Values);
         ValidateHandcarts(handcartHitches, society.Checkpoint.Inventory, inhabitants.Values.ToArray(), map);
         ValidatePhysicalInventoryLocations(society.Checkpoint.Inventory, worldSimulation, worldContent,
-            society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates, TownPropertyValidation.RecoveredBuildings(towns));
+            society.Checkpoint.Inhabitants, map, society.Checkpoint.Estates, deceasedInhabitants.Values,
+            TownPropertyValidation.RecoveredBuildings(towns));
         ValidateFarmFields(fields.ToArray(), map, worldSeed, society.Checkpoint, worldSimulation, worldContent, RoadAndBridgeTiles().ToArray());
         ValidateFieldOrderBindings(fields, instructionsByIdempotency.Values);
         ValidateProductionOrderBindings(worldSimulation, worldContent, inhabitants.Values, instructionsByIdempotency.Values);
@@ -210,10 +211,12 @@ public sealed partial class PrivateWorldRuntime
             if (string.IsNullOrWhiteSpace(town.Id) || town.Id != town.Id.Trim() || town.Id.Length > 128 ||
                 town.Id.Any(char.IsControl) || string.IsNullOrWhiteSpace(town.Name) || town.Name != town.Name.Trim() ||
                 town.Name.Length > 120 || town.FoundedTick < 0 || town.FoundedTick > society.WorldTick ||
+                town.FirstBuildingCompletedTick is { } completed && (completed < town.FoundedTick || completed > society.WorldTick) ||
                 town.AbandonedSinceTick is { } abandoned &&
                     (!town.IsAbandoned || abandoned < town.FoundedTick || abandoned > society.WorldTick) ||
                 town.OriginSite is { } origin && !map.IsBuildable(origin) ||
                 town.ResidentIds is null || town.AssignedBuildingIds is null || town.BorderTiles is null ||
+                town.AssignedBuildingIds.Count > 0 && town.FirstBuildingCompletedTick is null ||
                 town.ResidentIds.Distinct(StringComparer.Ordinal).Count() != town.ResidentIds.Count ||
                 town.AssignedBuildingIds.Distinct(StringComparer.Ordinal).Count() != town.AssignedBuildingIds.Count ||
                 town.BorderTiles.Distinct().Count() != town.BorderTiles.Count || town.BorderTiles.Count == 0 ||
@@ -281,7 +284,8 @@ public sealed partial class PrivateWorldRuntime
 
     private static void ValidatePhysicalInventoryLocations(InventoryCheckpoint inventory,
         WorldContentSimulationState simulation, DeclarativeWorldContentState content,
-        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map, IReadOnlyList<SocietyEstate> estates, HashSet<string> recoveredBuildings)
+        IReadOnlyList<SocietyInhabitant> inhabitants, SeededMap map, IReadOnlyList<SocietyEstate> estates,
+        IEnumerable<PlaytestDeceasedInhabitantState> deceased, HashSet<string> recoveredBuildings)
     {
         var buildings = simulation.Buildings.ToDictionary(item => item.InstanceId, StringComparer.Ordinal);
         var definitions = content.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
@@ -294,7 +298,10 @@ public sealed partial class PrivateWorldRuntime
                 return people.ContainsKey(estate.DeceasedId) && (estate.FrozenLots ?? []).Any(frozen =>
                     frozen.LotId == lot.Id && frozen.ItemKind == lot.ItemKind && frozen.Quantity == lot.Quantity &&
                     frozen.StorageBuildingId == lot.StorageBuildingId);
-            return lot.OwnerId == "settlement:communal" && estates.Where(item => item.Settled)
+            // Refused kinds and overflow may stay in the estate's original House
+            // as stock belonging to the deceased resident's recorded Town.
+            return estates.Where(item => item.Settled && (lot.OwnerId == "settlement:communal" ||
+                    deceased.Any(person => person.InhabitantId == item.DeceasedId && person.TownId == lot.OwnerId)))
                 .SelectMany(item => item.FrozenLots ?? []).Any(frozen =>
                     (frozen.LotId == lot.Id || frozen.LotId == lot.ProvenanceLotId) && frozen.ItemKind == lot.ItemKind &&
                     frozen.Quantity >= lot.Quantity && frozen.StorageBuildingId == lot.StorageBuildingId);
@@ -507,7 +514,8 @@ public sealed partial class PrivateWorldRuntime
         ValidateCartOrderBindings(state.Society.Society.Inventory, state.Instructions ?? []);
         ValidateHandcarts(state.HandcartHitches, state.Society.Society.Inventory, state.Inhabitants, travelMap);
         ValidatePhysicalInventoryLocations(state.Society.Society.Inventory, state.WorldSimulation,
-            state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates, TownPropertyValidation.RecoveredBuildings(state.Towns));
+            state.WorldContent, state.Society.Society.Inhabitants, state.Map, state.Society.Society.Estates,
+            state.DeceasedInhabitants ?? [], TownPropertyValidation.RecoveredBuildings(state.Towns));
         ValidateFarmFields(state.Fields!.ToArray(), state.Map, state.WorldSeed, state.Society.Society,
             state.WorldSimulation, state.WorldContent, state.RoadTiles.Concat(
                 state.Bridges.SelectMany(bridge => bridge.Entrances)).ToArray());

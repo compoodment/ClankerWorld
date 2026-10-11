@@ -729,7 +729,8 @@ public sealed record OwnerReconnectAction(long AfterEventId,
 
 public sealed record OwnerControlAction(string Operation);
 public sealed record OwnerManualSaveAction(string Operation, string Value);
-public sealed record StartupRecoveryStatus(bool Pending, string? WorldId, ManualWorldSave? Autosave, string? Reason = null);
+public sealed record StartupRecoveryStatus(bool Pending, string? WorldId, ManualWorldSave? Autosave, string? Reason = null,
+    string? SavedByVersion = null);
 public sealed record StartupRecoveryReceipt(string LoadedId, long WorldTick);
 public sealed record OwnerWorldCreationAction(string Name, string Seed, string Size,
     int WaterPercent, bool WrapEastWest, string ClimateMode = "Balanced",
@@ -741,7 +742,8 @@ public sealed record OwnerWorldCreationAction(string Name, string Seed, string S
 public sealed record CatalogWorld(string Id, string Name, string WorldId, string Seed,
     DateTimeOffset UpdatedUtc, IReadOnlyList<InhabitantProviderAssignment> Assignments,
     WorldAutosaveSettings? AutosaveSettings, string Compatibility = "unknown",
-    string? CompatibilityReason = null, WorldThumbnail? Thumbnail = null);
+    string? CompatibilityReason = null, WorldThumbnail? Thumbnail = null,
+    string? GameVersion = null, string? SourceRevision = null);
 /// <summary>A small picture of a world's terrain for the Load World list, packed like the world's own terrain.</summary>
 public sealed record WorldThumbnail(int Width, int Height, string Encoding, string Data);
 public sealed record WorldCatalogSnapshot(string ActiveId, IReadOnlyList<CatalogWorld> Worlds);
@@ -779,7 +781,8 @@ public sealed record OwnerWorldCandidateReport(int Attempt, int DryLandTiles, in
 }
 public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
     bool IsAutosave = false, SaveBranch? Branch = null, string? ContinuedFromId = null,
-    DateTimeOffset? ContinuedFromCreatedUtc = null, long BranchPosition = 0);
+    DateTimeOffset? ContinuedFromCreatedUtc = null, long BranchPosition = 0,
+    string? GameVersion = null, string? SourceRevision = null);
 /// <summary>One version of a world's history; saves from before branches have none.</summary>
 public sealed record SaveBranch(string Id, int Number, string? StartedFromId = null,
     string? StartedFromName = null, long? StartedFromTick = null);
@@ -841,7 +844,7 @@ public sealed record OwnerProviderModelListAction(
     string Provider, string? CredentialSlotId = null, string? ApiKey = null, bool CheckKey = true);
 
 public sealed record OwnerProviderSetupCheckAction(
-    string Provider, string Model, string? CredentialSlotId = null, string? ApiKey = null);
+    string Provider, string Model, string? CredentialSlotId = null, string? ApiKey = null, string? Thinking = null);
 
 public sealed record OwnerProviderSetupCheckResult(string Outcome, string Message, bool IsReady);
 
@@ -865,15 +868,21 @@ public sealed record OwnerProviderConfigurationAction(
     bool ForgetCredential,
     string? InhabitantId = null,
     string? CredentialSlotId = null,
-    string? NewCredentialLabel = null);
+    string? NewCredentialLabel = null,
+    string? Thinking = null);
 
+/// <summary>
+/// One agent's model for one role. <see cref="Thinking"/> is low, medium or
+/// high, or <see langword="null"/> for the model's own default.
+/// </summary>
 public sealed record InhabitantProviderAssignment(
     string InhabitantId,
     string Role,
     string Provider,
     string? Model = null,
     string? CredentialSlotId = null,
-    string? SelectionReason = null);
+    string? SelectionReason = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Thinking = null);
 
 public sealed record OwnerProviderCredentialStatus(string Id, string Provider, string Label);
 

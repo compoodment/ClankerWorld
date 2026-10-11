@@ -20,8 +20,11 @@ public sealed partial class PrivateWorldRuntimeTests
         Assert.Equal("seek_food", world.ExportState().Society.Cognition.Runtimes.Single(item => item.InhabitantId == HarvestInstructionActor).CurrentIntention!.CandidateId);
         world.SubmitInstruction(new("waiting-trip-suggestion", "owner:test", HarvestInstructionActor,
             OwnerInstructionKind.Suggestive, "Think about your next task."));
-        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-        await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var dispatch = await world.AdvanceOneTickNonBlockingAsync();
+        Assert.True(dispatch.Advanced);
+        Assert.Contains(dispatch.Events, item => item.Kind == "hosted_decision_started" && item.Detail == HarvestInstructionActor);
+        // Native dispatch is committed; a loaded thread pool can start the held provider later.
+        await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         var before = PrivateWorldRuntimeCodec.Encode(world.ExportState());
         Assert.False((await world.AdvanceOneTickNonBlockingAsync(() => false)).Advanced);
         Assert.Equal(before, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
@@ -100,8 +103,10 @@ public sealed partial class PrivateWorldRuntimeTests
         using var world = RestoreWaitingWorld(state, actor, provider);
         if (ordered) world.SubmitInstruction(new("waiting-care-order", "owner:test", actor,
             OwnerInstructionKind.MustDo, "gather food"));
-        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-        await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var dispatch = await world.AdvanceOneTickNonBlockingAsync();
+        Assert.True(dispatch.Advanced);
+        Assert.Contains(dispatch.Events, item => item.Kind == "hosted_decision_started" && item.Detail == actor);
+        await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         var relationships = world.Society.Relationships.ToArray();
         var position = world.Inhabitants.Single(person => person.InhabitantId == actor).Position;
         for (var tick = 0; tick < 3; tick++) Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
@@ -164,8 +169,10 @@ public sealed partial class PrivateWorldRuntimeTests
         state = SettlementWeatherTestFixture.WithWeather(state, weather);
         var provider = new WaitingRoutineProvider("safe_idle");
         using var world = RestoreWaitingWorld(state, actor, provider);
-        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-        await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var dispatch = await world.AdvanceOneTickNonBlockingAsync();
+        Assert.True(dispatch.Advanced);
+        Assert.Contains(dispatch.Events, item => item.Kind == "hosted_decision_started" && item.Detail == actor);
+        await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Contains(provider.Requests.Single().Candidates, candidate => candidate.Id == "household_leave");
         var buildings = world.WorldSimulation.Buildings.ToArray();
         var relationships = world.Society.Relationships.ToArray();

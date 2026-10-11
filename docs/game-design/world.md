@@ -2,7 +2,7 @@
 title: The world, time and survival
 type: game-design
 status: active
-updated: 2026-10-08
+updated: 2026-10-10
 ---
 
 # The world, time and survival
@@ -65,6 +65,29 @@ everything that is available in the current build. See [what works today](../wha
 - **The first local package is an unsigned portable zip.** An installer and code
   signing (a publisher signature on the files) come later.
 - **Agreed on October 10
+  ([#468](https://github.com/ClankerWorldOrg/ClankerWorld/issues/468)):** the
+  first alpha, `v0.1.0-alpha.1`, is the portable zip together with the
+  launcher below, and it is the first release whose changelog carries a
+  version. The game itself, `ClankerWorld.exe`, starts the bundled host in the
+  background, waits until it is ready and opens the main menu, so it also runs
+  on its own without the launcher. If the host cannot start, the game says so
+  and offers to try again. The game files sit in a folder named for their
+  version, and the player's saves, keys and model-call count sit in their own
+  Windows user folder, so replacing or adding a version never touches them.
+  Each saved world records the game version that last saved it.
+- **Agreed on October 10
+  ([#1259](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1259)):**
+  a **launcher** keeps the game up to date and lets the player choose which
+  installed version to play. It downloads new versions from the project's
+  published releases, checks that each download is exactly the published file
+  before running it, and keeps earlier versions installed. When a newer
+  version cannot load a world, the launcher offers the version that last saved
+  it, so an alpha update never strands a world. In a later alpha, a **per-user
+  installer** that needs no administrator rights installs the launcher, adds a
+  Start-menu and desktop shortcut and can uninstall it without removing saves.
+  Code signing still comes later, so Windows may warn about an unknown
+  publisher.
+- **Agreed on October 10
   ([#1260](https://github.com/compoodment/ClankerWorld/issues/1260)):**
   **Report a problem** saves a zip for a bug report with the game's and its
   world server's latest logs and a short summary of the build, computer and
@@ -88,11 +111,9 @@ implementation choices to prove, not reasons to reopen the agreed player-local
 distribution goal, the companion-process host or the first package.
 
 **Parked until ClankerWorld becomes a public, versioned alpha (October 8):**
-how a player's copy of the game gets updated
-([#1259](https://github.com/compoodment/ClankerWorld/issues/1259)) and moving
 a world between the private server and a player's PC
 ([#1262](https://github.com/compoodment/ClankerWorld/issues/1262)). The owner
-is the only player for now, so these wait until then.
+is the only player for now, so this waits until then.
 
 ## World time, pausing, and slow models
 

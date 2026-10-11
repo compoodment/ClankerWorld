@@ -69,7 +69,8 @@ public sealed record CognitionAdmissionResult(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionObserverGuidanceResult? ObserverGuidance = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<CognitionLandTile>? CivicLandTiles = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionLandHearingChoice? CivicLandHearing = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionNonviolentChoice? CivicNonviolent = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionNonviolentChoice? CivicNonviolent = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CognitionMemorySummaryOption? MemorySummary = null);
 
 /// <summary>
 /// The first Phase 3 cognition boundary. It owns request admission and
@@ -273,7 +274,9 @@ public sealed class CognitionRuntime
                 intention,
                 response.Provider is DecisionProviderKind.Jev or DecisionProviderKind.OpenAiDecisions ? response.MemoryCompactionScores : null,
                 response.CivicProposal, response.CivicBallot,
-                observedGuidance, response.CivicLandTiles, response.CivicLandHearing, response.CivicNonviolent);
+                observedGuidance, response.CivicLandTiles, response.CivicLandHearing, response.CivicNonviolent,
+                response.MemorySummaryChoice is { } summaryChoice
+                    ? request.Observation.MemorySummaryOptions!.Single(option => option.Choice == summaryChoice) : null);
         }
     }
 
@@ -512,6 +515,10 @@ public sealed class CognitionRuntime
             }
         }
 
+        if (response.MemorySummaryChoice is { } choice &&
+            (response.Provider is not (DecisionProviderKind.Jev or DecisionProviderKind.OpenAiDecisions) ||
+                !(request.Observation.MemorySummaryOptions ?? []).Any(option => option.Choice == choice && option.OwnerId == InhabitantId)))
+            return "memory_summary_not_requested";
         return null;
     }
 

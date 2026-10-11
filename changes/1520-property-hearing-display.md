@@ -1,0 +1,1 @@
+- Building cards and result notices now distinguish property recovery and grants from use-permission rulings. Cards retain the current recorded owner alongside case history, and notices with missing case context use neutral wording.

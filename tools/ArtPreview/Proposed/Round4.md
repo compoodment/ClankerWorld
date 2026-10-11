@@ -17,6 +17,8 @@ Render a family with
 | `items-round4` | `ItemsRound4.cs` | Approved: iron fittings, refined gold, plain gold ornament, saddle, cooked eggs, milk porridge, berry porridge, fruit porridge, rich meal and leather sack. The crude wooden axe and pickaxe keep the wooden axe and pickaxe icons ("keep the og's"); their new drawings were dropped. |
 | `construction` | `BuildingStates.cs` | Approved: three stages before the finished picture, for every building and built thing. |
 | `abandoned` | `BuildingStates.cs` | **A turning into B after a while**: neglected (A) when a Town is abandoned, falling apart (B) once it has stayed abandoned for a full season. |
+| `small-vehicles` | `SmallVehicles.cs` | Approved in a follow-up review the same day: 16 px handcarts (empty, loaded, both pulled poses) and rowing boats (rowing and at rest) in all eight facings, for mid zoom (#914). |
+| Animals at 16 px | `Animals.cs` | Approved in the same follow-up: every animal's 16 px drawing in all eight facings, including the horse, which had not been shown at 16 px before. |
 
 The owner also agreed in chat that a sheep in a household looks shorn for the
 first half of each wool cycle and woolly again after that; wild sheep stay
@@ -97,8 +99,22 @@ Fences, piers, bridges and lanterns use their own parts in the same order:
   by a back corner. Fences lose bits of rail, and piers and bridges lose
   planks.
 
+## 16 px handcarts and boats (`small-vehicles`)
+
+Each is made from the approved 32 px drawing, so it keeps its shape,
+colours and light:
+
+- every 2 × 2 block becomes its most common solid colour, or on a tie the one
+  nearest the block's average brightness;
+- a block with a single solid pixel keeps it, so shafts and oars stay;
+- a block of only shadow keeps the shadow;
+- the outside of the silhouette then takes each block's darkest colour, for a
+  dark rim.
+
+The game halves the drawings at runtime with the same rule
+(`PixelArt.HalveSprite`).
+
 ## Not done
 
-- 16 px handcarts and boats for medium zoom (#914) are a separate round.
 - The construction stages need the host to send each active site before the
   game can show them (#1090).

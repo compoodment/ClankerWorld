@@ -1,0 +1,1 @@
+- [ ] On Windows, open World Info → Towns in a world with a child resident, scroll the page and hover their portrait. Rename the child with a permitted surname. After the next observation, the tooltip must show the accepted name and the page must keep its scroll position. Check that the same name survives reopening the world.

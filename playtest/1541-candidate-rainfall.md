@@ -1,0 +1,1 @@
+- On the paired world: create a Small world, inspect soil in several places, then save and reload. The soil ratings should stay the same, and farm fields should remain usable on fertile land. ([#1541](https://github.com/ClankerWorldOrg/ClankerWorld/issues/1541))
