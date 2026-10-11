@@ -28,7 +28,7 @@ public static class TownLandHearingRules
     public static bool IsValidOutcome(TownLandRequestedOutcome outcome, long tick) =>
         outcome is not null && outcome.Kind is "confirm" or "renew" or "amend" or "end" or "reject" or "reclaim" or "grant" &&
         (outcome.Kind is "confirm" or "reject" ? outcome.HouseholdId is null && outcome.AgreedEndTick is null :
-            ValidText(outcome.HouseholdId, outcome.Kind is "reclaim" or "grant" ? 256 : 128) && (outcome.Kind is "end" or "reclaim" or "grant" ? outcome.AgreedEndTick is null :
+            TownHearingProcedure.Id(outcome.HouseholdId) && (outcome.Kind is "end" or "reclaim" or "grant" ? outcome.AgreedEndTick is null :
                 outcome.AgreedEndTick is null || outcome.AgreedEndTick > tick));
 
     public static TownLandHearingState File(TownLandHearingState state, string townId,
