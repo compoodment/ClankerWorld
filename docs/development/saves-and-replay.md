@@ -2,7 +2,7 @@
 title: Saves and replay
 type: persistence-reference
 status: active
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
 # Saves and replay
@@ -396,6 +396,15 @@ including later-generation adults with ancestry-based IDs longer than 256
 characters. These rosters still require canonical order and unique, known,
 well-formed people. Transfer keys, permission keys and other bounded fields
 keep their limits. This validation repair changes no schema or saved field.
+
+Beneficiary household references in civic replies, transfer records and resulting
+land-use rights retain complete known household identities, including households
+founded by later-generation native-born adults with IDs longer than 256 characters.
+Unknown or malformed household references are refused. Transfer keys, permission
+keys, evidence references and other bounded reply fields keep their limits, as
+does the provider response-body limit. Each affected adult still separately learns
+and accepts the exact current terms before permissions change. No schema or saved
+field changes.
 
 These records share prepared-tick rollback with permissions, requests, civic
 receipts and events. Current-format reload and continuation retain pending

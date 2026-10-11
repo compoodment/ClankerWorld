@@ -1,4 +1,7 @@
 using System.Collections.Concurrent;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
@@ -12,11 +15,33 @@ public sealed partial class GrownAgentHelperMemoryTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task NativeTransferPartiesSurviveHostedConsentAndCheckpointReload(bool laterGeneration)
+    [InlineData(true, true, true)]
+    [InlineData(false, true, true)]
+    [InlineData(false, true, false)]
+    public async Task NativeTransferPartiesSurviveHostedConsentAndCheckpointReload(bool laterGeneration,
+        bool formedHousehold = false, bool nativeBornHousehold = true)
     {
-        var state = PrivateWorldRuntimeCodec.Decode(await (laterGeneration ? LaterAdult : ConversationAdult).Value);
-        var actor = state.Society.Society.Births.OrderBy(birth => birth.CommittedTick).Last().ChildId;
-        Assert.True(laterGeneration ? actor.Length > 256 : actor.Length <= 256);
+        PrivateWorldRuntimeState state;
+        string? formedTarget = null;
+        if (formedHousehold)
+        {
+            using var formed = await FormNativeSoloHouseholdAsync(nativeBornHousehold, laterGeneration);
+            formed.Pause();
+            state = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(formed.ExportState()));
+            var birth = state.Society.Society.Births.OrderBy(item => item.CommittedTick).Last();
+            var recipient = nativeBornHousehold ? birth.ChildId : birth.PrimaryCaregiverId;
+            formedTarget = Assert.IsType<string>(state.Society.Society.GetInhabitant(recipient).HouseholdId);
+            Assert.Equal(nativeBornHousehold, formedTarget.Length > 128);
+            Assert.True(!laterGeneration || formedTarget.Length > 256);
+            Assert.StartsWith("household:solo:" + recipient + ":", formedTarget, StringComparison.Ordinal);
+            Assert.Contains(state.Events, item => item.Kind == "household_founded" && item.Detail == recipient + "|" + formedTarget);
+        }
+        else state = PrivateWorldRuntimeCodec.Decode(await (laterGeneration ? LaterAdult : ConversationAdult).Value);
+        var actor = formedHousehold ? state.Society.Society.Inhabitants.First(person =>
+            person.HouseholdId == "household:camp-alpha" && person.Status == SocietyInhabitantStatus.Active &&
+            person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder).Id :
+            state.Society.Society.Births.OrderBy(birth => birth.CommittedTick).Last().ChildId;
+        if (!formedHousehold) Assert.True(laterGeneration ? actor.Length > 256 : actor.Length <= 256);
         var town = state.Towns![0];
         // As in the civic fixtures, arrange board proximity and comfort only.
         // Birth identities, ages, households, titles and permissions stay native.
@@ -32,7 +57,7 @@ public sealed partial class GrownAgentHelperMemoryTests
         };
         var household = state.Society.Society.GetInhabitant(actor).HouseholdId!;
         var source = state.HouseholdLandUseRights!.First(right => right.TownId == town.Id && right.HouseholdId == household);
-        var target = state.Society.Society.Households.Single(item => item.Id == "household:camp-beta").Id;
+        var target = formedTarget ?? state.Society.Society.Households.Single(item => item.Id == "household:camp-beta").Id;
         var policy = new NativeTransferChoices(actor, target, source.Tiles.ToArray());
         using var world = PrivateWorldRuntime.Restore(state, _ => policy);
         world.Resume();
@@ -61,6 +86,8 @@ public sealed partial class GrownAgentHelperMemoryTests
             policy.Propose = false;
             var pending = Assert.Single(world.Towns[0].LandHearings.Transfers);
             Assert.Equal(actor, pending.FilerId);
+            Assert.Equal(target, pending.TargetHouseholdId);
+            new CognitionLandHearingChoice(HouseholdId: target).Validate();
             Assert.Equal("pending", pending.Status);
             Assert.Empty(pending.Responses);
             Assert.Null(pending.Receipt);
@@ -69,6 +96,7 @@ public sealed partial class GrownAgentHelperMemoryTests
             Assert.Equal(state.HouseholdLandUseRights, world.ExportState().HouseholdLandUseRights);
             Assert.Contains(policy.Selected, choice => choice.Actor == actor && choice.Id.Contains("|land_transfer_propose|", StringComparison.Ordinal));
             AssertMalformedTransferPeople(world.ExportState(), pending);
+            AssertMalformedTransferHouseholds(world.ExportState(), pending);
             using (var pendingReload = file.LoadOrCreate(state.WorldSeed))
                 Assert.Equal(PrivateWorldRuntimeCodec.Encode(world.ExportState()), PrivateWorldRuntimeCodec.Encode(pendingReload.ExportState()));
 
@@ -108,6 +136,7 @@ public sealed partial class GrownAgentHelperMemoryTests
                     (right.HouseholdId, right.GrantedTick, right.AgreedEndTick, right.GrantSource));
             });
             AssertMalformedTransferPeople(world.ExportState(), completed);
+            AssertMalformedTransferHouseholds(world.ExportState(), completed);
             policy.Read = policy.Accept = false;
             world.Pause();
             world.Resume();
@@ -127,6 +156,26 @@ public sealed partial class GrownAgentHelperMemoryTests
             }
         }
         finally { directory.Delete(recursive: true); }
+    }
+
+    private static void AssertMalformedTransferHouseholds(PrivateWorldRuntimeState state, TownLandTransferRequest request)
+    {
+        foreach (var invalid in new[] { "", " " + request.TargetHouseholdId, request.TargetHouseholdId + "\0",
+                     request.TargetHouseholdId + ":unknown" })
+        {
+            var corrupted = state with
+            {
+                Towns = state.Towns!.Select(town => town.Id == request.TownId ? town with
+                {
+                    LandHearings = town.LandHearings with
+                    {
+                        Transfers = town.LandHearings.Transfers.Select(item => item.Id == request.Id ? item with
+                        { TargetHouseholdId = invalid } : item).ToArray()
+                    }
+                } : town).ToArray()
+            };
+            Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(corrupted));
+        }
     }
 
     private static void AssertMalformedTransferPeople(PrivateWorldRuntimeState state, TownLandTransferRequest request)
@@ -175,6 +224,23 @@ public sealed partial class GrownAgentHelperMemoryTests
         }
     }
 
+    private sealed class NativeTransferReply(string candidate, string target, GridPoint[] tiles) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var answer = JsonSerializer.Serialize(new
+            {
+                selected_candidate_id = candidate,
+                confidence = 1,
+                civic_land_tiles = tiles.Select(tile => new { x = tile.X, y = tile.Y }),
+                civic_land_hearing = new { household_id = target }
+            });
+            var response = JsonSerializer.Serialize(new { choices = new[] { new { message = new { content = answer } } } });
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new StringContent(response, Encoding.UTF8, "application/json") });
+        }
+    }
+
     private sealed class NativeTransferChoices(string actor, string target, GridPoint[] tiles) : IDecisionProvider
     {
         public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
@@ -184,6 +250,15 @@ public sealed partial class GrownAgentHelperMemoryTests
         public bool Accept { get; set; }
         public string? Hold { get; set; }
         public ConcurrentQueue<(string Actor, string Id)> Selected { get; } = new();
+        private async ValueTask<CognitionDecisionResponse> ProposeOverHttpAsync(CognitionDecisionRequest request,
+            string candidate, CancellationToken cancellationToken)
+        {
+            using var client = new HttpClient(new NativeTransferReply(candidate, target, tiles));
+            var provider = new OpenAiCompatibleDecisionProvider(client, () => "synthetic-key",
+                new Uri("https://model.test/v1/chat/completions"), "synthetic-model");
+            return await provider.DecideAsync(request, cancellationToken);
+        }
+
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
             var observation = request.Observation;
@@ -196,14 +271,15 @@ public sealed partial class GrownAgentHelperMemoryTests
             if (proposing)
             {
                 Assert.Contains(target, choice.Description, StringComparison.Ordinal);
+                Assert.Contains(observation.Candidates, item => item.Id.Contains("|land_transfer_sell|", StringComparison.Ordinal) &&
+                    item.Description.Contains(target, StringComparison.Ordinal));
                 Propose = false;
             }
             Selected.Enqueue((observation.InhabitantId, choice.Id));
+            if (proposing) return ProposeOverHttpAsync(request, choice.Id, cancellationToken);
             return ValueTask.FromResult(new CognitionDecisionResponse(request.RequestId, observation.InhabitantId, Kind, ProviderEpoch,
                 observation.RunEpoch, observation.DecisionGeneration, observation.ObservationDigest, choice.Id, 1,
-                observation.Candidates.ToDictionary(item => item.Id, item => item.Id == choice.Id ? 1d : 0d, StringComparer.Ordinal),
-                CivicLandTiles: proposing ? tiles.Select(tile => new CognitionLandTile(tile.X, tile.Y)).ToArray() : null,
-                CivicLandHearing: proposing ? new(HouseholdId: target) : null));
+                observation.Candidates.ToDictionary(item => item.Id, item => item.Id == choice.Id ? 1d : 0d, StringComparer.Ordinal)));
         }
     }
 }

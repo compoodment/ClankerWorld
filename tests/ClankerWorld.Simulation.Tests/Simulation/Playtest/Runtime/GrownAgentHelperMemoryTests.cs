@@ -18,30 +18,10 @@ public sealed partial class GrownAgentHelperMemoryTests
     [InlineData(false)]
     public async Task NativeHouseholdFormationKeepsSavedIdentityAndContinuesAfterReload(bool nativeBorn)
     {
-        var state = PrivateWorldRuntimeCodec.Decode(await Adult.Value);
+        using var world = await FormNativeSoloHouseholdAsync(nativeBorn);
+        var state = world.ExportState();
         var birth = Assert.Single(state.Society.Society.Births);
         var actor = nativeBorn ? birth.ChildId : birth.PrimaryCaregiverId;
-        var choices = new HouseholdChoices(actor);
-        using var displaced = PrivateWorldRuntime.Restore(state, _ => choices);
-        Assert.True(displaced.DisplaceAdult(actor));
-        state = displaced.ExportState();
-        // Match the existing solo-formation fixture's explicit refusal setup;
-        // birth, adulthood, departure and the offered formation action are native.
-        state = state with
-        {
-            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
-                ? person with
-                {
-                    LastDecisionContext = null,
-                    Housing = new(Refusals: state.Society.Society.Households.Select(household =>
-                        new SettlementHousingRefusal(household.Id, state.Society.Society.WorldTick)).ToArray()),
-                } : person).ToArray(),
-        };
-        using var world = PrivateWorldRuntime.Restore(
-            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => choices);
-        world.Resume();
-        for (var tick = 0; tick < 12 && world.Society.GetInhabitant(actor).HouseholdId is null; tick++)
-            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
         var householdId = Assert.IsType<string>(world.Society.GetInhabitant(actor).HouseholdId);
         Assert.Equal(nativeBorn, householdId.Length > 128);
         Assert.StartsWith("household:solo:" + actor + ":", householdId, StringComparison.Ordinal);
@@ -73,6 +53,35 @@ public sealed partial class GrownAgentHelperMemoryTests
         Assert.Equal(JsonSerializer.Serialize(world.Society.GetHousehold(householdId)),
             JsonSerializer.Serialize(reload.Society.GetHousehold(householdId)));
         await CheckWillHouseholdContext(reload, actor, householdId, observation.Self.HouseholdId);
+    }
+
+    private static async Task<PrivateWorldRuntime> FormNativeSoloHouseholdAsync(bool nativeBorn, bool laterGeneration = false)
+    {
+        var state = PrivateWorldRuntimeCodec.Decode(await (laterGeneration ? LaterAdult : Adult).Value);
+        var birth = state.Society.Society.Births.OrderBy(item => item.CommittedTick).Last();
+        var actor = nativeBorn ? birth.ChildId : birth.PrimaryCaregiverId;
+        var choices = new HouseholdChoices(actor);
+        using var displaced = PrivateWorldRuntime.Restore(state, _ => choices);
+        Assert.True(displaced.DisplaceAdult(actor));
+        state = displaced.ExportState();
+        // Match the existing solo-formation fixture's explicit refusal setup;
+        // birth, adulthood, departure and the offered formation action are native.
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == actor
+                ? person with
+                {
+                    LastDecisionContext = null,
+                    Housing = new(Refusals: state.Society.Society.Households.Select(household =>
+                        new SettlementHousingRefusal(household.Id, state.Society.Society.WorldTick)).ToArray()),
+                } : person).ToArray(),
+        };
+        var world = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)), _ => choices);
+        world.Resume();
+        for (var tick = 0; tick < 12 && world.Society.GetInhabitant(actor).HouseholdId is null; tick++)
+            Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        return world;
     }
 
     private static async Task CheckWillHouseholdContext(PrivateWorldRuntime world, string actor,
