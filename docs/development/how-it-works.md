@@ -155,9 +155,27 @@ unreserved quantities; reusable vessels themselves are not consumable inputs.
 Requests name exact owners and item kinds, and can restrict a building. The
 answer's `Total` and `First` read the same stable matches. It includes each lot's
 root vessel, physical place, available quantity and whole-vessel movement size.
-Destination capacity and remaining uses belong to the later steps of
+Delivery selection and remaining uses belong to the later steps of
 [#1366](https://github.com/compoodment/ClankerWorld/issues/1366); unsupported
 origin/destination fields and extra-unit requests are refused rather than silently ignored.
+
+`DestinationRoom(buildingId, movingRoot)` is the shared read-only calculation
+for space at a building. It subtracts all stored physical units, positive net
+growth promised to running or paused production, open business storage
+reservations and collected inbound loads. Inbound vessels count with all their
+contents, including damaged or spoiled property. Yard stock-supply trips also
+promise their carried family to the yard; care and saddling trips do not promise
+storage. An arriving load excludes only its own current family from inbound
+promises, so delivery does not reserve that family twice. Business exchanges
+account for the goods leaving and release only their own storage reservation.
+The inventory authority still rechecks every actual transfer.
+
+Storage, returns, custody, departure, yard supply, Warehouse stock, projects and
+workstation deliveries use this same room calculation. Native Town recovery
+also keeps its allowance for carried returns that have no bound Warehouse.
+Capacity comes from `BuildingStorageRules`: private Silos hold 64 units per
+footprint tile, Farmhouses retain 96 units, and buildings without a storage
+limit remain unbounded. Room queries save nothing and change no state.
 
 Actor-bound `Collect` extends Holdings with native custody/place permission,
 free vessel families, actual carrying room and an unoccupied native travel route.
@@ -2628,7 +2646,8 @@ kinds are listed in `HouseholdBuildingKinds`. The optional Store uses the same
 household planning and ownership rules, with 1×1 and 1×2 footprints.
 Harvests remain household-owned lots on their actual field tile. An adult
 carries a load of at most four raw crops or planting items to the household's Farmhouse or Silo.
-Each holds a provisional 96 items, counting deliveries already on their way;
+The Farmhouse holds a provisional 96 items; the private Silo holds 64 units per
+footprint tile. Both count deliveries already on their way;
 pickup and delivery both check remaining space. Source selection checks the
 adult's route to each pile or vessel and the route from there to farm storage;
 an earlier blocked source does not hide later reachable stock. The same checks

@@ -317,7 +317,7 @@ public sealed partial class PrivateWorldRuntime
                     var person = inhabitants[actor];
                     // A temporary pedestrian obstruction should wait, not cause a drop/pickup loop.
                     var warehouse = NeedsUrgentFood(person) || NeedsUrgentWarmth(person) ? null :
-                        WarehousesForTown(town.Id).FirstOrDefault(item => StorageRoomAfterInboundDeliveries(item.InstanceId) > 0 &&
+                        WarehousesForTown(town.Id).FirstOrDefault(item => DestinationRoom(item.InstanceId) > 0 &&
                             CanReachByFootOrSwimming(actor, person.Position, item.Position));
                     if (warehouse is null)
                     {
@@ -325,7 +325,7 @@ public sealed partial class PrivateWorldRuntime
                             "return", town, project, lot.ItemKind, lot, PhysicalUnreservedQuantity(lot), delivery);
                         continue;
                     }
-                    var quantity = Math.Min(PhysicalUnreservedQuantity(lot), StorageRoomAfterInboundDeliveries(warehouse.InstanceId));
+                    var quantity = Math.Min(PhysicalUnreservedQuantity(lot), DestinationRoom(warehouse.InstanceId));
                     if (quantity <= 0) continue;
                     yield return new(TownProjectChoiceId(TownProjectReturnPrefix, project.Id, lot.Id, warehouse.InstanceId),
                         "return", town, project, lot.ItemKind, lot, quantity, delivery, Warehouse: warehouse);
@@ -358,7 +358,7 @@ public sealed partial class PrivateWorldRuntime
                 var position = HouseholdStockPosition(lot);
                 if (!CanWalkForTownProject(actor, inhabitants[actor].Position, position)) continue;
                 var warehouse = WarehousesForTown(townId).FirstOrDefault(item =>
-                    StorageRoomAfterInboundDeliveries(item.InstanceId) > inbound &&
+                    DestinationRoom(item.InstanceId) > inbound &&
                     CanWalkForTownProject(actor, position, item.Position) &&
                     PickupCarryCapacity(actor, lot, item.Position) > 0);
                 if (warehouse is null) continue;
@@ -366,7 +366,7 @@ public sealed partial class PrivateWorldRuntime
                 var quantity = Math.Min(project.Plan.Budget.Single(cost => cost.ResourceId == lot.ItemKind).Amount,
                     Math.Min(AvailableLotQuantity(lot), Math.Min(WarehouseLoadQuantity,
                         Math.Min(Math.Min(FreeCarryCapacity(actor) - 1, PickupCarryCapacity(actor, lot, warehouse.Position)),
-                            StorageRoomAfterInboundDeliveries(warehouse.InstanceId) - inbound))));
+                            DestinationRoom(warehouse.InstanceId) - inbound))));
                 if (quantity <= 0) continue;
                 yield return new(TownProjectChoiceId(TownProjectRecoverPrefix, project.Id, lot.Id,
                     quantity.ToString(CultureInfo.InvariantCulture), warehouse.InstanceId), "recover",

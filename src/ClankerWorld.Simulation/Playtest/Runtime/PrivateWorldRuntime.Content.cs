@@ -405,7 +405,7 @@ public sealed partial class PrivateWorldRuntime
             }
 
             if (placed is not null && BuildingStorageRules.Capacity(workstation!, placed) is not null &&
-                Math.Max(0, recipe.Outputs.Sum(item => item.Amount) - recipe.Inputs.Sum(item => item.Amount)) > StorageRoom(placed.InstanceId))
+                Math.Max(0, recipe.Outputs.Sum(item => item.Amount) - recipe.Inputs.Sum(item => item.Amount)) > DestinationRoom(placed.InstanceId))
                 return ProductionStartResult.Rejected(normalizedRecipeId, "There is no storage room for this recipe's finished output.");
 
             var knife = ToolProgressionRules.UsesKnife(recipe)

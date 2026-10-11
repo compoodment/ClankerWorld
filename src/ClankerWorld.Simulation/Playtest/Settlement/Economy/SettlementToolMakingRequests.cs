@@ -263,7 +263,7 @@ public sealed partial class PrivateWorldRuntime
                 lot.ItemKind == input.ResourceId && lot.FreshnessBasisPoints > 0 && lot.ConditionBasisPoints > 0)
             .Sum(lot => (long)AvailableLotQuantity(lot)) < input.Amount).Select(input => input.ResourceId.Replace('_', ' ')).ToArray();
         if (missing.Length == 0) return PublicToolWorkBlocker(project.Blocker);
-        return StorageRoomAfterInboundDeliveries(request.BuildingInstanceId) == 0
+        return DestinationRoom(request.BuildingInstanceId) == 0
             ? "Waiting for room at the Blacksmith before more materials can arrive."
             : "Waiting for household materials at the Blacksmith: " + string.Join(", ", missing) + ".";
     }
