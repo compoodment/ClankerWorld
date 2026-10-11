@@ -1,0 +1,1 @@
+- Material-gathering orders now finish and save for later-generation adults, keeping their full identities and gathered supplies.

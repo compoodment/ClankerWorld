@@ -239,7 +239,11 @@ Private-world schema 65 adds material-gathering orders with a distinct
 `TargetMaterialKind`, exact optional source or position, and progress measured
 in harvest batches or material items. Saved progress and the last physical
 harvest receipt are validated together; mixed food/material targets and invalid
-material kinds are refused. Queueing, cancellation, discovery and partial
+material kinds are refused. A harvest receipt that would exceed 512 characters
+uses a fixed-length SHA-256 identity derived from the complete original receipt.
+The actor and native inventory lot keep their full identities; shorter receipts
+remain unchanged. Current-format reload accepts both shapes without a schema change.
+Queueing, cancellation, discovery and partial
 quantities retain their state across reload. Older alpha saves are refused and
 preserved unchanged; no migration is added.
 
