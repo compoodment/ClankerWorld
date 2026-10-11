@@ -286,7 +286,11 @@ Schema 53 saves wills with several heirs. An estate keeps its household
 default beneficiaries and adds, for an accepted will, the named heirs in order,
 the split, the exact quantity of each frozen lot each heir receives, and any
 final words. Frozen lots retain their original building storage when present,
-so escrow and communal inheritance cannot claim an unrelated House as storage.
+so escrow and Town or legacy communal inheritance cannot claim an unrelated
+House as storage. Town stock retained in a private House must match a settled
+estate's frozen lot ID or provenance, kind, quantity and original storage,
+and its owner must be the deceased resident's recorded Town. This validates
+physical custody without changing House ownership or collection permission.
 The deceased archive records the Town the agent lived in. It also retains the
 committed death tick and final physical position. The owner observation exposes
 that position and the `death-tick` decision factor; the client derives map grave
