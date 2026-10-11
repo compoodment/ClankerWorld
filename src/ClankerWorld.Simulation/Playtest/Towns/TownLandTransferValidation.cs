@@ -24,7 +24,7 @@ public static class TownLandTransferValidation
         foreach (var request in state.Transfers)
         {
             Check(TownGovernmentValidation.ValidId(request.Id, "land-transfer:" + townId + ":", state.Sequence) && request.TownId == townId && TownHearingProcedure.Id(request.FilerId) && agents.Contains(request.FilerId) &&
-                Id(request.TargetHouseholdId) && households.Contains(request.TargetHouseholdId) && request.ProposedTick >= 0 && request.ProposedTick <= tick &&
+                TownHearingProcedure.Id(request.TargetHouseholdId) && households.Contains(request.TargetHouseholdId) && request.ProposedTick >= 0 && request.ProposedTick <= tick &&
                 request.Status is "pending" or "transferred" or "rejected" or "withdrawn" or "invalidated" &&
                 request.RightVersions is { Count: > 0 } && request.RightVersions.All(version => version is not null && version.Right is not null) &&
                 request.Parties is { Count: > 0 } && request.Parties.All(party => party is not null) && request.Responses is not null &&

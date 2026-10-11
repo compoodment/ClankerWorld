@@ -25,7 +25,7 @@ public static class TownLandTransferRules
         IReadOnlyList<TownLandTransferParty> parties, IReadOnlyList<HouseholdLandUseRequest> pendingRequests, long tick)
     {
         var rights = currentRights.Where(right => right.TownId == townId && right.Tiles.Any(tiles.Contains)).ToArray();
-        return TownLandHearingRules.ValidText(townId, 128) && TownLandHearingRules.ValidText(targetHouseholdId, 128) &&
+        return TownLandHearingRules.ValidText(townId, 128) && TownHearingProcedure.Id(targetHouseholdId) &&
             TownLandRightsRules.IsValidPlot(map, tiles, tick, tick) && rights.Length > 0 &&
             rights.All(right => right.HouseholdId != targetHouseholdId && right.GrantedTick <= tick && (right.AgreedEndTick is null || right.AgreedEndTick > tick)) &&
             tiles.All(tile => rights.Count(right => right.Tiles.Contains(tile)) == 1 && !TownLandRightsRules.IsDisputed(tile, currentRights, pendingRequests)) &&

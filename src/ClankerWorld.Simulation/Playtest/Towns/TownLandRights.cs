@@ -235,7 +235,7 @@ public static class TownLandRightsRules
         foreach (var right in rights)
         {
             if (!ValidId(right.Id) || !ValidId(right.TownId) || !townsById.ContainsKey(right.TownId) ||
-                !households.Contains(right.HouseholdId) || !ValidText(right.HouseholdId, 256) ||
+                !households.Contains(right.HouseholdId) || !TownHearingProcedure.Id(right.HouseholdId) ||
                 !ValidText(right.GrantSource, 64) ||
                 !IsValidPlot(map, right.Tiles, worldTick, right.GrantedTick, right.AgreedEndTick) ||
                 right.Tiles.Any(tile => !IsCoveredByTownTitle(tile, right.TownId, titles) ||

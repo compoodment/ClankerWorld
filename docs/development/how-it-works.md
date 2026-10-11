@@ -1293,6 +1293,12 @@ Conversation participants and speakers retain their complete native inhabitant
 IDs too, through proposal, personal model routing, requests and saved history.
 These references use canonical identity and known-world participant checks
 instead of prose length limits, including for longer identities created by birth.
+An ordinary conversation's generated handle combines its proposal tick with a
+SHA-256 digest of the ordered pair of complete participant IDs. This keeps the
+handle and derived turn IDs bounded without shortening either participant reference.
+The scheduler's choice token hashes the complete actor, handle, revision and
+status too. Its size guard stays independent of native identity length, while
+the same exact context checks still reject replies for an old choice.
 
 Owner snapshots include every unfinished saved conversation and the 16 most
 recent closed conversations, ordered by last update and then ID. New snapshots
@@ -3745,6 +3751,10 @@ time. Repair consumes the recipe materials carried by that tool's owner; it
 does not restore condition for free. Hammer use speeds building work, and an
 iron knife speeds food or other preparation recipes. Recipe and field records
 keep their exact selected tool lot through save and reload.
+Knife-assisted production keeps the full inventory lot reference, including
+long identities produced by partial moves. Completing the recipe checks that
+this exact knife is still usable and carried by its owner, and wears one unit;
+an unavailable knife cancels the work without spending its reserved ingredients.
 
 ## Ports and communal boats
 

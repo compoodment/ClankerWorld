@@ -408,6 +408,15 @@ characters. These rosters still require canonical order and unique, known,
 well-formed people. Transfer keys, permission keys and other bounded fields
 keep their limits. This validation repair changes no schema or saved field.
 
+Beneficiary household references in civic replies, transfer records and resulting
+land-use rights retain complete known household identities, including households
+founded by later-generation native-born adults with IDs longer than 256 characters.
+Unknown or malformed household references are refused. Transfer keys, permission
+keys, evidence references and other bounded reply fields keep their limits, as
+does the provider response-body limit. Each affected adult still separately learns
+and accepts the exact current terms before permissions change. No schema or saved
+field changes.
+
 These records share prepared-tick rollback with permissions, requests, civic
 receipts and events. Current-format reload and continuation retain pending
 windows, rulings and transfers without applying a decision twice. Reopening
@@ -596,7 +605,10 @@ pending destination; the runtime refreshes it rather than discarding accepted
 care. The normal runtime rechecks availability and capacity on retry and
 arrival. Completion changes the child's household and Town together and
 clears the pending record; cancellation also clears it without changing birth
-history. Save/load retains intermediate travel and blockers, and replay must
+history. When completion changes household, an unfinished delivery to the former
+House restores the original household owner and clears its delivery destination,
+retaining the exact quantity and physical carrier. It earns no delivery credit or
+remote storage transfer. Save/load retains intermediate travel and blockers, and replay must
 reach the same membership, position and lifecycle events. Earlier alpha saves
 are refused and preserved; no migration is added.
 
@@ -836,7 +848,7 @@ Store delivery lots survive save/reload without granting customer access to
 private stock. Earlier alpha saves need not load; no shop-state migration is
 provided.
 
-Private-world schema 47 records household departures, their original household, care group and once-only food allocation, plus optional physical inventory custody separate from ownership. Personal House storage retains the personal owner even after membership ends. Reload preserves collection rights, borrowed carried goods, the care group and unfinished housing task without awarding another allowance. Paused private jobs retain the original owners, exact input reservations and pause time; a leaver's own cart build is cancelled instead, releasing its carried materials. Their reserved workstation or expansion footprint stays occupied; a remaining authorized member can resume at the physical site with the same materials and remaining duration. Unavailable materials cancel the preserved job and release its remaining commitments. Invalid custody, departure records and unavailable carriers are refused. Older alpha checkpoints are refused and preserved; no migration is added.
+Private-world schema 47 records household departures, their original household, care group and once-only food allocation, plus optional physical inventory custody separate from ownership. Personal House storage retains the personal owner even after membership ends. Every departing care-group member's unfinished House delivery restores household ownership and clears the former destination while preserving its quantity and physical carrier; leaving earns no delivery credit. Reload preserves collection rights, borrowed carried goods, the care group and unfinished housing task without awarding another allowance. Paused private jobs retain the original owners, exact input reservations and pause time; a leaver's own cart build is cancelled instead, releasing its carried materials. Their reserved workstation or expansion footprint stays occupied; a remaining authorized member can resume at the physical site with the same materials and remaining duration. Unavailable materials cancel the preserved job and release its remaining commitments. Invalid custody, departure records and unavailable carriers are refused. Older alpha checkpoints are refused and preserved; no migration is added.
 
 Private-world schema 51 lets each living inhabitant record named adult medical
 permissions and an active medicine course. The course binds its patient and
@@ -1896,6 +1908,14 @@ branch record with its saves.
 
 ## Validation boundaries
 
+Ordinary conversation handles are generated from the proposal tick and a
+SHA-256 digest of the ordered complete participant IDs. Participant references
+remain intact and must identify known people. The handle's 512-character guard
+and turn/request binding checks remain; existing valid handles still load.
+This generation change needs no schema change.
+The unsaved scheduler choice token also hashes its complete actor, handle,
+revision and status; its existing bound and stale-choice comparisons remain.
+
 Use focused tests for migration, replay identity, interrupted writes, referenced
 history, old calendars and rejected restores as relevant to the change. Record
 real Windows/server verification separately from fixture and CI results.
@@ -2034,6 +2054,13 @@ inventory lot identities, including IDs derived by repeated partial stock
 moves. Reload binds them to the exact existing lots, owners and carried custody
 and checks the held milk reservation and physical site. Whole-jug stock
 deliveries retain household ownership.
+
+Supply-trip actors, milk-sale parties, riders, leaders and named permissions
+retain complete known person IDs, including native descendants longer than
+512 characters. Reload checks their actual person references, unique roles and
+physical custody. Animal identities, names and other short fields keep their
+512-character limit; unknown, duplicated and malformed person references are
+refused. This changes validation, with no new field, schema or migration.
 
 Current-format replay and rollback cover arrival, paid care, collection, birth,
 production jobs and attachments. Reload validates required animal fields,

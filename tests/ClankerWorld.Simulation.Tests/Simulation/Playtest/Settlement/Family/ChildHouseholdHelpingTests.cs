@@ -310,7 +310,7 @@ public sealed class ChildHouseholdHelpingTests
         full.Validate();
     }
 
-    private static async Task<(PrivateWorldRuntimeState State, string Child, string House, MapResource Source)> Prepared(string kind)
+    internal static async Task<(PrivateWorldRuntimeState State, string Child, string House, MapResource Source)> Prepared(string kind)
     {
         var state = PrivateWorldRuntimeCodec.Decode(await Generated.Value);
         var choices = state.WorldSimulation!.Buildings.Where(building => building.HouseholdId is not null &&

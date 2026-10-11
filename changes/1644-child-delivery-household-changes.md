@@ -1,0 +1,1 @@
+- A child can leave with its caregiver or move to an accepted guardian while carrying household goods without stopping the world. Unfinished deliveries keep their original household owner and physical carrier.
