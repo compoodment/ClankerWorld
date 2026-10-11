@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -94,9 +95,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private AnimalWorldState animalWorld = AnimalWorldState.Empty;
     public IReadOnlyList<AnimalState> Animals => animalWorld.Animals;
     private List<HandcartHitch> handcartHitches = [];
-    private List<AgentConversation> conversations = [];
-    private List<AgentMarriage> marriages = [];
-    private List<AgentConversationDailyBudget> conversationBudgets = [];
+    private ConversationSystem conversationSystem = new(new([], [], []));
+    private readonly IConversationWorld conversationWorld;
+    private ReadOnlyCollection<AgentConversation> conversations => conversationSystem.State.Conversations;
+    private ReadOnlyCollection<AgentMarriage> marriages => conversationSystem.State.Marriages;
+    private IReadOnlyList<AgentConversationDailyBudget> conversationBudgets => conversationSystem.State.Budgets;
     private GridPoint SettlementStoragePosition =>
         map.CampObjects.FirstOrDefault(item => item.Id == "storage")?.Position ??
         worldSimulation.Buildings.FirstOrDefault(item => item.InstanceId == "first-town-warehouse")?.Position ??
@@ -148,6 +151,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         string? savedWorldId = null)
     {
         this.worldSeed = NormalizeRequiredText(worldSeed, nameof(worldSeed));
+        conversationWorld = new ConversationWorldAdapter(this);
         if (geographyOptions is not null &&
             (startPace != WorldStartPace.FounderSetup ||
              !string.Equals(geographyOptions.Seed, this.worldSeed, StringComparison.Ordinal)))
@@ -308,7 +312,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         Func<string, IDecisionProvider>? providerFactory,
         int maxCognitionDispatchPerCycle,
         bool trustedPreparedState,
-        bool applyLoadTransitions = true)
+        bool applyLoadTransitions = true,
+        ConversationState? preparedConversations = null)
     {
         if (!trustedPreparedState) ValidateStateForCodec(state);
         var runtime = new PrivateWorldRuntime(
@@ -358,9 +363,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.roadTiles = state.RoadTiles!.ToHashSet();
         runtime.bridges = state.Bridges!.OrderBy(item => item.Id, StringComparer.Ordinal).ToList();
         runtime.bridgeTraffic = state.BridgeTraffic!;
-        runtime.conversations = state.Conversations!.ToList();
-        runtime.marriages = state.Marriages.ToList();
-        runtime.conversationBudgets = state.ConversationBudgets!.ToList();
+        runtime.conversationSystem = new(trustedPreparedState && preparedConversations is not null
+            ? preparedConversations : new(state.Conversations!, state.ConversationBudgets!, state.Marriages));
         runtime.businessTrades = state.BusinessTrades!.ToList();
         runtime.toolMakingRequests = state.ToolMakingRequests!.ToList();
         runtime.ApplyBridgeDecks();
@@ -467,7 +471,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             {
                 // Keep the live world paused throughout the write. A failed write
                 // discards this proposal, including its resume event and epoch.
-                using var proposed = RestoreCore(CaptureState(), providerFactory, maxCognitionDispatchPerCycle, trustedPreparedState: true);
+                using var proposed = RestoreCore(CaptureState(), providerFactory, maxCognitionDispatchPerCycle,
+                    trustedPreparedState: true, preparedConversations: conversationSystem.CheckpointState);
                 proposed.Resume();
                 var persisted = persist(proposed.CaptureState());
                 if (persisted.HistoryArchiveHead != proposed.historyArchiveHead)
@@ -517,14 +522,14 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision, founderSetup,
         geographyOptions, towns.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(), knowledge,
         RoadTiles, Bridges, bridgeTraffic, fields.ToArray(),
-        conversations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
-        conversationBudgets.OrderBy(item => item.AgentId, StringComparer.Ordinal).ToArray(),
+        conversationSystem.CheckpointState.Conversations,
+        conversationSystem.CheckpointState.Budgets,
         TownLandTitles, HouseholdLandUseRights, HouseholdLandUseRequests, BusinessTrades, continuity,
         orderCancellations.Values.OrderBy(item => item.Receipt.WorldTick)
             .ThenBy(item => item.IdempotencyKey, StringComparer.Ordinal).ToArray(), ToolMakingRequests,
         handcartHitches.OrderBy(item => item.CartLotId, StringComparer.Ordinal).ToArray())
     {
-        Marriages = marriages.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+        Marriages = conversationSystem.CheckpointState.Marriages,
         BoatTransport = boatTransport,
         AnimalWorld = animalWorld,
         RoutineHelper = routineHelper,

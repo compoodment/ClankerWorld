@@ -2,7 +2,7 @@
 title: How the game works
 type: architecture
 status: active
-updated: 2026-10-10
+updated: 2026-10-11
 ---
 
 # How the game works
@@ -56,9 +56,11 @@ host's versioned HTTP contract. Legacy web assets are diagnostic tools.
 
 The approved runtime refactor is tracked in
 [#1377](https://github.com/compoodment/ClankerWorld/issues/1377). The runtime
-currently coordinates the simulation through a partial class. Its areas will
-move into systems in separate reviewed steps; the first step adds guards and
-does not move runtime code.
+coordinates the simulation through a partial class. `Conversations/ConversationSystem.cs`
+owns conversations, daily budgets and marriages in one immutable
+`ConversationState`. Every write replaces the affected read-only collection
+and its snapshot; the runtime commits the system with one assignment.
+Other areas move in separate reviewed steps.
 
 A system owns its saved state, its rules and a small `I…World` interface for
 the services it needs from other areas. Saved state is an immutable record
@@ -67,7 +69,17 @@ token on every write. Pending model calls and other live work stay outside
 saved state. The runtime keeps the existing tick phases and calls each system
 at the point where its code runs today. Moved private methods remain one-line
 forwarders while callers and reflection-based tests still need them. A tick
-commit eventually assigns each system rather than copying individual fields.
+commit assigns each extracted system rather than copying its individual fields.
+
+Conversation operations receive `IConversationWorld` for each call. A private
+runtime adapter supplies the current society snapshot, resident positions and
+needs, calendar, boat presence, provider eligibility, talk-order protection,
+trust, name/memory transactions and the event sink. The system retains no
+runtime reference. Its adapter stays live on the committed coordinator, so a
+tick commit cannot bind future effects to the disposable prepared runtime.
+Provider invocation, pending turns, request Guids and provider-route checks
+stay in the runtime. Admission checks the route at the original point before
+publishing dialogue, listener beliefs or marriage effects.
 
 Shared read services will provide the event log, resident queries, named
 ground-occupancy layers and the separately planned goods query. Snapshot-keyed
@@ -75,7 +87,17 @@ derived values must be pure, unsaved and absent from digests. Immutable
 snapshots can pass through the trusted tick copy by reference; replacing a
 snapshot invalidates its derived values without letting a discarded tick
 change committed caches. Positions, reservations and occupancy remain live
-query overlays. Later cache work adds a check that recomputes cache hits.
+query overlays.
+
+`Runtime/Derived.cs` weakly caches a pure value by snapshot identity. Conversation
+lookup indexes each participant's earliest open session, preserving created-tick
+and ID ordering. A separate derived checkpoint view keeps the original ID-sorted
+conversations, budgets and marriage records. Trusted tick preparation shares
+that immutable view through a separate system instance; writes on a refused
+proposal cannot alter the committed snapshot. Actual loads still perform the
+existing suspension transitions. `DerivedVerification.RecomputeOnHit` compares
+every cache hit with a fresh computation when enabled; the test assembly enables
+it at startup. Derived values and the switch never enter checkpoints or digests.
 
 Every step preserves these contracts:
 
