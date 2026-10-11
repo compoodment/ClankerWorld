@@ -4345,3 +4345,10 @@ releases its exact reservation and makes any remaining usable stock available
 for another sale. Both jug owners stay the same. Expiry, refusal and changed
 custody release held milk; spoiled milk can be emptied locally without removing
 the vessel or its fresh contents.
+
+Each completed exchange derives the receiving milk lot's identity from its full
+source identity and the admitted sale. A later sale retains that complete
+inventory reference, including repeated-sale histories longer than 512
+characters. Checkpoint validation requires a unique, well-formed source reference
+and its exact known lot, ownership, vessel, physical site and held reservation;
+animal and offer identities keep their existing short-field limit.

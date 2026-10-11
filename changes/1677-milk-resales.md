@@ -1,0 +1,1 @@
+- Repeated milk sales keep saving and loading correctly when the same portion has a long trading history.

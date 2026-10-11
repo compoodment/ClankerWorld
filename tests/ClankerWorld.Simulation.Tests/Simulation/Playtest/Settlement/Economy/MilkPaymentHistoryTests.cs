@@ -114,6 +114,7 @@ public sealed partial class BusinessTradeTests
         public long ProviderEpoch => 0;
         public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
+            request.Validate();
             var observation = request.Observation;
             var prefix = Mode == "offer" && observation.InhabitantId == seller ? "animal:milk_offer:"
                 : observation.InhabitantId == buyer && Mode is "accept" or "decline" ? "animal:milk_" + Mode + ":" : "safe_idle";
@@ -133,10 +134,10 @@ public sealed partial class BusinessTradeTests
         private readonly PrivateWorldRuntimeService service;
         private readonly RecordingLogger<PrivateWorldRuntimeService> logger = new();
 
-        public MilkHistoryHost(PrivateWorldRuntime world)
+        public MilkHistoryHost(PrivateWorldRuntime world, string? checkpointPath = null)
         {
             this.world = world;
-            file = new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json"));
+            file = new PrivateWorldStateFile(checkpointPath ?? Path.Combine(directory.FullName, "world.json"));
             file.Save(world);
             var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(5));
             presence.RecordAuthenticatedReconnect("test-owner");
