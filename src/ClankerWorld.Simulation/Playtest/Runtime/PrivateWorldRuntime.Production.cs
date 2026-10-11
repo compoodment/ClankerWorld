@@ -151,7 +151,7 @@ public sealed partial class PrivateWorldRuntime
                 if (selectedSite is not null ? selectedSiteReached :
                     pendingAnchors?.Count == 0 || pendingAnchors is null && viableLegacyAnchors >= 32)
                     break;
-                foreach (var next in map.FootNeighbors(current))
+                foreach (var next in map.FootNeighborsForSearch(current))
                 {
                     if (occupied.Contains(next) ||
                         map.IsDiagonalFootStep(current, next) &&

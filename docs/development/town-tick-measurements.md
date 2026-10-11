@@ -21,6 +21,9 @@ The [October 10 current-main baseline](construction-current-main-baseline.md)
 preserves a schema-122 reproduction for #998 and an incomplete dense setup.
 The [October 11 input-query report](construction-input-query-measurements.md)
 records the follow-up profile, bounded filter repair and native comparisons.
+The [layout neighbor report](layout-neighbor-query-measurements.md) records
+a later pre-edit profile and native correctness comparisons; it establishes
+no timing or allocation improvement.
 
 ## Run a comparison
 

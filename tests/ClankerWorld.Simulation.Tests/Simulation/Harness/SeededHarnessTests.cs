@@ -120,6 +120,37 @@ public sealed class SeededHarnessTests
         Assert.Throws<ArgumentOutOfRangeException>(() => blocked.FootStepCost(origin, destination));
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void NarrowWrappedFootNeighborsKeepTheFirstOffsetOrder(int width)
+    {
+        var map = TerrainMap(width, 3, _ => TerrainKind.Meadow) with { WrapsEastWest = true };
+        var expected = width == 1
+            ? new GridPoint[] { new(0, 0), new(0, 2) }
+            : [new(0, 0), new(1, 1), new(0, 2), new(1, 0), new(1, 2)];
+
+        Assert.Equal(expected, map.FootNeighbors(new GridPoint(0, 1)));
+    }
+
+    [Fact]
+    public void FootNeighborsReadLiveElevationBetweenSteps()
+    {
+        var elevations = new byte[9];
+        var map = TerrainMap(3, 3, _ => TerrainKind.Meadow) with { ElevationLevels = elevations };
+        using var neighbors = map.FootNeighbors(new GridPoint(1, 1)).GetEnumerator();
+        Assert.True(neighbors.MoveNext());
+        Assert.Equal(new GridPoint(1, 0), neighbors.Current);
+
+        // The next tile becomes a peak after enumeration has started. It also
+        // blocks both eastern diagonal shoulders, without rebuilding the map.
+        elevations[5] = byte.MaxValue;
+        var remaining = new List<GridPoint>();
+        while (neighbors.MoveNext()) remaining.Add(neighbors.Current);
+
+        Assert.Equal(new GridPoint[] { new(1, 2), new(0, 1), new(0, 2), new(0, 0) }, remaining);
+    }
+
     [Fact]
     public void NarrowRiverCanBeCrossedOnFootButNeitherRiverNorMountainCanBeBuiltOn()
     {
