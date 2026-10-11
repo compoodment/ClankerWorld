@@ -41,6 +41,7 @@ public sealed partial class PrivateWorldRuntime
         try
         {
             PrivateWorldRuntimeState baseline;
+            ConversationState baselineConversations;
             long baselineEventId;
             int baselineOrderCancellationCount;
             IReadOnlyDictionary<string, PlaytestPlannedRoute> routesBefore;
@@ -106,6 +107,7 @@ public sealed partial class PrivateWorldRuntime
                 completedConversationTurns = pendingConversationTurns.Values
                     .Where(item => item.Task.IsCompleted).ToArray();
                 baseline = CaptureState();
+                baselineConversations = conversationSystem.CheckpointState;
                 baselineEventId = nextEventId;
                 baselineOrderCancellationCount = orderCancellations.Count;
                 routesBefore = plannedRoutes;
@@ -125,7 +127,7 @@ public sealed partial class PrivateWorldRuntime
             var tickTimer = System.Diagnostics.Stopwatch.StartNew();
             using var proposed = RestoreCore(baseline, providerFactory,
                 maxCognitionDispatchPerCycle,
-                trustedPreparedState: true);
+                trustedPreparedState: true, preparedConversations: baselineConversations);
             proposed.previousPlannedRoutes = routesBefore;
             var result = await proposed.AdvancePreparedTickAsync(deferHosted, completed, activeHostedIds, completedWills,
                 activeWillIds, inactiveWillReasons, completedConversationTurns, cancellationToken).ConfigureAwait(false);
@@ -369,9 +371,7 @@ public sealed partial class PrivateWorldRuntime
         roadTiles = proposed.roadTiles;
         bridges = proposed.bridges;
         bridgeTraffic = proposed.bridgeTraffic;
-        conversations = proposed.conversations;
-        marriages = proposed.marriages;
-        conversationBudgets = proposed.conversationBudgets;
+        conversationSystem = proposed.conversationSystem;
         businessTrades = proposed.businessTrades;
         toolMakingRequests = proposed.toolMakingRequests;
         roadBridgeDecks = proposed.roadBridgeDecks;
