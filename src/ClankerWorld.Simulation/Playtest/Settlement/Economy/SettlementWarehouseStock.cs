@@ -37,13 +37,15 @@ public sealed partial class PrivateWorldRuntime
                 yield return warehouse;
     }
 
-    private PlacedBuilding? WarehouseWithAvailableStock(string actor, string itemKind,
-        GridPoint destination, int destinationRange) =>
-        WarehousesAccessibleTo(actor).FirstOrDefault(warehouse =>
-            society.Checkpoint.Inventory.Lots.Any(lot => lot.OwnerId == warehouse.TownId &&
-                lot.StorageBuildingId == warehouse.InstanceId && lot.ItemKind == itemKind &&
-                AvailableLotQuantity(lot) > 0 && PickupCarryCapacity(actor, lot, destination, destinationRange) > 0) &&
-            FindUnoccupiedRoute(actor, inhabitants[actor].Position, warehouse.Position, 0).Count > 0);
+    private (PlacedBuilding Warehouse, GoodsMatch Source)? WarehouseMaterialSource(string actor, string itemKind,
+        GridPoint destination, int destinationRange)
+    {
+        foreach (var warehouse in WarehousesAccessibleTo(actor).Where(warehouse => MayCollectWarehouseStock(actor, warehouse)))
+            foreach (var match in WarehouseGoods(actor, warehouse, itemKind, GoodsUse.ReachableHoldings))
+                if (PickupCarryCapacity(actor, match.Lot, destination, destinationRange) > 0)
+                    return (warehouse, match);
+        return null;
+    }
 
     private bool MayCollectWarehouseStock(string actor, PlacedBuilding warehouse) =>
         inhabitants.ContainsKey(actor) && warehouse.TownId is { } townId &&
@@ -52,16 +54,26 @@ public sealed partial class PrivateWorldRuntime
         WarehousesForTown(townId).Any(item => item.InstanceId == warehouse.InstanceId);
 
     private IEnumerable<InventoryLot> AvailableWarehouseStock(string actor, string? itemKind = null) =>
-        WarehouseStockLots(actor, itemKind).Where(lot => CanReachSharedItem(actor, lot));
+        WarehouseStockGoods(actor, itemKind, GoodsUse.ReachableHoldings).Select(match => match.Lot);
 
     /// <summary>Town Warehouse stock the actor may collect, before checking for a route to it.</summary>
     private IEnumerable<InventoryLot> WarehouseStockLots(string actor, string? itemKind = null) =>
+        WarehouseStockGoods(actor, itemKind, GoodsUse.Holdings).Select(match => match.Lot);
+
+    private IEnumerable<GoodsMatch> WarehouseStockGoods(string actor, string? itemKind, GoodsUse use) =>
         WarehousesAccessibleTo(actor).Where(warehouse => MayCollectWarehouseStock(actor, warehouse))
-            .SelectMany(warehouse => society.Checkpoint.Inventory.Lots.Where(lot =>
-                lot.OwnerId == warehouse.TownId && lot.StorageBuildingId == warehouse.InstanceId &&
-                lot.DeliveryBuildingId is null && lot.ContainerLotId is null &&
-                (itemKind is null || lot.ItemKind == itemKind) &&
-                AvailableLotQuantity(lot) > 0));
+            .SelectMany(warehouse => WarehouseGoods(actor, warehouse, itemKind, use));
+
+    private IEnumerable<GoodsMatch> WarehouseGoods(string actor, PlacedBuilding warehouse, string? itemKind, GoodsUse use)
+    {
+        var kinds = itemKind is not null ? GoodsKinds.One(itemKind) : new GoodsKinds(
+            InventoryIndex.For(society.Checkpoint.Inventory).StoredAt(warehouse.InstanceId)
+                .Select(lot => lot.ItemKind).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray());
+        if (kinds.Ids.Count == 0) return [];
+        return FindGoods(new GoodsRequest(use, actor, GoodsOwners.One(warehouse.TownId!), kinds,
+                AtBuilding: warehouse.InstanceId)).Matches
+            .Where(match => match.Lot.ContainerLotId is null);
+    }
 
     private IEnumerable<InventoryLot> PersonalWarehouseLots(string actor, string? itemKind = null) =>
         society.Checkpoint.Inventory.Lots

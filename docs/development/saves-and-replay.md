@@ -121,12 +121,25 @@ repairs use their actor's saved skill with existing progress. Native paired
 continuation retains outputs, material costs, full completion receipts and
 current-format checkpoints; refused ticks keep the preceding state.
 
+Workstation recipes that output fresh water are refused before reserving
+materials or creating a job: their output path has no destination jug, and
+inventory requires fresh water inside a water jug. Autonomous production and
+workstation supply planning skip those recipes, including mixed-output ones.
+A running job admitted by an earlier build remains loadable. When it becomes
+due, it cancels and releases its remaining reservations without consuming
+inputs, wearing its tool or creating output. The cancellation saves and
+replays normally; no schema change or water-production feature is added.
+
 Private-world schema 34 adds household field tiles and their crop/work state.
 The saved inventory also records a ground position for physical harvest lots.
 Field ownership, work inputs, growth times and replanting reservations are
 validated together with inventory and map geometry. Current-format roundtrips
 retain intermediate work, carried deliveries and planting reserves. Fertility
 is derived from the seed and immutable map layers rather than saved per tile.
+Generated maps use their saved candidate attempt to recover the same rainfall
+as generation. Correcting that calculation changes derived fertility and
+future crop yields for candidate attempts 1 and 2, including after reload;
+existing fields, checkpoint bytes and the schema are unchanged.
 Older alpha saves need not load; no field or orchard migration is provided.
 
 Town-wide farm planning derives its food shortage and each farm's field target
@@ -1228,8 +1241,12 @@ current alpha cutoff.
 Saved tool requests keep their requester, selling household, actual Blacksmith,
 existing recipe, status, worker and real production/offer links. Active and
 terminal lists remain bounded; selected production plans retain the exact
-request identity. Loading checks these links against the canonical production
-and barter records. Every linked job must retain its exact input reservations,
+request identity. Recipe identities retain the full canonical content ID,
+including IDs longer than 128 characters; request validation adds
+no separate recipe-name limit. Withdrawn no-job history keeps that identity even
+after its package is rolled back. Loading checks these links against the
+canonical production and barter records. Every linked job must retain its exact
+input reservations,
 matching the whole recipe and selling household; completed work requires
 completed consumption receipts. Ready work must bind a completed job, and an
 offer must name that job's actual output and the same customer and shop.
@@ -1502,6 +1519,10 @@ Named borrowing records bind actual living adults to a paid stall while they
 remain inside the hall-and-plaza area. Stock receipts keep the personal or
 household owner recorded at deposit, physical lot, quantity and occupancy
 identity; live inventory remains authoritative after inheritance or collection.
+Source and destination lot references retain the full native inventory identity
+without a narrower receipt length limit. Whole and partial deposits from long
+split/move histories remain valid; the receipt hash, owner, quantity, occupancy,
+derived destination and exact retained inventory event still have to agree.
 Another borrower gains no right to sell those goods. Barter records bind the
 exact inventory offer, named seller and buyer, lots, reservations and outcome.
 Completed or cancelled trades retain a recent history without requiring spent
@@ -1512,6 +1533,13 @@ bounds reject missing, duplicate, reordered or unaccounted receipts. The live
 receipt suffix above the retirement boundary must be complete. An open offer
 always retains its exact source receipt. A closed outcome may refer below the
 explicit retired boundary; that historical reference grants no new selling right.
+
+Business exchanges, Market exchanges and Market stock receipts retain the exact
+resource kind accepted by inventory and content quantities. Resource kinds have
+no separate trade-record length limit and are never truncated. Loading still
+rejects empty, untrimmed or control-character names, mismatched lot kinds and
+forged offer or receipt bindings. This validation correction keeps the current
+schema and does not change saved fields or transfer goods during reload.
 
 Each Market keeps the most recent 32 receipts, 32 closed trades and 32 ended
 borrowing records, plus exact live dependencies. Current borrowers keep the
@@ -1707,6 +1735,14 @@ Named manual checkpoints use a private `.manual` directory and reference the
 same history archive. Overwriting a selected checkpoint retains a recovery copy;
 new copies have explicit recovery provenance and an opt-in count-based cleanup
 preview, described under [permanent deletion](#explicit-permanent-deletion).
+
+Creation, autosaving and overwrite decode and validate the exact serialized
+checkpoint before writing save files, publishing metadata or advancing the
+timeline. A rejected checkpoint leaves the previous saves and timeline intact.
+Law amendment and repeal labels preserve complete surrogate pairs when shortened;
+the full structured draft remains unchanged. This adds no schema fields or
+migration for previously damaged alpha saves.
+
 Rotating autosaves are a separate
 mechanism and must not delete another world's checkpoints, or another branch's.
 Updating autosave configuration trims only that configured world, including
@@ -1917,8 +1953,11 @@ manual checkpoint again. Copies without a named source remain ordinary saves.
 The world checkpoint schema and replay bytes do not change.
 
 The preview decodes each classified checkpoint, verifies its world identity and
-required history, and keeps the latest requested number of verified copies for
-each source. It additionally protects the recovery currently continued from;
+required history, and performs a full runtime restore without advancing the world
+or calling a model. Only copies that pass all these checks count toward the latest
+requested number for each source. A copy that decodes but cannot restore remains
+preserved and cannot displace a loadable predecessor. The preview additionally
+protects the recovery currently continued from;
 an older active copy may exceed the requested count. Unverifiable files, manual
 saves, autosaves and migration originals are never cleanup candidates. Earlier
 unclassified backups remain protected even if their names look like recoveries.
@@ -1965,7 +2004,11 @@ leaders. Products and fitted saddles reference real inventory lots and exclusive
 reservations. Trade offers retain the exact animal, adults, receiving yard and
 payment lot; native animal orders retain the exact bound animal ID. Milk-sale
 offers retain both parties, the held milk, receiving jug, payment and physical
-Store or Market stall. Whole-jug stock deliveries retain household ownership.
+Store or Market stall. Receiving-jug and payment references preserve complete
+inventory lot identities, including IDs derived by repeated partial stock
+moves. Reload binds them to the exact existing lots, owners and carried custody
+and checks the held milk reservation and physical site. Whole-jug stock
+deliveries retain household ownership.
 
 Current-format replay and rollback cover arrival, paid care, collection, birth,
 production jobs and attachments. Reload validates required animal fields,

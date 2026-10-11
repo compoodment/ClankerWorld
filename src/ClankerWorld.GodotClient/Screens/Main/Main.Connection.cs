@@ -91,6 +91,7 @@ public partial class Main
                 deviceKey,
                 CancellationToken.None);
             pendingPairingOrigin = origin;
+            if (localHost is not null && await ApproveLocalPairingAsync(pendingPairing)) return;
             pairingPanel.Show();
             pairingInstructionLabel.Text = "Give the host the pairing ID and short comparison code below. The host approves it on its private loopback listener; this code is not a password.";
             pairingCodeLabel.Text = pendingPairing.PairingCode;

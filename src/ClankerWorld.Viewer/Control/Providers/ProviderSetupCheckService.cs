@@ -101,7 +101,8 @@ public sealed class ProviderSetupCheckService(
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            usage.Finish(ticket, "failed");
+            _ = HostedModelUnusableReply.TryGetTokens(exception, out var inputTokens, out var outputTokens);
+            usage.Finish(ticket, "failed", inputTokens, outputTokens);
             return IsUnusableReply(exception)
                 ? Result("unusable", "The provider answered, but its reply did not match the game's required format. This paid check was counted.")
                 : Result("unavailable", "The provider could not complete the check. This paid check was counted; check the key, model and connection.");
