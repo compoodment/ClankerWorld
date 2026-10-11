@@ -1,0 +1,2884 @@
+{
+  "evidenceKind": "pre-edit profile and native conformance only; no matched timing or allocation conclusion",
+  "baselineProfileCommit": "a7bd16422706852a8030cac53b6c54ed82aa1cef",
+  "conformanceBaselineCommit": "b1de860531cd7c2b97fd00d65b2d28c3b3d9d47e",
+  "conformanceCandidateCommit": "eacea92ba9103b65cb0811cb3db97ed7cbdebfd9",
+  "fixtureAndAssemblyManifest": {
+    "setupBaseline": "b1de860531cd7c2b97fd00d65b2d28c3b3d9d47e",
+    "candidateSourceBuild": "a7bd16422706852a8030cac53b6c54ed82aa1cef plus the exact C# patch committed as 54eb58314ea61c4f18b47aa879df7041e73faa72; later commits only merge/add docs",
+    "checkpoints": [
+      {
+        "path": "start-16-192.json",
+        "bytes": 2528022,
+        "sha256": "719658b9ada2143ef1d317eebe974ef4a081b91e8d85d976c6e749bdcb0b2c0b"
+      },
+      {
+        "path": "start-16-96.json",
+        "bytes": 2478230,
+        "sha256": "fea10e81b039f4c7312a467d00a6272ddc7545c0e0bb98a163cc3dd734919cfa"
+      },
+      {
+        "path": "start-4-96.json",
+        "bytes": 1630033,
+        "sha256": "56efaa6aa26c960db8583579567264090147613f28d6e2a06200546a4447fbba"
+      }
+    ],
+    "productionAssemblies": [
+      {
+        "variant": "Main",
+        "path": "/workspace/ClankerWorld-998-main-e0f464b8/src/ClankerWorld.Simulation/bin/Release/net10.0/ClankerWorld.Simulation.dll",
+        "sha256": "e069acc076215f95d46da4eec9bc055b0368c43c511486fb15370f552f801004",
+        "bytes": 4986368
+      },
+      {
+        "variant": "Candidate",
+        "path": "/workspace/ClankerWorld-preflight-e0f464b8/src/ClankerWorld.Simulation/bin/Release/net10.0/ClankerWorld.Simulation.dll",
+        "sha256": "c9095788e964bcfa57c61a23512fd8aa571717a4a4a67b0fc4bd3f6fc3a89dc5",
+        "bytes": 4986880
+      }
+    ],
+    "probes": [
+      {
+        "path": "Mutation.cs.txt",
+        "sha256": "241f3a62b50f28c6165b3584c7612ddac5cdbb39f6c3f0c4d7f2f188d18906de"
+      },
+      {
+        "path": "Replay.cs.txt",
+        "sha256": "1a1f161a0cbff9af052c61e5532108cf3e2cfb3ab8ccae219a777c7f422d47c3"
+      },
+      {
+        "path": "Setup.cs.txt",
+        "sha256": "af42b032f24add2bc00aa93471ef96ac6ce518f18b4e605121a3ae970351d041"
+      }
+    ]
+  },
+  "inputs": [
+    {
+      "path": "Directory.Build.props",
+      "baseline": "5bb4d9efd1f37bfd079e02371222411e63574b0ec550be80760d8fe940bbb5dc",
+      "candidate": "5bb4d9efd1f37bfd079e02371222411e63574b0ec550be80760d8fe940bbb5dc"
+    },
+    {
+      "path": "global.json",
+      "baseline": "ce61f5ae207d33d00594c77c5999c7f0dc66434e85a85f38090335d588438974",
+      "candidate": "ce61f5ae207d33d00594c77c5999c7f0dc66434e85a85f38090335d588438974"
+    },
+    {
+      "path": "src/ClankerWorld.Shared/AgentPlacementRules.cs",
+      "baseline": "4e98cb147aa57b072cfac79cb9eca08746da2cabc703c90bdcea991ab6dc7241",
+      "candidate": "4e98cb147aa57b072cfac79cb9eca08746da2cabc703c90bdcea991ab6dc7241"
+    },
+    {
+      "path": "src/ClankerWorld.Shared/BuildInformation.cs",
+      "baseline": "b16c7969a465cf5d01dfd3b7be326ee68e3b264ec25ead6e1e77887a9d303839",
+      "candidate": "b16c7969a465cf5d01dfd3b7be326ee68e3b264ec25ead6e1e77887a9d303839"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/ClankerWorld.Simulation.csproj",
+      "baseline": "ef95542be5ce6e48007b54690cf6ecf1d960f1b688c17536f680019800eb3454",
+      "candidate": "ef95542be5ce6e48007b54690cf6ecf1d960f1b688c17536f680019800eb3454"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Cognition/CognitionLandHearingChoice.cs",
+      "baseline": "1c9bc49824f49104783fc380a332da3d93c65237a483b4532ae55ddacf09bac4",
+      "candidate": "1c9bc49824f49104783fc380a332da3d93c65237a483b4532ae55ddacf09bac4"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Cognition/CognitionNonviolentChoice.cs",
+      "baseline": "9b92cb86838f0f54a950c1d3b24105d72fb44daa32a81b76c3043e5706b37f66",
+      "candidate": "9b92cb86838f0f54a950c1d3b24105d72fb44daa32a81b76c3043e5706b37f66"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Cognition/CognitionObservationDigest.cs",
+      "baseline": "ef6b1ff31cb3d3a862e4169162567517bb29af2567d41d7e8d7da78a998cbf81",
+      "candidate": "ef6b1ff31cb3d3a862e4169162567517bb29af2567d41d7e8d7da78a998cbf81"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Cognition/CognitionProviderFailures.cs",
+      "baseline": "57b6e0052d307b6235cad2077a733c8523049d853e9f1096a1b389fc7d065fcf",
+      "candidate": "57b6e0052d307b6235cad2077a733c8523049d853e9f1096a1b389fc7d065fcf"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Cognition/CognitionRuntime.cs",
+      "baseline": "59d1365f74aeee0143ecc66d0bb3727b3e5155d7e1316fbe5b85aa08208a9dfa",
+      "candidate": "59d1365f74aeee0143ecc66d0bb3727b3e5155d7e1316fbe5b85aa08208a9dfa"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Cognition/ConversationProviderContracts.cs",
+      "baseline": "3155be2047b0622c885b60853b12641062496627c1fa4d89677316246e969f1c",
+      "candidate": "3155be2047b0622c885b60853b12641062496627c1fa4d89677316246e969f1c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Cognition/DecisionProviderContracts.cs",
+      "baseline": "af7a6ce677a45b3fe7996490e849b1fdf97b585d8f51406e8fde90237ee1e540",
+      "candidate": "af7a6ce677a45b3fe7996490e849b1fdf97b585d8f51406e8fde90237ee1e540"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Cognition/HostedModelClient.cs",
+      "baseline": "b8d066fdcb24aff4d70d64ceb994f88542ac5b7adca6d78e29dcf38b6ac86559",
+      "candidate": "b8d066fdcb24aff4d70d64ceb994f88542ac5b7adca6d78e29dcf38b6ac86559"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Cognition/ModelNeedWords.cs",
+      "baseline": "37f57f60a7b012ca569e5d58d56fd9569a3324555123528b3b712fdae0768ff3",
+      "candidate": "37f57f60a7b012ca569e5d58d56fd9569a3324555123528b3b712fdae0768ff3"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Cognition/OpenAiDecisionsProvider.cs",
+      "baseline": "a07510dbfadedfa3a3fe5289764e69d89777b6e5d28b77b758797b4cf7a3af65",
+      "candidate": "a07510dbfadedfa3a3fe5289764e69d89777b6e5d28b77b758797b4cf7a3af65"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Cognition/ProviderResponseBody.cs",
+      "baseline": "23f4d04a59353b87fe415ad4d9057adb0242a29c25f3ae6ad871dbb11892ebf6",
+      "candidate": "23f4d04a59353b87fe415ad4d9057adb0242a29c25f3ae6ad871dbb11892ebf6"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Content/AssetContracts.cs",
+      "baseline": "b7cc16a5f7d415116faf25633bb96de308968fa9c2fce8f250b0b8097e32cd3a",
+      "candidate": "b7cc16a5f7d415116faf25633bb96de308968fa9c2fce8f250b0b8097e32cd3a"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Content/ContentContracts.cs",
+      "baseline": "22d6246c40f728dc1754162d93c154915dc5e010e956c440da7ac28ba6128ee2",
+      "candidate": "22d6246c40f728dc1754162d93c154915dc5e010e956c440da7ac28ba6128ee2"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Content/ContentDefinitions.cs",
+      "baseline": "69467fc28562e856469a3a452b5e4390253577a0487acddfc1cf2baeb88fc6db",
+      "candidate": "69467fc28562e856469a3a452b5e4390253577a0487acddfc1cf2baeb88fc6db"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Content/ContentPackageManifestCodec.cs",
+      "baseline": "30c36a0188241dd8e2291fc3d98464f32aaab2f71383d6378e4d66b9fa44ba33",
+      "candidate": "30c36a0188241dd8e2291fc3d98464f32aaab2f71383d6378e4d66b9fa44ba33"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Content/ContentPreview.cs",
+      "baseline": "a87f0099b365af227cc45efb90f5cfb073e8f4fb9b58bc21de28fb5ff51d35d0",
+      "candidate": "a87f0099b365af227cc45efb90f5cfb073e8f4fb9b58bc21de28fb5ff51d35d0"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Content/WorldAssetReservations.cs",
+      "baseline": "e88acc1c37a51909f4db29dc4f81f6ab19b453c6c33528971159765a94242248",
+      "candidate": "e88acc1c37a51909f4db29dc4f81f6ab19b453c6c33528971159765a94242248"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Harness/GeographyCandidateSelection.cs",
+      "baseline": "8be8a51cdca9d22ee3672ec75b9207cc43c51f0abc832aa272e41e6f8b3033ab",
+      "candidate": "8be8a51cdca9d22ee3672ec75b9207cc43c51f0abc832aa272e41e6f8b3033ab"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Harness/LiveSeededWorldRuntime.cs",
+      "baseline": "3d001f979ca9797acf8a1e24e435560bbd927a1bc73e565456dc74d9fe064139",
+      "candidate": "3d001f979ca9797acf8a1e24e435560bbd927a1bc73e565456dc74d9fe064139"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Harness/OwnerWorldRuntime.cs",
+      "baseline": "18a84d153fe26d52e746f5de804b9401a888606ffab93bf001bf60f9ff5edaab",
+      "candidate": "18a84d153fe26d52e746f5de804b9401a888606ffab93bf001bf60f9ff5edaab"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Harness/SeededWorldHarness.cs",
+      "baseline": "977322efb7a763914f84123952829970b395669922278cbf7fdb9b0618a0b123",
+      "candidate": "c26a4756ffd7d9ce70f609da0f13092dc220efaa5906056270b2084a07e1ddd5"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Harness/TerrainPlacementRules.cs",
+      "baseline": "63a14536aef41a830df438f319c3347237ffcc1ffa68292faee4de89e96b8aa1",
+      "candidate": "63a14536aef41a830df438f319c3347237ffcc1ffa68292faee4de89e96b8aa1"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Kernel/DeterministicMovement.cs",
+      "baseline": "7943f695e458cb19e9043df9e1d56d5f1e0b553ce7167546a53b7ebc65dfd857",
+      "candidate": "7943f695e458cb19e9043df9e1d56d5f1e0b553ce7167546a53b7ebc65dfd857"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Kernel/DeterministicRandom.cs",
+      "baseline": "34cf7a00ddb1df7f2f46030097febbe4a024197eb77147dea229a3c1741ae554",
+      "candidate": "34cf7a00ddb1df7f2f46030097febbe4a024197eb77147dea229a3c1741ae554"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Kernel/InventoryAnimalEquipment.cs",
+      "baseline": "7bbd1a267c7819afb72771f1422da9bcd7f31b99c61484b7c71ed13a2c5a923e",
+      "candidate": "7bbd1a267c7819afb72771f1422da9bcd7f31b99c61484b7c71ed13a2c5a923e"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Kernel/InventoryEquipment.cs",
+      "baseline": "6299d0619b4ebb5611ab4201ca26ed00e6a528fc96e64fde8937ae2c3bff13dd",
+      "candidate": "6299d0619b4ebb5611ab4201ca26ed00e6a528fc96e64fde8937ae2c3bff13dd"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Kernel/InventoryFixture.Discard.cs",
+      "baseline": "965fe363e3d1893370f50f4bee30985f9cc5e4573ef016e8b2c485b983caff31",
+      "candidate": "965fe363e3d1893370f50f4bee30985f9cc5e4573ef016e8b2c485b983caff31"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Kernel/InventoryFixture.cs",
+      "baseline": "c23c82ca83e31559f4e52088767c0e2952c6a9f8ff07c3972cb3c1a854cd75a9",
+      "candidate": "c23c82ca83e31559f4e52088767c0e2952c6a9f8ff07c3972cb3c1a854cd75a9"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Kernel/InventoryHandcarts.cs",
+      "baseline": "d29e6c88800aca48c9cbfe5a9a5c8bceb653b26dfd559f849bad4e692f43a628",
+      "candidate": "d29e6c88800aca48c9cbfe5a9a5c8bceb653b26dfd559f849bad4e692f43a628"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Kernel/InventoryIndex.cs",
+      "baseline": "82b6d10c4aac48eb72a844611e176e60280e0d094edbd6d3361e45349dfaf784",
+      "candidate": "82b6d10c4aac48eb72a844611e176e60280e0d094edbd6d3361e45349dfaf784"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Kernel/InventoryMilkExchange.cs",
+      "baseline": "2499e8d57ffb36fe529ec363739212faf7a0c417a5a18e314d31f6654fdd1ea2",
+      "candidate": "2499e8d57ffb36fe529ec363739212faf7a0c417a5a18e314d31f6654fdd1ea2"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Kernel/InventoryRules.cs",
+      "baseline": "b85f0a944adf214ae26400eb36e575f2f40f823e660a1fcbbb3cea7f98afe476",
+      "candidate": "b85f0a944adf214ae26400eb36e575f2f40f823e660a1fcbbb3cea7f98afe476"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Kernel/InventoryStorageHistory.cs",
+      "baseline": "420a8181d42c45cfd4fa994da7f3bcc2439610e0a8b87c7e829b61c0a753e5f1",
+      "candidate": "420a8181d42c45cfd4fa994da7f3bcc2439610e0a8b87c7e829b61c0a753e5f1"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Kernel/KernelClock.cs",
+      "baseline": "b91f634d8d67d174d02fda69df50f8da87d068d797b814155de37d79b3344abc",
+      "candidate": "b91f634d8d67d174d02fda69df50f8da87d068d797b814155de37d79b3344abc"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Persistence/CanonicalPersistenceCodec.cs",
+      "baseline": "c63b37885ac7bffa53aa166424c3da08376695eb712199cbf6a930f077c0b8d8",
+      "candidate": "c63b37885ac7bffa53aa166424c3da08376695eb712199cbf6a930f077c0b8d8"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Persistence/PersistenceContracts.cs",
+      "baseline": "44ea0f5a89cc7c71768d997b0e3ee92da3240a22eb970e43401766330783831a",
+      "candidate": "44ea0f5a89cc7c71768d997b0e3ee92da3240a22eb970e43401766330783831a"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Persistence/WorldReplay.cs",
+      "baseline": "90981c87be31663d37863d5009573ab07ba30958d2c8909f5a0dc2cfb061aba4",
+      "candidate": "90981c87be31663d37863d5009573ab07ba30958d2c8909f5a0dc2cfb061aba4"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Animals/AnimalContent.cs",
+      "baseline": "7e148be5e92102a0b5e741f20b02c3cfce955f7ae1ea34c77d80e85daedb2611",
+      "candidate": "7e148be5e92102a0b5e741f20b02c3cfce955f7ae1ea34c77d80e85daedb2611"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Animals/AnimalState.cs",
+      "baseline": "1bdfe16609ef726c971c440dc9496cad4ee5871a9ed6341ce02916ff99c8431b",
+      "candidate": "1bdfe16609ef726c971c440dc9496cad4ee5871a9ed6341ce02916ff99c8431b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Animals/AnimalStateValidation.cs",
+      "baseline": "46708aee408d5c9b321bb705a1a5e7629eaca33d2710f25691444a360b08f452",
+      "candidate": "46708aee408d5c9b321bb705a1a5e7629eaca33d2710f25691444a360b08f452"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Animals/PrivateWorldRuntime.AnimalActions.cs",
+      "baseline": "0f1c968b64c82392ee210e9fd0227e618bec98ff9007b4b71aaadab1c3296a10",
+      "candidate": "0f1c968b64c82392ee210e9fd0227e618bec98ff9007b4b71aaadab1c3296a10"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Animals/PrivateWorldRuntime.AnimalAgreements.cs",
+      "baseline": "1dec39dcb0730136547eec6e0b70acc9a653eb462f8549a3da77cf4a214a481c",
+      "candidate": "1dec39dcb0730136547eec6e0b70acc9a653eb462f8549a3da77cf4a214a481c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Animals/PrivateWorldRuntime.AnimalOrders.cs",
+      "baseline": "004be9405143a9c3f5ec5a5623f02c2896bbd5dc75d09ed8a09642457fbe091f",
+      "candidate": "004be9405143a9c3f5ec5a5623f02c2896bbd5dc75d09ed8a09642457fbe091f"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Animals/PrivateWorldRuntime.AnimalSupply.cs",
+      "baseline": "0b562b6b0d50a58c2416ee2f7815e8ca4b0e61f344d81919f570c83a1ebfd6dc",
+      "candidate": "0b562b6b0d50a58c2416ee2f7815e8ca4b0e61f344d81919f570c83a1ebfd6dc"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Animals/PrivateWorldRuntime.AnimalTravel.cs",
+      "baseline": "2319b0af0ee79324b2600b2839d50edd01747e79b62bdae78bf0fc6af88c12f7",
+      "candidate": "2319b0af0ee79324b2600b2839d50edd01747e79b62bdae78bf0fc6af88c12f7"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Animals/PrivateWorldRuntime.Animals.cs",
+      "baseline": "924b2504891ab602b4adb3cbd997f96a7e1f4a3d2a88904ee8a9348dc7c9b62c",
+      "candidate": "924b2504891ab602b4adb3cbd997f96a7e1f4a3d2a88904ee8a9348dc7c9b62c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Animals/PrivateWorldRuntime.MilkTrade.cs",
+      "baseline": "4a720dfcafcfaafe6f890d6af49ee2f6f8d805ee8a6746833e8c241564effbf9",
+      "candidate": "4a720dfcafcfaafe6f890d6af49ee2f6f8d805ee8a6746833e8c241564effbf9"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Animals/PrivateWorldRuntime.WildAnimals.cs",
+      "baseline": "74f80e00507ecc23dec64ce295c343295cf09e836cd395406509070824c9dcdb",
+      "candidate": "74f80e00507ecc23dec64ce295c343295cf09e836cd395406509070824c9dcdb"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/BlacksmithContent.cs",
+      "baseline": "a1029baa463cfec1f6f3c6a4db3242e2802482323744c88f2ecd17ee61e6113f",
+      "candidate": "a1029baa463cfec1f6f3c6a4db3242e2802482323744c88f2ecd17ee61e6113f"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/BlacksmithVariantContent.cs",
+      "baseline": "6821079e5a719c9dfb7eadbe4587e0ee7f783d393c49d26424ced9e462a6b5aa",
+      "candidate": "6821079e5a719c9dfb7eadbe4587e0ee7f783d393c49d26424ced9e462a6b5aa"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/BoatTransportState.cs",
+      "baseline": "ba2ad72740fc5b7f4b1d9c9542a2bf65585301fa807f8b75b89f019525041d97",
+      "candidate": "ba2ad72740fc5b7f4b1d9c9542a2bf65585301fa807f8b75b89f019525041d97"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/BuildingDesign.cs",
+      "baseline": "717bbf03d45d0b024fd9988e5acfa8c3edae52db35cbda51ce7368a1c4140a73",
+      "candidate": "717bbf03d45d0b024fd9988e5acfa8c3edae52db35cbda51ce7368a1c4140a73"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/BusinessContent.cs",
+      "baseline": "678617f44e13db196add50f0f17a2e394e171d0e9f1f6d4516af42d42aedd0c8",
+      "candidate": "678617f44e13db196add50f0f17a2e394e171d0e9f1f6d4516af42d42aedd0c8"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/CareContent.cs",
+      "baseline": "250fa7ce38a45189d6d847e20e30396d76d5d6cc28194ec5b3907123140e7c50",
+      "candidate": "250fa7ce38a45189d6d847e20e30396d76d5d6cc28194ec5b3907123140e7c50"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/ClinicVariantContent.cs",
+      "baseline": "5cf2db439528ada78eae61b455b9e0c1be7d55938d4f480338881bef0e8f8f4f",
+      "candidate": "5cf2db439528ada78eae61b455b9e0c1be7d55938d4f480338881bef0e8f8f4f"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/FarmContent.cs",
+      "baseline": "4e71018708c185c4982536ea442c4ac9618833a45a714b68065aaf8b4318e024",
+      "candidate": "4e71018708c185c4982536ea442c4ac9618833a45a714b68065aaf8b4318e024"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/FarmhouseVariantContent.cs",
+      "baseline": "9bb97f08cb9d5942cc75f3001bf3f41ca0a9e4a3fcd03ab2894b0d328960a11d",
+      "candidate": "9bb97f08cb9d5942cc75f3001bf3f41ca0a9e4a3fcd03ab2894b0d328960a11d"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/HouseContent.cs",
+      "baseline": "d72b71539acf40a167bebc12048f10e0c176f3af4655d404820738c38e1e9102",
+      "candidate": "d72b71539acf40a167bebc12048f10e0c176f3af4655d404820738c38e1e9102"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/HouseCookingContent.cs",
+      "baseline": "f7e0bc541a1243efc0dfbaff4c012b7433d386bfb733259d709230c94b98c62a",
+      "candidate": "f7e0bc541a1243efc0dfbaff4c012b7433d386bfb733259d709230c94b98c62a"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/HouseToolsContent.cs",
+      "baseline": "ccc000ab59fb6a926dd22bf30da922342826c7eea64ab96a445b8cdf3ee614b2",
+      "candidate": "ccc000ab59fb6a926dd22bf30da922342826c7eea64ab96a445b8cdf3ee614b2"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/HouseholdBuildingKinds.cs",
+      "baseline": "d9e0d13f3648726c309bdef64e799d40f5e9d13f1c12f70921b998e813d796a3",
+      "candidate": "d9e0d13f3648726c309bdef64e799d40f5e9d13f1c12f70921b998e813d796a3"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/KnowledgeContent.cs",
+      "baseline": "ab442541455df736ed6cb8c08fd6ecd5e0b014c76d6a176fcf8e276935fcfe30",
+      "candidate": "ab442541455df736ed6cb8c08fd6ecd5e0b014c76d6a176fcf8e276935fcfe30"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/MarketContent.cs",
+      "baseline": "06b693b8275196aabebd563bed10ab0bef848ed3a22aa6619e1bd4118c7d5645",
+      "candidate": "06b693b8275196aabebd563bed10ab0bef848ed3a22aa6619e1bd4118c7d5645"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/OrnamentContent.cs",
+      "baseline": "16357180d34e2755de81f8934863310e10ca162b2c773c396554ffe32443b413",
+      "candidate": "16357180d34e2755de81f8934863310e10ca162b2c773c396554ffe32443b413"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/PortContent.cs",
+      "baseline": "daebee8e5869017201f6c39691ede82bda86aae22b6555d9d00a870395c90aa6",
+      "candidate": "daebee8e5869017201f6c39691ede82bda86aae22b6555d9d00a870395c90aa6"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/PortNavigationRules.cs",
+      "baseline": "7565b72e529f5f8107e1722ffab5d2cd829f3bdf5e4cf889870e03ad644d145f",
+      "candidate": "7565b72e529f5f8107e1722ffab5d2cd829f3bdf5e4cf889870e03ad644d145f"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/PotteryContent.cs",
+      "baseline": "3bdb4bd61278a0fbc5555aaa76fa35f132e1e95e46a59a88d9dc23b1f21a1d4d",
+      "candidate": "3bdb4bd61278a0fbc5555aaa76fa35f132e1e95e46a59a88d9dc23b1f21a1d4d"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/RestaurantContent.cs",
+      "baseline": "3dff7b461e51148473f185e249891d03bd5bd5fac8f83e436f2db84f3f0c0f00",
+      "candidate": "3dff7b461e51148473f185e249891d03bd5bd5fac8f83e436f2db84f3f0c0f00"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/RestaurantVariantContent.cs",
+      "baseline": "1cbb0e005694c603a392a50e57fea6f324764959789e1fd002bc445c8f3af96e",
+      "candidate": "1cbb0e005694c603a392a50e57fea6f324764959789e1fd002bc445c8f3af96e"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/RetiredBuildings.cs",
+      "baseline": "0add544745d98bc71b49480843f02a445210c645862fb52871f5552f8b9d87d5",
+      "candidate": "0add544745d98bc71b49480843f02a445210c645862fb52871f5552f8b9d87d5"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/SettlementContent.cs",
+      "baseline": "e73d67aafa0d630e181ca4c1c28aac6de644449b37014325817f3fb693082c72",
+      "candidate": "e73d67aafa0d630e181ca4c1c28aac6de644449b37014325817f3fb693082c72"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/SiloContent.cs",
+      "baseline": "6b073534470197884a74f2bd3378f8fc8c2886ca02cd0e8defce4fd8f09259df",
+      "candidate": "6b073534470197884a74f2bd3378f8fc8c2886ca02cd0e8defce4fd8f09259df"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/StarterContent.cs",
+      "baseline": "d2ba949987cfb158a069604a61139c341ee83d33751c26cf34fb36914195b19b",
+      "candidate": "d2ba949987cfb158a069604a61139c341ee83d33751c26cf34fb36914195b19b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/StreetLanternContent.cs",
+      "baseline": "292e78388987311f57fce235edacff47f111f3f52389a1176657c47282eea886",
+      "candidate": "292e78388987311f57fce235edacff47f111f3f52389a1176657c47282eea886"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/TailorContent.cs",
+      "baseline": "d61149e9503b1ead3d1eb9b52645c35f5d41a83567b621fe74da8a3a920c1516",
+      "candidate": "d61149e9503b1ead3d1eb9b52645c35f5d41a83567b621fe74da8a3a920c1516"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/TailorVariantContent.cs",
+      "baseline": "6e382c30192c1928142346b34bb6bbcae2a135f27822ea71bd82425593c8f428",
+      "candidate": "6e382c30192c1928142346b34bb6bbcae2a135f27822ea71bd82425593c8f428"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/TownHallContent.cs",
+      "baseline": "9e04b9a4b3232f3a91ce67f1a1edf8289a3bcbca6e0bf4d8110c060eb023d935",
+      "candidate": "9e04b9a4b3232f3a91ce67f1a1edf8289a3bcbca6e0bf4d8110c060eb023d935"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/WarehouseContent.cs",
+      "baseline": "2aef6e6117159648da40eb77db04fd07aad34c36ef4bec9b02678f078e4e2ec4",
+      "candidate": "2aef6e6117159648da40eb77db04fd07aad34c36ef4bec9b02678f078e4e2ec4"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/WorkstationVariantContent.cs",
+      "baseline": "273990c9e249286064db4d0bbdfe26efaf73205179c24bfadfa1bfaab0b3c8f7",
+      "candidate": "273990c9e249286064db4d0bbdfe26efaf73205179c24bfadfa1bfaab0b3c8f7"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Content/WorldContentSimulation.cs",
+      "baseline": "91d02cc059d813f5b7fb4ed4139fa8db118a050d24ee5b8a43f1b6e6c2fb82f9",
+      "candidate": "91d02cc059d813f5b7fb4ed4139fa8db118a050d24ee5b8a43f1b6e6c2fb82f9"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Conversations/AgentConversationRules.cs",
+      "baseline": "ba90213345808409813c3d18a0a608675b9eb274e4d176b7b5c25d5c83d0a584",
+      "candidate": "ba90213345808409813c3d18a0a608675b9eb274e4d176b7b5c25d5c83d0a584"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Conversations/AgentMarriageRules.cs",
+      "baseline": "752b795505e8af0330635ab3087beecc13123a4e5e6dd28a22c683218da05bb1",
+      "candidate": "752b795505e8af0330635ab3087beecc13123a4e5e6dd28a22c683218da05bb1"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Conversations/AgentMarriageValidation.cs",
+      "baseline": "9195d0dc50127e5d34c9cd115157431fb29294c012db69a183d386ae45082b78",
+      "candidate": "9195d0dc50127e5d34c9cd115157431fb29294c012db69a183d386ae45082b78"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Conversations/ConversationState.cs",
+      "baseline": "6dcadf96710d2093d0f3e6ed163ee8b106e310d188ce172abbe5261cc678a0e0",
+      "candidate": "6dcadf96710d2093d0f3e6ed163ee8b106e310d188ce172abbe5261cc678a0e0"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Conversations/ConversationSystem.cs",
+      "baseline": "6c98dbfb90e6ef9ff79e1fa18c8af7112fbf73d9d6645c2c820cf9dc9b39a465",
+      "candidate": "6c98dbfb90e6ef9ff79e1fa18c8af7112fbf73d9d6645c2c820cf9dc9b39a465"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Conversations/IConversationWorld.cs",
+      "baseline": "043c54b9dd1fab026805dba918500fcddddee4b32c004d56043a91694092fb37",
+      "candidate": "043c54b9dd1fab026805dba918500fcddddee4b32c004d56043a91694092fb37"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Conversations/PrivateWorldRuntime.ConversationWorld.cs",
+      "baseline": "bcf22098dd41942814176b1ef8d8c9d37f520da41ab3f458aa423a152f42d36c",
+      "candidate": "bcf22098dd41942814176b1ef8d8c9d37f520da41ab3f458aa423a152f42d36c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Goods/GoodsContracts.cs",
+      "baseline": "f5fe8a4ddf2b13e32d5f7e30e8e5cb7d600d70d1f3f4dd9d223ad5b9adf9e9b8",
+      "candidate": "f5fe8a4ddf2b13e32d5f7e30e8e5cb7d600d70d1f3f4dd9d223ad5b9adf9e9b8"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Goods/PrivateWorldRuntime.DestinationRoom.cs",
+      "baseline": "3798fb7bdd6fb0d01b05d904ccae75a8a41b040ecb932a8896288aa8a1870c3d",
+      "candidate": "3798fb7bdd6fb0d01b05d904ccae75a8a41b040ecb932a8896288aa8a1870c3d"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Goods/PrivateWorldRuntime.Goods.cs",
+      "baseline": "b24a6acb72a72ddc71e5d5ae9b46eff199fc6663458e535d4f79271e00eecc99",
+      "candidate": "b24a6acb72a72ddc71e5d5ae9b46eff199fc6663458e535d4f79271e00eecc99"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Goods/PrivateWorldRuntime.GoodsCollection.cs",
+      "baseline": "e9517b98723f6e8bbc26ac0905bcbb664d3c9c55e53f6f68860c3464bd498be4",
+      "candidate": "e9517b98723f6e8bbc26ac0905bcbb664d3c9c55e53f6f68860c3464bd498be4"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Knowledge/AgentKnowledge.cs",
+      "baseline": "aa91e2c6a52bf2c2f374522ad9c18c47dcc066a1a5e1e8d48e09cae97c67160d",
+      "candidate": "aa91e2c6a52bf2c2f374522ad9c18c47dcc066a1a5e1e8d48e09cae97c67160d"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Knowledge/AgentRecipeKnowledge.cs",
+      "baseline": "483133735da659b91e0fbc18064ca63c1b353227729e5d595b9b53cf3edefb32",
+      "candidate": "483133735da659b91e0fbc18064ca63c1b353227729e5d595b9b53cf3edefb32"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Knowledge/PrivateWorldBeliefs.cs",
+      "baseline": "3549196e7b5dad2f3e2d1bfb5e60c56019c09b0e403e7ae91b07430431864b12",
+      "candidate": "3549196e7b5dad2f3e2d1bfb5e60c56019c09b0e403e7ae91b07430431864b12"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Knowledge/PrivateWorldMemories.cs",
+      "baseline": "47fcc72347b273e912263c8ede21796560f57a09ae32af32b084123db811d3cc",
+      "candidate": "47fcc72347b273e912263c8ede21796560f57a09ae32af32b084123db811d3cc"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Knowledge/PrivateWorldMemoryArchive.cs",
+      "baseline": "9ad94c155f384b0107765abf4566c2146682d8afbb6a994aa927f1006a55ac74",
+      "candidate": "9ad94c155f384b0107765abf4566c2146682d8afbb6a994aa927f1006a55ac74"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Knowledge/PrivateWorldMemoryRetrieval.cs",
+      "baseline": "75546e3996af24518fb6e4240cb6207fba1d7678815b4df6b8ec640863100f52",
+      "candidate": "75546e3996af24518fb6e4240cb6207fba1d7678815b4df6b8ec640863100f52"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Knowledge/SettlementExploration.cs",
+      "baseline": "844a390d74203e7c9b1db864e8c4a72188ddc7686b5576f213f4346b710179a8",
+      "candidate": "844a390d74203e7c9b1db864e8c4a72188ddc7686b5576f213f4346b710179a8"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Knowledge/SettlementExplorationGoals.cs",
+      "baseline": "b9a33f5f795e83778e09c32e0be164a89712619dbe70c9a15b35a53f9950f42d",
+      "candidate": "b9a33f5f795e83778e09c32e0be164a89712619dbe70c9a15b35a53f9950f42d"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Knowledge/SettlementKnowledge.cs",
+      "baseline": "0c927e2475d7ec20c0324c9b74f8ce268f71127c12f23ffbab5c3af012d20daf",
+      "candidate": "0c927e2475d7ec20c0324c9b74f8ce268f71127c12f23ffbab5c3af012d20daf"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Knowledge/SettlementKnowledgeWriting.cs",
+      "baseline": "5682e1b9b3bfe2f80332186fc55dd745de397a52caa8e4ccc7befa9ecb34e0d6",
+      "candidate": "5682e1b9b3bfe2f80332186fc55dd745de397a52caa8e4ccc7befa9ecb34e0d6"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Knowledge/SettlementRecipeKnowledge.cs",
+      "baseline": "298c58e30ebc99e5971e344641e4979919d165f56667fd57fb1003820d03500c",
+      "candidate": "298c58e30ebc99e5971e344641e4979919d165f56667fd57fb1003820d03500c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/AgentIdentityMoment.cs",
+      "baseline": "eba1f2d97a138d98862678c1642799affc093e0bfa8e36e0f36151e8c50164f8",
+      "candidate": "eba1f2d97a138d98862678c1642799affc093e0bfa8e36e0f36151e8c50164f8"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/Derived.cs",
+      "baseline": "a44dde4ce30b7383340ec092f61292a297b987eefadc6ac5927013baaa87dc25",
+      "candidate": "a44dde4ce30b7383340ec092f61292a297b987eefadc6ac5927013baaa87dc25"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/MedicalCareState.cs",
+      "baseline": "4bb306a02d68720cf2e811c70d8f8f6b34b4cf4c213399348477cf22f24fc946",
+      "candidate": "4bb306a02d68720cf2e811c70d8f8f6b34b4cf4c213399348477cf22f24fc946"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldBuildingOrderCatalog.cs",
+      "baseline": "32ccf2d27d60f48d1521158ab10ba3dc882ce79f7f33921d5ee4c26016cf0ebc",
+      "candidate": "32ccf2d27d60f48d1521158ab10ba3dc882ce79f7f33921d5ee4c26016cf0ebc"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldCustodyOrderCatalog.cs",
+      "baseline": "ce8c017fa969b732a0c346a90c0ef89671a962a7e031ef20c9b9ea387df66e0c",
+      "candidate": "ce8c017fa969b732a0c346a90c0ef89671a962a7e031ef20c9b9ea387df66e0c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldDeliveryOrderCatalog.cs",
+      "baseline": "1b51f43a23512df81c17bc4925008c40b004f57a704ac4c787461163948c94a1",
+      "candidate": "1b51f43a23512df81c17bc4925008c40b004f57a704ac4c787461163948c94a1"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldDeveloperEdit.cs",
+      "baseline": "661803d74f457eef3ac4486edcb0c9358c91fa5aaface1f364cfaa023c7f5a3d",
+      "candidate": "661803d74f457eef3ac4486edcb0c9358c91fa5aaface1f364cfaa023c7f5a3d"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldHistory.cs",
+      "baseline": "cc8cc9ed46ac90823929856ddec808db8fadad788be3d52fa6001514626838be",
+      "candidate": "cc8cc9ed46ac90823929856ddec808db8fadad788be3d52fa6001514626838be"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldInstructionOrderParser.cs",
+      "baseline": "63b04656d0dc25bcdaac980d55efceef44f11fc68d3d9719172fa4ee58a2b9d6",
+      "candidate": "63b04656d0dc25bcdaac980d55efceef44f11fc68d3d9719172fa4ee58a2b9d6"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldProductionOrderCatalog.cs",
+      "baseline": "cafc0fff9fd0224efdf3392a1a73870fdfa337b42b48733da55e0f79e36f5001",
+      "candidate": "cafc0fff9fd0224efdf3392a1a73870fdfa337b42b48733da55e0f79e36f5001"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Actions.cs",
+      "baseline": "b5109bd175f6ed4b18915182003a020c8ace1306493dbe5dc45eee25cbee36b5",
+      "candidate": "b5109bd175f6ed4b18915182003a020c8ace1306493dbe5dc45eee25cbee36b5"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.BoatOrders.cs",
+      "baseline": "ffd9ba1d0467a71ee622d187442de26995599b8ca73a71832bef08ebe98268bf",
+      "candidate": "ffd9ba1d0467a71ee622d187442de26995599b8ca73a71832bef08ebe98268bf"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.BuildingManagement.cs",
+      "baseline": "11de88d43b9c8ddd30d50a49a054b5fe3734dafb9ca2aeca2006d03530fa31c0",
+      "candidate": "11de88d43b9c8ddd30d50a49a054b5fe3734dafb9ca2aeca2006d03530fa31c0"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.BuildingVariantContent.cs",
+      "baseline": "df93bad25ee2d0c773aa0195b9b6c5eb6c5fe333fec3a8f54ba11773a7279911",
+      "candidate": "df93bad25ee2d0c773aa0195b9b6c5eb6c5fe333fec3a8f54ba11773a7279911"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.CartCargoOrders.cs",
+      "baseline": "facfa790e26b04dfecb75f00e6f2a5956c2327c12e830833c444de49b1219d1c",
+      "candidate": "facfa790e26b04dfecb75f00e6f2a5956c2327c12e830833c444de49b1219d1c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.CartOrders.cs",
+      "baseline": "838a8985e57ba34ae24c8ae8c1a224c99a7c6bf68ed998e7ade6a433ef288fe6",
+      "candidate": "838a8985e57ba34ae24c8ae8c1a224c99a7c6bf68ed998e7ade6a433ef288fe6"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.CartRepairOrders.cs",
+      "baseline": "2b96f764df0d7e48faa4b666cdc2d093889131dda8ac932d0bcdbddd18e68a91",
+      "candidate": "2b96f764df0d7e48faa4b666cdc2d093889131dda8ac932d0bcdbddd18e68a91"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ChildModels.cs",
+      "baseline": "c272415aeff6e37ea9d4a693a39353b3e23924b8d68199bc48c8bef5910bde94",
+      "candidate": "c272415aeff6e37ea9d4a693a39353b3e23924b8d68199bc48c8bef5910bde94"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Cognition.cs",
+      "baseline": "d42ce8e02d2d08d6e6f9d1fe6382bd70f88173a2e0e4975f98a32c1b05f2ea6d",
+      "candidate": "d42ce8e02d2d08d6e6f9d1fe6382bd70f88173a2e0e4975f98a32c1b05f2ea6d"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.CollectionOrders.cs",
+      "baseline": "6d2a769bea4e74c9b7e768c606400fcb47afdbeab8456b8ef628a0206bc34f44",
+      "candidate": "6d2a769bea4e74c9b7e768c606400fcb47afdbeab8456b8ef628a0206bc34f44"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ConstructionOrders.cs",
+      "baseline": "c596309cd2fcc32efaeb49ca253bfe54412971d7e78d8b5fcbf7fa2009c710fd",
+      "candidate": "c596309cd2fcc32efaeb49ca253bfe54412971d7e78d8b5fcbf7fa2009c710fd"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Content.cs",
+      "baseline": "7bb90f4a64a66ac7c733ae3f2686cf2484123cd03920f5df1dfbc6eb0ad9041b",
+      "candidate": "7bb90f4a64a66ac7c733ae3f2686cf2484123cd03920f5df1dfbc6eb0ad9041b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Control.cs",
+      "baseline": "83e808eaba16280218f93ea5db4f9ca8b8ee4c621dff9409647c948741e9bcb5",
+      "candidate": "83e808eaba16280218f93ea5db4f9ca8b8ee4c621dff9409647c948741e9bcb5"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Conversations.cs",
+      "baseline": "8be0fe08fd7f975ec364ef9a9528e1c2a5d8d67c6020ed37821c5d65aa951ac6",
+      "candidate": "8be0fe08fd7f975ec364ef9a9528e1c2a5d8d67c6020ed37821c5d65aa951ac6"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.CustodyOrders.cs",
+      "baseline": "c6a37e2df132a16d2480a56910faf0af29749fa7c7f21ebd5793f56a0aca1895",
+      "candidate": "c6a37e2df132a16d2480a56910faf0af29749fa7c7f21ebd5793f56a0aca1895"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.DeliveryOrders.cs",
+      "baseline": "c3b8d9e8dabce98c426d99afa7a001e7e1e575945e8a815ba709e966788419b3",
+      "candidate": "c3b8d9e8dabce98c426d99afa7a001e7e1e575945e8a815ba709e966788419b3"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.DeveloperEdits.cs",
+      "baseline": "931b51ce7871055c854319a37248f590b06817ef748fa0434b68b16e9e71779a",
+      "candidate": "931b51ce7871055c854319a37248f590b06817ef748fa0434b68b16e9e71779a"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Diagnostics.cs",
+      "baseline": "e34c12cef8c14ec18509a1092c2e75655a018226de72faedc8689868741c6a13",
+      "candidate": "e34c12cef8c14ec18509a1092c2e75655a018226de72faedc8689868741c6a13"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Environment.cs",
+      "baseline": "f438792f50c22618a8cd5e1918d1bb949c1243c04e888c324534c10e64632efe",
+      "candidate": "f438792f50c22618a8cd5e1918d1bb949c1243c04e888c324534c10e64632efe"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ExpansionOrders.cs",
+      "baseline": "d64b24a6d9ead95337295a0ac6773fbd4018b62cca15a9f15fb061e2fb725852",
+      "candidate": "d64b24a6d9ead95337295a0ac6773fbd4018b62cca15a9f15fb061e2fb725852"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.FieldOrders.cs",
+      "baseline": "212c351c1597091d990d77c612832facb08af469ae28a7654b38de72a3c18258",
+      "candidate": "212c351c1597091d990d77c612832facb08af469ae28a7654b38de72a3c18258"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.GuardianOrders.cs",
+      "baseline": "309ef32df59bd86229681dd49e88642462c840e9171685d6db93d00e53369b6b",
+      "candidate": "309ef32df59bd86229681dd49e88642462c840e9171685d6db93d00e53369b6b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.GuardianPlacementValidation.cs",
+      "baseline": "22e4479e3b42a90ff53a3bcc858bdada9c28f15545d6a3a26427ab9e98467603",
+      "candidate": "22e4479e3b42a90ff53a3bcc858bdada9c28f15545d6a3a26427ab9e98467603"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Identity.cs",
+      "baseline": "677474e01cc4669268947edd3dcbf11325c7c1798014908603982046f1235c85",
+      "candidate": "677474e01cc4669268947edd3dcbf11325c7c1798014908603982046f1235c85"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.IdentityMoments.cs",
+      "baseline": "ff57c18063314277c8df85659d29d9421debc4f0f8ac2ac4cbd28ebefdea4561",
+      "candidate": "ff57c18063314277c8df85659d29d9421debc4f0f8ac2ac4cbd28ebefdea4561"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.KnowledgeCopyOrders.cs",
+      "baseline": "22252c757cbec146027d21aba6b5d958495b4b94f9c8e2832d866923a66a0f56",
+      "candidate": "22252c757cbec146027d21aba6b5d958495b4b94f9c8e2832d866923a66a0f56"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.KnowledgeOrders.cs",
+      "baseline": "daf058f3296def01615185e1e5ed21c7d0999cc96115910d80d0c8d7616ba0a9",
+      "candidate": "daf058f3296def01615185e1e5ed21c7d0999cc96115910d80d0c8d7616ba0a9"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.KnowledgeReadOrders.cs",
+      "baseline": "9e6be8426d9f46bd90b4a9b37cfa6461b0e34d6330e50eb6d176a99cbfea700b",
+      "candidate": "9e6be8426d9f46bd90b4a9b37cfa6461b0e34d6330e50eb6d176a99cbfea700b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.LandHearingValidation.cs",
+      "baseline": "29b69e19d7c6a9c43f09c9563ca35f41654f866e131d64ff540dee83f16cc271",
+      "candidate": "29b69e19d7c6a9c43f09c9563ca35f41654f866e131d64ff540dee83f16cc271"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.MarriageOrders.cs",
+      "baseline": "3d521f1d00d4b3926a7ef420b43ac478f5d5cd95716d55452571225e7455d2e7",
+      "candidate": "3d521f1d00d4b3926a7ef420b43ac478f5d5cd95716d55452571225e7455d2e7"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Marriages.cs",
+      "baseline": "1b2e66aa77e5a611145614ca1b4991b28b1c2ae190122f170d1666a9a0ab304a",
+      "candidate": "1b2e66aa77e5a611145614ca1b4991b28b1c2ae190122f170d1666a9a0ab304a"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.MaterialOrders.cs",
+      "baseline": "54fe7dc3922f05a9359dc66e0991bbd9b2f64d1edbe0d23967b9dc740ff0037c",
+      "candidate": "54fe7dc3922f05a9359dc66e0991bbd9b2f64d1edbe0d23967b9dc740ff0037c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ModelOutcomes.cs",
+      "baseline": "01a318dc719299d75d9b58a4878c31a2f0f2c3feba22d4043b22d46ced88078b",
+      "candidate": "01a318dc719299d75d9b58a4878c31a2f0f2c3feba22d4043b22d46ced88078b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Naming.cs",
+      "baseline": "ef9b26bbdad789783140da291b7e477c65c0bfbe4c3fe11c088389fdb17a7639",
+      "candidate": "ef9b26bbdad789783140da291b7e477c65c0bfbe4c3fe11c088389fdb17a7639"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.NonviolentPhysical.cs",
+      "baseline": "2a4be5ccdc9fb11c542fb602d363303ad1b9c29ba6886db1e0f3c9b1036d5c8c",
+      "candidate": "2a4be5ccdc9fb11c542fb602d363303ad1b9c29ba6886db1e0f3c9b1036d5c8c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.NonviolentPhysicalValidation.cs",
+      "baseline": "003946fec22354df9339cb1990e1609064e30fd8bafc1042bbf457b22f1916b5",
+      "candidate": "003946fec22354df9339cb1990e1609064e30fd8bafc1042bbf457b22f1916b5"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Orders.cs",
+      "baseline": "840d48e9994275df179634d6061cf6152e49580ba4205297021d359365b6a227",
+      "candidate": "840d48e9994275df179634d6061cf6152e49580ba4205297021d359365b6a227"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Production.cs",
+      "baseline": "2188de5c3545c071e70186f433d8156e3e6ddbdcc59ba5c67675dd3f739b0edb",
+      "candidate": "46495bbee1330d685c57e58e8222f1be1bc2ca231864f13f06169311a7a5687b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ProductionOrders.cs",
+      "baseline": "1433f5c3fa55e9ea73aeae6cf4b7e9fcffd05493ada4841e70ce969f0b100aa5",
+      "candidate": "1433f5c3fa55e9ea73aeae6cf4b7e9fcffd05493ada4841e70ce969f0b100aa5"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.RenameMemories.cs",
+      "baseline": "bfd0f4f87a350e2cbe14168502cde226711456c13d208b7a00efe9567007fd71",
+      "candidate": "bfd0f4f87a350e2cbe14168502cde226711456c13d208b7a00efe9567007fd71"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.RepairOrders.cs",
+      "baseline": "d5c2d8030c42b2de31e333ed18e8d15ea443a3baf32141f4df75048a8f8b438f",
+      "candidate": "d5c2d8030c42b2de31e333ed18e8d15ea443a3baf32141f4df75048a8f8b438f"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.RouteSearch.cs",
+      "baseline": "7160ecd12b57428e121b772aa4ce89b265ce276b0be0512b78740cdacc35c47d",
+      "candidate": "7160ecd12b57428e121b772aa4ce89b265ce276b0be0512b78740cdacc35c47d"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ShelterOrders.cs",
+      "baseline": "af278d0b28472df579f76e6d8718cbe00b2bb6f87c9f584853124588ec06f765",
+      "candidate": "af278d0b28472df579f76e6d8718cbe00b2bb6f87c9f584853124588ec06f765"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.StorageOrders.cs",
+      "baseline": "9787dc4138c92f99bbfbb2c139492b0956b2b474e5f628a69895b2f3167b58b6",
+      "candidate": "9787dc4138c92f99bbfbb2c139492b0956b2b474e5f628a69895b2f3167b58b6"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Swimming.cs",
+      "baseline": "abcfa86c13f3a8bc756dbce5b9e93c50656a2cac0a2c8e20276f4467a2766762",
+      "candidate": "abcfa86c13f3a8bc756dbce5b9e93c50656a2cac0a2c8e20276f4467a2766762"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.TalkOrders.cs",
+      "baseline": "ef6897a7dec613b0d0976e55b364314391e73204a24b261bf8c55bfab84f0b58",
+      "candidate": "ef6897a7dec613b0d0976e55b364314391e73204a24b261bf8c55bfab84f0b58"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Tick.cs",
+      "baseline": "346922ff05f6a2d12a33c5949d239cd38ee55532a3ae794c45d3513ce9e6655b",
+      "candidate": "346922ff05f6a2d12a33c5949d239cd38ee55532a3ae794c45d3513ce9e6655b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.ToolRepairOrders.cs",
+      "baseline": "14580e03d9dc5f6a1d79f72f61796afa0f52bfbb4df4b04009020eb0ae244794",
+      "candidate": "14580e03d9dc5f6a1d79f72f61796afa0f52bfbb4df4b04009020eb0ae244794"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.TreePlantingOrders.cs",
+      "baseline": "84fe8d35d33e4732743bfa7160fd86ad2f92ca4ef0cef0507c0fe1ab58b66a2f",
+      "candidate": "84fe8d35d33e4732743bfa7160fd86ad2f92ca4ef0cef0507c0fe1ab58b66a2f"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.Validation.cs",
+      "baseline": "5fc3563bc49901db9aca3488d30cf8480c514a4ae85307026db32882c1def937",
+      "candidate": "5fc3563bc49901db9aca3488d30cf8480c514a4ae85307026db32882c1def937"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntime.cs",
+      "baseline": "98cce3ca21b28f3976a0e256132964d5341f40da02d3ca3a32e2431bd480a625",
+      "candidate": "98cce3ca21b28f3976a0e256132964d5341f40da02d3ca3a32e2431bd480a625"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntimeCodec.cs",
+      "baseline": "4e152cdbf78fbd0b0a833965194be374af612d4d9d9a1b389f8e712781c917e3",
+      "candidate": "4e152cdbf78fbd0b0a833965194be374af612d4d9d9a1b389f8e712781c917e3"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldRuntimeState.cs",
+      "baseline": "c1f102530a8987283a883cfd282821255ad6a724e52b14cdce7bfcbaa6b94351",
+      "candidate": "c1f102530a8987283a883cfd282821255ad6a724e52b14cdce7bfcbaa6b94351"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/PrivateWorldTerrainChunkCodec.cs",
+      "baseline": "6443427c2e3416f4de548f8bf44f4ab241ae3e81543fcbb8df0461c406a22748",
+      "candidate": "6443427c2e3416f4de548f8bf44f4ab241ae3e81543fcbb8df0461c406a22748"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/RoutineHelperSettings.cs",
+      "baseline": "6941faa4d69dd16db5618da4d82993a9f7b86a18d020c3c5eba773c37c2b98f8",
+      "candidate": "6941faa4d69dd16db5618da4d82993a9f7b86a18d020c3c5eba773c37c2b98f8"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/SwimmingRules.cs",
+      "baseline": "a12a6f8ffd96374ae76300aaa8ff9a675e2f3046b39711bb7c818260c8e06d99",
+      "candidate": "a12a6f8ffd96374ae76300aaa8ff9a675e2f3046b39711bb7c818260c8e06d99"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/ToolMakingRequestState.cs",
+      "baseline": "4a706b0a549aa848a0e7589d6c32546a5ab15ed2212d0040130ce9c7e99ec0ee",
+      "candidate": "4a706b0a549aa848a0e7589d6c32546a5ab15ed2212d0040130ce9c7e99ec0ee"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/ToolMakingRequestValidation.cs",
+      "baseline": "9524944d0d35b9d000ccdd0e35a206989751822fa2b6e3a3daafb1d061286e91",
+      "candidate": "9524944d0d35b9d000ccdd0e35a206989751822fa2b6e3a3daafb1d061286e91"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/UnoccupiedRouteSearch.cs",
+      "baseline": "44247aac485d8b776f3a64a88de0aedf3f2f34917c578ff22c3abc0a1d7f6a70",
+      "candidate": "44247aac485d8b776f3a64a88de0aedf3f2f34917c578ff22c3abc0a1d7f6a70"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Runtime/WorldStartPace.cs",
+      "baseline": "4ab373b18fc2e864b6274f049c3cecb4fbf5c90a8cc339ce210122dbe67cefd8",
+      "candidate": "4ab373b18fc2e864b6274f049c3cecb4fbf5c90a8cc339ce210122dbe67cefd8"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Community/HouseRelocationRules.cs",
+      "baseline": "a668fa76132744e1e425642a423ce43ae969b8089a95f445a60148f02d717b29",
+      "candidate": "a668fa76132744e1e425642a423ce43ae969b8089a95f445a60148f02d717b29"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Community/HouseResidentCapacityRules.cs",
+      "baseline": "a26c40c02f4f3aa526f31621626597bc60dd37383a707c1f20318a5f763a44ca",
+      "candidate": "a26c40c02f4f3aa526f31621626597bc60dd37383a707c1f20318a5f763a44ca"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementBorrowedReturns.cs",
+      "baseline": "df1617181386bb85208a657e39592c9bfe4d2726e6ffd249235824f89420c168",
+      "candidate": "df1617181386bb85208a657e39592c9bfe4d2726e6ffd249235824f89420c168"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementCouncil.cs",
+      "baseline": "8ac61c110bab687a6aa44beed16aad993b5f5a8e1a6e76c04da4963d6c02d9bf",
+      "candidate": "8ac61c110bab687a6aa44beed16aad993b5f5a8e1a6e76c04da4963d6c02d9bf"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementDeparture.cs",
+      "baseline": "9865f1e039132342725de8f0692afb03842e973da07d555d825fe154e1cfc9a8",
+      "candidate": "9865f1e039132342725de8f0692afb03842e973da07d555d825fe154e1cfc9a8"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementHousing.cs",
+      "baseline": "6113bca76929b410818bedf68de711a97dbf9032d78d89fc9ad73058af857cdf",
+      "candidate": "6113bca76929b410818bedf68de711a97dbf9032d78d89fc9ad73058af857cdf"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementLearning.cs",
+      "baseline": "f8de3c61f85842031712dcacb80c0fedff6a5fb123638c0f073d53f4a6117e16",
+      "candidate": "f8de3c61f85842031712dcacb80c0fedff6a5fb123638c0f073d53f4a6117e16"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementPersonalCollection.cs",
+      "baseline": "438c2819c9556d572719c93c0031caaa4bb411c28369b7f67c266320d4806a35",
+      "candidate": "438c2819c9556d572719c93c0031caaa4bb411c28369b7f67c266320d4806a35"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementPersonalStorage.cs",
+      "baseline": "5a231422b3fb0a0721e15b79784c586565382d6ccd94258a7a5ef416bf713653",
+      "candidate": "5a231422b3fb0a0721e15b79784c586565382d6ccd94258a7a5ef416bf713653"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementProficiency.cs",
+      "baseline": "3f59e4045d3cd70637b5fe2e53677b3f112ff9c2bcaa79b894facb19ae6e860d",
+      "candidate": "3f59e4045d3cd70637b5fe2e53677b3f112ff9c2bcaa79b894facb19ae6e860d"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementRelocation.cs",
+      "baseline": "03d87842cefe4a24fcce8e33132bc8c29484d56528956834b195e49d56218eb6",
+      "candidate": "03d87842cefe4a24fcce8e33132bc8c29484d56528956834b195e49d56218eb6"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementSkills.cs",
+      "baseline": "9075e18c20ce7500bd01e9988c936cbe547f24a78eea7adcef1368d90fefd432",
+      "candidate": "9075e18c20ce7500bd01e9988c936cbe547f24a78eea7adcef1368d90fefd432"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Community/SettlementSocialStanding.cs",
+      "baseline": "baa0e91b5fa231045b27d6c7044b0678b72126856925c766743d9d0249c30846",
+      "candidate": "baa0e91b5fa231045b27d6c7044b0678b72126856925c766743d9d0249c30846"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/BuildingExpansionValidation.cs",
+      "baseline": "31dd30349619cfb4d9e603693f9c92db793935b2738378f2677e20bf31c373d9",
+      "candidate": "31dd30349619cfb4d9e603693f9c92db793935b2738378f2677e20bf31c373d9"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/BusinessTradeState.cs",
+      "baseline": "3430ea39581d2321085ff70c7aabbf53ff11c3a6736d5a9f4d20bfa5c629351f",
+      "candidate": "3430ea39581d2321085ff70c7aabbf53ff11c3a6736d5a9f4d20bfa5c629351f"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/FarmFieldState.cs",
+      "baseline": "4be002fc30c78f1d292146414dca2f21dd32ce8769ab4c5e9d58b2770fe6f4be",
+      "candidate": "4be002fc30c78f1d292146414dca2f21dd32ce8769ab4c5e9d58b2770fe6f4be"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/FarmFieldValidation.cs",
+      "baseline": "537d81eeb113723b0fce1cafe7f98f24c4d2121a0f4cef815593dfbe4094fb33",
+      "candidate": "537d81eeb113723b0fce1cafe7f98f24c4d2121a0f4cef815593dfbe4094fb33"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/PersonalEquipmentRules.cs",
+      "baseline": "d96aecc008d71f57c4c56ca7aafa1f4c792929a7daa9509cc3add4155bf68490",
+      "candidate": "d96aecc008d71f57c4c56ca7aafa1f4c792929a7daa9509cc3add4155bf68490"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/PersonalEquipmentValidation.cs",
+      "baseline": "318e49c3b37d71556bf3e94c9859aab26cc889ba305e15b9bbb9348461176381",
+      "candidate": "318e49c3b37d71556bf3e94c9859aab26cc889ba305e15b9bbb9348461176381"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementBlacksmithStock.cs",
+      "baseline": "86ca23dddc33de37de1da02255379a90daa82d8ce551bd6a1c3aecbda72b5d88",
+      "candidate": "86ca23dddc33de37de1da02255379a90daa82d8ce551bd6a1c3aecbda72b5d88"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementBuildingExpansion.cs",
+      "baseline": "752f283c3c55aa672246c66368e571565146f46f05bdec2d9cf2a802c6c5bfa5",
+      "candidate": "752f283c3c55aa672246c66368e571565146f46f05bdec2d9cf2a802c6c5bfa5"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementBusinessTrade.cs",
+      "baseline": "4ffbd69a5c93b25fb4929f1f5d67c68b4de40421a733dad81629fdc16f08284d",
+      "candidate": "4ffbd69a5c93b25fb4929f1f5d67c68b4de40421a733dad81629fdc16f08284d"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementCareSupplies.cs",
+      "baseline": "9dcf48fd26f4e4b8489c65d21c987b27e7084bd43ce16a9770056858640efa6b",
+      "candidate": "9dcf48fd26f4e4b8489c65d21c987b27e7084bd43ce16a9770056858640efa6b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementContainerReturns.cs",
+      "baseline": "ff74e2becf08929dce2a26a3af52e7afe65f124d1b855a7fe60572a1e4771ee7",
+      "candidate": "ff74e2becf08929dce2a26a3af52e7afe65f124d1b855a7fe60572a1e4771ee7"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementContainers.cs",
+      "baseline": "f05eafe69ef94f113d32cb2d938014f5582c766cc0f772e528bdd5677abe5b78",
+      "candidate": "f05eafe69ef94f113d32cb2d938014f5582c766cc0f772e528bdd5677abe5b78"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementEquipment.cs",
+      "baseline": "a0d3c8271ae5101315d51499e1b44ced0d789dfd00c46972af646a00b4cd60fe",
+      "candidate": "a0d3c8271ae5101315d51499e1b44ced0d789dfd00c46972af646a00b4cd60fe"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementFarmhouseStock.cs",
+      "baseline": "9da9049bfbdde3785b60133ac4f3658d1f2c11cd92310e04ae5978f79281aab7",
+      "candidate": "9da9049bfbdde3785b60133ac4f3658d1f2c11cd92310e04ae5978f79281aab7"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementFieldPlanning.cs",
+      "baseline": "9768d56810698441b447a95b456b24dce3753110c9d3bd53794f432bc4ab2d32",
+      "candidate": "9768d56810698441b447a95b456b24dce3753110c9d3bd53794f432bc4ab2d32"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementFields.cs",
+      "baseline": "5edf16454a5ae6ae2d77b1ebd43d63d07e495e4ff11d376c45ba576a45a9f1d0",
+      "candidate": "5edf16454a5ae6ae2d77b1ebd43d63d07e495e4ff11d376c45ba576a45a9f1d0"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementForestry.cs",
+      "baseline": "f06681018ff141647ad811d78bd1698aa0d1b3fbf1178e483e29753e27e21578",
+      "candidate": "f06681018ff141647ad811d78bd1698aa0d1b3fbf1178e483e29753e27e21578"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementHandcarts.cs",
+      "baseline": "ebad8d68e46ef2b0a6d3ed05bcfb7ff0406bb6ec73d3b05425772a7bdffee6bb",
+      "candidate": "ebad8d68e46ef2b0a6d3ed05bcfb7ff0406bb6ec73d3b05425772a7bdffee6bb"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementHouseGuests.cs",
+      "baseline": "8f2e0e4ed1327084f1ef95e04412133b9dc427224153d6f5c5bc14c4f6553a93",
+      "candidate": "8f2e0e4ed1327084f1ef95e04412133b9dc427224153d6f5c5bc14c4f6553a93"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementHouseholdHauling.cs",
+      "baseline": "588eb8bc7006afd1e62bbda77dbff958d3107fa157d0b3662f649fa7c9df23bb",
+      "candidate": "588eb8bc7006afd1e62bbda77dbff958d3107fa157d0b3662f649fa7c9df23bb"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementHouseholdPlanning.cs",
+      "baseline": "63fbc901d00bd30915b7315971ecd47a1304c04887192f850cd6481eeb43a065",
+      "candidate": "63fbc901d00bd30915b7315971ecd47a1304c04887192f850cd6481eeb43a065"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementKnowledgeStorage.cs",
+      "baseline": "e1f5ea572a571746994f81cfe408620bee1b42958000d971a7b4afaf2a681461",
+      "candidate": "e1f5ea572a571746994f81cfe408620bee1b42958000d971a7b4afaf2a681461"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementKnowledgeSupplies.cs",
+      "baseline": "7bd9bf2a779cc3d49ba7722737da822f5552ad351ec95cbb9b15647496f7e9ca",
+      "candidate": "7bd9bf2a779cc3d49ba7722737da822f5552ad351ec95cbb9b15647496f7e9ca"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementOrnamentProduction.cs",
+      "baseline": "c0b3fc07b74444468ab2735f16ebdf4abf23f936e45c05b40328283627de8cbd",
+      "candidate": "c0b3fc07b74444468ab2735f16ebdf4abf23f936e45c05b40328283627de8cbd"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementOrnaments.cs",
+      "baseline": "3ad74841f9d89440790ee06524cb31dc1a65cb6c0d33381494fb20af9fcd79e1",
+      "candidate": "3ad74841f9d89440790ee06524cb31dc1a65cb6c0d33381494fb20af9fcd79e1"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementProductionLifecycle.cs",
+      "baseline": "fcf935b6cda6e08ad63219fafa966960588dca6848f49f664631dbcc58c4bb47",
+      "candidate": "fcf935b6cda6e08ad63219fafa966960588dca6848f49f664631dbcc58c4bb47"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementProjects.cs",
+      "baseline": "4eb3d6781b7516141e20223971ded162bec31eda31b9eb876c741482e17dd993",
+      "candidate": "4eb3d6781b7516141e20223971ded162bec31eda31b9eb876c741482e17dd993"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementStoreStock.cs",
+      "baseline": "f30dc1728edf308a4f2178c41c87463c3f0ffdc89747f55d10fc3e647b307595",
+      "candidate": "f30dc1728edf308a4f2178c41c87463c3f0ffdc89747f55d10fc3e647b307595"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementToolMakingRequests.cs",
+      "baseline": "61c0f5e3d4da34dc6e1b7186d07e646d29c4ea1fa784b2481f456ee80fda41f5",
+      "candidate": "61c0f5e3d4da34dc6e1b7186d07e646d29c4ea1fa784b2481f456ee80fda41f5"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementTrade.cs",
+      "baseline": "3b0a425ff9f43b46d4bcf75969cdd59ef17de1ac063232fef3c1b1d1d8ef12f2",
+      "candidate": "3b0a425ff9f43b46d4bcf75969cdd59ef17de1ac063232fef3c1b1d1d8ef12f2"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementWarehouseStock.cs",
+      "baseline": "4c676880bbdabf5b04fc58cb406148555b3bc44c6382cc642e3ccbdcc81f459e",
+      "candidate": "4c676880bbdabf5b04fc58cb406148555b3bc44c6382cc642e3ccbdcc81f459e"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Economy/SettlementWorkstationSupply.cs",
+      "baseline": "9f362bf2f7a5902f14cb0dc069bfcc3ed5c0a77ba73f8037e41f65656fb6c4bf",
+      "candidate": "9f362bf2f7a5902f14cb0dc069bfcc3ed5c0a77ba73f8037e41f65656fb6c4bf"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Family/PrivateWorldRuntime.Wills.cs",
+      "baseline": "7fb272d0d82ed5f20a150a21788ef23c89c133473791d8a4f6c6501bdc74dda9",
+      "candidate": "7fb272d0d82ed5f20a150a21788ef23c89c133473791d8a4f6c6501bdc74dda9"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementChildHelping.cs",
+      "baseline": "7918859c0fea06a2e5cb4783f61f801fb9a3fff5b1c2b9fa6e84bc0cdc1841c2",
+      "candidate": "7918859c0fea06a2e5cb4783f61f801fb9a3fff5b1c2b9fa6e84bc0cdc1841c2"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementChildhood.cs",
+      "baseline": "fe82629507e32bfd152c82cfd16b0deb52f47e91ab01e2a3ad551305705a9f20",
+      "candidate": "fe82629507e32bfd152c82cfd16b0deb52f47e91ab01e2a3ad551305705a9f20"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementContinuity.cs",
+      "baseline": "0593b70874645db2d87144bbf0506ae599128c2f5a574cc381ccb96a9359bf03",
+      "candidate": "0593b70874645db2d87144bbf0506ae599128c2f5a574cc381ccb96a9359bf03"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementDependentCare.cs",
+      "baseline": "fe2accf3d3efcb18cf1f374a2b7f204f504afc06250bdab537af425a38b2dd8b",
+      "candidate": "fe2accf3d3efcb18cf1f374a2b7f204f504afc06250bdab537af425a38b2dd8b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementFamily.cs",
+      "baseline": "b32902bb5be158cf02e42bfd148e7271ddd31679481bdf92360c4ed6ad0ca563",
+      "candidate": "b32902bb5be158cf02e42bfd148e7271ddd31679481bdf92360c4ed6ad0ca563"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementGuardianPlacement.cs",
+      "baseline": "73aff607f968957a59109b6cfaed800320d87d0990b74cd7cd81ba2befee61bb",
+      "candidate": "73aff607f968957a59109b6cfaed800320d87d0990b74cd7cd81ba2befee61bb"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementMedicalCare.cs",
+      "baseline": "322e4d08537d1c1c71bf0b384739d5b627f345e229ed6095f1d58861286685be",
+      "candidate": "322e4d08537d1c1c71bf0b384739d5b627f345e229ed6095f1d58861286685be"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/Family/SettlementParenthood.cs",
+      "baseline": "48177b425b216c8fc19a3cd6304ad5dfe06dded80ecc2a22eacc33e69025f517",
+      "candidate": "48177b425b216c8fc19a3cd6304ad5dfe06dded80ecc2a22eacc33e69025f517"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Settlement/SettlementSurvival.cs",
+      "baseline": "fcc5f01249949b1ed8b5257060b5ed9aeafb56f8206d7ec5295d75654f4c4496",
+      "candidate": "fcc5f01249949b1ed8b5257060b5ed9aeafb56f8206d7ec5295d75654f4c4496"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/ToolProgressionRules.cs",
+      "baseline": "de8420a544f6bfbe4db235be1223cd59bb2b9ed419256d53e4655720fa99ef2c",
+      "candidate": "de8420a544f6bfbe4db235be1223cd59bb2b9ed419256d53e4655720fa99ef2c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/ToolProgressionRuntime.cs",
+      "baseline": "5adf5db57fad5a0fa03e32ecca882b6f651522a165295f9a02f5c55ff83e9d14",
+      "candidate": "5adf5db57fad5a0fa03e32ecca882b6f651522a165295f9a02f5c55ff83e9d14"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/AgentPlacementChangedException.cs",
+      "baseline": "7a3958a79f64f8be1d23bddfb26b79bd44b8134cad0db5f535b26a8b8db9c18b",
+      "candidate": "7a3958a79f64f8be1d23bddfb26b79bd44b8134cad0db5f535b26a8b8db9c18b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/BridgeTraffic.cs",
+      "baseline": "120804487bcf246005546fe76d35512ae721e587bf8e323402daa53b6eaa14f7",
+      "candidate": "120804487bcf246005546fe76d35512ae721e587bf8e323402daa53b6eaa14f7"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/FirstTownLayoutPlanner.cs",
+      "baseline": "ff3bd035dd9868c1d887ad32a3507353ef26daa4b2fb4dc956b65bf308a2ef7a",
+      "candidate": "ff3bd035dd9868c1d887ad32a3507353ef26daa4b2fb4dc956b65bf308a2ef7a"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/HouseholdLandGrants.cs",
+      "baseline": "745e9afb88e12f399754c9aa89d2cde71bd2913324c66436fb8dcf54f38b3c8b",
+      "candidate": "745e9afb88e12f399754c9aa89d2cde71bd2913324c66436fb8dcf54f38b3c8b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/MarketTradeContracts.cs",
+      "baseline": "7aac801a826d59a1aa7a61761485b84a2f45b7e9f418520ad60faa0723aa1c60",
+      "candidate": "7aac801a826d59a1aa7a61761485b84a2f45b7e9f418520ad60faa0723aa1c60"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Boats.Validation.cs",
+      "baseline": "1b0fd995b8d7a31557a1c1da046a4cf0907a8a1ca5b09e008f4b7dd155dcec34",
+      "candidate": "1b0fd995b8d7a31557a1c1da046a4cf0907a8a1ca5b09e008f4b7dd155dcec34"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Boats.cs",
+      "baseline": "e9b78965414753845ba51d0f8c18fbedcde08d23e7c6e50cccdbe6651dbbfc5a",
+      "candidate": "e9b78965414753845ba51d0f8c18fbedcde08d23e7c6e50cccdbe6651dbbfc5a"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Bridges.cs",
+      "baseline": "3a94fe18fae918ec8a169eda0c7618e04688ab7a558beca3a906b06e220849c8",
+      "candidate": "3a94fe18fae918ec8a169eda0c7618e04688ab7a558beca3a906b06e220849c8"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Governance.cs",
+      "baseline": "ca614a5c42ddaf305bfe9503163598c67cdd0316709aa5373661f0b4195f94b0",
+      "candidate": "ca614a5c42ddaf305bfe9503163598c67cdd0316709aa5373661f0b4195f94b0"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Government.cs",
+      "baseline": "46fdddf17f516b0aa0bfa08b3b1e2e716e7d562ef8944e2beb3baf7a387b6d63",
+      "candidate": "46fdddf17f516b0aa0bfa08b3b1e2e716e7d562ef8944e2beb3baf7a387b6d63"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.GovernmentActions.cs",
+      "baseline": "690c210888db78138b7bbd7cabf5108f673ff91ba08f9cd6eb3cf67bda15ba16",
+      "candidate": "690c210888db78138b7bbd7cabf5108f673ff91ba08f9cd6eb3cf67bda15ba16"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.LandHearings.Actions.cs",
+      "baseline": "d61e4f6266db3b5fac2b132abd9874f1d4e7dff798620aba1cda7863d848f8aa",
+      "candidate": "d61e4f6266db3b5fac2b132abd9874f1d4e7dff798620aba1cda7863d848f8aa"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.LandHearings.Authority.cs",
+      "baseline": "afdacb0c1b96dc720fbb78a577dc5ead2681def7dedb3c2f89371e437d884e54",
+      "candidate": "afdacb0c1b96dc720fbb78a577dc5ead2681def7dedb3c2f89371e437d884e54"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.LandHearings.Evidence.cs",
+      "baseline": "1784d1d9f028c9910b5e6f66173be9f586f9d17fcffea5f9936805587be422c5",
+      "candidate": "1784d1d9f028c9910b5e6f66173be9f586f9d17fcffea5f9936805587be422c5"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.LandHearings.Judges.cs",
+      "baseline": "7fae31610a88f95ee0b6b16b812967f96ad0defb8aefba53bfab1bff1a8aa032",
+      "candidate": "7fae31610a88f95ee0b6b16b812967f96ad0defb8aefba53bfab1bff1a8aa032"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.LandHearings.cs",
+      "baseline": "84e57a50fc6db6fedb8f00b85848adecfada2aa67f6a0be73a290f7391382e6e",
+      "candidate": "84e57a50fc6db6fedb8f00b85848adecfada2aa67f6a0be73a290f7391382e6e"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.LandSales.cs",
+      "baseline": "5055872566482a481f65cc0a0f4467b07a8b340ee97029d5fc595f276a951a6e",
+      "candidate": "5055872566482a481f65cc0a0f4467b07a8b340ee97029d5fc595f276a951a6e"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.LandTransfers.Actions.cs",
+      "baseline": "3fc9b576d3dfb31894a7729aa313935c849b8d1ee430c47e6297ab74b9535605",
+      "candidate": "3fc9b576d3dfb31894a7729aa313935c849b8d1ee430c47e6297ab74b9535605"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.LandTransfers.cs",
+      "baseline": "914f7172d2fc34b4cd6a5a9b06dc1a3d89e88ba944b10bd986678bddc4a604a5",
+      "candidate": "914f7172d2fc34b4cd6a5a9b06dc1a3d89e88ba944b10bd986678bddc4a604a5"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.MarketConstruction.cs",
+      "baseline": "80777c459a017967ba454cea74825973b8901f34f656bf0693d75ae0500e9791",
+      "candidate": "80777c459a017967ba454cea74825973b8901f34f656bf0693d75ae0500e9791"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.MarketHistory.cs",
+      "baseline": "30a2a0e6ce83df0fd4178dc5a944adcaaad05f9539aec04aa35df1f55103b13c",
+      "candidate": "30a2a0e6ce83df0fd4178dc5a944adcaaad05f9539aec04aa35df1f55103b13c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.MarketTrade.cs",
+      "baseline": "d52e302bda1d657307996a5d1d10321d093a5597fec6fb55638b3bae9f4e8a5d",
+      "candidate": "d52e302bda1d657307996a5d1d10321d093a5597fec6fb55638b3bae9f4e8a5d"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Nonviolent.Actions.cs",
+      "baseline": "5eeef9b3d3b56ae846fdaf3ac953276b43f8a46915393a29c88015d36001a5ea",
+      "candidate": "5eeef9b3d3b56ae846fdaf3ac953276b43f8a46915393a29c88015d36001a5ea"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Nonviolent.Candidates.cs",
+      "baseline": "79b0db870ec300aa6bc3c8c68f25a1357aad5c3328ca568464e887ba4d97d4d5",
+      "candidate": "79b0db870ec300aa6bc3c8c68f25a1357aad5c3328ca568464e887ba4d97d4d5"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Nonviolent.PublicRecords.cs",
+      "baseline": "17a0519b9428c83ac71492d660f3c8012a85e66115e99379b5578d2a346d3a81",
+      "candidate": "17a0519b9428c83ac71492d660f3c8012a85e66115e99379b5578d2a346d3a81"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Nonviolent.cs",
+      "baseline": "139711e532f4a8fa9c286439f7d6cf75fe9759c2fd5026d4d1ad04039305279d",
+      "candidate": "139711e532f4a8fa9c286439f7d6cf75fe9759c2fd5026d4d1ad04039305279d"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Ports.cs",
+      "baseline": "cf97053a78b3aaf2c9bab412bba1f11bbdb5e9840d2c1c0a9a573ee87e1a5fff",
+      "candidate": "cf97053a78b3aaf2c9bab412bba1f11bbdb5e9840d2c1c0a9a573ee87e1a5fff"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.PropertyCases.cs",
+      "baseline": "4c4559f69fae7007e13a49ba769c82c212a170b0e1a7309ed444041a172c1c39",
+      "candidate": "4c4559f69fae7007e13a49ba769c82c212a170b0e1a7309ed444041a172c1c39"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.TownAbandonment.cs",
+      "baseline": "e020e29b3b8cd1fa6d2af5b38fe32bbe4f4777255f9f91bf2c7b2fb22485b428",
+      "candidate": "e020e29b3b8cd1fa6d2af5b38fe32bbe4f4777255f9f91bf2c7b2fb22485b428"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.TownFounding.cs",
+      "baseline": "a1e97b21f1bf67d350d879ad968d5c48e7588edfbe6afc080cdba578ce83a06a",
+      "candidate": "a1e97b21f1bf67d350d879ad968d5c48e7588edfbe6afc080cdba578ce83a06a"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.TownMembership.cs",
+      "baseline": "72dd10f958bfabdae969eaac34ba2f920bb4568ea9dc8ddb71a681cf2b5180d6",
+      "candidate": "72dd10f958bfabdae969eaac34ba2f920bb4568ea9dc8ddb71a681cf2b5180d6"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.TownProjectSites.cs",
+      "baseline": "02d31c73e6d8023d8652bda9eca87a6c8e4af023be688a5831e2d8e707be7e2b",
+      "candidate": "02d31c73e6d8023d8652bda9eca87a6c8e4af023be688a5831e2d8e707be7e2b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.TownProjects.cs",
+      "baseline": "1f8e5451d67e0f748532ee0df26801c61647763ae6cfa41105f20b3c9c8f87b3",
+      "candidate": "1f8e5451d67e0f748532ee0df26801c61647763ae6cfa41105f20b3c9c8f87b3"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.TownRoadLinks.cs",
+      "baseline": "836a60aabebb6c402b67938473428f553ec32297de648141ad9a7a573798c276",
+      "candidate": "836a60aabebb6c402b67938473428f553ec32297de648141ad9a7a573798c276"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/PrivateWorldRuntime.Towns.cs",
+      "baseline": "3f36bbaa3f6d63ddc3a6b89ea7cf7e2ba62ad3cbce69829714bf7c3140abad21",
+      "candidate": "3f36bbaa3f6d63ddc3a6b89ea7cf7e2ba62ad3cbce69829714bf7c3140abad21"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/RiverBridges.cs",
+      "baseline": "0b0c8e1ee9141e56461c6d1bdca9e8764914b1cf344999558e190fa0869baa45",
+      "candidate": "0b0c8e1ee9141e56461c6d1bdca9e8764914b1cf344999558e190fa0869baa45"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/RoadRoutePlanner.cs",
+      "baseline": "cabae566689196db1274da0ce57b542cde789167e92a5793461e1c2d2f1dcd32",
+      "candidate": "cabae566689196db1274da0ce57b542cde789167e92a5793461e1c2d2f1dcd32"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/SettlementFirstTownSetup.cs",
+      "baseline": "e9e32e4dab0cfeffe02e4a5f772e722ac0c1a9ada8a5677c2eccf57383451863",
+      "candidate": "e9e32e4dab0cfeffe02e4a5f772e722ac0c1a9ada8a5677c2eccf57383451863"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/SettlementRoads.cs",
+      "baseline": "bf14bce8f2a72d3bc062ab2976c41c30a45771b60d1e07805675bb88fe53d278",
+      "candidate": "bf14bce8f2a72d3bc062ab2976c41c30a45771b60d1e07805675bb88fe53d278"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownAdmissionDeadlineRules.cs",
+      "baseline": "b9e5c1957f881a0d2a758e19eb495f94fb0a78db1aa6155c6df13974a621f137",
+      "candidate": "b9e5c1957f881a0d2a758e19eb495f94fb0a78db1aa6155c6df13974a621f137"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownBoatAccessRules.cs",
+      "baseline": "f947fc29fd8f7241e8d46da984b5681a0df93b1ea56fe9e40cbd23e576a23a55",
+      "candidate": "f947fc29fd8f7241e8d46da984b5681a0df93b1ea56fe9e40cbd23e576a23a55"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownCaseJudgeRules.cs",
+      "baseline": "cef3294a5c0e9b8df335818b85eb8f8e9bd5161a630d8e3f4af37ee2a0280307",
+      "candidate": "cef3294a5c0e9b8df335818b85eb8f8e9bd5161a630d8e3f4af37ee2a0280307"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownContracts.cs",
+      "baseline": "fb67ffa3a370b82167da5a7191cdc560c573446a920f5a889b326eebbea262e3",
+      "candidate": "fb67ffa3a370b82167da5a7191cdc560c573446a920f5a889b326eebbea262e3"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownEstateDefaultRules.cs",
+      "baseline": "ae2f5296e90193a6e07ed9e0b60490f2cc71d6a070a1c2a545596ab6c9d5ff06",
+      "candidate": "ae2f5296e90193a6e07ed9e0b60490f2cc71d6a070a1c2a545596ab6c9d5ff06"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownGovernance.cs",
+      "baseline": "9e4a15c3ef3cf629ffda5cf53174dd8fd1a0f3cd3fe099dccf40ff1bd3a0b068",
+      "candidate": "9e4a15c3ef3cf629ffda5cf53174dd8fd1a0f3cd3fe099dccf40ff1bd3a0b068"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownGovernanceValidation.cs",
+      "baseline": "53aeea87e7638a6dd464ce80ddeb0ebeb89d3c755d593dbdb17888fe14b59bd9",
+      "candidate": "53aeea87e7638a6dd464ce80ddeb0ebeb89d3c755d593dbdb17888fe14b59bd9"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownGovernmentContracts.cs",
+      "baseline": "d93d815898f4d685eb88ef022d7219c0f03676e077454ccabc72964360adb8b1",
+      "candidate": "d93d815898f4d685eb88ef022d7219c0f03676e077454ccabc72964360adb8b1"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownGovernmentRules.Mayors.cs",
+      "baseline": "9b0d70f387e91151650cb53a72346c432150d8c2fd399951072bdd0e4cc32e11",
+      "candidate": "9b0d70f387e91151650cb53a72346c432150d8c2fd399951072bdd0e4cc32e11"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownGovernmentRules.NonLand.cs",
+      "baseline": "1f75bcc66af30db181ab09725708e3fe74c4c62785da0f7d5bfade57aa239d43",
+      "candidate": "1f75bcc66af30db181ab09725708e3fe74c4c62785da0f7d5bfade57aa239d43"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownGovernmentRules.cs",
+      "baseline": "c9be1663578cbc2afcba397c20af4c21141f0e3ed57ca2060f0d1edddd836453",
+      "candidate": "c9be1663578cbc2afcba397c20af4c21141f0e3ed57ca2060f0d1edddd836453"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownGovernmentStateValidation.cs",
+      "baseline": "164ee13e1bac310885a10d453ab9d4712c5d3703d0f299e3531e7b9471ca32bd",
+      "candidate": "164ee13e1bac310885a10d453ab9d4712c5d3703d0f299e3531e7b9471ca32bd"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownGovernmentValidation.cs",
+      "baseline": "a6481f03f45f9766ff2ee2c8d8e2c36b2510e97b88a0043063a2f9c106e4b115",
+      "candidate": "a6481f03f45f9766ff2ee2c8d8e2c36b2510e97b88a0043063a2f9c106e4b115"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownHearingProcedure.cs",
+      "baseline": "13ca761e165482b9d3b95a93c847ae6c1dab3a9f552c0182ab9b75860cd11f2b",
+      "candidate": "13ca761e165482b9d3b95a93c847ae6c1dab3a9f552c0182ab9b75860cd11f2b"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownLandCaseJudgeRules.cs",
+      "baseline": "0c2aedbcb309fb17099b7152722a75ece2a50af1d6b02ca16124a74c47f391d8",
+      "candidate": "0c2aedbcb309fb17099b7152722a75ece2a50af1d6b02ca16124a74c47f391d8"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownLandCasePartyRules.cs",
+      "baseline": "dc2ca4c64ba9c3940f4ae022895566dfe70beaa5d46c336eb496ae29dcb713e2",
+      "candidate": "dc2ca4c64ba9c3940f4ae022895566dfe70beaa5d46c336eb496ae29dcb713e2"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownLandClaims.cs",
+      "baseline": "404e03aa23bf2d006afa5642f54d59629c10c61e65fe605df9df66b1661d6323",
+      "candidate": "404e03aa23bf2d006afa5642f54d59629c10c61e65fe605df9df66b1661d6323"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownLandGovernmentFilingRules.cs",
+      "baseline": "a8996d4f2b0d425035e8df8336cc4054af31421b5301c76059266bd2b428e775",
+      "candidate": "a8996d4f2b0d425035e8df8336cc4054af31421b5301c76059266bd2b428e775"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownLandHearingContracts.cs",
+      "baseline": "8908e13496e919ae4fa2355b3eaf8b53bb6a685155f7c97ec59d28d0af8d87e4",
+      "candidate": "8908e13496e919ae4fa2355b3eaf8b53bb6a685155f7c97ec59d28d0af8d87e4"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownLandHearingRules.cs",
+      "baseline": "490f355777ef00d43f17b8c48f00165e37add88a81eb92a3d6338eaf8268fe35",
+      "candidate": "490f355777ef00d43f17b8c48f00165e37add88a81eb92a3d6338eaf8268fe35"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownLandHearingValidation.cs",
+      "baseline": "17a9977dfd6c356b14da398d90f91b6587cbde459cb68d94a3477ccd87476661",
+      "candidate": "17a9977dfd6c356b14da398d90f91b6587cbde459cb68d94a3477ccd87476661"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownLandRights.cs",
+      "baseline": "3861b9f1a8c0142c68b3f8f858e352d3d47080ce44b44e2148690a20faa50009",
+      "candidate": "3861b9f1a8c0142c68b3f8f858e352d3d47080ce44b44e2148690a20faa50009"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownLandTransferContracts.cs",
+      "baseline": "81582a7d5b24edeedb33e1caf9e33d8b4e414bb810764d6fccc342661eb6b2df",
+      "candidate": "81582a7d5b24edeedb33e1caf9e33d8b4e414bb810764d6fccc342661eb6b2df"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownLandTransferRules.cs",
+      "baseline": "587ada27564d83ec819f93860b9ab990ae6ca96e38f318ee248d3b120995848e",
+      "candidate": "587ada27564d83ec819f93860b9ab990ae6ca96e38f318ee248d3b120995848e"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownLandTransferValidation.cs",
+      "baseline": "9cd10efc9b0713522bbf562b7ccaf78f40eb1930a5824170280b7deb9f87d7ae",
+      "candidate": "9cd10efc9b0713522bbf562b7ccaf78f40eb1930a5824170280b7deb9f87d7ae"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownLaws.cs",
+      "baseline": "29ffc1dc5f143b4993608990b2464c819704eab7e8b90a25318113bb32474db1",
+      "candidate": "29ffc1dc5f143b4993608990b2464c819704eab7e8b90a25318113bb32474db1"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownLayoutService.cs",
+      "baseline": "0ea46404056eec6e9ee58283089c5add621dc335b179cc4c75e31f9d0aa52c2f",
+      "candidate": "0ea46404056eec6e9ee58283089c5add621dc335b179cc4c75e31f9d0aa52c2f"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownNonviolentContracts.cs",
+      "baseline": "39dd5ea6108f1b90bc78ea2a81e958adc9a5a52f7ba181d87ee18492804a2baf",
+      "candidate": "39dd5ea6108f1b90bc78ea2a81e958adc9a5a52f7ba181d87ee18492804a2baf"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownNonviolentGovernmentFilingRules.cs",
+      "baseline": "d35eb536b95e41b2ac37a8903a8abd47b7d8adcf2bfebc18c559919bfe95c5c3",
+      "candidate": "d35eb536b95e41b2ac37a8903a8abd47b7d8adcf2bfebc18c559919bfe95c5c3"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownNonviolentPartyRules.cs",
+      "baseline": "34bb908c3891c9a00d7b85917f8b4e745c9425cebdf0522dcd946bfc3da7a8f3",
+      "candidate": "34bb908c3891c9a00d7b85917f8b4e745c9425cebdf0522dcd946bfc3da7a8f3"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownNonviolentRules.cs",
+      "baseline": "1a4643bdba2f9f692eacaf433b6ccf6f77ba166c67980c47bd5cebc176efe52c",
+      "candidate": "1a4643bdba2f9f692eacaf433b6ccf6f77ba166c67980c47bd5cebc176efe52c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownNonviolentState.Conduct.cs",
+      "baseline": "06135729440618abaf6d490df705d3e7d242f2bf761e764f079aa4a29f5ec590",
+      "candidate": "06135729440618abaf6d490df705d3e7d242f2bf761e764f079aa4a29f5ec590"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownNonviolentValidation.cs",
+      "baseline": "d7e5d94aeb3694b582d6c31512f4b1fa37bfc4a03f0989e1e86b027503633b81",
+      "candidate": "d7e5d94aeb3694b582d6c31512f4b1fa37bfc4a03f0989e1e86b027503633b81"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownProjectContracts.cs",
+      "baseline": "b3b2df483ba874dde038bbfafb55dd3073a6cac7b4c0164c6e356092dca8c4d0",
+      "candidate": "b3b2df483ba874dde038bbfafb55dd3073a6cac7b4c0164c6e356092dca8c4d0"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownProjectValidation.cs",
+      "baseline": "78ca2a25e9b3d015fb989f5ba3b86fba8c1359d4d63e4a614290d1c21e577f9a",
+      "candidate": "78ca2a25e9b3d015fb989f5ba3b86fba8c1359d4d63e4a614290d1c21e577f9a"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownPropertyContracts.cs",
+      "baseline": "e621474ce7cc6cfbf6d0b0f509bece75e73e8ee670117c780a0026a794f4b7fb",
+      "candidate": "e621474ce7cc6cfbf6d0b0f509bece75e73e8ee670117c780a0026a794f4b7fb"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownPropertyRules.cs",
+      "baseline": "1e0d02b3ea1923877658ebcd6b7a31dfd226c5e2e7612db57cb7ed8fd4b0895a",
+      "candidate": "1e0d02b3ea1923877658ebcd6b7a31dfd226c5e2e7612db57cb7ed8fd4b0895a"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownPropertyValidation.cs",
+      "baseline": "efe219e591854cc420d1a8b793aa17b8f942f77bd10375bc93cf1a7d289861df",
+      "candidate": "efe219e591854cc420d1a8b793aa17b8f942f77bd10375bc93cf1a7d289861df"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownRemedyRules.cs",
+      "baseline": "e2f34c435bd0da6fb3c4d395b79b4d34e8e06914c5bb974b2902575f0454e50f",
+      "candidate": "e2f34c435bd0da6fb3c4d395b79b4d34e8e06914c5bb974b2902575f0454e50f"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Playtest/Towns/TownStreets.cs",
+      "baseline": "2ee66fa293620a5241fb94b4b5d6361cfcb9b2881acdaa666906b255773e4557",
+      "candidate": "2ee66fa293620a5241fb94b4b5d6361cfcb9b2881acdaa666906b255773e4557"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/SimulationAssemblyMarker.cs",
+      "baseline": "2042e743a966e5d13131536d0e6463f056be52fa6d087441c9b460ed1151c8a0",
+      "candidate": "2042e743a966e5d13131536d0e6463f056be52fa6d087441c9b460ed1151c8a0"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/InhabitantNameRules.cs",
+      "baseline": "6c13317bb10784033ea7d27e37711600f77e4c5e72ada378f09a4288991da8ce",
+      "candidate": "6c13317bb10784033ea7d27e37711600f77e4c5e72ada378f09a4288991da8ce"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/SocietyArrivalAges.cs",
+      "baseline": "af98ea72c5c1f300382b4c82cbcbfa07a61b32325bf365c65c3fa22824806b6e",
+      "candidate": "af98ea72c5c1f300382b4c82cbcbfa07a61b32325bf365c65c3fa22824806b6e"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/SocietyBeliefValidationIndex.cs",
+      "baseline": "05832750219656e03b55d544e8ca4d62696d35725e8957137d8f5381bee64e84",
+      "candidate": "05832750219656e03b55d544e8ca4d62696d35725e8957137d8f5381bee64e84"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/SocietyCheckpointCodec.cs",
+      "baseline": "5cc7c66dcced704207d1f51a2c43d96295d46279eeea1bb795be58eee6414ce4",
+      "candidate": "5cc7c66dcced704207d1f51a2c43d96295d46279eeea1bb795be58eee6414ce4"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/SocietyCognitionScheduler.cs",
+      "baseline": "15ce36aa77516f54cedb638cfdc6e3a7222886654e8d89c627d75121710704eb",
+      "candidate": "15ce36aa77516f54cedb638cfdc6e3a7222886654e8d89c627d75121710704eb"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/SocietyContracts.cs",
+      "baseline": "9ed9c180a8e2185019f5ee2b7b3233ec46bccd3716366898ada68282a94e07b2",
+      "candidate": "9ed9c180a8e2185019f5ee2b7b3233ec46bccd3716366898ada68282a94e07b2"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/SocietyDependentCare.cs",
+      "baseline": "a06b8ce7e959e92ff774d0142d553d43e21838d281b77d7ca69780cd999ff71c",
+      "candidate": "a06b8ce7e959e92ff774d0142d553d43e21838d281b77d7ca69780cd999ff71c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/SocietyFixture.cs",
+      "baseline": "998e239531b667a6a5f7ce9698c8f90d87d93aeef00a6784f93a0a868d6241c3",
+      "candidate": "998e239531b667a6a5f7ce9698c8f90d87d93aeef00a6784f93a0a868d6241c3"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/SocietyHouseholdMoves.cs",
+      "baseline": "9f7283fbcec4978d167f586247d00fe30ebf1fff8e36478836bd1ec9248b961c",
+      "candidate": "9f7283fbcec4978d167f586247d00fe30ebf1fff8e36478836bd1ec9248b961c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/SocietyLifePace.cs",
+      "baseline": "c318b01030294855d59b4ddac031a155ee34a704ec5ede150069573b0d08beb8",
+      "candidate": "c318b01030294855d59b4ddac031a155ee34a704ec5ede150069573b0d08beb8"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/SocietyMemoryArchive.cs",
+      "baseline": "2ea2286721eee22a46d8cf853e4c8c0760921c13bce99492fc26831a03b3bbd5",
+      "candidate": "2ea2286721eee22a46d8cf853e4c8c0760921c13bce99492fc26831a03b3bbd5"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/SocietyMemorySummaries.cs",
+      "baseline": "136146f0bd1b571389e232b8edd413e7eeca04297ffc87711ca5bafd128590d2",
+      "candidate": "136146f0bd1b571389e232b8edd413e7eeca04297ffc87711ca5bafd128590d2"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/SocietyWorldRuntime.cs",
+      "baseline": "bed1b9d37e162a99361f2a109d28e6119786274747e29ca75c02d1113dfac66c",
+      "candidate": "bed1b9d37e162a99361f2a109d28e6119786274747e29ca75c02d1113dfac66c"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/Society/SocietyWorldRuntimeCodec.cs",
+      "baseline": "82143624f0c01fec7a87497a80556c737057b3da2af728726dee2921c8f35307",
+      "candidate": "82143624f0c01fec7a87497a80556c737057b3da2af728726dee2921c8f35307"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/ThirdParty/FastNoiseLite/.editorconfig",
+      "baseline": "d4e3467892b97e13f58d93f72d5fddb42b11305b34ccae16312ef90a7441d13e",
+      "candidate": "d4e3467892b97e13f58d93f72d5fddb42b11305b34ccae16312ef90a7441d13e"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/ThirdParty/FastNoiseLite/FastNoiseLite.cs",
+      "baseline": "ca79c42eb8b698dcad9c732084f88554e95cba207677eacad5ca24c1baded59d",
+      "candidate": "ca79c42eb8b698dcad9c732084f88554e95cba207677eacad5ca24c1baded59d"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/ThirdParty/FastNoiseLite/LICENSE",
+      "baseline": "c08da3239b919c12f4ec616b457a8dd0fc923c8102c8a742c4006fcb5de28fb0",
+      "candidate": "c08da3239b919c12f4ec616b457a8dd0fc923c8102c8a742c4006fcb5de28fb0"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/ThirdParty/FastNoiseLite/README.md",
+      "baseline": "b7f3dcd3da0eaa1e55bb0bc559fda0c0175809b8081038980c85eee81f1d25f9",
+      "candidate": "b7f3dcd3da0eaa1e55bb0bc559fda0c0175809b8081038980c85eee81f1d25f9"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/World/DaylightRules.cs",
+      "baseline": "92a267f6816a760925b2cad766cc6e8791883e77e7fc5cb87205d19aa6435876",
+      "candidate": "92a267f6816a760925b2cad766cc6e8791883e77e7fc5cb87205d19aa6435876"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/World/GeographyGenerator.cs",
+      "baseline": "de7fa7539cb1fb1fb18ca96569b99b953ce34e96a2af5de1d426a98b0c338bb0",
+      "candidate": "de7fa7539cb1fb1fb18ca96569b99b953ce34e96a2af5de1d426a98b0c338bb0"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/World/LandFertility.cs",
+      "baseline": "49936760c905a42513271c9c45ccbfb52ccdfa516d8564aa92ad24c83a8f9953",
+      "candidate": "49936760c905a42513271c9c45ccbfb52ccdfa516d8564aa92ad24c83a8f9953"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/World/MountainMassifs.cs",
+      "baseline": "307d24c94feec0d317e3565e920e8338f94cbec29162f7afe776ef254de5f282",
+      "candidate": "307d24c94feec0d317e3565e920e8338f94cbec29162f7afe776ef254de5f282"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/World/RegionalWeatherEpisodes.cs",
+      "baseline": "1cd8dafb564d4180b924e0b57b575c71b22d6c80089925f1dec1dfa920eaf9e6",
+      "candidate": "1cd8dafb564d4180b924e0b57b575c71b22d6c80089925f1dec1dfa920eaf9e6"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/World/TreeGrowthRules.cs",
+      "baseline": "4298564b49e1c84f8e0b30f19d1afcfcc7a744da4ca1b57f40088ef409844cbf",
+      "candidate": "4298564b49e1c84f8e0b30f19d1afcfcc7a744da4ca1b57f40088ef409844cbf"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/World/WorldSystemsContracts.cs",
+      "baseline": "e51159b38e8b0983c5c523d99d4ce5a20206cb277dd964107f140f54ecef7ad6",
+      "candidate": "e51159b38e8b0983c5c523d99d4ce5a20206cb277dd964107f140f54ecef7ad6"
+    },
+    {
+      "path": "src/ClankerWorld.Simulation/packages.lock.json",
+      "baseline": "c30b149eb0b6c271aabe8d79d7b0318ba25f0bbd2ebf6a08faa3b67056bce9b3",
+      "candidate": "c30b149eb0b6c271aabe8d79d7b0318ba25f0bbd2ebf6a08faa3b67056bce9b3"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/ClankerWorld.Viewer.csproj",
+      "baseline": "cbb92bf31fdbaf0e343b04fe0d86f1c259e9cd70c223b1811e1045c1b8f15125",
+      "candidate": "cbb92bf31fdbaf0e343b04fe0d86f1c259e9cd70c223b1811e1045c1b8f15125"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Authority/CompanionHostTelemetry.cs",
+      "baseline": "ddd860ac17e8053fa77e8ed489c367b2f017de48522eab3a081990a62551703d",
+      "candidate": "ddd860ac17e8053fa77e8ed489c367b2f017de48522eab3a081990a62551703d"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Authority/OwnerAuthorityStateFile.cs",
+      "baseline": "a6560162f903696a3c27a84e9bc5c8b240af41162e34e7b4558ed0e452d4e789",
+      "candidate": "a6560162f903696a3c27a84e9bc5c8b240af41162e34e7b4558ed0e452d4e789"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Authority/OwnerAuthorityStore.cs",
+      "baseline": "88c7c90ffa44f777f1a70468a6fd90049b476864bbb0a222ba25e92ad1ef1d53",
+      "candidate": "88c7c90ffa44f777f1a70468a6fd90049b476864bbb0a222ba25e92ad1ef1d53"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Authority/OwnerEndpointContracts.cs",
+      "baseline": "99b6c44456d4e0fcd6d7474f59c4097fde578bbd3c588adcd4da2cfe5714827a",
+      "candidate": "99b6c44456d4e0fcd6d7474f59c4097fde578bbd3c588adcd4da2cfe5714827a"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Authority/OwnerHttpProtocol.cs",
+      "baseline": "9b03c58e1177dfaf3a0c221ba8d74b031467f60351a497eca09b787f35d7c2da",
+      "candidate": "9b03c58e1177dfaf3a0c221ba8d74b031467f60351a497eca09b787f35d7c2da"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Authority/PairingRequestBudget.cs",
+      "baseline": "2fba87fcc60758223625cd649014a7faffb5dbe0767fa73d2db94727a880a561",
+      "candidate": "2fba87fcc60758223625cd649014a7faffb5dbe0767fa73d2db94727a880a561"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Content/OwnerAuthoringMapper.cs",
+      "baseline": "514cf1fd16dd49aa3c831f9d6bbc0bdd8616099f94aa2eefa7b62e1250008ea9",
+      "candidate": "514cf1fd16dd49aa3c831f9d6bbc0bdd8616099f94aa2eefa7b62e1250008ea9"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Content/OwnerBuildingDesign.cs",
+      "baseline": "fb146c490b9b1d1d4637c67698b9338e43ef675da9230dc6303be6b411ca1416",
+      "candidate": "fb146c490b9b1d1d4637c67698b9338e43ef675da9230dc6303be6b411ca1416"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Content/OwnerContentProtocol.cs",
+      "baseline": "385f024dd9e5d3a2f527fee8ba1440c190500a47e3e409a317fe19f7212501b6",
+      "candidate": "385f024dd9e5d3a2f527fee8ba1440c190500a47e3e409a317fe19f7212501b6"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Content/OwnerContentTelemetry.cs",
+      "baseline": "705e729d32e1bb70835aeba837b7e3af9628e36deb7b001f432bbb0dcee164ab",
+      "candidate": "705e729d32e1bb70835aeba837b7e3af9628e36deb7b001f432bbb0dcee164ab"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Providers/AnthropicModelClient.cs",
+      "baseline": "8c00ea54d9915e3bbbce3ea242d44ef92c05f953574d3003e6efd20c7a452aca",
+      "candidate": "8c00ea54d9915e3bbbce3ea242d44ef92c05f953574d3003e6efd20c7a452aca"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Providers/ChildModelSelectionResolver.cs",
+      "baseline": "a7b03b1b098f07c0cec62513108d0ae5cbe4bec95952d71e9cde1c953ad81037",
+      "candidate": "a7b03b1b098f07c0cec62513108d0ae5cbe4bec95952d71e9cde1c953ad81037"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Providers/OwnerCredentialSlotTelemetry.cs",
+      "baseline": "1ac5069541f302508ca597b030a4cf62b9a9fd4af9199237a9ace4e245b972a1",
+      "candidate": "1ac5069541f302508ca597b030a4cf62b9a9fd4af9199237a9ace4e245b972a1"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Providers/ProviderConfigurationStore.cs",
+      "baseline": "f7a11b493266c21e6c30ab17ecdf41c882eb026352ffe8ad53b82b26673578c8",
+      "candidate": "f7a11b493266c21e6c30ab17ecdf41c882eb026352ffe8ad53b82b26673578c8"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Providers/ProviderCredentialFile.cs",
+      "baseline": "5874cb7deeb38a6fb63b6a79332f02eada78af2f36c37a90c24e7bdb5714f8f5",
+      "candidate": "5874cb7deeb38a6fb63b6a79332f02eada78af2f36c37a90c24e7bdb5714f8f5"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Providers/ProviderCredentialTelemetry.cs",
+      "baseline": "0c25aec9c07278a126a2ba114fe0453d0f19fc28466fbb1b38df7ea245a26465",
+      "candidate": "0c25aec9c07278a126a2ba114fe0453d0f19fc28466fbb1b38df7ea245a26465"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Providers/ProviderModelCatalog.cs",
+      "baseline": "638386adc5ac3c7166aee57cbdee180198cedf316d72e8caafaa330c643cf455",
+      "candidate": "638386adc5ac3c7166aee57cbdee180198cedf316d72e8caafaa330c643cf455"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Providers/ProviderSetupCheckService.cs",
+      "baseline": "4c815709d0f963b27ae79b0caf47b8ce987ab7d64a87ee621c959ee6c8dd12c7",
+      "candidate": "4c815709d0f963b27ae79b0caf47b8ce987ab7d64a87ee621c959ee6c8dd12c7"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Providers/ProviderUsageStore.cs",
+      "baseline": "c1dec4ad4ca9c6b993b7ab69a0ff9008eff8606d99650374d169f687145099ca",
+      "candidate": "c1dec4ad4ca9c6b993b7ab69a0ff9008eff8606d99650374d169f687145099ca"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Providers/ProviderUsageTelemetry.cs",
+      "baseline": "7e9b88ec779575666b3584a42a4292b82416327fd89234da2510053d9f895aa1",
+      "candidate": "7e9b88ec779575666b3584a42a4292b82416327fd89234da2510053d9f895aa1"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/Providers/ProviderUsageWorldEffects.cs",
+      "baseline": "a5d00970dd3dd24f4f33bab05e4a0b6b8d309bbee38a931e6b70270025fb6114",
+      "candidate": "a5d00970dd3dd24f4f33bab05e4a0b6b8d309bbee38a931e6b70270025fb6114"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/World/AgentPlacementLog.cs",
+      "baseline": "510911f253c4fd6a091d722979af6914c3fa83347ae289dcdf7b17faac08bd50",
+      "candidate": "510911f253c4fd6a091d722979af6914c3fa83347ae289dcdf7b17faac08bd50"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/World/OwnerJevAssistanceTelemetry.cs",
+      "baseline": "90cb3abb22078535abe9c7c5edb0d74091ab8f65219b9b65b90c18a84778f9dd",
+      "candidate": "90cb3abb22078535abe9c7c5edb0d74091ab8f65219b9b65b90c18a84778f9dd"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/World/OwnerLifePaceTelemetry.cs",
+      "baseline": "37cfb18042e499131646669487b7efa9146ee9619c2e83f7692e9f466181b266",
+      "candidate": "37cfb18042e499131646669487b7efa9146ee9619c2e83f7692e9f466181b266"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Control/World/TownTelemetry.cs",
+      "baseline": "e4cd6aaddb522965b59f58d6d5d7f623b715cf6a86f61961937bedce99f1c8a7",
+      "candidate": "e4cd6aaddb522965b59f58d6d5d7f623b715cf6a86f61961937bedce99f1c8a7"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.Content.cs",
+      "baseline": "39067f74dafab9da88bf143d83d3ad5ddd49c1d281c4da8d5be79667519ad341",
+      "candidate": "39067f74dafab9da88bf143d83d3ad5ddd49c1d281c4da8d5be79667519ad341"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.Deletion.cs",
+      "baseline": "d33df27c2abb7a8103d67b8db202b85aa8ef8269ea9a18ddb30927294cfc934a",
+      "candidate": "d33df27c2abb7a8103d67b8db202b85aa8ef8269ea9a18ddb30927294cfc934a"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.DeveloperEdits.cs",
+      "baseline": "6d386fcffdc3fac718a5b7b28e5b161dee0db68dcdef114098a4e298f84b9da2",
+      "candidate": "6d386fcffdc3fac718a5b7b28e5b161dee0db68dcdef114098a4e298f84b9da2"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.Devices.cs",
+      "baseline": "a80c83a26ea2be37d995ab25102d4bada596c6d6602872a744e035acd0b547ec",
+      "candidate": "a80c83a26ea2be37d995ab25102d4bada596c6d6602872a744e035acd0b547ec"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.Instructions.cs",
+      "baseline": "465f6c9d50a46f51544a7f80bac8de08651e19fd7c5e21a6b8e468bad1d50d01",
+      "candidate": "465f6c9d50a46f51544a7f80bac8de08651e19fd7c5e21a6b8e468bad1d50d01"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.Observation.cs",
+      "baseline": "53cb3ef7452e5d7dd0631389c0f88b13b6ecf04d7aca3534b3fd3245f6f1ed0b",
+      "candidate": "53cb3ef7452e5d7dd0631389c0f88b13b6ecf04d7aca3534b3fd3245f6f1ed0b"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.Pairing.cs",
+      "baseline": "a8c8e597f21104a0761a2088f87a6a6579339caaba610f44ecb8506ba593fed3",
+      "candidate": "a8c8e597f21104a0761a2088f87a6a6579339caaba610f44ecb8506ba593fed3"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.Providers.cs",
+      "baseline": "a465bbf83f194f84b8f9c9a5d996f5ba14d819eea5255136b541cddeb12465c3",
+      "candidate": "a465bbf83f194f84b8f9c9a5d996f5ba14d819eea5255136b541cddeb12465c3"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.RecoveryCleanup.cs",
+      "baseline": "7a276ce6e31011ae9c52f5f6bde1abb9467ea5805b869ac51fdca70dfc0009c0",
+      "candidate": "7a276ce6e31011ae9c52f5f6bde1abb9467ea5805b869ac51fdca70dfc0009c0"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.RuntimeControl.cs",
+      "baseline": "bb404f4a3708b537a5b88bf5dbc898ccd1f2c87c1e9c407aa8d0cb49ca348fc7",
+      "candidate": "bb404f4a3708b537a5b88bf5dbc898ccd1f2c87c1e9c407aa8d0cb49ca348fc7"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.Saves.cs",
+      "baseline": "b56f66b89bb4c89f40e57d5054878e8ede9d351ce046eb2484fcae450b34633b",
+      "candidate": "b56f66b89bb4c89f40e57d5054878e8ede9d351ce046eb2484fcae450b34633b"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.Setup.cs",
+      "baseline": "e174db728de8afab8283600b8d7bbeb171af71d43c9f6fa9128dc4063bedf978",
+      "candidate": "e174db728de8afab8283600b8d7bbeb171af71d43c9f6fa9128dc4063bedf978"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.StartupRecovery.cs",
+      "baseline": "0edf914fc880f000797b67b377c732547655f63ed379746b2d8cacc1ca81cc39",
+      "candidate": "0edf914fc880f000797b67b377c732547655f63ed379746b2d8cacc1ca81cc39"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.Worlds.cs",
+      "baseline": "fd3329348e47e3c6a491aa374b51c9a84810ea2100c408ad8e55863eb02aabe8",
+      "candidate": "fd3329348e47e3c6a491aa374b51c9a84810ea2100c408ad8e55863eb02aabe8"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Endpoints/OwnerEndpoints.cs",
+      "baseline": "205e815101a9f4bf8212e005496fb8f0c5cf4af7656493a6933f5c7ee6f8a58b",
+      "candidate": "205e815101a9f4bf8212e005496fb8f0c5cf4af7656493a6933f5c7ee6f8a58b"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Assets/ApprovedAssetCatalog.cs",
+      "baseline": "91849b3db148ea99c0654dc07e11cebd20281f0def1dfca5e95f0f289f986cf5",
+      "candidate": "91849b3db148ea99c0654dc07e11cebd20281f0def1dfca5e95f0f289f986cf5"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Persistence/ManualWorldSaveStore.Recovery.cs",
+      "baseline": "462c39434da4f3e8a50533d6b17c3d2bbf4a6913d73f1b5fe51beb2e3d412b6c",
+      "candidate": "462c39434da4f3e8a50533d6b17c3d2bbf4a6913d73f1b5fe51beb2e3d412b6c"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Persistence/ManualWorldSaveStore.cs",
+      "baseline": "f87049295b7c1f44da63d1f71b40eda1e24f65832322bf7adc42fefad3570523",
+      "candidate": "f87049295b7c1f44da63d1f71b40eda1e24f65832322bf7adc42fefad3570523"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Persistence/ManualWorldSaveTelemetry.cs",
+      "baseline": "deb11077b9bdf3a5e167c9fce5ee056ed546e04a4e5223317eff50e45346721b",
+      "candidate": "deb11077b9bdf3a5e167c9fce5ee056ed546e04a4e5223317eff50e45346721b"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Persistence/OwnerWorldStateFile.cs",
+      "baseline": "0788dfddad2f2423616b358671f3832fe0ca51b36bfbc128ec90284ee10ff548",
+      "candidate": "0788dfddad2f2423616b358671f3832fe0ca51b36bfbc128ec90284ee10ff548"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Persistence/PrivateWorldStartupRecovery.cs",
+      "baseline": "ef630a92bcde3029ff2ebed035da97cd42aabcba8456b8e7a1d6a0e85a3a951a",
+      "candidate": "ef630a92bcde3029ff2ebed035da97cd42aabcba8456b8e7a1d6a0e85a3a951a"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Persistence/PrivateWorldStateFile.cs",
+      "baseline": "d3d4d71746c53f47e3929ad1d8648f44fdf3e1baa06ba43d68740299cf3f6745",
+      "candidate": "d3d4d71746c53f47e3929ad1d8648f44fdf3e1baa06ba43d68740299cf3f6745"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Persistence/SaveDiskSpaceMonitor.cs",
+      "baseline": "d65bbab7922e7393b6292c717513c3bf692d3b802ac93c9b9473aab9de01d195",
+      "candidate": "d65bbab7922e7393b6292c717513c3bf692d3b802ac93c9b9473aab9de01d195"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Persistence/SavedBuild.cs",
+      "baseline": "4865844ebe26e162d7d4b09c615fd5aac177124549de43b2525f8ad2e7bd68d8",
+      "candidate": "4865844ebe26e162d7d4b09c615fd5aac177124549de43b2525f8ad2e7bd68d8"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Persistence/WorldAutosaveStore.cs",
+      "baseline": "98425ff0f839fb7e1801c5970a818dabc14bd41203d59e16ed0c74adcef5e300",
+      "candidate": "98425ff0f839fb7e1801c5970a818dabc14bd41203d59e16ed0c74adcef5e300"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Projections/ObservationContracts.cs",
+      "baseline": "0b440c004cc5e8c04799c4603134ef9bc4c30a1817f79d4882025bb15cba0ee7",
+      "candidate": "0b440c004cc5e8c04799c4603134ef9bc4c30a1817f79d4882025bb15cba0ee7"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Projections/OwnerObservationContracts.cs",
+      "baseline": "bc3a1e2770c1162f6b00723d6bd7954ffb408f8dc296c3cf3d7b923b93122e03",
+      "candidate": "bc3a1e2770c1162f6b00723d6bd7954ffb408f8dc296c3cf3d7b923b93122e03"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Projections/OwnerWorldObservationStore.Nonviolent.cs",
+      "baseline": "1e351fa770e706128cd48b4d598554e413fd5889d385aefff72e20f5744b391a",
+      "candidate": "1e351fa770e706128cd48b4d598554e413fd5889d385aefff72e20f5744b391a"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Projections/OwnerWorldObservationStore.Production.cs",
+      "baseline": "28b089e3d6a0bb036c628d76682af6f578b00497ff40388f2046c631dd3404f6",
+      "candidate": "28b089e3d6a0bb036c628d76682af6f578b00497ff40388f2046c631dd3404f6"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Projections/OwnerWorldObservationStore.StorageHistory.cs",
+      "baseline": "06587258052aeec85440f97b7cf748c49ca70e7deada0355cf9598d8d8bb424a",
+      "candidate": "06587258052aeec85440f97b7cf748c49ca70e7deada0355cf9598d8d8bb424a"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Projections/OwnerWorldObservationStore.cs",
+      "baseline": "56469d08538834d5a810e39e6e309ab81c47bec7496d784a8e98aa38c2a88c04",
+      "candidate": "56469d08538834d5a810e39e6e309ab81c47bec7496d784a8e98aa38c2a88c04"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Runtime/HandcartTelemetry.cs",
+      "baseline": "226b7b2f5466bfe57e46b52f7d1bef453936a963f25c8ccac6af317407363eb1",
+      "candidate": "226b7b2f5466bfe57e46b52f7d1bef453936a963f25c8ccac6af317407363eb1"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Runtime/LiveWorldRuntimeService.cs",
+      "baseline": "86ded56caa08fb3444e02623f7b73864bf164f186cefe8a33d70fbf466ef6b85",
+      "candidate": "86ded56caa08fb3444e02623f7b73864bf164f186cefe8a33d70fbf466ef6b85"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Runtime/OwnerClientPresenceLease.cs",
+      "baseline": "7f79497fdb104b02e1007a93305d0ceccd09d5d37d202d4590555d7604bdaa76",
+      "candidate": "7f79497fdb104b02e1007a93305d0ceccd09d5d37d202d4590555d7604bdaa76"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Runtime/OwnerWorldRuntimeService.cs",
+      "baseline": "f8d0a4c87a73cc3851567106495dd96275cba20831f1603d4958a0f9cd1612c2",
+      "candidate": "f8d0a4c87a73cc3851567106495dd96275cba20831f1603d4958a0f9cd1612c2"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Runtime/PrivateWorldRuntimeService.cs",
+      "baseline": "d4cfcf47f68eacda0dd87f73e786aa173690f5c649ff1cd781f24dc5679feb83",
+      "candidate": "d4cfcf47f68eacda0dd87f73e786aa173690f5c649ff1cd781f24dc5679feb83"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Runtime/PrivateWorldStartupService.cs",
+      "baseline": "bb63614a3b230efb74f39872c334e9dda408a0b668c56363f6843bccd638a258",
+      "candidate": "bb63614a3b230efb74f39872c334e9dda408a0b668c56363f6843bccd638a258"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Worlds/WorldCatalogStore.cs",
+      "baseline": "6b9e99494f25f55beba005b149cb54db715830c5cb584082f63c73644567ff8c",
+      "candidate": "6b9e99494f25f55beba005b149cb54db715830c5cb584082f63c73644567ff8c"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Worlds/WorldCatalogWarmUpService.cs",
+      "baseline": "6b858eee33034fd1fccd5f48b5546fccbf9e6d9ce4479750df0efe8365968607",
+      "candidate": "6b858eee33034fd1fccd5f48b5546fccbf9e6d9ce4479750df0efe8365968607"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Worlds/WorldSelectionCoordinator.cs",
+      "baseline": "fad810de1b025fd2be7ff1e974123134f19dcf8ddfb4f1f9c0f08499a1a25af8",
+      "candidate": "fad810de1b025fd2be7ff1e974123134f19dcf8ddfb4f1f9c0f08499a1a25af8"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Worlds/WorldSelectionTelemetry.cs",
+      "baseline": "b465514c269bb7dbfbf1dd99b700648b4e59921b747ad6975149074080c8a1dc",
+      "candidate": "b465514c269bb7dbfbf1dd99b700648b4e59921b747ad6975149074080c8a1dc"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Observation/Worlds/WorldThumbnail.cs",
+      "baseline": "958f5b9ffecc46f44b8c256cfbcfcb34d95f090732e502353823a2ec430041d5",
+      "candidate": "958f5b9ffecc46f44b8c256cfbcfcb34d95f090732e502353823a2ec430041d5"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/Program.cs",
+      "baseline": "90bfa6a5a60c67c19c0aed0856542b0cffbc970af0849b7a6bfa27e658b1e65d",
+      "candidate": "90bfa6a5a60c67c19c0aed0856542b0cffbc970af0849b7a6bfa27e658b1e65d"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/packages.lock.json",
+      "baseline": "7b52362e4426c85b866334f86f54bca84760a67f862b261f5c4ca906589f1166",
+      "candidate": "7b52362e4426c85b866334f86f54bca84760a67f862b261f5c4ca906589f1166"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/wwwroot/app.css",
+      "baseline": "a273ca52233f5fa08e931a85b031543a31d3ef2027ee99371fe0c85034ce14ee",
+      "candidate": "a273ca52233f5fa08e931a85b031543a31d3ef2027ee99371fe0c85034ce14ee"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/wwwroot/app.js",
+      "baseline": "9895b1396844ea9b426da802a9574a8d2d36c1e326fa0481474d426b13f7ef4c",
+      "candidate": "9895b1396844ea9b426da802a9574a8d2d36c1e326fa0481474d426b13f7ef4c"
+    },
+    {
+      "path": "src/ClankerWorld.Viewer/wwwroot/index.html",
+      "baseline": "c31369fde7df51787608ddb353de9707afcc54419e3f3edb63bed0624d7a8304",
+      "candidate": "c31369fde7df51787608ddb353de9707afcc54419e3f3edb63bed0624d7a8304"
+    }
+  ],
+  "setup": {
+    "Commit": "b1de860531cd7c2b97fd00d65b2d28c3b3d9d47e",
+    "ProbeDigest": "af42b032f24add2bc00aa93471ef96ac6ce518f18b4e605121a3ae970351d041",
+    "Seed": "town-project-real-donation",
+    "Runtime": ".NET 10.0.12",
+    "Schema": 122,
+    "OS": "Debian GNU/Linux 13 (trixie)",
+    "Architecture": "X64",
+    "CpuModel": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+    "CpuQuota": "400000 100000",
+    "Processors": 2,
+    "Results": [
+      {
+        "RequestedResidents": 4,
+        "RequestedRoads": 96,
+        "Residents": 4,
+        "Roads": 99,
+        "Buildings": 24,
+        "TownBuildings": 24,
+        "MapWidth": 256,
+        "MapHeight": 128,
+        "MapDigest": "d6f1d8d4961969c971de94e1719019f293a83fa1ecd186d7d9947458c705537a",
+        "NaturalResources": 1838,
+        "InventoryLots": 38,
+        "Houses": 2,
+        "Market": true,
+        "StartTick": 256,
+        "EndTick": 257,
+        "Samples": 1,
+        "Decisions": 0,
+        "Fallbacks": 0,
+        "DecisionProviders": {},
+        "ActionFamilies": {},
+        "MedianTickMs": 177.8,
+        "P95TickMs": 177.8,
+        "MaxTickMs": 177.8,
+        "MedianWallMs": 179.3584,
+        "SetupSeconds": 37.6719615,
+        "TickMilliseconds": [
+          177.8
+        ],
+        "WallMilliseconds": [
+          179.3584
+        ]
+      },
+      {
+        "RequestedResidents": 16,
+        "RequestedRoads": 96,
+        "Residents": 16,
+        "Roads": 100,
+        "Buildings": 36,
+        "TownBuildings": 36,
+        "MapWidth": 256,
+        "MapHeight": 128,
+        "MapDigest": "d6f1d8d4961969c971de94e1719019f293a83fa1ecd186d7d9947458c705537a",
+        "NaturalResources": 1838,
+        "InventoryLots": 72,
+        "Houses": 14,
+        "Market": true,
+        "StartTick": 256,
+        "EndTick": 257,
+        "Samples": 1,
+        "Decisions": 3,
+        "Fallbacks": 0,
+        "DecisionProviders": {
+          "Deterministic": 3
+        },
+        "ActionFamilies": {
+          "safe_idle": 3
+        },
+        "MedianTickMs": 407.3,
+        "P95TickMs": 407.3,
+        "MaxTickMs": 407.3,
+        "MedianWallMs": 407.7259,
+        "SetupSeconds": 174.0795525,
+        "TickMilliseconds": [
+          407.3
+        ],
+        "WallMilliseconds": [
+          407.7259
+        ]
+      },
+      {
+        "RequestedResidents": 16,
+        "RequestedRoads": 192,
+        "Residents": 16,
+        "Roads": 194,
+        "Buildings": 55,
+        "TownBuildings": 55,
+        "MapWidth": 256,
+        "MapHeight": 128,
+        "MapDigest": "d6f1d8d4961969c971de94e1719019f293a83fa1ecd186d7d9947458c705537a",
+        "NaturalResources": 1838,
+        "InventoryLots": 72,
+        "Houses": 14,
+        "Market": true,
+        "StartTick": 256,
+        "EndTick": 257,
+        "Samples": 1,
+        "Decisions": 3,
+        "Fallbacks": 0,
+        "DecisionProviders": {
+          "Deterministic": 3
+        },
+        "ActionFamilies": {
+          "safe_idle": 3
+        },
+        "MedianTickMs": 741.3,
+        "P95TickMs": 741.3,
+        "MaxTickMs": 741.3,
+        "MedianWallMs": 742.4161,
+        "SetupSeconds": 166.5114423,
+        "TickMilliseconds": [
+          741.3
+        ],
+        "WallMilliseconds": [
+          742.4161
+        ]
+      }
+    ]
+  },
+  "profile": {
+    "Commit": "a7bd16422706852a8030cac53b6c54ed82aa1cef",
+    "ProbeDigest": "d0d0b907438dfa58d0d72df069e38c77a7bf09cc2b99f503d99dc31a145849ed",
+    "Seed": "town-project-real-donation",
+    "Runtime": ".NET 10.0.12",
+    "Schema": 122,
+    "OS": "Debian GNU/Linux 13 (trixie)",
+    "Architecture": "X64",
+    "CpuModel": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+    "CpuQuota": "400000 100000",
+    "Processors": 4,
+    "Results": [
+      {
+        "RequestedResidents": 16,
+        "RequestedRoads": 96,
+        "Residents": 16,
+        "Roads": 100,
+        "Buildings": 36,
+        "TownBuildings": 36,
+        "MapWidth": 256,
+        "MapHeight": 128,
+        "MapDigest": "d6f1d8d4961969c971de94e1719019f293a83fa1ecd186d7d9947458c705537a",
+        "NaturalResources": 1838,
+        "InventoryLots": 74,
+        "Houses": 14,
+        "Market": true,
+        "StartTick": 256,
+        "EndTick": 320,
+        "Samples": 64,
+        "Decisions": 124,
+        "Fallbacks": 0,
+        "DecisionProviders": {
+          "Deterministic": 124
+        },
+        "ActionFamilies": {
+          "safe_idle": 61,
+          "tool_request_visit": 36,
+          "haul_smith_input": 2,
+          "haul_household_stock": 1,
+          "build": 4,
+          "parent_accept": 1,
+          "explore": 12,
+          "explore_for": 3,
+          "learn": 1,
+          "gather_smith_input": 1,
+          "partner_propose": 2
+        },
+        "MedianTickMs": 792.6,
+        "P95TickMs": 1096.5,
+        "MaxTickMs": 1252.2,
+        "MedianWallMs": 793.5179,
+        "SetupSeconds": 121.5502236,
+        "TickMilliseconds": [
+          677.1,
+          667.6,
+          673.8,
+          690.5,
+          777.5,
+          775.8,
+          792.6,
+          645.1,
+          660.3,
+          640.6,
+          643.4,
+          667.3,
+          711.7,
+          661.1,
+          686,
+          623.6,
+          764.1,
+          738,
+          770.6,
+          725.9,
+          777.4,
+          770.8,
+          773,
+          745.1,
+          789.4,
+          787.3,
+          759,
+          734.1,
+          811.8,
+          765,
+          874.2,
+          767.5,
+          807.7,
+          739.7,
+          816.4,
+          758.3,
+          830.2,
+          825.4,
+          893.3,
+          813,
+          881.5,
+          875.6,
+          871.9,
+          851.8,
+          923.7,
+          904.5,
+          1051.5,
+          938.9,
+          991.6,
+          904.8,
+          986.6,
+          945.8,
+          1022.9,
+          982.7,
+          1055.9,
+          1035.4,
+          1098.8,
+          1113.6,
+          1252.2,
+          1080.4,
+          1019.8,
+          1026.3,
+          1096.5,
+          1096.5
+        ],
+        "WallMilliseconds": [
+          678.1042,
+          668.1515,
+          674.6348,
+          691.3186,
+          778.3099,
+          776.5375,
+          793.5179,
+          645.8601,
+          661.2692,
+          641.1244,
+          644.193,
+          667.9632,
+          712.6907,
+          662.0288,
+          686.6572,
+          624.5419,
+          766.9101,
+          738.8111,
+          771.2118,
+          726.4805,
+          778.0316,
+          771.5674,
+          773.7345,
+          745.9829,
+          789.964,
+          788.0436,
+          760.1443,
+          734.712,
+          812.4166,
+          767.199,
+          875.0244,
+          768.1927,
+          808.3988,
+          740.5713,
+          817.0814,
+          759.306,
+          831.1012,
+          826.0556,
+          894.2614,
+          813.6789,
+          882.1445,
+          876.4595,
+          872.6782,
+          852.5089,
+          924.6414,
+          905.4822,
+          1052.0651,
+          939.4434,
+          992.4075,
+          905.3921,
+          987.5887,
+          946.5294,
+          1023.5729,
+          983.3479,
+          1056.3468,
+          1036.2069,
+          1099.7355,
+          1114.314,
+          1253.0636,
+          1081.1943,
+          1020.4234,
+          1027.2819,
+          1097.193,
+          1097.1037
+        ]
+      }
+    ]
+  },
+  "profileAnalysis": {
+    "tickStackSampledMs": 53896.7,
+    "inclusivePercent": {
+      "CreateCandidates": 96.41,
+      "AddTownProjectProposalCandidates": 52.33,
+      "FindUnoccupiedFootCosts": 23.48,
+      "FootNeighborsMoveNext": 15.74,
+      "CanFootStep": 15.95,
+      "TryEvaluate": 13.14,
+      "TownLayoutContextConstructor": 2.04
+    },
+    "overlap": "Inclusive spans overlap and are not exact CPU costs.",
+    "trace": {
+      "file": "main-96.nettrace",
+      "bytes": 20539866,
+      "sha256": "1b4635a1ef17bdc511cedd6243a4431ac7fe43d299433732010fba28f6c79205"
+    },
+    "gate": "EventPipe accepted before profile-gate.go; setup/warmup excluded"
+  },
+  "mutations": {
+    "main": [
+      {
+        "Scenario": "control",
+        "Personal": false,
+        "Requests": 15,
+        "CandidateDigest": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4",
+        "FinalDigest": "729706708e3c6f917f3c3a1e9766df68a1adaec5df1378335b9dbc145f5253f7"
+      },
+      {
+        "Scenario": "control",
+        "Personal": true,
+        "Requests": 15,
+        "CandidateDigest": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4",
+        "FinalDigest": "d19dbd26c55aec54cf399e62e976cc6cd3a1cb0803f2c541f0e81af95ebf94be"
+      },
+      {
+        "Scenario": "resident-move",
+        "Personal": false,
+        "Requests": 11,
+        "CandidateDigest": "39df89ccf472316c84e6c9b7f9a7ab03fd3682bf4dd0bf3a83a75cc804b355ce",
+        "FinalDigest": "8463cddb07fbac037c4e09262f7a166eb50beb5e2a141b5f419c2ce8881e648e"
+      },
+      {
+        "Scenario": "resident-move",
+        "Personal": true,
+        "Requests": 11,
+        "CandidateDigest": "39df89ccf472316c84e6c9b7f9a7ab03fd3682bf4dd0bf3a83a75cc804b355ce",
+        "FinalDigest": "b30cc0586c435ebb3f0d5a726d6d5ec2da317a678a39bcbe07042a9a42e14357"
+      },
+      {
+        "Scenario": "shared-stock",
+        "Personal": false,
+        "Requests": 15,
+        "CandidateDigest": "526e1e4359a8410eb8fdc7930e9cf4b6af78e1cc30187ec7603c37db8b2f41db",
+        "FinalDigest": "eb40db82362e61cd3904c03b8afc5bc0334ad25e934e0a99da01808a21600f7c"
+      },
+      {
+        "Scenario": "shared-stock",
+        "Personal": true,
+        "Requests": 15,
+        "CandidateDigest": "526e1e4359a8410eb8fdc7930e9cf4b6af78e1cc30187ec7603c37db8b2f41db",
+        "FinalDigest": "30f9de4cfd512b9b800840fa073c4bd5d441acc64ed37bedcee4bcbca4e8646c"
+      },
+      {
+        "Scenario": "reserved-stock",
+        "Personal": false,
+        "Requests": 15,
+        "CandidateDigest": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4",
+        "FinalDigest": "a9bf39ac539a016cb4dd73e588d78d01d326d7cef3624957be6b09d1c0cee3de"
+      },
+      {
+        "Scenario": "reserved-stock",
+        "Personal": true,
+        "Requests": 15,
+        "CandidateDigest": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4",
+        "FinalDigest": "615dc868e98a845f4345c0569e5726ad8f13bcb2c6bb96fb1a7db073f5ba77ee"
+      },
+      {
+        "Scenario": "resource-depleted",
+        "Personal": false,
+        "Requests": 15,
+        "CandidateDigest": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4",
+        "FinalDigest": "3b45c2580566dfb33f0dba66c2155bd3437d33e18e014f89c10febaeece6204d"
+      },
+      {
+        "Scenario": "resource-depleted",
+        "Personal": true,
+        "Requests": 15,
+        "CandidateDigest": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4",
+        "FinalDigest": "46c04a3d16dc60a0cb32fe55f14dec49a43d002537e995463c3b83730950d185"
+      },
+      {
+        "Scenario": "household-land",
+        "Personal": false,
+        "Requests": 15,
+        "CandidateDigest": "ae98df992794e10fa3c850357f33b47bd94bfd21a36baf29329d45d62f9f025e",
+        "FinalDigest": "7c6a7b98d4d8c461251882dcd69c8783c04fbc7e951346648a3825217ab80251"
+      },
+      {
+        "Scenario": "household-land",
+        "Personal": true,
+        "Requests": 15,
+        "CandidateDigest": "ae98df992794e10fa3c850357f33b47bd94bfd21a36baf29329d45d62f9f025e",
+        "FinalDigest": "48b8bfdaf8c254c30714d2d64f3cdff7b1d4456d6ad9bb4067e885853b341753"
+      },
+      {
+        "Scenario": "road-remove",
+        "Personal": false,
+        "Requests": 15,
+        "CandidateDigest": "a759e42c4bd0fd53eb6b41299e407015c16864c5c00777ab5e32b4a8206e599f",
+        "FinalDigest": "0f1504d6a39d90a5d8e9df80620903e5e1fde52c39436193fa7a9c6cdf9c2582"
+      },
+      {
+        "Scenario": "road-remove",
+        "Personal": true,
+        "Requests": 15,
+        "CandidateDigest": "a759e42c4bd0fd53eb6b41299e407015c16864c5c00777ab5e32b4a8206e599f",
+        "FinalDigest": "4902cacf21893d354e35c65523cde96c0a9f8376aa72844ad68b53b174e9cba5"
+      },
+      {
+        "Scenario": "building-remove",
+        "Personal": false,
+        "Requests": 16,
+        "CandidateDigest": "f85fd0d90c53eb71a9077c3ebbbc61193d1b3c7078252b29eb6a03847b42dd1c",
+        "FinalDigest": "07aa05a78d5a0934cfb9d0699590d35c76ca5340492edfa6f9b4cbe940de5a51"
+      },
+      {
+        "Scenario": "building-remove",
+        "Personal": true,
+        "Requests": 16,
+        "CandidateDigest": "f85fd0d90c53eb71a9077c3ebbbc61193d1b3c7078252b29eb6a03847b42dd1c",
+        "FinalDigest": "6fb0331c249e517db7de507de95ebaf0358bcf8358aff2c54ff2e2739e57e76a"
+      }
+    ],
+    "candidate": [
+      {
+        "Scenario": "control",
+        "Personal": false,
+        "Requests": 15,
+        "CandidateDigest": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4",
+        "FinalDigest": "729706708e3c6f917f3c3a1e9766df68a1adaec5df1378335b9dbc145f5253f7"
+      },
+      {
+        "Scenario": "control",
+        "Personal": true,
+        "Requests": 15,
+        "CandidateDigest": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4",
+        "FinalDigest": "d19dbd26c55aec54cf399e62e976cc6cd3a1cb0803f2c541f0e81af95ebf94be"
+      },
+      {
+        "Scenario": "resident-move",
+        "Personal": false,
+        "Requests": 11,
+        "CandidateDigest": "39df89ccf472316c84e6c9b7f9a7ab03fd3682bf4dd0bf3a83a75cc804b355ce",
+        "FinalDigest": "8463cddb07fbac037c4e09262f7a166eb50beb5e2a141b5f419c2ce8881e648e"
+      },
+      {
+        "Scenario": "resident-move",
+        "Personal": true,
+        "Requests": 11,
+        "CandidateDigest": "39df89ccf472316c84e6c9b7f9a7ab03fd3682bf4dd0bf3a83a75cc804b355ce",
+        "FinalDigest": "b30cc0586c435ebb3f0d5a726d6d5ec2da317a678a39bcbe07042a9a42e14357"
+      },
+      {
+        "Scenario": "shared-stock",
+        "Personal": false,
+        "Requests": 15,
+        "CandidateDigest": "526e1e4359a8410eb8fdc7930e9cf4b6af78e1cc30187ec7603c37db8b2f41db",
+        "FinalDigest": "eb40db82362e61cd3904c03b8afc5bc0334ad25e934e0a99da01808a21600f7c"
+      },
+      {
+        "Scenario": "shared-stock",
+        "Personal": true,
+        "Requests": 15,
+        "CandidateDigest": "526e1e4359a8410eb8fdc7930e9cf4b6af78e1cc30187ec7603c37db8b2f41db",
+        "FinalDigest": "30f9de4cfd512b9b800840fa073c4bd5d441acc64ed37bedcee4bcbca4e8646c"
+      },
+      {
+        "Scenario": "reserved-stock",
+        "Personal": false,
+        "Requests": 15,
+        "CandidateDigest": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4",
+        "FinalDigest": "a9bf39ac539a016cb4dd73e588d78d01d326d7cef3624957be6b09d1c0cee3de"
+      },
+      {
+        "Scenario": "reserved-stock",
+        "Personal": true,
+        "Requests": 15,
+        "CandidateDigest": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4",
+        "FinalDigest": "615dc868e98a845f4345c0569e5726ad8f13bcb2c6bb96fb1a7db073f5ba77ee"
+      },
+      {
+        "Scenario": "resource-depleted",
+        "Personal": false,
+        "Requests": 15,
+        "CandidateDigest": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4",
+        "FinalDigest": "3b45c2580566dfb33f0dba66c2155bd3437d33e18e014f89c10febaeece6204d"
+      },
+      {
+        "Scenario": "resource-depleted",
+        "Personal": true,
+        "Requests": 15,
+        "CandidateDigest": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4",
+        "FinalDigest": "46c04a3d16dc60a0cb32fe55f14dec49a43d002537e995463c3b83730950d185"
+      },
+      {
+        "Scenario": "household-land",
+        "Personal": false,
+        "Requests": 15,
+        "CandidateDigest": "ae98df992794e10fa3c850357f33b47bd94bfd21a36baf29329d45d62f9f025e",
+        "FinalDigest": "7c6a7b98d4d8c461251882dcd69c8783c04fbc7e951346648a3825217ab80251"
+      },
+      {
+        "Scenario": "household-land",
+        "Personal": true,
+        "Requests": 15,
+        "CandidateDigest": "ae98df992794e10fa3c850357f33b47bd94bfd21a36baf29329d45d62f9f025e",
+        "FinalDigest": "48b8bfdaf8c254c30714d2d64f3cdff7b1d4456d6ad9bb4067e885853b341753"
+      },
+      {
+        "Scenario": "road-remove",
+        "Personal": false,
+        "Requests": 15,
+        "CandidateDigest": "a759e42c4bd0fd53eb6b41299e407015c16864c5c00777ab5e32b4a8206e599f",
+        "FinalDigest": "0f1504d6a39d90a5d8e9df80620903e5e1fde52c39436193fa7a9c6cdf9c2582"
+      },
+      {
+        "Scenario": "road-remove",
+        "Personal": true,
+        "Requests": 15,
+        "CandidateDigest": "a759e42c4bd0fd53eb6b41299e407015c16864c5c00777ab5e32b4a8206e599f",
+        "FinalDigest": "4902cacf21893d354e35c65523cde96c0a9f8376aa72844ad68b53b174e9cba5"
+      },
+      {
+        "Scenario": "building-remove",
+        "Personal": false,
+        "Requests": 16,
+        "CandidateDigest": "f85fd0d90c53eb71a9077c3ebbbc61193d1b3c7078252b29eb6a03847b42dd1c",
+        "FinalDigest": "07aa05a78d5a0934cfb9d0699590d35c76ca5340492edfa6f9b4cbe940de5a51"
+      },
+      {
+        "Scenario": "building-remove",
+        "Personal": true,
+        "Requests": 16,
+        "CandidateDigest": "f85fd0d90c53eb71a9077c3ebbbc61193d1b3c7078252b29eb6a03847b42dd1c",
+        "FinalDigest": "6fb0331c249e517db7de507de95ebaf0358bcf8358aff2c54ff2e2739e57e76a"
+      }
+    ]
+  },
+  "captureComparisons": [
+    {
+      "baseline": "main-changes-building-remove-builtin-final.json",
+      "fixed": "candidate-changes-building-remove-builtin-final.json",
+      "bytes": 2470691,
+      "sha256": "07aa05a78d5a0934cfb9d0699590d35c76ca5340492edfa6f9b4cbe940de5a51"
+    },
+    {
+      "baseline": "main-changes-building-remove-builtin-requests.json",
+      "fixed": "candidate-changes-building-remove-builtin-requests.json",
+      "bytes": 404799,
+      "sha256": "f85fd0d90c53eb71a9077c3ebbbc61193d1b3c7078252b29eb6a03847b42dd1c"
+    },
+    {
+      "baseline": "main-changes-building-remove-personal-final.json",
+      "fixed": "candidate-changes-building-remove-personal-final.json",
+      "bytes": 2470751,
+      "sha256": "6fb0331c249e517db7de507de95ebaf0358bcf8358aff2c54ff2e2739e57e76a"
+    },
+    {
+      "baseline": "main-changes-building-remove-personal-requests.json",
+      "fixed": "candidate-changes-building-remove-personal-requests.json",
+      "bytes": 404799,
+      "sha256": "f85fd0d90c53eb71a9077c3ebbbc61193d1b3c7078252b29eb6a03847b42dd1c"
+    },
+    {
+      "baseline": "main-changes-control-builtin-final.json",
+      "fixed": "candidate-changes-control-builtin-final.json",
+      "bytes": 2470084,
+      "sha256": "729706708e3c6f917f3c3a1e9766df68a1adaec5df1378335b9dbc145f5253f7"
+    },
+    {
+      "baseline": "main-changes-control-builtin-requests.json",
+      "fixed": "candidate-changes-control-builtin-requests.json",
+      "bytes": 395973,
+      "sha256": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4"
+    },
+    {
+      "baseline": "main-changes-control-personal-final.json",
+      "fixed": "candidate-changes-control-personal-final.json",
+      "bytes": 2470139,
+      "sha256": "d19dbd26c55aec54cf399e62e976cc6cd3a1cb0803f2c541f0e81af95ebf94be"
+    },
+    {
+      "baseline": "main-changes-control-personal-requests.json",
+      "fixed": "candidate-changes-control-personal-requests.json",
+      "bytes": 395973,
+      "sha256": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4"
+    },
+    {
+      "baseline": "main-changes-household-land-builtin-final.json",
+      "fixed": "candidate-changes-household-land-builtin-final.json",
+      "bytes": 2470570,
+      "sha256": "7c6a7b98d4d8c461251882dcd69c8783c04fbc7e951346648a3825217ab80251"
+    },
+    {
+      "baseline": "main-changes-household-land-builtin-requests.json",
+      "fixed": "candidate-changes-household-land-builtin-requests.json",
+      "bytes": 408497,
+      "sha256": "ae98df992794e10fa3c850357f33b47bd94bfd21a36baf29329d45d62f9f025e"
+    },
+    {
+      "baseline": "main-changes-household-land-personal-final.json",
+      "fixed": "candidate-changes-household-land-personal-final.json",
+      "bytes": 2470625,
+      "sha256": "48b8bfdaf8c254c30714d2d64f3cdff7b1d4456d6ad9bb4067e885853b341753"
+    },
+    {
+      "baseline": "main-changes-household-land-personal-requests.json",
+      "fixed": "candidate-changes-household-land-personal-requests.json",
+      "bytes": 408497,
+      "sha256": "ae98df992794e10fa3c850357f33b47bd94bfd21a36baf29329d45d62f9f025e"
+    },
+    {
+      "baseline": "main-changes-reserved-stock-builtin-final.json",
+      "fixed": "candidate-changes-reserved-stock-builtin-final.json",
+      "bytes": 2471676,
+      "sha256": "a9bf39ac539a016cb4dd73e588d78d01d326d7cef3624957be6b09d1c0cee3de"
+    },
+    {
+      "baseline": "main-changes-reserved-stock-builtin-requests.json",
+      "fixed": "candidate-changes-reserved-stock-builtin-requests.json",
+      "bytes": 395973,
+      "sha256": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4"
+    },
+    {
+      "baseline": "main-changes-reserved-stock-personal-final.json",
+      "fixed": "candidate-changes-reserved-stock-personal-final.json",
+      "bytes": 2471731,
+      "sha256": "615dc868e98a845f4345c0569e5726ad8f13bcb2c6bb96fb1a7db073f5ba77ee"
+    },
+    {
+      "baseline": "main-changes-reserved-stock-personal-requests.json",
+      "fixed": "candidate-changes-reserved-stock-personal-requests.json",
+      "bytes": 395973,
+      "sha256": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4"
+    },
+    {
+      "baseline": "main-changes-resident-move-builtin-final.json",
+      "fixed": "candidate-changes-resident-move-builtin-final.json",
+      "bytes": 2467007,
+      "sha256": "8463cddb07fbac037c4e09262f7a166eb50beb5e2a141b5f419c2ce8881e648e"
+    },
+    {
+      "baseline": "main-changes-resident-move-builtin-requests.json",
+      "fixed": "candidate-changes-resident-move-builtin-requests.json",
+      "bytes": 265070,
+      "sha256": "39df89ccf472316c84e6c9b7f9a7ab03fd3682bf4dd0bf3a83a75cc804b355ce"
+    },
+    {
+      "baseline": "main-changes-resident-move-personal-final.json",
+      "fixed": "candidate-changes-resident-move-personal-final.json",
+      "bytes": 2467047,
+      "sha256": "b30cc0586c435ebb3f0d5a726d6d5ec2da317a678a39bcbe07042a9a42e14357"
+    },
+    {
+      "baseline": "main-changes-resident-move-personal-requests.json",
+      "fixed": "candidate-changes-resident-move-personal-requests.json",
+      "bytes": 265070,
+      "sha256": "39df89ccf472316c84e6c9b7f9a7ab03fd3682bf4dd0bf3a83a75cc804b355ce"
+    },
+    {
+      "baseline": "main-changes-resource-depleted-builtin-final.json",
+      "fixed": "candidate-changes-resource-depleted-builtin-final.json",
+      "bytes": 2475324,
+      "sha256": "3b45c2580566dfb33f0dba66c2155bd3437d33e18e014f89c10febaeece6204d"
+    },
+    {
+      "baseline": "main-changes-resource-depleted-builtin-requests.json",
+      "fixed": "candidate-changes-resource-depleted-builtin-requests.json",
+      "bytes": 395973,
+      "sha256": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4"
+    },
+    {
+      "baseline": "main-changes-resource-depleted-personal-final.json",
+      "fixed": "candidate-changes-resource-depleted-personal-final.json",
+      "bytes": 2475379,
+      "sha256": "46c04a3d16dc60a0cb32fe55f14dec49a43d002537e995463c3b83730950d185"
+    },
+    {
+      "baseline": "main-changes-resource-depleted-personal-requests.json",
+      "fixed": "candidate-changes-resource-depleted-personal-requests.json",
+      "bytes": 395973,
+      "sha256": "f2fab4b40b4caf6cc99147b71919a76bf384e6cc8d30eb532ecabc7d60fed3c4"
+    },
+    {
+      "baseline": "main-changes-road-remove-builtin-final.json",
+      "fixed": "candidate-changes-road-remove-builtin-final.json",
+      "bytes": 2470043,
+      "sha256": "0f1504d6a39d90a5d8e9df80620903e5e1fde52c39436193fa7a9c6cdf9c2582"
+    },
+    {
+      "baseline": "main-changes-road-remove-builtin-requests.json",
+      "fixed": "candidate-changes-road-remove-builtin-requests.json",
+      "bytes": 395973,
+      "sha256": "a759e42c4bd0fd53eb6b41299e407015c16864c5c00777ab5e32b4a8206e599f"
+    },
+    {
+      "baseline": "main-changes-road-remove-personal-final.json",
+      "fixed": "candidate-changes-road-remove-personal-final.json",
+      "bytes": 2470098,
+      "sha256": "4902cacf21893d354e35c65523cde96c0a9f8376aa72844ad68b53b174e9cba5"
+    },
+    {
+      "baseline": "main-changes-road-remove-personal-requests.json",
+      "fixed": "candidate-changes-road-remove-personal-requests.json",
+      "bytes": 395973,
+      "sha256": "a759e42c4bd0fd53eb6b41299e407015c16864c5c00777ab5e32b4a8206e599f"
+    },
+    {
+      "baseline": "main-changes-shared-stock-builtin-final.json",
+      "fixed": "candidate-changes-shared-stock-builtin-final.json",
+      "bytes": 2479789,
+      "sha256": "eb40db82362e61cd3904c03b8afc5bc0334ad25e934e0a99da01808a21600f7c"
+    },
+    {
+      "baseline": "main-changes-shared-stock-builtin-requests.json",
+      "fixed": "candidate-changes-shared-stock-builtin-requests.json",
+      "bytes": 421330,
+      "sha256": "526e1e4359a8410eb8fdc7930e9cf4b6af78e1cc30187ec7603c37db8b2f41db"
+    },
+    {
+      "baseline": "main-changes-shared-stock-personal-final.json",
+      "fixed": "candidate-changes-shared-stock-personal-final.json",
+      "bytes": 2479844,
+      "sha256": "30f9de4cfd512b9b800840fa073c4bd5d441acc64ed37bedcee4bcbca4e8646c"
+    },
+    {
+      "baseline": "main-changes-shared-stock-personal-requests.json",
+      "fixed": "candidate-changes-shared-stock-personal-requests.json",
+      "bytes": 421330,
+      "sha256": "526e1e4359a8410eb8fdc7930e9cf4b6af78e1cc30187ec7603c37db8b2f41db"
+    }
+  ],
+  "concurrency": "Separate owned one-processor regression suite running. All setup/profile timings excluded from ordinary performance comparisons.",
+  "checks": {
+    "focusedPassed": 150,
+    "focusedSkipped": 0,
+    "documentationPassed": 5,
+    "releaseBuildWarnings": 0,
+    "releaseBuildErrors": 0,
+    "lockedRestore": "passed",
+    "fullFormatting": "passed",
+    "whitespace": "passed"
+  }
+}

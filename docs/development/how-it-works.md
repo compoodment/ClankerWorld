@@ -2660,6 +2660,8 @@ allocating the public iterator for each visited tile. Both paths keep the same
 offset order and suppress repeated coordinates on one- or two-column wrapped
 maps before checking legality. Each step reads current terrain and bridge axes;
 no neighbor result is cached between steps or searches.
+See [layout neighbor measurements](layout-neighbor-query-measurements.md)
+for the pre-edit profile and native state-change comparison.
 Building plans follow what a household needs, not a role. An adult whose
 household lacks a House, Farmhouse, Blacksmith, Silo, Tailor Shop, Clinic or Restaurant is offered ranked sites
 for it once the household has the build costs in hand: stock the household
