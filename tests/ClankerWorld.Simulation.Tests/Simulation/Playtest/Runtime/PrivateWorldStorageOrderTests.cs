@@ -421,31 +421,70 @@ public sealed partial class PrivateWorldStorageOrderTests
     }
 
     [Theory]
-    [InlineData("clay")]
-    [InlineData("basket")]
-    public async Task StorageOrderCancelledWhileAModelReplyIsHeldCannotStoreAnotherLoad(string kind)
+    [InlineData("clay", false)]
+    [InlineData("basket", false)]
+    [InlineData("clay", true)]
+    public async Task StorageOrderCancelledWhileAModelReplyIsHeldCannotStoreAnotherLoad(string kind, bool delayedStartup = false)
     {
         var state = Prepared();
         var actor = Actor(state);
         var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "storage-held-a", kind, actor, 1);
         inventory = InventoryFixture.AddLot(inventory, "storage-held-b", kind, actor, 1);
         var provider = new StorageChoices(DecisionProviderKind.LargeLanguageModel, hold: true);
+        var entryGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (delayedStartup) provider.EntryGate = entryGate.Task;
         using var world = PrivateWorldRuntime.Restore(WithInventory(state, inventory), id => id == actor ? provider : new StorageChoices());
         var receipt = Submit(world, actor, "held", $"keep storing {kind}");
         try
         {
             Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            var firstFrame = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+            var invoked = await AwaitStorageSignal(provider.Invoked.Task, "receive the native request");
+            Assert.Equal(actor, invoked.Observation.InhabitantId);
+            Assert.Equal(receipt.InstructionId, invoked.Observation.OperativeOrderInstructionId);
+            if (delayedStartup)
+            {
+                Assert.False(provider.Started.Task.IsCompleted);
+                Assert.Empty(provider.Requests);
+            }
+            Assert.Equal(firstFrame, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+            entryGate.TrySetResult(true);
+            var started = await AwaitStorageSignal(provider.Started.Task, "validate and hold the operative request");
+            Assert.Same(invoked.Observation, started);
+            Assert.Same(started, Assert.Single(provider.Requests));
+            // Existing chosen work can continue while a model waits. Keep the
+            // first committed load fixed until cancellation, including entry delays.
+            Assert.Equal(firstFrame, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
             Assert.Equal(1, Order(world, receipt).CompletedUnits);
             Assert.True(world.CancelOrder(new("cancel-held", "owner:test", world.Society.WorldId, actor, receipt.InstructionId)).Changed);
             provider.Release.TrySetResult(true);
-            await provider.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            var returned = await AwaitStorageSignal(provider.Returned.Task, "return the late reply");
+            Assert.Equal(invoked.RequestId, returned.RequestId);
+            Assert.Equal(actor, returned.InhabitantId);
+            Assert.Equal(kind == "basket" ? "store_equipment" : "store_material", returned.SelectedCandidateId);
             for (var tick = 0; tick < 5; tick++) Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
-            Assert.Equal("cancelled", Order(world, receipt).Status);
+            Assert.Equal(("cancelled", 1), (Order(world, receipt).Status, Order(world, receipt).CompletedUnits));
             Assert.Null(world.Society.Inventory.GetLot("storage-held-b").StorageBuildingId);
             Assert.Single(world.ExportState().Events, item => item.Kind == "personal_goods_stored");
+            world.Validate();
+            var saved = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+            using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(saved), _ => new StorageChoices());
+            Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         }
-        finally { provider.Release.TrySetResult(true); }
+        finally
+        {
+            entryGate.TrySetResult(true);
+            provider.Release.TrySetResult(true);
+        }
+    }
+
+    private static async Task<T> AwaitStorageSignal<T>(Task<T> signal, string phase)
+    {
+        try { return await signal.WaitAsync(TimeSpan.FromSeconds(30)); }
+        catch (TimeoutException exception)
+        {
+            throw new TimeoutException($"The held storage provider did not {phase} within thirty seconds.", exception);
+        }
     }
 
     private static PrivateWorldRuntimeState Prepared(bool distant = false)
@@ -487,25 +526,34 @@ public sealed partial class PrivateWorldStorageOrderTests
     {
         public DecisionProviderKind Kind => kind;
         public ConcurrentQueue<InhabitantObservation> Requests { get; } = new();
-        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task? EntryGate { get; set; }
+        public TaskCompletionSource<CognitionDecisionRequest> Invoked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<InhabitantObservation> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<CognitionDecisionResponse> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public long ProviderEpoch => 0;
         public async ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
+            if (hold)
+            {
+                Invoked.TrySetResult(request);
+                if (EntryGate is { } entry) await entry;
+            }
             request.Validate();
             Requests.Enqueue(request.Observation);
-            if (hold && Requests.Count == 1 && request.Observation.OperativeOrderInstructionId is not null)
+            var held = hold && Requests.Count == 1 && request.Observation.OperativeOrderInstructionId is not null;
+            if (held)
             {
-                Started.TrySetResult(true);
+                Started.TrySetResult(request.Observation);
                 await Release.Task;
-                Returned.TrySetResult(true);
             }
             var selected = request.Observation.Candidates.FirstOrDefault(candidate =>
                 candidate.Id is "store_material" or "store_equipment")?.Id ?? "safe_idle";
-            return new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
+            var response = new CognitionDecisionResponse(request.RequestId, request.Observation.InhabitantId,
                 Kind, request.ProviderEpoch, request.Observation.RunEpoch, request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest, selected, 1, new Dictionary<string, double> { [selected] = 1 });
+            if (held) Returned.TrySetResult(response);
+            return response;
         }
     }
 }

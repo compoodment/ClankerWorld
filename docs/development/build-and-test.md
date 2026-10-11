@@ -46,6 +46,15 @@ prevents repairs. Use this pattern only where advancing ticks preserves the
 intended cancellation boundary; orders that can already complete physical work
 must keep the world at that boundary while waiting for provider entry.
 
+The held storage-cancellation check keeps the world at its first committed
+load while waiting for actual provider invocation, the validated operative
+request and the late reply. Its deferred-entry row holds provider preparation
+until that first frame is checked and the test opens the entry gate. Each
+signal has a thirty-second diagnostic deadline. Advancing native ticks during
+this wait could store another load before cancellation, because chosen work
+continues while a model waits. The check retains one stored load, the untouched
+second load and exact checkpoint reload after releasing the cancelled reply.
+
 The client bundles one third-party font, Fusion Pixel 12px, in
 `src/ClankerWorld.GodotClient/UI/Theme/Fonts/`, under the SIL Open Font
 License. Keep `fusion-pixel-OFL.txt` beside it; the export preset's include
