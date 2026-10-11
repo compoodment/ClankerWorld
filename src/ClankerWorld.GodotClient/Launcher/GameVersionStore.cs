@@ -31,9 +31,9 @@ public sealed class GameVersionStore(LauncherLayout layout, HttpClient http)
         foreach (var directory in Directory.EnumerateDirectories(layout.VersionsDirectory))
         {
             var version = GameVersionName.Parse(Path.GetFileName(directory));
-            if (version is null || !File.Exists(Path.Combine(directory, LauncherLayout.GameExecutable)) ||
-                !File.Exists(Path.Combine(directory, LauncherLayout.PackageManifest)))
-                continue;
+            // Keep damaged installs visible so their Repair and Remove actions remain available.
+            // Temporary and retired folders have names that cannot parse as game versions.
+            if (version is null) continue;
             installed.Add(new InstalledVersion(version, directory, SizeOf(directory), ReadSourceRevision(directory)));
         }
         installed.Sort((a, b) => b.Version.CompareTo(a.Version));
@@ -282,7 +282,7 @@ public sealed class GameVersionStore(LauncherLayout layout, HttpClient http)
             return File.ReadLines(Path.Combine(directory, LauncherLayout.PackageManifest)).Take(4)
                 .FirstOrDefault(line => line.StartsWith(prefix, StringComparison.Ordinal))?[prefix.Length..].Trim();
         }
-        catch (IOException) { return null; }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return null; }
     }
 
     private static string HashFile(string path)

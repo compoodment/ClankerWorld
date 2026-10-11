@@ -152,6 +152,8 @@ public sealed class LauncherTests
     [InlineData("unsafe")]
     [InlineData("duplicate")]
     [InlineData("missing")]
+    [InlineData("missing-executable")]
+    [InlineData("missing-both")]
     [InlineData("unlisted")]
     public async Task DamagedFileListsAndUnlistedFilesNeedRepairAndReinstallPreservesSaves(string damage)
     {
@@ -171,7 +173,12 @@ public sealed class LauncherTests
             var manifestPath = Path.Combine(installed.Directory, LauncherLayout.PackageManifest);
             var manifest = File.ReadAllText(manifestPath);
             var entries = manifest.Split('\n').Where(line => line.Length > 0 && !line.StartsWith('#')).ToArray();
-            if (damage == "missing") File.Delete(manifestPath);
+            if (damage is "missing" or "missing-both")
+            {
+                File.Delete(manifestPath);
+                if (damage == "missing-both") File.Delete(installed.Executable);
+            }
+            else if (damage == "missing-executable") File.Delete(installed.Executable);
             else if (damage == "unlisted") File.WriteAllText(Path.Combine(installed.Directory, "host", "unlisted.dll"), "unexpected program");
             else
             {
@@ -188,7 +195,9 @@ public sealed class LauncherTests
                 });
             }
 
-            Assert.NotEmpty(GameVersionStore.Verify(installed));
+            var damaged = Assert.Single(store.Installed());
+            Assert.Equal(installed.Version, damaged.Version);
+            Assert.NotEmpty(GameVersionStore.Verify(damaged));
             var repaired = await store.InstallAsync(release, null, CancellationToken.None);
             Assert.Empty(GameVersionStore.Verify(repaired));
             Assert.Equal("host", File.ReadAllText(Path.Combine(repaired.Directory, "host", "ClankerWorld.Viewer.exe")));
