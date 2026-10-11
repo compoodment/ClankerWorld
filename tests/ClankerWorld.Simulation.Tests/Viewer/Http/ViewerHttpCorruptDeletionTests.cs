@@ -11,6 +11,55 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed partial class ViewerHttpTests
 {
     [Fact]
+    public async Task WorldDeletionSucceedsWithAnotherWorldsUnreadableNamedSave()
+    {
+        var directory = Directory.CreateTempSubdirectory("foreign-unreadable-deletion-response-");
+        try
+        {
+            using var host = new ViewerWebApplicationFactory(directory.FullName, privateWorld: true);
+            using var client = host.CreateClient();
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            var device = await StartAndActivateAsync(host, client, key);
+            var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+            runtime.Pause();
+            var file = host.Services.GetRequiredService<PrivateWorldStateFile>();
+            file.Save(runtime);
+            var activeBytes = File.ReadAllBytes(file.Path);
+            var saves = host.Services.GetRequiredService<ManualWorldSaveStore>();
+            var keep = saves.Create("Keep", runtime, []);
+            var keepPath = Path.Combine(file.Path + ".manual", keep.Id + ".save");
+            var keepBytes = File.ReadAllBytes(keepPath);
+            var unreadable = saves.Create("Unreadable", runtime, []);
+            var unreadablePath = Path.Combine(file.Path + ".manual", unreadable.Id + ".save");
+            File.WriteAllText(unreadablePath, "damaged checkpoint");
+            using var target = new PrivateWorldRuntime("foreign-unreadable-deletion-target");
+            target.Pause();
+            var catalog = host.Services.GetRequiredService<WorldCatalogStore>();
+            var entry = catalog.Add("Delete", target.ExportState());
+            saves.Create("Delete", target, []);
+            Directory.CreateDirectory(file.Path + ".history");
+            var action = new OwnerDeletionAction("world", entry.Id, entry.WorldId);
+
+            using var result = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/delete", action, OwnerHttpBinding.Deletion(action));
+
+            Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+            var receipt = (await result.Content.ReadFromJsonAsync<OwnerDeletionReceipt>())!;
+            Assert.Equal(entry.Id, receipt.Id);
+            // The world is removed; unverifiable remaining roots defer history cleanup.
+            Assert.False(receipt.CleanupComplete);
+            Assert.DoesNotContain(catalog.Capture().Worlds, world => world.Id == entry.Id);
+            Assert.False(File.Exists(Path.Combine(file.Path + ".worlds", entry.Id + ".save")));
+            Assert.Empty(saves.List(target.Society.WorldId));
+            catalog.RecoverDeletions(saves.DeleteWorldSnapshots);
+            Assert.Equal("damaged checkpoint", File.ReadAllText(unreadablePath));
+            Assert.Equal(keepBytes, File.ReadAllBytes(keepPath));
+            Assert.Equal(activeBytes, File.ReadAllBytes(file.Path));
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
+    [Fact]
     public void PendingWorldDeletionWithCorruptOrphanDoesNotPreventHostRestart()
     {
         var directory = Directory.CreateTempSubdirectory("corrupt-deletion-restart-");
