@@ -236,6 +236,166 @@ public sealed class DepartureAllowanceStorageTests
         Assert.Equal(saved, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task StoreAllowanceSurvivesAnUnavailableWillHeirAndAnotherInheritance(bool namedHeirDies)
+    {
+        var state = PrivateWorldRuntimeCodec.Decode(Prepared.Value);
+        var members = state.Society.Society.GetHousehold(Household).MemberIds;
+        var actor = members[0];
+        var beneficiary = members[1];
+        var otherHeir = state.Society.Society.GetHousehold("household:camp-beta").MemberIds[0];
+        var inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, Food, "food", Household, 2,
+            storageBuildingId: Store);
+        using var leaving = PrivateWorldRuntime.Restore(WithInventory(state, inventory), _ => new Choices());
+        Assert.True(leaving.DisplaceAdult(actor));
+        if (namedHeirDies) Assert.True(leaving.DisplaceAdult(beneficiary));
+        state = leaving.ExportState();
+        if (namedHeirDies)
+            state = state with
+            {
+                Society = state.Society with
+                {
+                    Society = SocietyFixture.CreateHousehold(
+                state.Society.Society, "household:allowance-heirs", "The allowance heirs", [actor, beneficiary]).Checkpoint
+                }
+            };
+        var names = (namedHeirDies ? new[] { beneficiary, otherHeir } : [beneficiary])
+            .Select(id => state.Society.Society.GetInhabitant(id).Name).ToArray();
+        var will = new PostDeathWillTests.WillProvider(CognitionWillContext.HeirsCandidateId, observation =>
+            new CognitionWillChoice(names.Select(name => PostDeathWillTests.HeirKey(observation, name)).ToArray(),
+                CognitionWillContext.EqualSplit));
+        using var dying = PrivateWorldRuntime.Restore(DieOnNextTick(state, actor),
+            id => id == actor ? will : new Choices());
+        dying.Resume();
+        Assert.True((await dying.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await will.Called.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        await will.Completed.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        for (var tick = 0; tick < 8 && dying.Society.Estates.Single(item => item.DeceasedId == actor).WillStatus == "pending"; tick++)
+            Assert.True((await dying.AdvanceOneTickNonBlockingAsync()).Advanced);
+        var first = Assert.Single(dying.Society.Estates, item => item.DeceasedId == actor);
+        Assert.Equal("accepted", first.WillStatus);
+        Assert.Contains(first.WillBequests!, item => item.LotId == Food && item.HeirId == beneficiary);
+        state = dying.ExportState();
+        if (namedHeirDies)
+        {
+            Assert.Contains(first.BeneficiaryIds, id => id == beneficiary);
+            using var unavailable = PrivateWorldRuntime.Restore(DieOnNextTick(state, otherHeir), _ => new Choices());
+            Assert.True((await unavailable.AdvanceOneTickNonBlockingAsync()).Advanced);
+            Assert.Equal(SocietyInhabitantStatus.Dead, unavailable.Society.GetInhabitant(otherHeir).Status);
+            state = unavailable.ExportState();
+        }
+        var ready = PrivateWorldRuntimeCodec.Encode(DueOnNextTick(state, first.Id));
+        using var settling = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(ready), _ => new Choices());
+        using var replay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(ready), _ => new Choices());
+        for (var tick = 0; tick < 3; tick++)
+        {
+            Assert.True((await settling.AdvanceOneTickNonBlockingAsync()).Advanced);
+            Assert.True((await replay.AdvanceOneTickNonBlockingAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(settling.ExportState()), PrivateWorldRuntimeCodec.Encode(replay.ExportState()));
+        }
+        Assert.True(settling.Society.GetEstate(first.Id).Settled);
+        var inherited = Assert.Single(settling.Society.Inventory.Lots, lot => lot.ProvenanceLotId == Food);
+        Assert.Equal((beneficiary, Store, 2, (string?)null),
+            (inherited.OwnerId, inherited.StorageBuildingId, inherited.Quantity, inherited.CarrierId));
+        if (namedHeirDies) return;
+
+        // The heir has no departure record. Its next real death must preserve
+        // the first estate's physical allowance rather than requiring a new one.
+        Assert.Null(settling.Inhabitants.Single(person => person.InhabitantId == beneficiary).Departures);
+        using var secondDeath = PrivateWorldRuntime.Restore(DieOnNextTick(settling.ExportState(), beneficiary), _ => new Choices());
+        Assert.True((await secondDeath.AdvanceOneTickNonBlockingAsync()).Advanced);
+        var second = Assert.Single(secondDeath.Society.Estates, item => item.DeceasedId == beneficiary);
+        Assert.Equal((second.Id, Store, 2), (secondDeath.Society.Inventory.GetLot(inherited.Id).OwnerId,
+            secondDeath.Society.Inventory.GetLot(inherited.Id).StorageBuildingId,
+            secondDeath.Society.Inventory.GetLot(inherited.Id).Quantity));
+        var held = PrivateWorldRuntimeCodec.Encode(secondDeath.ExportState());
+        using var reloaded = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(held), _ => new Choices());
+        Assert.Equal(held, PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+        var unrecorded = reloaded.ExportState() with
+        {
+            DeceasedInhabitants = reloaded.ExportState().DeceasedInhabitants!.Select(person => person.InhabitantId == actor
+                ? person with { LastPhysical = person.LastPhysical with { Departures = null } } : person).ToArray(),
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(unrecorded));
+        var secondReady = PrivateWorldRuntimeCodec.Encode(DueOnNextTick(reloaded.ExportState(), second.Id));
+        using var secondSettlement = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(secondReady), _ => new Choices());
+        using var secondReplay = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(secondReady), _ => new Choices());
+        for (var tick = 0; tick < 3; tick++)
+        {
+            Assert.True((await secondSettlement.AdvanceOneTickNonBlockingAsync()).Advanced);
+            Assert.True((await secondReplay.AdvanceOneTickNonBlockingAsync()).Advanced);
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(secondSettlement.ExportState()), PrivateWorldRuntimeCodec.Encode(secondReplay.ExportState()));
+        }
+        Assert.True(secondSettlement.Society.GetEstate(second.Id).Settled);
+        var final = secondSettlement.Society.Inventory.GetLot(inherited.Id);
+        Assert.Equal((Store, 2, (string?)null), (final.StorageBuildingId, final.Quantity, final.CarrierId));
+    }
+
+    [Fact]
+    public void ARecordedMultiLotStoreAllowanceCannotExceedItsTotalPortions()
+    {
+        var state = PrivateWorldRuntimeCodec.Decode(Prepared.Value);
+        var actor = state.Society.Society.GetHousehold(Household).MemberIds[0];
+        var inventory = state.Society.Society.Inventory;
+        foreach (var suffix in new[] { "-a", "-b" })
+            inventory = InventoryFixture.AddLot(inventory, Food + suffix, "food", Household, 1, storageBuildingId: Store);
+        using var leaving = PrivateWorldRuntime.Restore(WithInventory(state, inventory), _ => new Choices());
+        Assert.True(leaving.DisplaceAdult(actor));
+        state = leaving.ExportState();
+        var departure = Assert.Single(leaving.Inhabitants.Single(person => person.InhabitantId == actor).Departures!);
+        Assert.Equal(2, departure.AllowanceLotIds.Count);
+        Assert.Equal(2, departure.AllowancePortions);
+        Assert.Equal(2, state.Society.Society.Inventory.Lots.Where(lot => departure.AllowanceLotIds.Contains(lot.Id)).Sum(lot => lot.Quantity));
+        var bytes = PrivateWorldRuntimeCodec.Encode(state);
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new Choices());
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        var forged = WithInventory(state, state.Society.Society.Inventory with
+        {
+            Lots = state.Society.Society.Inventory.Lots.Select(lot => departure.AllowanceLotIds.Contains(lot.Id)
+                ? lot with { Quantity = 2 } : lot).ToArray(),
+        });
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(forged));
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(forged));
+    }
+
+    private static PrivateWorldRuntimeState DieOnNextTick(PrivateWorldRuntimeState state, string actor)
+    {
+        var checkpoint = state.Society.Society;
+        var lastDay = Assert.IsType<SocietyDayLifecycle>(checkpoint.Config.DayLifecycle).MaximumDay;
+        var birth = checkpoint.LifeTickAt(checkpoint.WorldTick + 1) - lastDay * checkpoint.Config.TicksPerLifecycleAge;
+        return state with
+        {
+            Society = state.Society with
+            {
+                Society = checkpoint with
+                {
+                    Inhabitants = checkpoint.Inhabitants.Select(person => person.Id == actor ? person with
+                    {
+                        BirthTick = checkpoint.LifeClock is null ? birth : person.BirthTick,
+                        BirthLifeTick = checkpoint.LifeClock is null ? null : birth,
+                        AgeBand = SocietyAgeBand.Elder,
+                        LastLifecycleYearChecked = lastDay - 1,
+                    } : person).ToArray(),
+                }
+            }
+        };
+    }
+
+    private static PrivateWorldRuntimeState DueOnNextTick(PrivateWorldRuntimeState state, string estateId) =>
+        state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Estates = state.Society.Society.Estates.Select(item => item.Id == estateId
+                        ? item with { ExpiryTick = state.Society.Society.WorldTick + 1 } : item).ToArray(),
+                }
+            }
+        };
+
     private static PrivateWorldRuntimeState WithInventory(PrivateWorldRuntimeState state, InventoryCheckpoint inventory) =>
         state with { Society = state.Society with { Society = state.Society.Society with { Inventory = inventory } } };
 
